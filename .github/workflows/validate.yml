@@ -1,0 +1,44 @@
+name: Validate
+
+on:
+  pull_request: {}
+
+env:
+  PAY_IMAGE: ghcr.io/solana-foundation/pay:latest
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Validate providers, affiliates, and aggregators
+        run: |
+          docker run --rm \
+            -u "$(id -u):$(id -g)" \
+            -v "$PWD:/repo" \
+            $PAY_IMAGE \
+            skills build /repo \
+            --output /repo/dist \
+            --base-url https://storage.googleapis.com/pay-skills/v1
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ -f dist/skills.json ]; then
+            echo "### Build succeeded" >> "$GITHUB_STEP_SUMMARY"
+            python3 -c "
+          import json
+          idx = json.load(open('dist/skills.json'))
+          print(f'- **{idx[\"provider_count\"]}** providers')
+          print(f'- **{idx[\"affiliate_count\"]}** affiliates')
+          print(f'- **{idx[\"aggregator_count\"]}** aggregators')
+          " >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Build failed" >> "$GITHUB_STEP_SUMMARY"
+            echo "Check the logs above for validation errors." >> "$GITHUB_STEP_SUMMARY"
+          fi

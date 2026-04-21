@@ -1,29 +1,16 @@
 # pay-skills
 
-Public good and community-led registry for [pay](https://github.com/solana-foundation/pay) — service discovery for stablecoin-gated APIs.
+A public good and community-led registry for [pay](https://github.com/solana-foundation/pay) — an open directory of stablecoin-gated APIs that anyone can search, use, or contribute to. Built and maintained by the community, for the community.
 
-## Structure
+## Add your API
 
-```
-providers/                     Provider specs (.md with YAML frontmatter)
-  solana-foundation/
-    payment-debugger.md
-affiliates/                    Affiliate entries (.md with YAML frontmatter)
-  corbits.md
-aggregators/                   Competing registries (.md with YAML frontmatter)
-.github/workflows/
-  build-skills.yml             CI: runs `pay skills build`, publishes to CDN
-```
+Have a paid API? List it here so the `pay` CLI and AI agents can discover it.
 
-## How it works
+### 1. Fork this repo
 
-1. **Community members** open PRs to add providers, affiliates, or aggregators as `.md` files with YAML frontmatter.
-2. **CI** validates all specs, compiles a lightweight `skills.json` index + per-provider detail files.
-3. **`pay` CLI** fetches `skills.json` for search, then lazy-loads provider detail on demand.
+### 2. Create your provider file
 
-## Adding a provider
-
-Create `providers/<org>/<name>.md` and open a PR. Minimum:
+Add `providers/<your-org>/<your-api>.md`:
 
 ```markdown
 ---
@@ -33,10 +20,10 @@ description: "What it does in one sentence"
 category: data
 service_url: https://my-api.example.com
 endpoints:
-  - method: GET
-    path: "v1/resource"
-    resource: "resource"
-    description: "List all resources in a project"
+  - method: POST
+    path: "v1/search"
+    resource: "search"
+    description: "Search for items by keyword"
     pricing:
       dimensions:
         - direction: usage
@@ -47,29 +34,57 @@ endpoints:
 ---
 
 Longer description, usage examples, pricing notes — whatever helps
-people understand your API. This content is available via `pay skills info`.
+people understand your API. This shows up in `pay skills info`.
 ```
 
-**Required frontmatter:** `name`, `title`, `description`, `category`, `service_url`, `endpoints`
+### 3. Open a PR
+
+CI will validate your spec automatically. Once merged, your API appears in `pay skills search` within minutes.
+
+## Provider spec
+
+**Required frontmatter:**
+
+| Field | Description |
+|---|---|
+| `name` | Must match filename |
+| `title` | Human-readable name |
+| `description` | One sentence, max 120 chars — powers search |
+| `category` | See categories below |
+| `service_url` | Live URL where the API is reachable |
+| `endpoints` | At least one (see format above) |
 
 **Optional:** `version`, `openapi_url`, `affiliate_policy`
 
-Categories: `ai_ml`, `data`, `compute`, `maps`, `search`, `translation`, `productivity`, `finance`, `identity`, `storage`, `messaging`, `media`, `iot`, `security`, `analytics`, `devtools`, `other`
+**Categories:** `ai_ml` `data` `compute` `maps` `search` `translation` `productivity` `finance` `identity` `storage` `messaging` `media` `iot` `security` `analytics` `devtools` `other`
 
-### Affiliate policy
+**Per endpoint:**
 
-Providers can opt into affiliate referrals:
+| Field | Required | Description |
+|---|---|---|
+| `method` | yes | HTTP method |
+| `path` | yes | URL path |
+| `description` | yes | What it does, max 120 chars |
+| `resource` | no | Group name (e.g. `jobs`, `datasets`) |
+| `pricing` | no | Omit for free endpoints |
 
-```yaml
-affiliate_policy:
-  enabled: true
-  default_percent: 10
-  allow: [corbits]       # omit to accept all registered affiliates
+### Directory structure
+
+If you operate your own API directly:
+```
+providers/<your-org>/<your-api>.md
 ```
 
-## Adding an affiliate
+If you proxy third-party APIs (like a gateway):
+```
+providers/<your-org>/<origin-org>/<api-name>.md
+```
 
-Create `affiliates/<name>.md` and open a PR:
+## Affiliates
+
+Affiliates are systems (AI agents, CLIs, platforms) that recommend APIs to users and earn referral commission.
+
+Add `affiliates/<name>.md`:
 
 ```markdown
 ---
@@ -82,16 +97,23 @@ contact: hello@example.com
 url: https://example.com
 ---
 
-Description of what this affiliate does and how it recommends APIs.
+What this affiliate does and how it recommends APIs.
 ```
 
 **Required:** `name`, `title`, `type` (`agent` | `cli` | `platform`), `account` (Solana pubkey), `contact`
 
-**Optional:** `url`, `network` (default: `mainnet`)
+Providers opt into affiliate referrals with:
+```yaml
+affiliate_policy:
+  enabled: true
+  default_percent: 10
+```
 
-## Adding an aggregator
+## Aggregators
 
-Create `aggregators/<name>.md` and open a PR:
+Aggregators are other registries in the ecosystem. We list them for visibility.
+
+Add `aggregators/<name>.md`:
 
 ```markdown
 ---
@@ -99,24 +121,38 @@ name: other-registry
 title: "Other Registry"
 url: https://other-registry.dev
 contact: team@other-registry.dev
-catalog_url: https://other-registry.dev/catalog.json
 ---
 
-Description of this competing registry and what it focuses on.
+What this registry focuses on.
 ```
 
 **Required:** `name`, `title`, `url`, `contact`
 
-**Optional:** `description`, `catalog_url`
+## How it works
+
+```
+providers/                     Provider specs (.md with YAML frontmatter)
+  solana-foundation/
+    google/                    Proxied Google APIs
+    payment-debugger.md        Native API
+  merit-systems/
+    stableenrich/              Data enrichment APIs
+    stablesocial/              Social media data
+  perplexity/
+    sonar.md                   AI search
+affiliates/                    Affiliate entries
+aggregators/                   Other registries
+```
+
+1. Contributors open PRs to add `.md` files. CI validates the spec on every PR.
+2. On merge, `pay skills build` compiles a lightweight index (`skills.json`) + per-provider detail files and publishes to CDN.
+3. The `pay` CLI fetches the index for `pay skills search`, then lazy-loads provider detail on demand.
 
 ## Writing good descriptions
 
-Descriptions power `pay skills search` — they're the primary way users discover APIs. Both humans and AI agents read them, so clarity matters.
+Descriptions power `pay skills search`. Both humans and AI agents read them.
 
-### Rules
-
-1. **Max 120 characters.** Longer descriptions get truncated in search results.
-2. **Start with a verb.** "Run", "List", "Create", "Detect", "Translate", "Convert".
-3. **Name the domain object.** "List datasets", not "List items".
-4. **Skip boilerplate.** Don't describe IAM/permissions, pagination, or error handling.
-5. **Don't duplicate the path.** If the path says `/datasets/{datasetId}`, write "Get a dataset's metadata and schema."
+1. **Max 120 characters.** Longer gets truncated.
+2. **Start with a verb.** "Search", "Generate", "Detect", "Translate".
+3. **Name the domain object.** "Search influencers", not "Search items".
+4. **Skip boilerplate.** No auth/pagination/error handling.
