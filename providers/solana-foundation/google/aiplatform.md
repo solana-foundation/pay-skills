@@ -2106,7 +2106,8 @@ endpoints:
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/endpoints/{endpointsId}:serverStreamingPredict
   resource: projects.locations.endpoints
-- method: POST
+- description: Run a long-running prediction on a deployed model
+  method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/endpoints/{endpointsId}:predictLongRunning
   resource: projects.locations.endpoints
 - description: Fetch an asynchronous online prediction operation.
@@ -2281,7 +2282,8 @@ endpoints:
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/publishers/{publishersId}/models/{modelsId}:serverStreamingPredict
   resource: projects.locations.publishers.models
-- method: POST
+- description: Run a long-running prediction on a publisher model
+  method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/publishers/{publishersId}/models/{modelsId}:predictLongRunning
   resource: projects.locations.publishers.models
 - description: Fetch an asynchronous online prediction operation.
@@ -3596,7 +3598,8 @@ endpoints:
   method: POST
   path: v1/endpoints/{endpointsId}:predict
   resource: endpoints
-- method: POST
+- description: Run a long-running prediction on a deployed model
+  method: POST
   path: v1/endpoints/{endpointsId}:predictLongRunning
   resource: endpoints
 - description: Fetch an asynchronous online prediction operation.
@@ -3651,7 +3654,8 @@ endpoints:
   method: POST
   path: v1/publishers/{publishersId}/models/{modelsId}:predict
   resource: publishers.models
-- method: POST
+- description: Run a long-running prediction on a publisher model
+  method: POST
   path: v1/publishers/{publishersId}/models/{modelsId}:predictLongRunning
   resource: publishers.models
 - description: Fetch an asynchronous online prediction operation.
