@@ -1,0 +1,60 @@
+name: Build & Publish Skills Index
+
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+  workflow_dispatch: {}
+
+env:
+  PAY_IMAGE: ghcr.io/solana-foundation/pay:latest
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Doppler
+        uses: dopplerhq/cli-action@v3
+
+      - name: Build dist/
+        run: |
+          docker run --rm \
+            -v "$PWD:/repo" \
+            $PAY_IMAGE \
+            skills build /repo \
+            --base-url https://storage.googleapis.com/pay-skills-cdn/v2
+
+      - name: Show summary
+        run: |
+          echo "=== skills.json ==="
+          python3 -m json.tool dist/skills.json | head -20
+          echo "..."
+          echo "=== detail files ==="
+          find dist/providers -name '*.json' | sort
+
+      - name: Upload dist/ as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: skills-dist
+          path: dist/
+
+      - name: Publish to GCS
+        if: github.ref == 'refs/heads/main'
+        run: |
+          doppler run -- bash -c '
+            echo "$GCP_SERVICE_ACCOUNT_KEY" | gcloud auth activate-service-account --key-file=-
+            gcloud storage rsync dist/ gs://pay-skills-cdn/v2/ \
+              --recursive \
+              --cache-control="public, max-age=300" \
+              --checksums-only
+            gcloud storage cp dist/skills.json gs://pay-skills-cdn/v2/skills.json \
+              --cache-control="public, max-age=60"
+          '
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
