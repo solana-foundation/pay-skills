@@ -219,7 +219,7 @@ endpoints:
   path: v2/projects/{projectsId}/locations/{locationsId}/workerPools/{workerPoolsId}/revisions/{revisionsId}
   resource: projects.locations.workerPools.revisions
 name: run
-service_url: https://run.googleapis.com/
+service_url: https://sandbox-pay-google-run-v2c65mhlba-uc.a.run.app
 title: Cloud Run Admin API
 version: v2
 ---

@@ -7,7 +7,7 @@ endpoints:
   path: v1:computeInsights
   resource: v1
 name: areainsights
-service_url: https://areainsights.googleapis.com/
+service_url: https://sandbox-pay-google-areainsights-v2c65mhlba-uc.a.run.app
 title: Places Aggregate API
 version: v1
 ---

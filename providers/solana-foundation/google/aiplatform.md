@@ -3823,7 +3823,7 @@ endpoints:
   path: v1/projects/{projectsId}/locations/{locationsId}/ragCorpora/{ragCorporaId}/ragFiles:upload
   resource: media
 name: aiplatform
-service_url: https://aiplatform.googleapis.com/
+service_url: https://sandbox-pay-google-aiplatform-v2c65mhlba-uc.a.run.app
 title: Vertex AI API
 version: v1
 ---

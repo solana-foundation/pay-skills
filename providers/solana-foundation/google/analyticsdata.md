@@ -47,7 +47,7 @@ endpoints:
   path: v1beta/properties/{propertiesId}/audienceExports/{audienceExportsId}:query
   resource: properties.audienceExports
 name: analyticsdata
-service_url: https://analyticsdata.googleapis.com/
+service_url: https://sandbox-pay-google-analyticsdata-v2c65mhlba-uc.a.run.app
 title: Google Analytics Data API
 version: v1beta
 ---

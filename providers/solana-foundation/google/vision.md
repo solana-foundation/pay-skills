@@ -177,7 +177,7 @@ endpoints:
   path: v1/files:asyncBatchAnnotate
   resource: files
 name: vision
-service_url: https://vision.googleapis.com/
+service_url: https://sandbox-pay-google-vision-v2c65mhlba-uc.a.run.app
 title: Cloud Vision API
 version: v1
 ---

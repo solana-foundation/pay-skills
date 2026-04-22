@@ -20,7 +20,7 @@ endpoints:
   path: customsearch/v1/siterestrict
   resource: cse.siterestrict
 name: customsearch
-service_url: https://customsearch.googleapis.com/
+service_url: https://sandbox-pay-google-customsearch-v2c65mhlba-uc.a.run.app
 title: Custom Search JSON API
 version: v1
 ---

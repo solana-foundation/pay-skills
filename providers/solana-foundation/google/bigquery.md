@@ -201,7 +201,7 @@ endpoints:
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables/{tablesId}
   resource: tables
 name: bigquery
-service_url: https://bigquery.googleapis.com/
+service_url: https://sandbox-pay-google-bigquery-v2c65mhlba-uc.a.run.app
 title: BigQuery API
 version: v2
 ---

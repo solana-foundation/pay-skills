@@ -331,7 +331,7 @@ endpoints:
   path: projects/{projectId}/serviceAccount
   resource: projects.serviceAccount
 name: storage
-service_url: https://storage.googleapis.com/storage/v1/
+service_url: https://sandbox-pay-google-storage-v2c65mhlba-uc.a.run.app
 title: Cloud Storage API
 version: v1
 ---

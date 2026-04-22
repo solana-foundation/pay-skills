@@ -23,7 +23,7 @@ endpoints:
   path: v1/places/{placesId}/photos/{photosId}/media
   resource: places.photos
 name: places
-service_url: https://places.googleapis.com/
+service_url: https://sandbox-pay-google-places-v2c65mhlba-uc.a.run.app
 title: Places API (New)
 version: v1
 ---

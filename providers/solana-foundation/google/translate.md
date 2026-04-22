@@ -250,7 +250,7 @@ endpoints:
   path: v3/projects/{projectsId}/locations/{locationsId}/models/{modelsId}
   resource: projects.locations.models
 name: translate
-service_url: https://translation.googleapis.com/
+service_url: https://sandbox-pay-google-translate-v2c65mhlba-uc.a.run.app
 title: Cloud Translation API
 version: v3
 ---

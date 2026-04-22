@@ -31,7 +31,7 @@ endpoints:
   path: v1/text:synthesize
   resource: text
 name: texttospeech
-service_url: https://texttospeech.googleapis.com/
+service_url: https://sandbox-pay-google-texttospeech-v2c65mhlba-uc.a.run.app
 title: Cloud Text-to-Speech API
 version: v1
 ---

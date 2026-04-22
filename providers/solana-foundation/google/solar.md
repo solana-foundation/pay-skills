@@ -15,7 +15,7 @@ endpoints:
   path: v1/geoTiff:get
   resource: geoTiff
 name: solar
-service_url: https://solar.googleapis.com/
+service_url: https://sandbox-pay-google-solar-v2c65mhlba-uc.a.run.app
 title: Solar API
 version: v1
 ---

@@ -151,7 +151,7 @@ endpoints:
   path: v1/projects/{projectsId}/locations/{locationsId}/transferConfigs/{transferConfigsId}/transferResources
   resource: projects.locations.transferConfigs.transferResources
 name: bigquerydatatransfer
-service_url: https://bigquerydatatransfer.googleapis.com/
+service_url: https://sandbox-pay-google-bigquerydatatransfer-v2c65mhlba-uc.a.run.app
 title: BigQuery Data Transfer API
 version: v1
 ---

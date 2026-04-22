@@ -299,7 +299,7 @@ endpoints:
   path: v1/projects/{project}/instances/{instance}:generateEphemeralCert
   resource: connect
 name: sqladmin
-service_url: https://sqladmin.googleapis.com/
+service_url: https://sandbox-pay-google-sqladmin-v2c65mhlba-uc.a.run.app
 title: Cloud SQL Admin API
 version: v1
 ---

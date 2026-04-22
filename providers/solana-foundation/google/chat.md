@@ -179,7 +179,7 @@ endpoints:
   path: v1/users/{usersId}/sections/{sectionsId}/items/{itemsId}:move
   resource: users.sections.items
 name: chat
-service_url: https://chat.googleapis.com/
+service_url: https://sandbox-pay-google-chat-v2c65mhlba-uc.a.run.app
 title: Google Chat API
 version: v1
 ---

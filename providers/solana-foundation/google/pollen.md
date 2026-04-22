@@ -11,7 +11,7 @@ endpoints:
   path: v1/mapTypes/{mapType}/heatmapTiles/{zoom}/{x}/{y}
   resource: mapTypes.heatmapTiles
 name: pollen
-service_url: https://pollen.googleapis.com/
+service_url: https://sandbox-pay-google-pollen-v2c65mhlba-uc.a.run.app
 title: Pollen API
 version: v1
 ---
