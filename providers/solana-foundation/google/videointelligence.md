@@ -44,7 +44,8 @@ endpoints:
   path: v1/operations/projects/{projectsId}/locations/{locationsId}/operations/{operationsId}
   resource: operations.projects.locations.operations
 name: videointelligence
-service_url: https://sandbox-pay-google-videointelligence-v2c65mhlba-uc.a.run.app
+service_url: https://production-pay-google-videointelligence-123883807128.us-central1.run.app
+sandbox_service_url: https://sandbox-pay-google-videointelligence-123883807128.us-central1.run.app
 title: Cloud Video Intelligence API
 version: v1
 ---

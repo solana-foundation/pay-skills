@@ -19,7 +19,8 @@ endpoints:
   path: civicinfo/v2/divisionsByAddress
   resource: divisions
 name: civicinfo
-service_url: https://sandbox-pay-google-civicinfo-v2c65mhlba-uc.a.run.app
+service_url: https://production-pay-google-civicinfo-123883807128.us-central1.run.app
+sandbox_service_url: https://sandbox-pay-google-civicinfo-123883807128.us-central1.run.app
 title: Google Civic Information API
 version: v2
 ---

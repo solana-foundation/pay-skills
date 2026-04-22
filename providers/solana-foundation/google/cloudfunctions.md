@@ -87,7 +87,8 @@ endpoints:
   path: v2/projects/{projectsId}/locations/{locationsId}/runtimes
   resource: projects.locations.runtimes
 name: cloudfunctions
-service_url: https://sandbox-pay-google-cloudfunctions-v2c65mhlba-uc.a.run.app
+service_url: https://production-pay-google-cloudfunctions-123883807128.us-central1.run.app
+sandbox_service_url: https://sandbox-pay-google-cloudfunctions-123883807128.us-central1.run.app
 title: Cloud Functions API
 version: v2
 ---

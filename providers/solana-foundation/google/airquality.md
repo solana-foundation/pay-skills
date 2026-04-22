@@ -19,7 +19,8 @@ endpoints:
   path: v1/mapTypes/{mapType}/heatmapTiles/{zoom}/{x}/{y}
   resource: mapTypes.heatmapTiles
 name: airquality
-service_url: https://sandbox-pay-google-airquality-v2c65mhlba-uc.a.run.app
+service_url: https://production-pay-google-airquality-123883807128.us-central1.run.app
+sandbox_service_url: https://sandbox-pay-google-airquality-123883807128.us-central1.run.app
 title: Air Quality API
 version: v1
 ---

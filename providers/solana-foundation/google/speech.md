@@ -85,7 +85,8 @@ endpoints:
       unit: minutes
   resource: speech
 name: speech
-service_url: https://sandbox-pay-google-speech-v2c65mhlba-uc.a.run.app
+service_url: https://production-pay-google-speech-123883807128.us-central1.run.app
+sandbox_service_url: https://sandbox-pay-google-speech-123883807128.us-central1.run.app
 title: Cloud Speech-to-Text API
 version: v1
 ---

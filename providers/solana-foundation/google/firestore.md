@@ -227,7 +227,8 @@ endpoints:
   path: v1/projects/{projectsId}/databases/{databasesId}/documents/{documentsId}/{documentsId1}
   resource: projects.databases.documents
 name: firestore
-service_url: https://sandbox-pay-google-firestore-v2c65mhlba-uc.a.run.app
+service_url: https://production-pay-google-firestore-123883807128.us-central1.run.app
+sandbox_service_url: https://sandbox-pay-google-firestore-123883807128.us-central1.run.app
 title: Cloud Firestore API
 version: v1
 ---

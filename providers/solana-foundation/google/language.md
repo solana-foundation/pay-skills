@@ -88,7 +88,8 @@ endpoints:
       unit: requests
   resource: documents
 name: language
-service_url: https://sandbox-pay-google-language-v2c65mhlba-uc.a.run.app
+service_url: https://production-pay-google-language-123883807128.us-central1.run.app
+sandbox_service_url: https://sandbox-pay-google-language-123883807128.us-central1.run.app
 title: Cloud Natural Language API
 version: v2
 ---

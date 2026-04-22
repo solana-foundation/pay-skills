@@ -335,7 +335,8 @@ endpoints:
   path: v1beta/corpora/{corporaId}/permissions/{permissionsId}
   resource: corpora.permissions
 name: generativelanguage
-service_url: https://sandbox-pay-google-generativelanguage-v2c65mhlba-uc.a.run.app
+service_url: https://production-pay-google-generativelanguage-123883807128.us-central1.run.app
+sandbox_service_url: https://sandbox-pay-google-generativelanguage-123883807128.us-central1.run.app
 title: Generative Language API (Gemini)
 version: v1beta
 ---

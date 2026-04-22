@@ -11,7 +11,8 @@ endpoints:
   path: v1:provideValidationFeedback
   resource: v1
 name: addressvalidation
-service_url: https://sandbox-pay-google-addressvalidation-v2c65mhlba-uc.a.run.app
+service_url: https://production-pay-google-addressvalidation-123883807128.us-central1.run.app
+sandbox_service_url: https://sandbox-pay-google-addressvalidation-123883807128.us-central1.run.app
 title: Address Validation API
 version: v1
 ---

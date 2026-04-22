@@ -3707,7 +3707,8 @@ endpoints:
   path: projects/{project}/regions/{region}/zones
   resource: regionZones
 name: compute
-service_url: https://sandbox-pay-google-compute-v2c65mhlba-uc.a.run.app
+service_url: https://production-pay-google-compute-123883807128.us-central1.run.app
+sandbox_service_url: https://sandbox-pay-google-compute-123883807128.us-central1.run.app
 title: Compute Engine API
 version: v1
 ---

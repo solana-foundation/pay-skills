@@ -189,7 +189,8 @@ endpoints:
   path: v1/operations/{operationsId}
   resource: operations
 name: documentai
-service_url: https://sandbox-pay-google-documentai-v2c65mhlba-uc.a.run.app
+service_url: https://production-pay-google-documentai-123883807128.us-central1.run.app
+sandbox_service_url: https://sandbox-pay-google-documentai-123883807128.us-central1.run.app
 title: Cloud Document AI API
 version: v1
 ---

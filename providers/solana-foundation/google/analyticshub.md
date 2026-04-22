@@ -143,7 +143,8 @@ endpoints:
   path: v1/organizations/{organizationsId}/locations/{locationsId}/dataExchanges
   resource: organizations.locations.dataExchanges
 name: analyticshub
-service_url: https://sandbox-pay-google-analyticshub-v2c65mhlba-uc.a.run.app
+service_url: https://production-pay-google-analyticshub-123883807128.us-central1.run.app
+sandbox_service_url: https://sandbox-pay-google-analyticshub-123883807128.us-central1.run.app
 title: Analytics Hub API
 version: v1
 ---

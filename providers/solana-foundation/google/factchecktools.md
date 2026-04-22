@@ -31,7 +31,8 @@ endpoints:
   path: v1alpha1/pages/{pagesId}
   resource: pages
 name: factchecktools
-service_url: https://sandbox-pay-google-factchecktools-v2c65mhlba-uc.a.run.app
+service_url: https://production-pay-google-factchecktools-123883807128.us-central1.run.app
+sandbox_service_url: https://sandbox-pay-google-factchecktools-123883807128.us-central1.run.app
 title: Fact Check Tools API
 version: v1alpha1
 ---
