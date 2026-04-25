@@ -13,11 +13,9 @@ endpoints:
   pricing:
     dimensions:
     - direction: usage
-      scale: 1000000
+      scale: 1
       tiers:
-      - price_usd: 0
-        up_to: 500000
-      - price_usd: 20
+      - price_usd: 0.001
       unit: characters
   resource: projects
 - description: Translates input text and returns translated text.
@@ -26,11 +24,9 @@ endpoints:
   pricing:
     dimensions:
     - direction: usage
-      scale: 1000000
+      scale: 1
       tiers:
-      - price_usd: 0
-        up_to: 500000
-      - price_usd: 20
+      - price_usd: 0.001
       unit: characters
   resource: projects
 - description: Romanize input text written in non-Latin scripts to Latin text.
@@ -67,11 +63,9 @@ endpoints:
   pricing:
     dimensions:
     - direction: usage
-      scale: 1000000
+      scale: 1
       tiers:
-      - price_usd: 0
-        up_to: 500000
-      - price_usd: 20
+      - price_usd: 0.001
       unit: characters
   resource: projects.locations
 - description: Translates documents in synchronous mode.
@@ -95,11 +89,9 @@ endpoints:
   pricing:
     dimensions:
     - direction: usage
-      scale: 1000000
+      scale: 1
       tiers:
-      - price_usd: 0
-        up_to: 500000
-      - price_usd: 20
+      - price_usd: 0.001
       unit: characters
   resource: projects.locations
 - description: 'Translates a large volume of document in asynchronous batch mode. This function provides real-time output as the inputs '

@@ -8,15 +8,9 @@ endpoints:
   pricing:
     dimensions:
     - direction: usage
-      scale: 1000
+      scale: 1
       tiers:
-      - price_usd: 0
-        up_to: 5000
-      - price_usd: 1
-        up_to: 1000000
-      - price_usd: 0.5
-        up_to: 5000000
-      - price_usd: 0.25
+      - price_usd: 0.001
       unit: requests
   resource: documents
 - description: Finds named entities (currently proper names and common nouns) in the text along with entity types, probability, mention
@@ -25,15 +19,9 @@ endpoints:
   pricing:
     dimensions:
     - direction: usage
-      scale: 1000
+      scale: 1
       tiers:
-      - price_usd: 0
-        up_to: 5000
-      - price_usd: 1
-        up_to: 1000000
-      - price_usd: 0.5
-        up_to: 5000000
-      - price_usd: 0.25
+      - price_usd: 0.001
       unit: requests
   resource: documents
 - description: Classifies a document into categories.

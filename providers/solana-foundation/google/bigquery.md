@@ -57,13 +57,10 @@ endpoints:
   pricing:
     dimensions:
     - direction: usage
-      scale: 1099511627776
+      scale: 1
       tiers:
-      - notes: First 1 TiB/month free
-        price_usd: 0
-        up_to: 1
-      - price_usd: 0.005
-      unit: bytes
+      - price_usd: 0.001
+      unit: requests
   resource: jobs
 - description: Requests the deletion of the metadata of a job. This call returns when the job's metadata is deleted.
   method: DELETE
