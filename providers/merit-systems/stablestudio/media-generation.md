@@ -3,12 +3,13 @@ name: media-generation
 title: "StableStudio"
 description: "Pay-per-generation AI image and video creation with Sora, Veo, Grok, and Flux"
 category: media
+use_case: "Use when you need to generate or edit images and videos using AI models like Sora, Veo, Grok, Flux, Seedance, or GPT Image, with pay-per-generation pricing"
 service_url: https://stablestudio.dev
 endpoints:
   - method: POST
     path: "api/generate/sora-2/generate"
     resource: video
-    description: "Generate video with Sora 2"
+    description: "Generate a video from a text prompt using OpenAI Sora 2 with configurable resolution and duration"
     pricing:
       dimensions:
         - direction: usage
@@ -19,7 +20,7 @@ endpoints:
   - method: POST
     path: "api/generate/sora-2-pro/generate"
     resource: video
-    description: "Generate video with Sora 2 Pro"
+    description: "Generate a high-fidelity video from a text prompt using OpenAI Sora 2 Pro for enhanced visual quality"
     pricing:
       dimensions:
         - direction: usage
@@ -30,7 +31,7 @@ endpoints:
   - method: POST
     path: "api/generate/veo-3.1/generate"
     resource: video
-    description: "Generate video with Veo 3.1"
+    description: "Generate a video from a text prompt using Google Veo 3.1 with realistic motion and scene composition"
     pricing:
       dimensions:
         - direction: usage
@@ -41,7 +42,7 @@ endpoints:
   - method: POST
     path: "api/generate/veo-3.1-fast/generate"
     resource: video
-    description: "Generate video with Veo 3.1 Fast"
+    description: "Generate a video quickly from a text prompt using Google Veo 3.1 Fast for lower-latency results"
     pricing:
       dimensions:
         - direction: usage
@@ -52,7 +53,7 @@ endpoints:
   - method: POST
     path: "api/generate/wan-2.6/t2v"
     resource: video
-    description: "Text-to-video with Wan 2.6"
+    description: "Generate a video from a text description using Wan 2.6 with support for various styles and durations"
     pricing:
       dimensions:
         - direction: usage
@@ -63,7 +64,7 @@ endpoints:
   - method: POST
     path: "api/generate/wan-2.6/i2v"
     resource: video
-    description: "Image-to-video with Wan 2.6"
+    description: "Animate a reference image into a video using Wan 2.6 with controllable motion and scene transitions"
     pricing:
       dimensions:
         - direction: usage
@@ -74,7 +75,7 @@ endpoints:
   - method: POST
     path: "api/generate/grok-video/generate"
     resource: video
-    description: "Generate video with Grok Video"
+    description: "Generate a video from a text prompt using xAI Grok Video with creative and expressive visual output"
     pricing:
       dimensions:
         - direction: usage
@@ -85,7 +86,7 @@ endpoints:
   - method: POST
     path: "api/generate/seedance/t2v"
     resource: video
-    description: "Text-to-video with Seedance"
+    description: "Generate a video from a text prompt using Seedance with high-quality motion and cinematic rendering"
     pricing:
       dimensions:
         - direction: usage
@@ -96,7 +97,7 @@ endpoints:
   - method: POST
     path: "api/generate/seedance/i2v"
     resource: video
-    description: "Image-to-video with Seedance"
+    description: "Animate a reference image into a video using Seedance with smooth motion synthesis and scene control"
     pricing:
       dimensions:
         - direction: usage
@@ -107,7 +108,7 @@ endpoints:
   - method: POST
     path: "api/generate/seedance-fast/t2v"
     resource: video
-    description: "Text-to-video with Seedance Fast"
+    description: "Generate a video quickly from a text prompt using Seedance Fast for lower-latency video creation"
     pricing:
       dimensions:
         - direction: usage
@@ -118,7 +119,7 @@ endpoints:
   - method: POST
     path: "api/generate/seedance-fast/i2v"
     resource: video
-    description: "Image-to-video with Seedance Fast"
+    description: "Animate a reference image into a video using Seedance Fast for quicker turnaround on image animation"
     pricing:
       dimensions:
         - direction: usage
@@ -129,7 +130,7 @@ endpoints:
   - method: POST
     path: "api/generate/gpt-image-1.5/generate"
     resource: image
-    description: "Generate image with GPT Image 1.5"
+    description: "Generate an image from a text prompt using OpenAI GPT Image 1.5 with photorealistic and artistic styles"
     pricing:
       dimensions:
         - direction: usage
@@ -140,7 +141,7 @@ endpoints:
   - method: POST
     path: "api/generate/gpt-image-1.5/edit"
     resource: image
-    description: "Edit image with GPT Image 1.5"
+    description: "Edit an existing image using OpenAI GPT Image 1.5 with text instructions for inpainting and modifications"
     pricing:
       dimensions:
         - direction: usage
@@ -151,7 +152,7 @@ endpoints:
   - method: POST
     path: "api/generate/nano-banana-pro/generate"
     resource: image
-    description: "Generate image with Nano Banana Pro"
+    description: "Generate an image from a text prompt using Nano Banana Pro with fast rendering and creative style options"
     pricing:
       dimensions:
         - direction: usage
@@ -162,7 +163,7 @@ endpoints:
   - method: POST
     path: "api/generate/nano-banana-pro/edit"
     resource: image
-    description: "Edit image with Nano Banana Pro"
+    description: "Edit an existing image using Nano Banana Pro with text-guided modifications and region-based inpainting"
     pricing:
       dimensions:
         - direction: usage
@@ -173,7 +174,7 @@ endpoints:
   - method: POST
     path: "api/generate/flux-2-pro/generate"
     resource: image
-    description: "Generate image with Flux 2 Pro"
+    description: "Generate an image from a text prompt using Black Forest Labs Flux 2 Pro with high detail and consistency"
     pricing:
       dimensions:
         - direction: usage
@@ -184,7 +185,7 @@ endpoints:
   - method: POST
     path: "api/generate/flux-2-pro/edit"
     resource: image
-    description: "Edit image with Flux 2 Pro"
+    description: "Edit an existing image using Black Forest Labs Flux 2 Pro with text-guided inpainting and style transfer"
     pricing:
       dimensions:
         - direction: usage
@@ -195,7 +196,7 @@ endpoints:
   - method: POST
     path: "api/generate/grok/generate"
     resource: image
-    description: "Generate image with Grok Image"
+    description: "Generate an image from a text prompt using xAI Grok Image with creative and expressive visual output"
     pricing:
       dimensions:
         - direction: usage
@@ -206,7 +207,7 @@ endpoints:
   - method: POST
     path: "api/generate/grok/edit"
     resource: image
-    description: "Edit image with Grok Image"
+    description: "Edit an existing image using xAI Grok Image with text-guided modifications and creative adjustments"
     pricing:
       dimensions:
         - direction: usage

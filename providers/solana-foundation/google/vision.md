@@ -1,6 +1,6 @@
 ---
 category: ai_ml
-description: Detect objects, faces, text (OCR), labels, and landmarks in images.
+description: Analyze images with ML — detect objects, faces, text (OCR), labels, landmarks, logos, and explicit content. Supports batch processing, PDF/TIFF input, crop hints, dominant colors, and web entity detection.
 endpoints:
 - description: Lists operations that match the specified filter in the request. If the server doesn't support this method, it returns `
   method: GET
@@ -177,7 +177,9 @@ endpoints:
   path: v1/files:asyncBatchAnnotate
   resource: files
 name: vision
-service_url: https://sandbox-pay-google-vision-v2c65mhlba-uc.a.run.app
+sandbox_service_url: https://sandbox-pay-google-vision-123883807128.us-central1.run.app
+service_url: https://production-pay-google-vision-123883807128.us-central1.run.app
 title: Cloud Vision API
+use_case: image analysis, OCR, object detection, content moderation, face detection, landmark recognition, label detection, logo detection
 version: v1
 ---

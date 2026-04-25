@@ -1,6 +1,6 @@
 ---
 category: ai_ml
-description: Detect labels, objects, text, and shot changes in video.
+description: Analyze video content — detect and track objects, read on-screen text (OCR), recognize logos, identify shot boundaries, transcribe speech, detect explicit content, and label scenes and actions.
 endpoints:
 - description: Performs asynchronous video annotation. Progress and results can be retrieved through the `google.longrunning.Operations
   method: POST
@@ -44,7 +44,9 @@ endpoints:
   path: v1/operations/projects/{projectsId}/locations/{locationsId}/operations/{operationsId}
   resource: operations.projects.locations.operations
 name: videointelligence
-service_url: https://sandbox-pay-google-videointelligence-v2c65mhlba-uc.a.run.app
+sandbox_service_url: https://sandbox-pay-google-videointelligence-123883807128.us-central1.run.app
+service_url: https://production-pay-google-videointelligence-123883807128.us-central1.run.app
 title: Cloud Video Intelligence API
+use_case: video analysis, content moderation, extracting text from video, object tracking, scene detection, video search indexing
 version: v1
 ---

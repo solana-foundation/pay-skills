@@ -1,8 +1,9 @@
 ---
 name: calls
 title: "StablePhone"
-description: "Pay-per-call AI phone calls with no API keys or accounts"
+description: "Pay-per-call AI-powered phone calls, number provisioning, top-up, and caller ID lookup with global coverage"
 category: messaging
+use_case: "Use when you need to make AI-powered outbound phone calls, purchase dedicated phone numbers for caller ID, or look up phone number capabilities like iMessage and FaceTime"
 service_url: https://stablephone.dev
 endpoints:
   - method: POST
@@ -30,7 +31,7 @@ endpoints:
   - method: POST
     path: "api/number/topup"
     resource: numbers
-    description: "Extend a phone number by 30 days"
+    description: "Extend the lease on a dedicated phone number by 30 days to maintain outbound caller ID and continuity"
     pricing:
       dimensions:
         - direction: usage
@@ -41,7 +42,7 @@ endpoints:
   - method: POST
     path: "api/lookup"
     resource: lookup
-    description: "Check if a phone number has iMessage/FaceTime"
+    description: "Look up whether a phone number is registered for iMessage or FaceTime to determine messaging capabilities"
     pricing:
       dimensions:
         - direction: usage

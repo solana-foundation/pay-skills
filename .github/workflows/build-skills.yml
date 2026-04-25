@@ -6,20 +6,24 @@ on:
   workflow_dispatch: {}
 
 env:
-  PAY_IMAGE: ghcr.io/solana-foundation/pay:latest
+  PAY_IMAGE: us-central1-docker.pkg.dev/gateway-402/agent-gateway/pay:latest
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read
+      id-token: write
 
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install Doppler
-        uses: dopplerhq/cli-action@v3
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/123883807128/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: pay-skills-ci@gateway-402.iam.gserviceaccount.com
+
+      - run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
       - name: Build dist/
         run: |
@@ -30,6 +34,19 @@ jobs:
             skills build /repo \
             --base-url https://storage.googleapis.com/pay-skills/v1
 
+      - name: Probe all endpoints
+        continue-on-error: true
+        run: |
+          docker run --rm \
+            -u "$(id -u):$(id -g)" \
+            -v "$PWD:/repo" \
+            $PAY_IMAGE \
+            skills probe /repo \
+            --currencies USDC,USDT \
+            --timeout 15 \
+            --concurrency 5 \
+            --format json | tee probe-results.json
+
       - name: Show summary
         run: |
           echo "=== skills.json ==="
@@ -37,6 +54,17 @@ jobs:
           echo "..."
           echo "=== detail files ==="
           find dist/providers -name '*.json' | sort
+          echo ""
+          echo "=== probe results ==="
+          if [ -f probe-results.json ] && [ -s probe-results.json ]; then
+            python3 -c "
+          import json
+          r = json.load(open('probe-results.json'))
+          print(f'{r[\"passed\"]}/{r[\"total_endpoints\"]} endpoints passed, {r[\"failed\"]} failed')
+          "
+          else
+            echo "Probe results not available"
+          fi
 
       - name: Upload dist/ as artifact
         uses: actions/upload-artifact@v4
@@ -46,14 +74,9 @@ jobs:
 
       - name: Publish to GCS
         run: |
-          doppler run -- bash -c '
-            echo "$GCP_SERVICE_ACCOUNT_KEY" | gcloud auth activate-service-account --key-file=-
-            gcloud storage rsync dist/ gs://pay-skills/v1/ \
-              --recursive \
-              --cache-control="public, max-age=300" \
-              --checksums-only
-            gcloud storage cp dist/skills.json gs://pay-skills/v1/skills.json \
-              --cache-control="public, max-age=60"
-          '
-        env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+          gcloud storage rsync dist/ gs://pay-skills/v1/ \
+            --recursive \
+            --cache-control="public, max-age=300" \
+            --checksums-only
+          gcloud storage cp dist/skills.json gs://pay-skills/v1/skills.json \
+            --cache-control="public, max-age=60"

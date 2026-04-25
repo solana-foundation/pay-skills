@@ -1,6 +1,7 @@
 ---
 category: ai_ml
-description: Translate text and documents between 100+ languages.
+description: Translate text and documents between 130+ languages. Supports batch translation, language detection, romanization, glossaries for domain-specific terms, and adaptive MT for improved quality over time.
+use_case: "translating text, language detection, multilingual content, localization, document translation, cross-language communication"
 endpoints:
 - description: Returns a list of supported languages for translation.
   method: GET
@@ -105,15 +106,15 @@ endpoints:
   method: POST
   path: v3/projects/{projectsId}/locations/{locationsId}:batchTranslateDocument
   resource: projects.locations
-- description: Gets a Dataset.
+- description: Retrieve a translation dataset by ID, including its source and target language pair, training status, and example count
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}/datasets/{datasetsId}
   resource: projects.locations.datasets
-- description: Lists datasets.
+- description: List all translation datasets in a project location, including their language pairs, creation times, and training status
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}/datasets
   resource: projects.locations.datasets
-- description: Creates a Dataset.
+- description: Create a new translation dataset for a specific language pair, used to store sentence pairs for training custom translation models
   method: POST
   path: v3/projects/{projectsId}/locations/{locationsId}/datasets
   resource: projects.locations.datasets
@@ -181,11 +182,11 @@ endpoints:
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}/glossaries/{glossariesId}/glossaryEntries
   resource: projects.locations.glossaries.glossaryEntries
-- description: Creates a glossary entry.
+- description: Create a new glossary entry mapping a source term to its target translation, enforcing consistent domain-specific terminology
   method: POST
   path: v3/projects/{projectsId}/locations/{locationsId}/glossaries/{glossariesId}/glossaryEntries
   resource: projects.locations.glossaries.glossaryEntries
-- description: Updates a glossary entry.
+- description: Update an existing glossary entry's source or target term translations to refine domain-specific translation terminology
   method: PATCH
   path: v3/projects/{projectsId}/locations/{locationsId}/glossaries/{glossariesId}/glossaryEntries/{glossaryEntriesId}
   resource: projects.locations.glossaries.glossaryEntries
@@ -193,7 +194,7 @@ endpoints:
   method: DELETE
   path: v3/projects/{projectsId}/locations/{locationsId}/glossaries/{glossariesId}/glossaryEntries/{glossaryEntriesId}
   resource: projects.locations.glossaries.glossaryEntries
-- description: Gets the Adaptive MT dataset.
+- description: Retrieve an Adaptive MT dataset by ID, including its language pair, example count, and configuration for adaptive translation
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}/adaptiveMtDatasets/{adaptiveMtDatasetsId}
   resource: projects.locations.adaptiveMtDatasets
@@ -201,7 +202,7 @@ endpoints:
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}/adaptiveMtDatasets
   resource: projects.locations.adaptiveMtDatasets
-- description: Creates an Adaptive MT dataset.
+- description: Create a new Adaptive MT dataset for a language pair, which learns from corrections to improve translation quality over time
   method: POST
   path: v3/projects/{projectsId}/locations/{locationsId}/adaptiveMtDatasets
   resource: projects.locations.adaptiveMtDatasets
@@ -213,7 +214,7 @@ endpoints:
   method: DELETE
   path: v3/projects/{projectsId}/locations/{locationsId}/adaptiveMtDatasets/{adaptiveMtDatasetsId}
   resource: projects.locations.adaptiveMtDatasets
-- description: Gets and AdaptiveMtFile
+- description: Retrieve an Adaptive MT file by ID, returning its sentence pairs and metadata used for adaptive translation improvements
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}/adaptiveMtDatasets/{adaptiveMtDatasetsId}/adaptiveMtFiles/{adaptiveMtFilesId}
   resource: projects.locations.adaptiveMtDatasets.adaptiveMtFiles
@@ -233,24 +234,25 @@ endpoints:
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}/adaptiveMtDatasets/{adaptiveMtDatasetsId}/adaptiveMtSentences
   resource: projects.locations.adaptiveMtDatasets.adaptiveMtSentences
-- description: Lists models.
+- description: List all custom translation models in a project location, including their training status, language pairs, and dataset info
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}/models
   resource: projects.locations.models
-- description: Gets a model.
+- description: Retrieve a specific custom translation model by ID, including its training status, source and target languages, and dataset
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}/models/{modelsId}
   resource: projects.locations.models
-- description: Creates a Model.
+- description: Create a new custom translation model by training on a dataset of sentence pairs for a specific source and target language pair
   method: POST
   path: v3/projects/{projectsId}/locations/{locationsId}/models
   resource: projects.locations.models
-- description: Deletes a model.
+- description: Delete a custom translation model permanently, removing its trained weights and freeing associated project resources
   method: DELETE
   path: v3/projects/{projectsId}/locations/{locationsId}/models/{modelsId}
   resource: projects.locations.models
 name: translate
-service_url: https://sandbox-pay-google-translate-v2c65mhlba-uc.a.run.app
+sandbox_service_url: https://sandbox-pay-google-translate-123883807128.us-central1.run.app
+service_url: https://production-pay-google-translate-123883807128.us-central1.run.app
 title: Cloud Translation API
 version: v3
 ---

@@ -1,6 +1,7 @@
 ---
 category: ai_ml
-description: Extract structured data from documents using OCR and custom extractors.
+description: Extract structured data from PDFs, scanned documents, and images using OCR and ML. Handles invoices, receipts, contracts, forms, tax docs, and IDs. Returns typed fields, tables, and entities.
+use_case: "processing invoices, extracting text from scanned documents, digitizing paper forms, receipt parsing, contract analysis"
 endpoints:
 - description: Gets the latest state of a long-running operation. Clients can use this method to poll the operation result at intervals
   method: GET
@@ -34,11 +35,11 @@ endpoints:
   method: GET
   path: v1/projects/{projectsId}/locations/{locationsId}/processors
   resource: projects.locations.processors
-- description: Gets a processor detail.
+- description: Retrieve detailed configuration for a Document AI processor including its type, state, default version, and creation time
   method: GET
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}
   resource: projects.locations.processors
-- description: Processes a single document.
+- description: Process a single document synchronously through a Document AI processor, extracting text, entities, tables, and structured fields
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}:process
   pricing:
@@ -68,11 +69,11 @@ endpoints:
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/processors
   resource: projects.locations.processors
-- description: Enables a processor
+- description: Enable a disabled Document AI processor so it can accept document processing and batch processing requests again
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}:enable
   resource: projects.locations.processors
-- description: Disables a processor
+- description: Disable a Document AI processor to prevent it from accepting new processing requests while preserving its configuration
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}:disable
   resource: projects.locations.processors
@@ -92,7 +93,7 @@ endpoints:
   method: GET
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}/processorVersions
   resource: projects.locations.processors.processorVersions
-- description: Processes a single document.
+- description: Process a single document using a specific processor version, extracting text, entities, tables, and structured data fields
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}/processorVersions/{processorVersionsId}:process
   resource: projects.locations.processors.processorVersions
@@ -104,7 +105,7 @@ endpoints:
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}/processorVersions:train
   resource: projects.locations.processors.processorVersions
-- description: Deploys the processor version.
+- description: Deploy a processor version to make it available for online document processing, loading the model artifacts for serving
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}/processorVersions/{processorVersionsId}:deploy
   resource: projects.locations.processors.processorVersions
@@ -136,19 +137,19 @@ endpoints:
   method: GET
   path: v1/projects/{projectsId}/locations/{locationsId}/processorTypes
   resource: projects.locations.processorTypes
-- description: Gets a processor type detail.
+- description: Retrieve details for a specific Document AI processor type including its category, available locations, and launch stage
   method: GET
   path: v1/projects/{projectsId}/locations/{locationsId}/processorTypes/{processorTypesId}
   resource: projects.locations.processorTypes
-- description: Lists Schemas.
+- description: List all document schemas in a location, returning their field definitions, display names, and entity type configurations
   method: GET
   path: v1/projects/{projectsId}/locations/{locationsId}/schemas
   resource: projects.locations.schemas
-- description: Gets a schema.
+- description: Retrieve a specific document schema by ID, including its field definitions, entity types, and label configurations
   method: GET
   path: v1/projects/{projectsId}/locations/{locationsId}/schemas/{schemasId}
   resource: projects.locations.schemas
-- description: Creates a schema.
+- description: Create a new document schema defining the entity types and field structures for document extraction and classification
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/schemas
   resource: projects.locations.schemas
@@ -156,23 +157,23 @@ endpoints:
   method: PATCH
   path: v1/projects/{projectsId}/locations/{locationsId}/schemas/{schemasId}
   resource: projects.locations.schemas
-- description: Deletes a schema.
+- description: Delete a document schema permanently, removing its field definitions and entity type configurations from the project
   method: DELETE
   path: v1/projects/{projectsId}/locations/{locationsId}/schemas/{schemasId}
   resource: projects.locations.schemas
-- description: Lists SchemaVersions.
+- description: List all versions of a document schema, returning each version's field definitions and revision history metadata
   method: GET
   path: v1/projects/{projectsId}/locations/{locationsId}/schemas/{schemasId}/schemaVersions
   resource: projects.locations.schemas.schemaVersions
-- description: Gets a schema version.
+- description: Retrieve a specific schema version by ID, including its entity type definitions, field structures, and version metadata
   method: GET
   path: v1/projects/{projectsId}/locations/{locationsId}/schemas/{schemasId}/schemaVersions/{schemaVersionsId}
   resource: projects.locations.schemas.schemaVersions
-- description: Creates a schema version.
+- description: Create a new version of a document schema, allowing you to evolve field definitions while preserving previous versions
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/schemas/{schemasId}/schemaVersions
   resource: projects.locations.schemas.schemaVersions
-- description: Generates a schema version.
+- description: Generate a new schema version automatically using AI to infer entity types and field structures from sample documents
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/schemas/{schemasId}/schemaVersions:generate
   resource: projects.locations.schemas.schemaVersions
@@ -180,7 +181,7 @@ endpoints:
   method: PATCH
   path: v1/projects/{projectsId}/locations/{locationsId}/schemas/{schemasId}/schemaVersions/{schemaVersionsId}
   resource: projects.locations.schemas.schemaVersions
-- description: Deletes a schema version.
+- description: Delete a specific schema version permanently, removing its field definitions while leaving other versions of the schema intact
   method: DELETE
   path: v1/projects/{projectsId}/locations/{locationsId}/schemas/{schemasId}/schemaVersions/{schemaVersionsId}
   resource: projects.locations.schemas.schemaVersions
@@ -189,7 +190,8 @@ endpoints:
   path: v1/operations/{operationsId}
   resource: operations
 name: documentai
-service_url: https://sandbox-pay-google-documentai-v2c65mhlba-uc.a.run.app
+sandbox_service_url: https://sandbox-pay-google-documentai-123883807128.us-central1.run.app
+service_url: https://production-pay-google-documentai-123883807128.us-central1.run.app
 title: Cloud Document AI API
 version: v1
 ---

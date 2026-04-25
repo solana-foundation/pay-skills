@@ -1,6 +1,6 @@
 ---
 category: ai_ml
-description: Convert text to natural-sounding speech in 40+ languages.
+description: Convert text to natural-sounding speech in 50+ languages and 380+ voices. Supports SSML markup, pitch/speed control, MP3/WAV/OGG output, and Neural2/Studio voice models for human-like quality.
 endpoints:
 - description: Returns a list of Voice supported for synthesis.
   method: GET
@@ -31,7 +31,9 @@ endpoints:
   path: v1/text:synthesize
   resource: text
 name: texttospeech
-service_url: https://sandbox-pay-google-texttospeech-v2c65mhlba-uc.a.run.app
+sandbox_service_url: https://sandbox-pay-google-texttospeech-123883807128.us-central1.run.app
+service_url: https://production-pay-google-texttospeech-123883807128.us-central1.run.app
 title: Cloud Text-to-Speech API
+use_case: generating voiceovers, text-to-speech, accessibility, IVR systems, audiobook generation, pronunciation
 version: v1
 ---

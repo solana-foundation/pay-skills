@@ -1,22 +1,24 @@
 name: Validate
 
 on:
-  pull_request: {}
+  pull_request:
+    branches: [main]
 
 env:
-  PAY_IMAGE: ghcr.io/solana-foundation/pay:latest
+  PAY_IMAGE: us-central1-docker.pkg.dev/gateway-402/agent-gateway/pay:latest
 
 jobs:
   validate:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: read
 
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
-      - name: Validate providers, affiliates, and aggregators
+      - name: Static validation (pay skills build)
         run: |
           docker run --rm \
             -u "$(id -u):$(id -g)" \
@@ -26,11 +28,38 @@ jobs:
             --output /repo/dist \
             --base-url https://storage.googleapis.com/pay-skills/v1
 
+      - name: Detect changed providers
+        id: changed
+        run: |
+          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- 'providers/**/*.md' | tr '\n' ' ')
+          echo "files=$CHANGED" >> "$GITHUB_OUTPUT"
+          if [ -z "$CHANGED" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Changed providers: $CHANGED"
+          fi
+
+      - name: Probe changed endpoints
+        if: steps.changed.outputs.skip == 'false'
+        run: |
+          docker run --rm \
+            -u "$(id -u):$(id -g)" \
+            -v "$PWD:/repo" \
+            $PAY_IMAGE \
+            skills probe /repo \
+            --files ${{ steps.changed.outputs.files }} \
+            --currencies USDC,USDT \
+            --timeout 15 \
+            --concurrency 5 \
+            --format json > probe-results.json 2>/dev/null || true
+
       - name: Summary
         if: always()
         run: |
+          echo "### Static Validation" >> "$GITHUB_STEP_SUMMARY"
           if [ -f dist/skills.json ]; then
-            echo "### Build succeeded" >> "$GITHUB_STEP_SUMMARY"
+            echo ":white_check_mark: Build succeeded" >> "$GITHUB_STEP_SUMMARY"
             python3 -c "
           import json
           idx = json.load(open('dist/skills.json'))
@@ -39,6 +68,34 @@ jobs:
           print(f'- **{idx[\"aggregator_count\"]}** aggregators')
           " >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "### Build failed" >> "$GITHUB_STEP_SUMMARY"
+            echo ":x: Build failed" >> "$GITHUB_STEP_SUMMARY"
             echo "Check the logs above for validation errors." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Endpoint Probes" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f probe-results.json ] && [ -s probe-results.json ]; then
+            python3 -c "
+          import json, sys
+          results = json.load(open('probe-results.json'))
+          total = results['total_endpoints']
+          passed = results['passed']
+          failed = results['failed']
+          emoji = ':white_check_mark:' if failed == 0 else ':x:'
+          print(f'{emoji} **{passed}/{total}** endpoints passed')
+          if failed > 0:
+              print('')
+              print('| Provider | Endpoint | Issue |')
+              print('|----------|----------|-------|')
+              for p in results['providers']:
+                  for e in p['endpoints']:
+                      t = e['status']['type']
+                      if t not in ('ok', 'free'):
+                          detail = e['status'].get('details', e['status'].get('message', e['status'].get('got', t)))
+                          print(f'| {p[\"fqn\"]} | {e[\"method\"]} {e[\"path\"]} | {t}: {detail} |')
+          " >> "$GITHUB_STEP_SUMMARY"
+          elif [ "${{ steps.changed.outputs.skip }}" = "true" ]; then
+            echo "No provider changes detected — probe skipped." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo ":warning: Probe did not produce results." >> "$GITHUB_STEP_SUMMARY"
           fi

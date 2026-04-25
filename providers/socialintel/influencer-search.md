@@ -1,14 +1,15 @@
 ---
 name: influencer-search
 title: "Social Intel"
-description: "Instagram influencer search by keyword, category, demographics, and location"
+description: "Instagram influencer discovery API with search by keyword, category, audience demographics, engagement metrics, and geographic location filters"
+use_case: "Use when you need to find Instagram influencers matching specific criteria such as niche keywords, audience demographics, engagement rates, follower counts, or geographic location for marketing campaigns"
 category: data
 service_url: https://api.socialintel.dev
 endpoints:
   - method: POST
     path: "search"
     resource: influencers
-    description: "Search Instagram influencers by keyword, category, demographics, and location"
+    description: "Search and discover Instagram influencers by keyword, category, audience demographics, engagement rate, follower count, and geographic location with paginated results"
     pricing:
       dimensions:
         - direction: usage

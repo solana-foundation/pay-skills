@@ -1,6 +1,7 @@
 ---
 category: ai_ml
-description: Generate text, analyze images, and run conversations with Gemini models.
+description: Google Gemini models — generate text, analyze images and video, run multi-turn conversations, embed text, and execute code. Supports function calling, grounding with Google Search, and JSON output mode.
+use_case: "text generation, image understanding, conversational AI, code generation, multimodal analysis, embeddings"
 endpoints:
 - description: Lists operations that match the specified filter in the request. If the server doesn't support this method, it returns `
   method: GET
@@ -90,7 +91,7 @@ endpoints:
   method: POST
   path: v1beta/models/{modelsId}:countMessageTokens
   resource: models
-- description: Performs a prediction request.
+- description: Perform a prediction request against a Gemini model, returning generated output based on the provided input and model parameters
   method: POST
   path: v1beta/models/{modelsId}:predict
   resource: models
@@ -122,7 +123,7 @@ endpoints:
   method: GET
   path: v1beta/models/{modelsId}/operations/{operationsId}
   resource: models.operations
-- description: Lists created tuned models.
+- description: List all fine-tuned Gemini models created by the user, including their training status, base model, and tuning configuration
   method: GET
   path: v1beta/tunedModels
   resource: tunedModels
@@ -158,11 +159,11 @@ endpoints:
   method: POST
   path: v1beta/tunedModels/{tunedModelsId}:generateText
   resource: tunedModels
-- description: Updates a tuned model.
+- description: Update a fine-tuned Gemini model's display name, description, or tuning hyperparameters using a field mask for partial updates
   method: PATCH
   path: v1beta/tunedModels/{tunedModelsId}
   resource: tunedModels
-- description: Deletes a tuned model.
+- description: Delete a fine-tuned Gemini model permanently, removing its weights, configuration, and all associated training artifacts
   method: DELETE
   path: v1beta/tunedModels/{tunedModelsId}
   resource: tunedModels
@@ -186,11 +187,11 @@ endpoints:
   method: POST
   path: v1beta/tunedModels/{tunedModelsId}/permissions
   resource: tunedModels.permissions
-- description: Updates the permission.
+- description: Update access permissions on a fine-tuned model, modifying the role granted to a specific user, group, or service account
   method: PATCH
   path: v1beta/tunedModels/{tunedModelsId}/permissions/{permissionsId}
   resource: tunedModels.permissions
-- description: Deletes the permission.
+- description: Revoke a specific access permission from a fine-tuned model, removing the granted role for a user, group, or service account
   method: DELETE
   path: v1beta/tunedModels/{tunedModelsId}/permissions/{permissionsId}
   resource: tunedModels.permissions
@@ -202,15 +203,15 @@ endpoints:
   method: POST
   path: v1beta/dynamic/{dynamicId}:streamGenerateContent
   resource: dynamic
-- description: Lists CachedContents.
+- description: List all cached content resources for the project, returning metadata such as expiration time, creation time, and model used
   method: GET
   path: v1beta/cachedContents
   resource: cachedContents
-- description: Reads CachedContent resource.
+- description: Retrieve a specific cached content resource by ID, including its expiration time, token count, model, and usage metadata
   method: GET
   path: v1beta/cachedContents/{cachedContentsId}
   resource: cachedContents
-- description: Creates CachedContent resource.
+- description: Create a cached content resource to store reusable context for Gemini models, reducing latency and token costs on repeated prompts
   method: POST
   path: v1beta/cachedContents
   resource: cachedContents
@@ -218,11 +219,11 @@ endpoints:
   method: PATCH
   path: v1beta/cachedContents/{cachedContentsId}
   resource: cachedContents
-- description: Deletes CachedContent resource.
+- description: Delete a cached content resource permanently, freeing the stored tokens and associated model context from the project
   method: DELETE
   path: v1beta/cachedContents/{cachedContentsId}
   resource: cachedContents
-- description: Creates a `File`.
+- description: Upload a file to the Gemini API for use in multimodal prompts, supporting images, audio, video, and documents up to 2GB
   method: POST
   path: v1beta/files
   resource: media
@@ -242,7 +243,7 @@ endpoints:
   method: POST
   path: v1beta/files:register
   resource: files
-- description: Deletes the `File`.
+- description: Delete an uploaded file permanently from the Gemini API, removing it from storage and preventing its use in future prompts
   method: DELETE
   path: v1beta/files/{filesId}
   resource: files
@@ -270,7 +271,7 @@ endpoints:
   method: POST
   path: v1beta/fileSearchStores/{fileSearchStoresId}:importFile
   resource: fileSearchStores
-- description: Deletes a `FileSearchStore`.
+- description: Delete a file search store and all its indexed documents, removing the searchable knowledge base from the project
   method: DELETE
   path: v1beta/fileSearchStores/{fileSearchStoresId}
   resource: fileSearchStores
@@ -290,7 +291,7 @@ endpoints:
   method: GET
   path: v1beta/fileSearchStores/{fileSearchStoresId}/documents
   resource: fileSearchStores.documents
-- description: Deletes a `Document`.
+- description: Delete a document from a file search store, removing its indexed content and chunks from the searchable knowledge base
   method: DELETE
   path: v1beta/fileSearchStores/{fileSearchStoresId}/documents/{documentsId}
   resource: fileSearchStores.documents
@@ -302,11 +303,11 @@ endpoints:
   method: GET
   path: v1beta/corpora/{corporaId}
   resource: corpora
-- description: Creates an empty `Corpus`.
+- description: Create a new empty corpus for semantic retrieval, which can store documents and chunks for grounded question answering
   method: POST
   path: v1beta/corpora
   resource: corpora
-- description: Deletes a `Corpus`.
+- description: Delete a corpus and all its stored documents and chunks permanently, removing the semantic retrieval knowledge base
   method: DELETE
   path: v1beta/corpora/{corporaId}
   resource: corpora
@@ -326,16 +327,17 @@ endpoints:
   method: POST
   path: v1beta/corpora/{corporaId}/permissions
   resource: corpora.permissions
-- description: Updates the permission.
+- description: Update access permissions on a corpus, modifying the role granted to a specific user, group, or service account for the resource
   method: PATCH
   path: v1beta/corpora/{corporaId}/permissions/{permissionsId}
   resource: corpora.permissions
-- description: Deletes the permission.
+- description: Revoke a specific access permission from a corpus, removing the granted role for a user, group, or service account
   method: DELETE
   path: v1beta/corpora/{corporaId}/permissions/{permissionsId}
   resource: corpora.permissions
 name: generativelanguage
-service_url: https://sandbox-pay-google-generativelanguage-v2c65mhlba-uc.a.run.app
+sandbox_service_url: https://sandbox-pay-google-generativelanguage-123883807128.us-central1.run.app
+service_url: https://production-pay-google-generativelanguage-123883807128.us-central1.run.app
 title: Generative Language API (Gemini)
 version: v1beta
 ---

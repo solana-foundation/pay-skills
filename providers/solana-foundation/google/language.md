@@ -1,6 +1,6 @@
 ---
 category: ai_ml
-description: Analyze text for entities, sentiment, syntax, and content classification.
+description: Analyze text with NLP — extract named entities (people, orgs, locations, dates), detect sentiment and emotion, parse syntax, classify content into 1000+ categories. Supports 12 languages.
 endpoints:
 - description: Analyzes the sentiment of the provided text.
   method: POST
@@ -88,7 +88,9 @@ endpoints:
       unit: requests
   resource: documents
 name: language
-service_url: https://sandbox-pay-google-language-v2c65mhlba-uc.a.run.app
+sandbox_service_url: https://sandbox-pay-google-language-123883807128.us-central1.run.app
+service_url: https://production-pay-google-language-123883807128.us-central1.run.app
 title: Cloud Natural Language API
+use_case: sentiment analysis, named entity recognition, content classification, text analytics, opinion mining, syntax parsing
 version: v2
 ---
