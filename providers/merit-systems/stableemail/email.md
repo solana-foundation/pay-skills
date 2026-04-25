@@ -1,14 +1,15 @@
 ---
 name: email
 title: "StableEmail"
-description: "Pay-per-send email delivery with inboxes and custom subdomains"
+description: "Pay-per-send email delivery with dedicated inboxes, custom subdomains, and message retrieval for AI agents"
 category: messaging
+use_case: "Use when you need to send emails, create inboxes for receiving mail, or set up custom email subdomains with per-message micropayment billing"
 service_url: https://stableemail.dev
 endpoints:
   - method: POST
     path: "api/send"
     resource: messages
-    description: "Send email from relay@stableemail.dev (no setup required)"
+    description: "Send an outbound email from relay@stableemail.dev with configurable recipient, subject, and HTML or plain text body"
     pricing:
       dimensions:
         - direction: usage
@@ -30,7 +31,7 @@ endpoints:
   - method: POST
     path: "api/subdomain/send"
     resource: messages
-    description: "Send email from your custom subdomain"
+    description: "Send an email from your custom subdomain address with full control over sender name and reply-to headers"
     pricing:
       dimensions:
         - direction: usage
@@ -85,7 +86,7 @@ endpoints:
   - method: POST
     path: "api/inbox/send"
     resource: messages
-    description: "Send email from your forwarding inbox"
+    description: "Send an outbound email from your dedicated forwarding inbox address with custom sender identity"
     pricing:
       dimensions:
         - direction: usage
@@ -96,7 +97,7 @@ endpoints:
   - method: POST
     path: "api/inbox/topup"
     resource: inboxes
-    description: "Extend inbox by 30 days"
+    description: "Extend a forwarding inbox subscription by 30 days to keep receiving and storing inbound messages"
     pricing:
       dimensions:
         - direction: usage
@@ -129,7 +130,7 @@ endpoints:
   - method: POST
     path: "api/inbox/messages"
     resource: inboxes
-    description: "List messages in your inbox"
+    description: "List all received messages in your forwarding inbox with sender, subject, and timestamp metadata"
     pricing:
       dimensions:
         - direction: usage
@@ -151,5 +152,5 @@ endpoints:
 ---
 
 Pay-per-send email delivery. Send from a shared relay, buy custom subdomains,
-or create dedicated inboxes with forwarding. No API keys, no accounts.
+or create dedicated inboxes with forwarding.
 Inboxes retain messages for 90 days.

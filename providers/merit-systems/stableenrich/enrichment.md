@@ -3,6 +3,7 @@ name: enrichment
 title: "StableEnrich"
 description: "Pay-per-request data enrichment — Apollo, Exa, Firecrawl, Google Maps, and more"
 category: data
+use_case: "Use when you need to enrich contact or company data, search the web, scrape pages, find local businesses, verify emails, or look up people and property records"
 service_url: https://stableenrich.dev
 endpoints:
   - method: POST
@@ -283,7 +284,7 @@ endpoints:
   - method: POST
     path: "api/serper/news"
     resource: serper
-    description: "Serper — Google News search"
+    description: "Serper — Search Google News for recent articles, headlines, and press coverage matching a keyword or topic"
     pricing:
       dimensions:
         - direction: usage
@@ -294,7 +295,7 @@ endpoints:
   - method: POST
     path: "api/serper/shopping"
     resource: serper
-    description: "Serper — Google Shopping search"
+    description: "Serper — Search Google Shopping for product listings, prices, and merchant details matching a query"
     pricing:
       dimensions:
         - direction: usage
@@ -337,7 +338,7 @@ endpoints:
             - price_usd: 0.100
 ---
 
-Unified data enrichment gateway. Pay per request with no API keys or subscriptions.
-Access Apollo, Exa, Firecrawl, Google Maps, Hunter, Minerva, Reddit, Serper,
-Whitepages, Cloudflare, and more through a single endpoint. Prices range from
-$0.002 (Exa content retrieval) to $0.44 (Whitepages searches).
+Unified data enrichment gateway covering Apollo, Exa, Firecrawl, Google Maps,
+Hunter, Minerva, Reddit, Serper, Whitepages, Cloudflare, and more through a
+single endpoint. Prices range from $0.002 (Exa content retrieval) to $0.44
+(Whitepages searches).

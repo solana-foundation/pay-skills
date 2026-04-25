@@ -1,8 +1,9 @@
 ---
 category: maps
 description: Validate and standardize postal addresses worldwide. Returns geocoded coordinates, USPS data, deliverability verdict, and address component breakdown. Covers residential, commercial, and PO Box addresses across 200+ countries.
+use_case: "verifying shipping addresses, geocoding, address autocomplete, deliverability checks, postal code validation"
 endpoints:
-- description: Validates an address.
+- description: Validate a postal address and return its standardized form, geocoded coordinates, deliverability verdict, and USPS data
   method: POST
   path: v1:validateAddress
   pricing:
@@ -21,6 +22,5 @@ name: addressvalidation
 sandbox_service_url: https://sandbox-pay-google-addressvalidation-123883807128.us-central1.run.app
 service_url: https://production-pay-google-addressvalidation-123883807128.us-central1.run.app
 title: Address Validation API
-use_case: verifying shipping addresses, geocoding, address autocomplete, deliverability checks, postal code validation
 version: v1
 ---

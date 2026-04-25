@@ -3,6 +3,7 @@ name: merchandise
 title: "StableMerch"
 description: "Order custom-printed shirts and mugs from AI-generated images, shipped worldwide"
 category: productivity
+use_case: "Use when you need to create and ship custom-printed merchandise such as shirts or mugs from an image, with worldwide delivery and no account required"
 service_url: https://stablemerch.dev
 endpoints:
   - method: POST

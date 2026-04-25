@@ -1,6 +1,7 @@
 ---
 category: maps
 description: Search for businesses and points of interest, get place details (hours, ratings, reviews, photos, contact info), autocomplete addresses, and find nearby places. Covers 200M+ places worldwide.
+use_case: "finding restaurants, businesses, hotels, POI lookup, getting reviews and ratings, address autocomplete, nearby search"
 endpoints:
 - description: Get the details of a place based on its resource name, which is a string in the `places/{place_id}` format.
   method: GET
@@ -24,7 +25,7 @@ endpoints:
       - price_usd: 0.001
       unit: requests
   resource: places
-- description: Text query based place search.
+- description: Search for places using a text query like a business name, address, or category, returning matching results with details
   method: POST
   path: v1/places:searchText
   pricing:
@@ -47,6 +48,5 @@ name: places
 sandbox_service_url: https://sandbox-pay-google-places-123883807128.us-central1.run.app
 service_url: https://production-pay-google-places-123883807128.us-central1.run.app
 title: Places API (New)
-use_case: finding restaurants, businesses, hotels, POI lookup, getting reviews and ratings, address autocomplete, nearby search
 version: v1
 ---

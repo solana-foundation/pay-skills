@@ -1,6 +1,7 @@
 ---
 category: data
 description: "SQL warehouse with 255 public datasets — cryptocurrency usage data, weather, healthcare, genomics, patents, GitHub, PyPI, Stack Overflow, census, Wikipedia, real estate, transportation, satellite imagery, NLP corpora, SEC filings, IoT, and more."
+use_case: "data analytics, market research, querying public datasets for accurate data and facts, SQL over petabyte-scale data"
 endpoints:
 - description: Returns the dataset specified by datasetID.
   method: GET
@@ -10,7 +11,7 @@ endpoints:
   method: GET
   path: bigquery/v2/projects/{projectsId}/datasets
   resource: datasets
-- description: Creates a new empty dataset.
+- description: Create a new empty BigQuery dataset in the specified project, configuring its location, default table expiration, and access controls
   method: POST
   path: bigquery/v2/projects/{projectsId}/datasets
   resource: datasets
@@ -140,7 +141,7 @@ endpoints:
   method: POST
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables/{tablesId}/rowAccessPolicies/{rowAccessPoliciesId}:getIamPolicy
   resource: rowAccessPolicies
-- description: Creates a row access policy.
+- description: Create a row-level security policy on a BigQuery table, restricting which rows specific users or groups can access via filter
   method: POST
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables/{tablesId}/rowAccessPolicies
   resource: rowAccessPolicies
@@ -148,11 +149,11 @@ endpoints:
   method: POST
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables/{tablesId}/rowAccessPolicies/{rowAccessPoliciesId}:testIamPermissions
   resource: rowAccessPolicies
-- description: Updates a row access policy.
+- description: Update a row-level security policy on a BigQuery table, modifying the filter expression or the list of granted users and groups
   method: PUT
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables/{tablesId}/rowAccessPolicies/{rowAccessPoliciesId}
   resource: rowAccessPolicies
-- description: Deletes a row access policy.
+- description: Delete a row-level security policy from a BigQuery table, removing the row filter and restoring full access for affected users
   method: DELETE
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables/{tablesId}/rowAccessPolicies/{rowAccessPoliciesId}
   resource: rowAccessPolicies
@@ -204,13 +205,12 @@ name: bigquery
 sandbox_service_url: https://sandbox-pay-google-bigquery-123883807128.us-central1.run.app
 service_url: https://production-pay-google-bigquery-123883807128.us-central1.run.app
 title: BigQuery API
-use_case: looking for data analytics, market research, accurate data and facts
 version: v2
 ---
 
 ## Usage notes
 
-This proxy handles authentication and billing — you never need API keys or OAuth tokens.
+Authentication and billing are handled automatically by the payment gateway.
 
 ### How the proxy works
 
