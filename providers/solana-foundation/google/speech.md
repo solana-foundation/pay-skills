@@ -1,6 +1,6 @@
 ---
 category: ai_ml
-description: Convert audio to text using speech recognition models.
+description: Convert audio to text with Google's speech recognition. Supports 125+ languages, real-time streaming, speaker diarization, word-level timestamps, profanity filtering, and automatic punctuation.
 endpoints:
 - description: Get a custom class.
   method: GET
@@ -85,8 +85,9 @@ endpoints:
       unit: minutes
   resource: speech
 name: speech
-service_url: https://production-pay-google-speech-123883807128.us-central1.run.app
 sandbox_service_url: https://sandbox-pay-google-speech-123883807128.us-central1.run.app
+service_url: https://production-pay-google-speech-123883807128.us-central1.run.app
 title: Cloud Speech-to-Text API
+use_case: transcribing audio, speech-to-text, meeting transcription, voice command processing, podcast transcription, accessibility
 version: v1
 ---

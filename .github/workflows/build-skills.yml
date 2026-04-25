@@ -30,6 +30,18 @@ jobs:
             skills build /repo \
             --base-url https://storage.googleapis.com/pay-skills/v1
 
+      - name: Probe all endpoints
+        run: |
+          docker run --rm \
+            -u "$(id -u):$(id -g)" \
+            -v "$PWD:/repo" \
+            $PAY_IMAGE \
+            skills probe /repo \
+            --currencies USDC,USDT \
+            --timeout 15 \
+            --concurrency 5 \
+            --format json | tee probe-results.json
+
       - name: Show summary
         run: |
           echo "=== skills.json ==="
@@ -37,6 +49,13 @@ jobs:
           echo "..."
           echo "=== detail files ==="
           find dist/providers -name '*.json' | sort
+          echo ""
+          echo "=== probe results ==="
+          python3 -c "
+          import json
+          r = json.load(open('probe-results.json'))
+          print(f'{r[\"passed\"]}/{r[\"total_endpoints\"]} endpoints passed, {r[\"failed\"]} failed')
+          "
 
       - name: Upload dist/ as artifact
         uses: actions/upload-artifact@v4

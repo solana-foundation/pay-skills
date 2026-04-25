@@ -1,6 +1,6 @@
 ---
 category: ai_ml
-description: Generate text, analyze images, and run conversations with Gemini models.
+description: Google Gemini models — generate text, analyze images and video, run multi-turn conversations, embed text, and execute code. Supports function calling, grounding with Google Search, and JSON output mode.
 endpoints:
 - description: Lists operations that match the specified filter in the request. If the server doesn't support this method, it returns `
   method: GET
@@ -335,8 +335,9 @@ endpoints:
   path: v1beta/corpora/{corporaId}/permissions/{permissionsId}
   resource: corpora.permissions
 name: generativelanguage
-service_url: https://production-pay-google-generativelanguage-123883807128.us-central1.run.app
 sandbox_service_url: https://sandbox-pay-google-generativelanguage-123883807128.us-central1.run.app
+service_url: https://production-pay-google-generativelanguage-123883807128.us-central1.run.app
 title: Generative Language API (Gemini)
+use_case: text generation, image understanding, conversational AI, code generation, multimodal analysis, embeddings
 version: v1beta
 ---

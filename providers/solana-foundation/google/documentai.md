@@ -1,6 +1,6 @@
 ---
 category: ai_ml
-description: Extract structured data from documents using OCR and custom extractors.
+description: Extract structured data from PDFs, scanned documents, and images using OCR and ML. Handles invoices, receipts, contracts, forms, tax docs, and IDs. Returns typed fields, tables, and entities.
 endpoints:
 - description: Gets the latest state of a long-running operation. Clients can use this method to poll the operation result at intervals
   method: GET
@@ -189,8 +189,9 @@ endpoints:
   path: v1/operations/{operationsId}
   resource: operations
 name: documentai
-service_url: https://production-pay-google-documentai-123883807128.us-central1.run.app
 sandbox_service_url: https://sandbox-pay-google-documentai-123883807128.us-central1.run.app
+service_url: https://production-pay-google-documentai-123883807128.us-central1.run.app
 title: Cloud Document AI API
+use_case: processing invoices, extracting text from scanned documents, digitizing paper forms, receipt parsing, contract analysis
 version: v1
 ---

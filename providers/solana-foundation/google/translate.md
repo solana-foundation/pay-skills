@@ -1,6 +1,6 @@
 ---
 category: ai_ml
-description: Translate text and documents between 100+ languages.
+description: Translate text and documents between 130+ languages. Supports batch translation, language detection, romanization, glossaries for domain-specific terms, and adaptive MT for improved quality over time.
 endpoints:
 - description: Returns a list of supported languages for translation.
   method: GET
@@ -250,8 +250,9 @@ endpoints:
   path: v3/projects/{projectsId}/locations/{locationsId}/models/{modelsId}
   resource: projects.locations.models
 name: translate
-service_url: https://production-pay-google-translate-123883807128.us-central1.run.app
 sandbox_service_url: https://sandbox-pay-google-translate-123883807128.us-central1.run.app
+service_url: https://production-pay-google-translate-123883807128.us-central1.run.app
 title: Cloud Translation API
+use_case: translating text, language detection, multilingual content, localization, document translation, cross-language communication
 version: v3
 ---
