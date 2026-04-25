@@ -1,8 +1,8 @@
 ---
 name: marketplace
 title: "Purch"
-description: "Search and purchase products from Amazon and Shopify stores via AI agents, with access to skills, knowledge bases, and agent personas in Purch Vault"
-use_case: "Use when an AI agent needs to search product catalogs across Amazon and Shopify, compare prices and reviews, or initiate purchases on behalf of a user for e-commerce automation"
+description: "Search and purchase products from Amazon and Shopify through AI agents. Supports product discovery, price and review comparison, shopping automation, Purch Vault skills, knowledge bases, personas, and agent-assisted ecommerce checkout flows."
+use_case: "Use for product search, Amazon and Shopify shopping, comparing prices and reviews, purchase initiation, ecommerce automation, product recommendations, agent shopping workflows, buyer research, marketplace browsing, and Purch Vault skills or personas."
 category: productivity
 service_url: https://api.purch.xyz
 endpoints:

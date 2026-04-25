@@ -1,9 +1,9 @@
 ---
 name: media-generation
 title: "StableStudio"
-description: "Pay-per-generation AI image and video creation with Sora, Veo, Grok, and Flux"
+description: "Generate and edit AI images and videos with Sora, Veo, Wan, Grok, Seedance, GPT Image, Nano Banana Pro, and Flux. Supports text-to-video, image-to-video, image generation, image editing, reference uploads, async jobs, and dynamic pricing."
 category: media
-use_case: "Use when you need to generate or edit images and videos using AI models like Sora, Veo, Grok, Flux, Seedance, or GPT Image, with pay-per-generation pricing"
+use_case: "Use for AI video generation, image generation, image editing, reference uploads, text-to-video prompts, image-to-video animation, creative assets, ads, social content, product mockups, visual ideation, and choosing Sora, Veo, Flux, Grok, or Seedance."
 service_url: https://stablestudio.dev
 endpoints:
   - method: POST
@@ -218,7 +218,7 @@ endpoints:
   - method: POST
     path: "api/upload"
     resource: upload
-    description: "Get upload token for reference images"
+    description: "Upload a reference image and receive a token for image-to-video generation or image editing requests"
     pricing:
       dimensions:
         - direction: usage

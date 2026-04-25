@@ -1,9 +1,9 @@
 ---
 category: maps
-description: Search for businesses and points of interest, get place details (hours, ratings, reviews, photos, contact info), autocomplete addresses, and find nearby places. Covers 200M+ places worldwide.
-use_case: "finding restaurants, businesses, hotels, POI lookup, getting reviews and ratings, address autocomplete, nearby search"
+description: "Search and inspect Google Places worldwide. Find businesses and points of interest, run nearby or text search, autocomplete addresses, retrieve place details, ratings, reviews, hours, photos, contact info, websites, and location metadata."
+use_case: "Use for restaurant and business search, hotel and POI lookup, local discovery, address autocomplete, nearby search, ratings and review lookup, opening-hours checks, store locators, lead generation, and place metadata enrichment."
 endpoints:
-- description: Get the details of a place based on its resource name, which is a string in the `places/{place_id}` format.
+- description: Get details for a place by resource name, including fields requested for location, contact, hours, ratings, or photos.
   method: GET
   path: v1/places/{placesId}
   pricing:
@@ -14,7 +14,7 @@ endpoints:
       - price_usd: 0.001
       unit: requests
   resource: places
-- description: Search for places near locations.
+- description: Search for places near a geographic location using radius, type, ranking, and field mask controls.
   method: POST
   path: v1/places:searchNearby
   pricing:
@@ -25,7 +25,7 @@ endpoints:
       - price_usd: 0.001
       unit: requests
   resource: places
-- description: Search for places using a text query like a business name, address, or category, returning matching results with details
+- description: Search for places using a text query such as a business name, address, or category, returning matching place details.
   method: POST
   path: v1/places:searchText
   pricing:
@@ -36,11 +36,11 @@ endpoints:
       - price_usd: 0.001
       unit: requests
   resource: places
-- description: Returns predictions for the given input.
+- description: Return place and address autocomplete predictions for partial user input and optional location biasing.
   method: POST
   path: v1/places:autocomplete
   resource: places
-- description: Get a photo media with a photo reference string.
+- description: Retrieve place photo media by photo resource name, with optional sizing controls for display or storage.
   method: GET
   path: v1/places/{placesId}/photos/{photosId}/media
   resource: places.photos

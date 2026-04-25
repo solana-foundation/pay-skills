@@ -1,8 +1,8 @@
 ---
 name: search
 title: "x402scan"
-description: "Full-text search engine and comprehensive registry of indexed x402-compatible payment endpoints across chains, tags, and categories"
-use_case: "Use when you need to discover x402-compatible paid APIs by chain, category, tag, or keyword — ideal for finding new services, checking endpoint availability, or exploring the x402 ecosystem"
+description: "Search an indexed registry of x402-compatible paid API endpoints by chain, tag, keyword, category, service, and pricing metadata. Helps agents discover payment-enabled APIs, inspect endpoint availability, and explore the x402 ecosystem."
+use_case: "Use for discovering x402 paid APIs, searching by chain or category, checking endpoint pricing, finding new payment-enabled services, exploring the x402 ecosystem, registry lookup, API discovery, and comparing available paid endpoints."
 category: search
 service_url: https://x402scan.com
 endpoints:

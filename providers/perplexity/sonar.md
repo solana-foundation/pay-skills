@@ -1,8 +1,8 @@
 ---
 name: sonar
 title: "Perplexity Sonar"
-description: "AI-powered web search with real-time grounding via Perplexity Sonar, returning sourced and cited answers with inline references instead of raw links"
-use_case: "Use when you need up-to-date, sourced answers from the web with citations — ideal for fact-checking, current events, research questions, or any query requiring real-time information beyond training data"
+description: "Ask Perplexity Sonar for real-time web-grounded answers with sources. Returns cited responses, inline references, current information, research synthesis, fact-checking support, and answer generation beyond static model training data."
+use_case: "Use for up-to-date sourced answers, current events, fact-checking, research questions, market or company research, web-grounded summaries, citation-backed claims, news-aware responses, and queries requiring current information beyond model training data."
 category: ai_ml
 service_url: https://pplx.x402.paysponge.com
 endpoints:

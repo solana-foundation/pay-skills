@@ -1,8 +1,8 @@
 ---
 name: voice
 title: "dTelecom"
-description: "Pay-per-use WebRTC real-time voice, speech-to-text transcription, and text-to-speech synthesis for AI agents with wallet-based authentication"
-use_case: "Use when an AI agent needs real-time voice communication via WebRTC, audio transcription from speech to text, or natural-sounding speech synthesis from text"
+description: "Use wallet-authenticated WebRTC voice, speech-to-text, and text-to-speech APIs for AI agents. Supports realtime bidirectional voice sessions, transcription, speech synthesis, low-latency communication, and pay-per-use voice workflows."
+use_case: "Use for realtime AI voice conversations, WebRTC calling, speech-to-text transcription, text-to-speech playback, voice agents, audio interfaces, agent-to-user communication, low-latency conversations, and programmable voice workflows."
 category: ai_ml
 service_url: https://x402.dtelecom.org
 endpoints:

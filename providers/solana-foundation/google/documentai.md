@@ -1,37 +1,37 @@
 ---
 category: ai_ml
-description: Extract structured data from PDFs, scanned documents, and images using OCR and ML. Handles invoices, receipts, contracts, forms, tax docs, and IDs. Returns typed fields, tables, and entities.
-use_case: "processing invoices, extracting text from scanned documents, digitizing paper forms, receipt parsing, contract analysis"
+description: "Extract structured data from PDFs, scans, and document images using OCR and ML. Handles invoices, receipts, forms, contracts, tax documents, IDs, and custom schemas, returning text, tables, entities, fields, and confidence signals."
+use_case: "Use for invoice and receipt parsing, OCR on scanned files, form digitization, contract analysis, tax document processing, ID extraction, table extraction, document classification, custom schema extraction, and human-review workflows."
 endpoints:
-- description: Gets the latest state of a long-running operation. Clients can use this method to poll the operation result at intervals
+- description: Get the latest state of a project-scoped Document AI operation for polling results.
   method: GET
   path: v1/projects/{projectsId}/operations/{operationsId}
   resource: projects.operations
-- description: Fetches processor types. Note that we don't use ListProcessorTypes here, because it isn't paginated.
+- description: Fetch available Document AI processor types for a project location without pagination.
   method: GET
   path: v1/projects/{projectsId}/locations/{locationsId}:fetchProcessorTypes
   resource: projects.locations
-- description: 'Lists information about the supported locations for this service. This method can be called in two ways: * **List all pu'
+- description: List supported Document AI locations for a project, including regional endpoints.
   method: GET
   path: v1/projects/{projectsId}/locations
   resource: projects.locations
-- description: Gets information about a location.
+- description: Get metadata for a supported Document AI location.
   method: GET
   path: v1/projects/{projectsId}/locations/{locationsId}
   resource: projects.locations
-- description: Lists operations that match the specified filter in the request. If the server doesn't support this method, it returns `
+- description: List long-running Document AI operations in a project location.
   method: GET
   path: v1/projects/{projectsId}/locations/{locationsId}/operations
   resource: projects.locations.operations
-- description: Gets the latest state of a long-running operation. Clients can use this method to poll the operation result at intervals
+- description: Get the latest state of a long-running Document AI operation for polling results.
   method: GET
   path: v1/projects/{projectsId}/locations/{locationsId}/operations/{operationsId}
   resource: projects.locations.operations
-- description: Starts asynchronous cancellation on a long-running operation. The server makes a best effort to cancel the operation, bu
+- description: Request cancellation of a long-running Document AI operation.
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/operations/{operationsId}:cancel
   resource: projects.locations.operations
-- description: Lists all processors which belong to this project.
+- description: List Document AI processors in a project location, including processor IDs, types, and states.
   method: GET
   path: v1/projects/{projectsId}/locations/{locationsId}/processors
   resource: projects.locations.processors
@@ -52,7 +52,7 @@ endpoints:
       - price_usd: 0.6
       unit: pages
   resource: projects.locations.processors
-- description: LRO endpoint to batch process many documents. The output is written to Cloud Storage as JSON in the [Document] format.
+- description: Batch process many documents asynchronously and write extracted Document JSON output to Cloud Storage.
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}:batchProcess
   pricing:
@@ -65,7 +65,7 @@ endpoints:
       - price_usd: 0.6
       unit: pages
   resource: projects.locations.processors
-- description: Creates a processor from the ProcessorType provided. The processor will be at `ENABLED` state by default after its creat
+- description: Create a Document AI processor from a processor type; new processors are enabled by default.
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/processors
   resource: projects.locations.processors
@@ -77,19 +77,19 @@ endpoints:
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}:disable
   resource: projects.locations.processors
-- description: Set the default (active) version of a Processor that will be used in ProcessDocument and BatchProcessDocuments.
+- description: Set the default processor version used for online and batch document processing requests.
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}:setDefaultProcessorVersion
   resource: projects.locations.processors
-- description: 'Deletes the processor, unloads all deployed model artifacts if it was enabled and then deletes all artifacts associated '
+- description: Delete a processor and its associated artifacts, unloading deployed model artifacts if needed.
   method: DELETE
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}
   resource: projects.locations.processors
-- description: Gets a processor version detail.
+- description: Get detailed metadata for a specific processor version, including state and model information.
   method: GET
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}/processorVersions/{processorVersionsId}
   resource: projects.locations.processors.processorVersions
-- description: Lists all versions of a processor.
+- description: List all versions of a Document AI processor with deployment and training status.
   method: GET
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}/processorVersions
   resource: projects.locations.processors.processorVersions
@@ -97,11 +97,11 @@ endpoints:
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}/processorVersions/{processorVersionsId}:process
   resource: projects.locations.processors.processorVersions
-- description: LRO endpoint to batch process many documents. The output is written to Cloud Storage as JSON in the [Document] format.
+- description: Batch process documents with a specific processor version and write Document JSON output to Cloud Storage.
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}/processorVersions/{processorVersionsId}:batchProcess
   resource: projects.locations.processors.processorVersions
-- description: Trains a new processor version. Operation metadata is returned as TrainProcessorVersionMetadata.
+- description: Train a new processor version from annotated documents and return a long-running training operation.
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}/processorVersions:train
   resource: projects.locations.processors.processorVersions
@@ -109,31 +109,31 @@ endpoints:
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}/processorVersions/{processorVersionsId}:deploy
   resource: projects.locations.processors.processorVersions
-- description: Undeploys the processor version.
+- description: Undeploy a processor version so it is no longer serving online document processing traffic.
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}/processorVersions/{processorVersionsId}:undeploy
   resource: projects.locations.processors.processorVersions
-- description: Evaluates a ProcessorVersion against annotated documents, producing an Evaluation.
+- description: Evaluate a processor version against annotated documents and return quality metrics in an evaluation.
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}/processorVersions/{processorVersionsId}:evaluateProcessorVersion
   resource: projects.locations.processors.processorVersions
-- description: Deletes the processor version, all artifacts under the processor version will be deleted.
+- description: Delete a processor version and all artifacts associated with that version.
   method: DELETE
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}/processorVersions/{processorVersionsId}
   resource: projects.locations.processors.processorVersions
-- description: Retrieves a specific evaluation.
+- description: Get a specific processor version evaluation with metrics and metadata.
   method: GET
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}/processorVersions/{processorVersionsId}/evaluations/{evaluationsId}
   resource: projects.locations.processors.processorVersions.evaluations
-- description: Retrieves a set of evaluations for a given processor version.
+- description: List evaluations for a processor version to compare model quality over time.
   method: GET
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}/processorVersions/{processorVersionsId}/evaluations
   resource: projects.locations.processors.processorVersions.evaluations
-- description: Send a document for Human Review. The input document should be processed by the specified processor.
+- description: Send a processed document to Human Review for manual validation or correction.
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/processors/{processorsId}/humanReviewConfig:reviewDocument
   resource: projects.locations.processors.humanReviewConfig
-- description: Lists the processor types that exist.
+- description: List available processor types in a location, including prebuilt and custom-capable processors.
   method: GET
   path: v1/projects/{projectsId}/locations/{locationsId}/processorTypes
   resource: projects.locations.processorTypes
@@ -153,7 +153,7 @@ endpoints:
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/schemas
   resource: projects.locations.schemas
-- description: 'Updates a schema. Editable fields are: - `display_name` - `labels`'
+- description: Update a document schema display name or labels.
   method: PATCH
   path: v1/projects/{projectsId}/locations/{locationsId}/schemas/{schemasId}
   resource: projects.locations.schemas
@@ -177,7 +177,7 @@ endpoints:
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/schemas/{schemasId}/schemaVersions:generate
   resource: projects.locations.schemas.schemaVersions
-- description: 'Updates a schema version. Editable fields are: - `display_name` - `labels`'
+- description: Update a document schema version display name or labels.
   method: PATCH
   path: v1/projects/{projectsId}/locations/{locationsId}/schemas/{schemasId}/schemaVersions/{schemaVersionsId}
   resource: projects.locations.schemas.schemaVersions
@@ -185,7 +185,7 @@ endpoints:
   method: DELETE
   path: v1/projects/{projectsId}/locations/{locationsId}/schemas/{schemasId}/schemaVersions/{schemaVersionsId}
   resource: projects.locations.schemas.schemaVersions
-- description: Deletes a long-running operation. This method indicates that the client is no longer interested in the operation result.
+- description: Delete a long-running Document AI operation record after results are no longer needed.
   method: DELETE
   path: v1/operations/{operationsId}
   resource: operations

@@ -1,8 +1,8 @@
 ---
 name: email
 title: "AgentMail"
-description: "Agentic email infrastructure for AI agents — programmatically create dedicated inboxes, send outbound messages, and retrieve incoming email on demand"
-use_case: "Use when an AI agent needs its own email address to send or receive messages, manage inbound correspondence, or automate email-based workflows without manual account setup"
+description: "Create and operate dedicated email inboxes for AI agents. Supports programmatic inbox creation, outbound sending, inbound message retrieval, unique agent addresses, workflow automation, and no manual account setup for email-based agent tasks."
+use_case: "Use for giving agents their own email address, sending outbound email, receiving replies, monitoring inboxes, automating email-based workflows, collecting verification messages, routing support mail, and managing correspondence without manual setup."
 category: messaging
 service_url: https://x402.api.agentmail.to
 endpoints:

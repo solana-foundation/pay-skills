@@ -1,8 +1,8 @@
 ---
 name: rpc
 title: "QuickNode"
-description: "Pay-per-request JSON-RPC access to 140+ blockchain networks including Solana mainnet, devnet, and testnet with dynamic pricing and automatic load balancing"
-use_case: "Use when you need to query blockchain state, submit transactions, fetch account data, or interact with any of 140+ supported networks via standard JSON-RPC without managing node infrastructure"
+description: "Use pay-per-request JSON-RPC endpoints for 140+ blockchain networks, including Solana mainnet, devnet, and testnet. Provides dynamic pricing, automatic load balancing, chain routing, transaction submission, and node access without infrastructure."
+use_case: "Use for blockchain JSON-RPC, querying account or contract state, submitting transactions, Solana RPC, EVM RPC, multi-chain dapps, block and transaction lookups, devnet/testnet access, node infrastructure replacement, and scalable chain reads."
 category: compute
 service_url: https://x402.quicknode.com
 endpoints:

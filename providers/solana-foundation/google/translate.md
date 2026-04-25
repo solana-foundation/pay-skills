@@ -1,13 +1,13 @@
 ---
 category: ai_ml
-description: Translate text and documents between 130+ languages. Supports batch translation, language detection, romanization, glossaries for domain-specific terms, and adaptive MT for improved quality over time.
-use_case: "translating text, language detection, multilingual content, localization, document translation, cross-language communication"
+description: "Translate text and documents across 130+ languages. Supports language detection, romanization, synchronous and batch translation, glossaries for domain terminology, adaptive MT datasets, custom models, and document formatting."
+use_case: "Use for multilingual content, localization, document translation, language detection, cross-language communication, glossary-controlled terminology, romanization, batch translation jobs, adaptive MT, and custom translation models."
 endpoints:
-- description: Returns a list of supported languages for translation.
+- description: List languages supported for translation, optionally localized for a display language.
   method: GET
   path: v3/projects/{projectsId}/supportedLanguages
   resource: projects
-- description: Detects the language of text within a request.
+- description: Detect the source language of input text and return language codes with confidence signals.
   method: POST
   path: v3/projects/{projectsId}:detectLanguage
   pricing:
@@ -18,7 +18,7 @@ endpoints:
       - price_usd: 0.001
       unit: characters
   resource: projects
-- description: Translates input text and returns translated text.
+- description: Translate input text into a target language and return translated text segments.
   method: POST
   path: v3/projects/{projectsId}/translateText
   pricing:
@@ -29,35 +29,35 @@ endpoints:
       - price_usd: 0.001
       unit: characters
   resource: projects
-- description: Romanize input text written in non-Latin scripts to Latin text.
+- description: Romanize input text written in non-Latin scripts into Latin script.
   method: POST
   path: v3/projects/{projectsId}/romanizeText
   resource: projects
-- description: 'Lists information about the supported locations for this service. This method can be called in two ways: * **List all pu'
+- description: List supported Cloud Translation locations for a project, including regional endpoints.
   method: GET
   path: v3/projects/{projectsId}/locations
   resource: projects.locations
-- description: Gets information about a location.
+- description: Get metadata for a supported Cloud Translation location.
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}
   resource: projects.locations
-- description: Returns a list of supported languages for translation.
+- description: List languages supported for translation in a specific location.
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}/supportedLanguages
   resource: projects.locations
-- description: Romanize input text written in non-Latin scripts to Latin text.
+- description: Romanize input text in a specific location from non-Latin scripts into Latin script.
   method: POST
   path: v3/projects/{projectsId}/locations/{locationsId}:romanizeText
   resource: projects.locations
-- description: 'Translates a large volume of text in asynchronous batch mode. This function provides real-time output as the inputs are '
+- description: Translate large text batches asynchronously and write translated output to the configured destination.
   method: POST
   path: v3/projects/{projectsId}/locations/{locationsId}:batchTranslateText
   resource: projects.locations
-- description: Translate text using Adaptive MT.
+- description: Translate text with Adaptive MT so corrections and dataset examples can improve domain-specific output.
   method: POST
   path: v3/projects/{projectsId}/locations/{locationsId}:adaptiveMtTranslate
   resource: projects.locations
-- description: Detects the language of text within a request.
+- description: Detect the source language of input text in a specific location and return language confidence signals.
   method: POST
   path: v3/projects/{projectsId}/locations/{locationsId}:detectLanguage
   pricing:
@@ -68,7 +68,7 @@ endpoints:
       - price_usd: 0.001
       unit: characters
   resource: projects.locations
-- description: Translates documents in synchronous mode.
+- description: Translate a document synchronously while preserving supported document structure and formatting.
   method: POST
   path: v3/projects/{projectsId}/locations/{locationsId}:translateDocument
   pricing:
@@ -79,11 +79,11 @@ endpoints:
       - price_usd: 0.08
       unit: pages
   resource: projects.locations
-- description: Refines the input translated text to improve the quality.
+- description: Refine previously translated text to improve fluency, terminology, and translation quality.
   method: POST
   path: v3/projects/{projectsId}/locations/{locationsId}:refineText
   resource: projects.locations
-- description: Translates input text and returns translated text.
+- description: Translate input text in a specific location and return translated text segments.
   method: POST
   path: v3/projects/{projectsId}/locations/{locationsId}:translateText
   pricing:
@@ -94,7 +94,7 @@ endpoints:
       - price_usd: 0.001
       unit: characters
   resource: projects.locations
-- description: 'Translates a large volume of document in asynchronous batch mode. This function provides real-time output as the inputs '
+- description: Translate large document batches asynchronously and write translated files to the configured destination.
   method: POST
   path: v3/projects/{projectsId}/locations/{locationsId}:batchTranslateDocument
   resource: projects.locations
@@ -110,67 +110,67 @@ endpoints:
   method: POST
   path: v3/projects/{projectsId}/locations/{locationsId}/datasets
   resource: projects.locations.datasets
-- description: Import sentence pairs into translation Dataset.
+- description: Import sentence pairs into a translation dataset for custom model training.
   method: POST
   path: v3/projects/{projectsId}/locations/{locationsId}/datasets/{datasetsId}:importData
   resource: projects.locations.datasets
-- description: Exports dataset's data to the provided output location.
+- description: Export translation dataset sentence pairs to the configured output location.
   method: POST
   path: v3/projects/{projectsId}/locations/{locationsId}/datasets/{datasetsId}:exportData
   resource: projects.locations.datasets
-- description: Deletes a dataset and all of its contents.
+- description: Delete a translation dataset and all stored sentence pairs.
   method: DELETE
   path: v3/projects/{projectsId}/locations/{locationsId}/datasets/{datasetsId}
   resource: projects.locations.datasets
-- description: Lists sentence pairs in the dataset.
+- description: List sentence-pair examples stored in a translation dataset.
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}/datasets/{datasetsId}/examples
   resource: projects.locations.datasets.examples
-- description: Lists operations that match the specified filter in the request. If the server doesn't support this method, it returns `
+- description: List long-running Cloud Translation operations in a project location.
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}/operations
   resource: projects.locations.operations
-- description: Gets the latest state of a long-running operation. Clients can use this method to poll the operation result at intervals
+- description: Get the latest state of a long-running Cloud Translation operation for polling results.
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}/operations/{operationsId}
   resource: projects.locations.operations
-- description: Starts asynchronous cancellation on a long-running operation. The server makes a best effort to cancel the operation, bu
+- description: Request cancellation of a long-running Cloud Translation operation.
   method: POST
   path: v3/projects/{projectsId}/locations/{locationsId}/operations/{operationsId}:cancel
   resource: projects.locations.operations
-- description: Waits until the specified long-running operation is done or reaches at most a specified timeout, returning the latest st
+- description: Wait for a Cloud Translation operation to complete or return the latest state after a timeout.
   method: POST
   path: v3/projects/{projectsId}/locations/{locationsId}/operations/{operationsId}:wait
   resource: projects.locations.operations
-- description: Deletes a long-running operation. This method indicates that the client is no longer interested in the operation result.
+- description: Delete a long-running Cloud Translation operation record after results are no longer needed.
   method: DELETE
   path: v3/projects/{projectsId}/locations/{locationsId}/operations/{operationsId}
   resource: projects.locations.operations
-- description: Lists glossaries in a project. Returns NOT_FOUND, if the project doesn't exist.
+- description: List translation glossaries in a project location with language pairs and entry counts.
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}/glossaries
   resource: projects.locations.glossaries
-- description: Gets a glossary. Returns NOT_FOUND, if the glossary doesn't exist.
+- description: Get a translation glossary by ID, including language pair, entry source, and metadata.
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}/glossaries/{glossariesId}
   resource: projects.locations.glossaries
-- description: Creates a glossary and returns the long-running operation. Returns NOT_FOUND, if the project doesn't exist.
+- description: Create a translation glossary for domain-specific terminology and return a long-running operation.
   method: POST
   path: v3/projects/{projectsId}/locations/{locationsId}/glossaries
   resource: projects.locations.glossaries
-- description: Updates a glossary. A LRO is used since the update can be async if the glossary's entry file is updated.
+- description: Update a translation glossary, optionally reloading entries asynchronously from a glossary file.
   method: PATCH
   path: v3/projects/{projectsId}/locations/{locationsId}/glossaries/{glossariesId}
   resource: projects.locations.glossaries
-- description: Deletes a glossary, or cancels glossary construction if the glossary isn't created yet. Returns NOT_FOUND, if the glossa
+- description: Delete a translation glossary or cancel glossary creation if it is still in progress.
   method: DELETE
   path: v3/projects/{projectsId}/locations/{locationsId}/glossaries/{glossariesId}
   resource: projects.locations.glossaries
-- description: Gets a single glossary entry by the given id.
+- description: Get a single glossary entry by ID, including source and target terms.
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}/glossaries/{glossariesId}/glossaryEntries/{glossaryEntriesId}
   resource: projects.locations.glossaries.glossaryEntries
-- description: List the entries for the glossary.
+- description: List glossary entries with source and target terminology mappings.
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}/glossaries/{glossariesId}/glossaryEntries
   resource: projects.locations.glossaries.glossaryEntries
@@ -182,7 +182,7 @@ endpoints:
   method: PATCH
   path: v3/projects/{projectsId}/locations/{locationsId}/glossaries/{glossariesId}/glossaryEntries/{glossaryEntriesId}
   resource: projects.locations.glossaries.glossaryEntries
-- description: Deletes a single entry from the glossary
+- description: Delete a single glossary entry from a translation glossary.
   method: DELETE
   path: v3/projects/{projectsId}/locations/{locationsId}/glossaries/{glossariesId}/glossaryEntries/{glossaryEntriesId}
   resource: projects.locations.glossaries.glossaryEntries
@@ -190,7 +190,7 @@ endpoints:
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}/adaptiveMtDatasets/{adaptiveMtDatasetsId}
   resource: projects.locations.adaptiveMtDatasets
-- description: Lists all Adaptive MT datasets for which the caller has read permission.
+- description: List Adaptive MT datasets in a project location that the caller can read.
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}/adaptiveMtDatasets
   resource: projects.locations.adaptiveMtDatasets
@@ -198,11 +198,11 @@ endpoints:
   method: POST
   path: v3/projects/{projectsId}/locations/{locationsId}/adaptiveMtDatasets
   resource: projects.locations.adaptiveMtDatasets
-- description: Imports an AdaptiveMtFile and adds all of its sentences into the AdaptiveMtDataset.
+- description: Import an Adaptive MT file and add its sentence pairs to an Adaptive MT dataset.
   method: POST
   path: v3/projects/{projectsId}/locations/{locationsId}/adaptiveMtDatasets/{adaptiveMtDatasetsId}:importAdaptiveMtFile
   resource: projects.locations.adaptiveMtDatasets
-- description: Deletes an Adaptive MT dataset, including all its entries and associated metadata.
+- description: Delete an Adaptive MT dataset, including entries, files, and associated metadata.
   method: DELETE
   path: v3/projects/{projectsId}/locations/{locationsId}/adaptiveMtDatasets/{adaptiveMtDatasetsId}
   resource: projects.locations.adaptiveMtDatasets
@@ -210,19 +210,19 @@ endpoints:
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}/adaptiveMtDatasets/{adaptiveMtDatasetsId}/adaptiveMtFiles/{adaptiveMtFilesId}
   resource: projects.locations.adaptiveMtDatasets.adaptiveMtFiles
-- description: Lists all AdaptiveMtFiles associated to an AdaptiveMtDataset.
+- description: List Adaptive MT files associated with a dataset.
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}/adaptiveMtDatasets/{adaptiveMtDatasetsId}/adaptiveMtFiles
   resource: projects.locations.adaptiveMtDatasets.adaptiveMtFiles
-- description: Deletes an AdaptiveMtFile along with its sentences.
+- description: Delete an Adaptive MT file and its imported sentences.
   method: DELETE
   path: v3/projects/{projectsId}/locations/{locationsId}/adaptiveMtDatasets/{adaptiveMtDatasetsId}/adaptiveMtFiles/{adaptiveMtFilesId}
   resource: projects.locations.adaptiveMtDatasets.adaptiveMtFiles
-- description: Lists all AdaptiveMtSentences under a given file/dataset.
+- description: List Adaptive MT sentences under a specific imported file.
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}/adaptiveMtDatasets/{adaptiveMtDatasetsId}/adaptiveMtFiles/{adaptiveMtFilesId}/adaptiveMtSentences
   resource: projects.locations.adaptiveMtDatasets.adaptiveMtFiles.adaptiveMtSentences
-- description: Lists all AdaptiveMtSentences under a given file/dataset.
+- description: List Adaptive MT sentences directly under a dataset.
   method: GET
   path: v3/projects/{projectsId}/locations/{locationsId}/adaptiveMtDatasets/{adaptiveMtDatasetsId}/adaptiveMtSentences
   resource: projects.locations.adaptiveMtDatasets.adaptiveMtSentences

@@ -1,8 +1,8 @@
 ---
 name: pricing
 title: "Crush Rewards"
-description: "Real-time competitive pricing intelligence across Amazon, Walmart, Best Buy, and Target with deal alerts, brand tracking, and market analytics"
-use_case: "Use when you need to compare product prices across major US retailers, track deal alerts and price drops, monitor brand positioning, or analyze competitive pricing trends for e-commerce research"
+description: "Track competitive retail pricing across Amazon, Walmart, Best Buy, and Target. Returns live product prices, availability, deal alerts, brand positioning, market analytics, and price-drop signals for ecommerce and shopping intelligence."
+use_case: "Use for comparing prices across major US retailers, monitoring deal alerts, tracking price drops, checking product availability, analyzing brand positioning, competitive pricing research, ecommerce intelligence, and shopping recommendations."
 category: data
 service_url: https://api.crushrewards.dev
 endpoints:

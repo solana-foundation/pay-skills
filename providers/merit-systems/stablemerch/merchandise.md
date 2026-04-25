@@ -1,9 +1,9 @@
 ---
 name: merchandise
 title: "StableMerch"
-description: "Order custom-printed shirts and mugs from AI-generated images, shipped worldwide"
+description: "Order custom printed merchandise from images or generated artwork via micropayments. Supports standard shirts, heavyweight shirts, mugs, multiple sizes and colors, uploaded image assets, worldwide shipping, and no traditional ecommerce checkout."
 category: productivity
-use_case: "Use when you need to create and ship custom-printed merchandise such as shirts or mugs from an image, with worldwide delivery and no account required"
+use_case: "Use for creating and shipping custom shirts or mugs, turning AI-generated art into physical merchandise, ordering branded swag, fulfillment for user-provided images, gifts, prototypes, creator products, and agent-initiated print-on-demand workflows."
 service_url: https://stablemerch.dev
 endpoints:
   - method: POST
@@ -31,7 +31,7 @@ endpoints:
   - method: POST
     path: "api/mug"
     resource: products
-    description: "Order a custom mug from your image"
+    description: "Order a custom printed mug from an uploaded image or generated artwork, shipped to the recipient address"
     pricing:
       dimensions:
         - direction: usage

@@ -1,32 +1,32 @@
 ---
 category: ai_ml
-description: Convert text to natural-sounding speech in 50+ languages and 380+ voices. Supports SSML markup, pitch/speed control, MP3/WAV/OGG output, and Neural2/Studio voice models for human-like quality.
+description: "Generate natural-sounding speech from text or SSML in 50+ languages and 380+ voices. Supports pitch, speed, effects profiles, MP3/WAV/OGG output, long-form synthesis, and Neural2/Studio voice models for production audio."
 endpoints:
-- description: Returns a list of Voice supported for synthesis.
+- description: List supported Text-to-Speech voices with language codes, gender, and voice model metadata.
   method: GET
   path: v1/voices
   resource: voices
-- description: Synthesizes long form text asynchronously.
+- description: Synthesize long-form text asynchronously and poll the operation for generated audio output.
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}:synthesizeLongAudio
   resource: projects.locations
-- description: Lists operations that match the specified filter in the request. If the server doesn't support this method, it returns `
+- description: List long-running Text-to-Speech operations in a project location.
   method: GET
   path: v1/projects/{projectsId}/locations/{locationsId}/operations
   resource: projects.locations.operations
-- description: Gets the latest state of a long-running operation. Clients can use this method to poll the operation result at intervals
+- description: Get the latest state of a long-running Text-to-Speech operation for polling results.
   method: GET
   path: v1/projects/{projectsId}/locations/{locationsId}/operations/{operationsId}
   resource: projects.locations.operations
-- description: Starts asynchronous cancellation on a long-running operation. The server makes a best effort to cancel the operation, bu
+- description: Request cancellation of a long-running Text-to-Speech operation.
   method: POST
   path: v1/operations/{operationsId}:cancel
   resource: operations
-- description: Deletes a long-running operation. This method indicates that the client is no longer interested in the operation result.
+- description: Delete a long-running Text-to-Speech operation record after results are no longer needed.
   method: DELETE
   path: v1/operations/{operationsId}
   resource: operations
-- description: 'Synthesizes speech synchronously: receive results after all text input has been processed.'
+- description: Synthesize speech synchronously from text or SSML and return generated audio in the requested format.
   method: POST
   path: v1/text:synthesize
   resource: text
@@ -34,6 +34,6 @@ name: texttospeech
 sandbox_service_url: https://sandbox-pay-google-texttospeech-123883807128.us-central1.run.app
 service_url: https://production-pay-google-texttospeech-123883807128.us-central1.run.app
 title: Cloud Text-to-Speech API
-use_case: generating voiceovers, text-to-speech, accessibility, IVR systems, audiobook generation, pronunciation
+use_case: "Use for voiceovers, IVR and phone prompts, accessibility audio, audiobook generation, language learning, pronunciation previews, product narration, support bots, podcast snippets, SSML-controlled speech, and long-form narration."
 version: v1
 ---

@@ -1,13 +1,13 @@
 ---
 category: data
-description: "SQL warehouse with 255 public datasets — cryptocurrency usage data, weather, healthcare, genomics, patents, GitHub, PyPI, Stack Overflow, census, Wikipedia, real estate, transportation, satellite imagery, NLP corpora, SEC filings, IoT, and more."
-use_case: "data analytics, market research, querying public datasets for accurate data and facts, SQL over petabyte-scale data"
+description: "Run SQL over BigQuery and 255 public datasets: crypto, weather, healthcare, genomics, patents, GitHub, PyPI, Stack Overflow, census, Wikipedia, real estate, transportation, satellite imagery, NLP corpora, SEC filings, and IoT."
+use_case: "Use for data analytics, market research, fact-finding from public datasets, blockchain and crypto analysis, weather and climate queries, SQL exploration, benchmark datasets, investigative research, and large-scale structured data retrieval."
 endpoints:
-- description: Returns the dataset specified by datasetID.
+- description: Get BigQuery dataset metadata by dataset ID, including location, access settings, labels, and default expirations.
   method: GET
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}
   resource: datasets
-- description: Lists all datasets in the specified project to which the user has been granted the READER dataset role.
+- description: List BigQuery datasets visible in the project, including dataset IDs, locations, and basic metadata.
   method: GET
   path: bigquery/v2/projects/{projectsId}/datasets
   resource: datasets
@@ -15,39 +15,39 @@ endpoints:
   method: POST
   path: bigquery/v2/projects/{projectsId}/datasets
   resource: datasets
-- description: Undeletes a dataset which is within time travel window based on datasetId. If a time is specified, the dataset version d
+- description: Restore a deleted dataset within its time travel window, optionally restoring a specific historical version.
   method: POST
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}:undelete
   resource: datasets
-- description: Updates information in an existing dataset. The update method replaces the entire dataset resource, whereas the patch me
+- description: Replace an existing BigQuery dataset resource with new metadata, access settings, labels, and defaults.
   method: PUT
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}
   resource: datasets
-- description: Updates information in an existing dataset. The update method replaces the entire dataset resource, whereas the patch me
+- description: Patch selected BigQuery dataset metadata fields without replacing the entire dataset resource.
   method: PATCH
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}
   resource: datasets
-- description: Deletes the dataset specified by the datasetId value. Before you can delete a dataset, you must delete all its tables, e
+- description: Delete a BigQuery dataset by ID, optionally after clearing contained tables when required.
   method: DELETE
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}
   resource: datasets
-- description: Returns information about a specific job. Job information is available for a six month period after creation. Requires t
+- description: Get BigQuery job metadata, status, configuration, statistics, and errors for a specific job ID.
   method: GET
   path: bigquery/v2/projects/{projectsId}/jobs/{jobsId}
   resource: jobs
-- description: RPC to get the results of a query job.
+- description: Get results from a BigQuery query job, including rows, schema, pagination tokens, and completion state.
   method: GET
   path: bigquery/v2/projects/{projectsId}/queries/{queriesId}
   resource: jobs
-- description: Lists all jobs that you started in the specified project. Job information is available for a six month period after crea
+- description: List BigQuery jobs in the project with status, type, creation time, and user metadata.
   method: GET
   path: bigquery/v2/projects/{projectsId}/jobs
   resource: jobs
-- description: Requests that a job be cancelled. This call will return immediately, and the client will need to poll for the job status
+- description: Request cancellation of a BigQuery job, then poll job status to confirm whether cancellation completed.
   method: POST
   path: bigquery/v2/projects/{projectsId}/jobs/{jobsId}/cancel
   resource: jobs
-- description: Starts a new asynchronous job. This API has two different kinds of endpoint URIs, as this method supports a variety of u
+- description: Start an asynchronous BigQuery job such as query, load, copy, or extract and return the job resource.
   method: POST
   path: bigquery/v2/projects/{projectsId}/jobs
   resource: jobs
@@ -62,79 +62,79 @@ endpoints:
       - price_usd: 0.001
       unit: requests
   resource: jobs
-- description: Requests the deletion of the metadata of a job. This call returns when the job's metadata is deleted.
+- description: Delete BigQuery job metadata after the job is no longer needed.
   method: DELETE
   path: bigquery/v2/projects/{projectsId}/jobs/{jobsId}/delete
   resource: jobs
-- description: Gets the specified model resource by model ID.
+- description: Get BigQuery ML model metadata by model ID, including model type, labels, and training information.
   method: GET
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/models/{modelsId}
   resource: models
-- description: Lists all models in the specified dataset. Requires the READER dataset role. After retrieving the list of models, you ca
+- description: List BigQuery ML models in a dataset with model IDs, types, labels, and creation metadata.
   method: GET
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/models
   resource: models
-- description: Patch specific fields in the specified model.
+- description: Patch selected BigQuery ML model metadata fields such as description, expiration, labels, or friendly name.
   method: PATCH
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/models/{modelsId}
   resource: models
-- description: Deletes the model specified by modelId from the dataset.
+- description: Delete a BigQuery ML model from a dataset by model ID.
   method: DELETE
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/models/{modelsId}
   resource: models
-- description: RPC to list projects to which the user has been granted any project role. Users of this method are encouraged to conside
+- description: List Google Cloud projects visible to BigQuery for the authenticated account.
   method: GET
   path: projects
   resource: projects
-- description: RPC to get the service account for a project used for interactions with Google Cloud KMS
+- description: Get the BigQuery service account used by a project for Cloud KMS and related integrations.
   method: GET
   path: bigquery/v2/projects/{projectsId}/serviceAccount
   resource: projects
-- description: Gets the specified routine resource by routine ID.
+- description: Get a BigQuery routine such as a user-defined function or stored procedure by routine ID.
   method: GET
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/routines/{routinesId}
   resource: routines
-- description: Lists all routines in the specified dataset. Requires the READER dataset role.
+- description: List BigQuery routines in a dataset, including user-defined functions and stored procedures.
   method: GET
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/routines
   resource: routines
-- description: Gets the access control policy for a resource. Returns an empty policy if the resource exists and does not have a policy
+- description: Get the IAM policy for a BigQuery routine resource.
   method: POST
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/routines/{routinesId}:getIamPolicy
   resource: routines
-- description: Creates a new routine in the dataset.
+- description: Create a BigQuery routine such as a SQL UDF, remote function, table function, or stored procedure.
   method: POST
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/routines
   resource: routines
-- description: Sets the access control policy on the specified resource. Replaces any existing policy. Can return `NOT_FOUND`, `INVALID
+- description: Set the IAM policy for a BigQuery routine, replacing the existing policy.
   method: POST
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/routines/{routinesId}:setIamPolicy
   resource: routines
-- description: Returns permissions that a caller has on the specified resource. If the resource does not exist, this will return an emp
+- description: Test which IAM permissions the caller has on a BigQuery routine resource.
   method: POST
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/routines/{routinesId}:testIamPermissions
   resource: routines
-- description: Updates information in an existing routine. The update method replaces the entire Routine resource.
+- description: Replace a BigQuery routine resource with updated definition, arguments, language, or metadata.
   method: PUT
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/routines/{routinesId}
   resource: routines
-- description: Deletes the routine specified by routineId from the dataset.
+- description: Delete a BigQuery routine from a dataset by routine ID.
   method: DELETE
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/routines/{routinesId}
   resource: routines
-- description: Gets the specified row access policy by policy ID.
+- description: Get a row access policy on a BigQuery table by policy ID.
   method: GET
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables/{tablesId}/rowAccessPolicies/{rowAccessPoliciesId}
   resource: rowAccessPolicies
-- description: Lists all row access policies on the specified table.
+- description: List row access policies attached to a BigQuery table.
   method: GET
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables/{tablesId}/rowAccessPolicies
   resource: rowAccessPolicies
-- description: Deletes provided row access policies.
+- description: Delete multiple row access policies from a BigQuery table in one request.
   method: POST
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables/{tablesId}/rowAccessPolicies:batchDelete
   resource: rowAccessPolicies
-- description: Gets the access control policy for a resource. Returns an empty policy if the resource exists and does not have a policy
+- description: Get the IAM policy for a BigQuery row access policy.
   method: POST
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables/{tablesId}/rowAccessPolicies/{rowAccessPoliciesId}:getIamPolicy
   resource: rowAccessPolicies
@@ -142,7 +142,7 @@ endpoints:
   method: POST
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables/{tablesId}/rowAccessPolicies
   resource: rowAccessPolicies
-- description: Returns permissions that a caller has on the specified resource. If the resource does not exist, this will return an emp
+- description: Test which IAM permissions the caller has on a BigQuery row access policy.
   method: POST
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables/{tablesId}/rowAccessPolicies/{rowAccessPoliciesId}:testIamPermissions
   resource: rowAccessPolicies
@@ -154,7 +154,7 @@ endpoints:
   method: DELETE
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables/{tablesId}/rowAccessPolicies/{rowAccessPoliciesId}
   resource: rowAccessPolicies
-- description: List the content of a table in rows.
+- description: List rows from a BigQuery table with pagination, selected fields, and row offsets.
   method: GET
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables/{tablesId}/data
   resource: tabledata
@@ -162,39 +162,39 @@ endpoints:
   method: POST
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables/{tablesId}/insertAll
   resource: tabledata
-- description: Gets the specified table resource by table ID. This method does not return the data in the table, it only returns the ta
+- description: Get BigQuery table metadata by table ID, including schema, partitioning, clustering, and labels.
   method: GET
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables/{tablesId}
   resource: tables
-- description: Lists all tables in the specified dataset. Requires the READER dataset role.
+- description: List BigQuery tables in a dataset with IDs, table types, creation times, and basic metadata.
   method: GET
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables
   resource: tables
-- description: Gets the access control policy for a resource. Returns an empty policy if the resource exists and does not have a policy
+- description: Get the IAM policy for a BigQuery table resource.
   method: POST
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables/{tablesId}:getIamPolicy
   resource: tables
-- description: Creates a new, empty table in the dataset.
+- description: Create an empty BigQuery table with schema, partitioning, clustering, labels, and expiration settings.
   method: POST
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables
   resource: tables
-- description: Sets the access control policy on the specified resource. Replaces any existing policy. Can return `NOT_FOUND`, `INVALID
+- description: Set the IAM policy for a BigQuery table, replacing the existing policy.
   method: POST
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables/{tablesId}:setIamPolicy
   resource: tables
-- description: Returns permissions that a caller has on the specified resource. If the resource does not exist, this will return an emp
+- description: Test which IAM permissions the caller has on a BigQuery table resource.
   method: POST
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables/{tablesId}:testIamPermissions
   resource: tables
-- description: Updates information in an existing table. The update method replaces the entire Table resource, whereas the patch method
+- description: Replace a BigQuery table resource with updated schema, metadata, partitioning, labels, or expiration settings.
   method: PUT
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables/{tablesId}
   resource: tables
-- description: Updates information in an existing table. The update method replaces the entire table resource, whereas the patch method
+- description: Patch selected BigQuery table metadata fields without replacing the entire table resource.
   method: PATCH
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables/{tablesId}
   resource: tables
-- description: Deletes the table specified by tableId from the dataset. If the table contains data, all the data will be deleted.
+- description: Delete a BigQuery table and all contained data from a dataset by table ID.
   method: DELETE
   path: bigquery/v2/projects/{projectsId}/datasets/{datasetsId}/tables/{tablesId}
   resource: tables

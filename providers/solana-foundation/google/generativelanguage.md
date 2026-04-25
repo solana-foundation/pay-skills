@@ -1,17 +1,17 @@
 ---
 category: ai_ml
-description: Google Gemini models — generate text, analyze images and video, run multi-turn conversations, embed text, and execute code. Supports function calling, grounding with Google Search, and JSON output mode.
-use_case: "text generation, image understanding, conversational AI, code generation, multimodal analysis, embeddings"
+description: "Use Google Gemini models for text generation, multimodal image/audio/video understanding, chat, embeddings, code generation, JSON output, function calling, cached context, file search, grounding with Google Search, and fine-tuned models."
+use_case: "Use for AI chat, text generation, summarization, code help, image and video understanding, embeddings, semantic retrieval, tool calling, structured JSON output, grounded answers, batch generation, cached prompts, and tuned model workflows."
 endpoints:
-- description: Lists operations that match the specified filter in the request. If the server doesn't support this method, it returns `
+- description: List Gemini batch operations, including batch generation and embedding jobs.
   method: GET
   path: v1beta/batches
   resource: batches
-- description: Gets the latest state of a long-running operation. Clients can use this method to poll the operation result at intervals
+- description: Get the latest state of a Gemini batch operation for polling results.
   method: GET
   path: v1beta/batches/{batchesId}
   resource: batches
-- description: Starts asynchronous cancellation on a long-running operation. The server makes a best effort to cancel the operation, bu
+- description: Request cancellation of a Gemini batch operation.
   method: POST
   path: v1beta/batches/{batchesId}:cancel
   resource: batches
@@ -23,19 +23,19 @@ endpoints:
   method: PATCH
   path: v1beta/batches/{batchesId}:updateEmbedContentBatch
   resource: batches
-- description: Deletes a long-running operation. This method indicates that the client is no longer interested in the operation result.
+- description: Delete a Gemini batch operation record after results are no longer needed.
   method: DELETE
   path: v1beta/batches/{batchesId}
   resource: batches
-- description: Lists the [`Model`s](https://ai.google.dev/gemini-api/docs/models/gemini) available through the Gemini API.
+- description: List Gemini models available through the API, including supported methods and model metadata.
   method: GET
   path: v1beta/models
   resource: models
-- description: Gets information about a specific `Model` such as its version number, token limits, [parameters](https://ai.google.dev/g
+- description: Get Gemini model metadata such as version, token limits, supported methods, and tuning parameters.
   method: GET
   path: v1beta/models/{modelsId}
   resource: models
-- description: Generates a model response given an input `GenerateContentRequest`. Refer to the [text generation guide](https://ai.goog
+- description: Generate a Gemini response from text, image, audio, video, tool, or structured content inputs.
   method: POST
   path: v1beta/models/{modelsId}:generateContent
   resource: models
@@ -43,11 +43,11 @@ endpoints:
   method: POST
   path: v1beta/models/{modelsId}:generateAnswer
   resource: models
-- description: Generates a [streamed response](https://ai.google.dev/gemini-api/docs/text-generation?lang=python#generate-a-text-stream
+- description: Stream a Gemini generated response incrementally for lower-latency text or multimodal output.
   method: POST
   path: v1beta/models/{modelsId}:streamGenerateContent
   resource: models
-- description: Generates a text embedding vector from the input `Content` using the specified [Gemini Embedding model](https://ai.googl
+- description: Generate a text embedding vector from input content using a Gemini embedding model.
   method: POST
   path: v1beta/models/{modelsId}:embedContent
   pricing:
@@ -59,7 +59,7 @@ endpoints:
         price_usd: 0
       unit: tokens
   resource: models
-- description: Generates multiple embedding vectors from the input `Content` which consists of a batch of strings represented as `Embed
+- description: Generate multiple embedding vectors in one request from a batch of input content strings.
   method: POST
   path: v1beta/models/{modelsId}:batchEmbedContents
   pricing:
@@ -71,7 +71,7 @@ endpoints:
         price_usd: 0
       unit: tokens
   resource: models
-- description: Runs a model's tokenizer on input `Content` and returns the token count. Refer to the [tokens guide](https://ai.google.d
+- description: Count tokens for Gemini content input before generation or embedding requests.
   method: POST
   path: v1beta/models/{modelsId}:countTokens
   resource: models
@@ -79,7 +79,7 @@ endpoints:
   method: POST
   path: v1beta/models/{modelsId}:batchGenerateContent
   resource: models
-- description: Enqueues a batch of `EmbedContent` requests for batch processing. We have a `BatchEmbedContents` handler in `GenerativeS
+- description: Enqueue a batch of embedding requests for asynchronous Gemini processing.
   method: POST
   path: v1beta/models/{modelsId}:asyncBatchEmbedContent
   resource: models
@@ -95,7 +95,7 @@ endpoints:
   method: POST
   path: v1beta/models/{modelsId}:predict
   resource: models
-- description: Same as Predict but returns an LRO.
+- description: Run a prediction request against a Gemini model asynchronously and return a long-running operation.
   method: POST
   path: v1beta/models/{modelsId}:predictLongRunning
   resource: models
@@ -115,11 +115,11 @@ endpoints:
   method: POST
   path: v1beta/models/{modelsId}:countTextTokens
   resource: models
-- description: Lists operations that match the specified filter in the request. If the server doesn't support this method, it returns `
+- description: List long-running operations associated with a Gemini model.
   method: GET
   path: v1beta/models/{modelsId}/operations
   resource: models.operations
-- description: Gets the latest state of a long-running operation. Clients can use this method to poll the operation result at intervals
+- description: Get the latest state of a model-scoped Gemini operation for polling results.
   method: GET
   path: v1beta/models/{modelsId}/operations/{operationsId}
   resource: models.operations
@@ -127,15 +127,15 @@ endpoints:
   method: GET
   path: v1beta/tunedModels
   resource: tunedModels
-- description: Gets information about a specific TunedModel.
+- description: Get metadata for a fine-tuned Gemini model, including base model, tuning state, and display name.
   method: GET
   path: v1beta/tunedModels/{tunedModelsId}
   resource: tunedModels
-- description: Generates a model response given an input `GenerateContentRequest`. Refer to the [text generation guide](https://ai.goog
+- description: Generate content with a fine-tuned Gemini model from text, multimodal, tool, or structured inputs.
   method: POST
   path: v1beta/tunedModels/{tunedModelsId}:generateContent
   resource: tunedModels
-- description: Generates a [streamed response](https://ai.google.dev/gemini-api/docs/text-generation?lang=python#generate-a-text-stream
+- description: Stream generated content from a fine-tuned Gemini model incrementally.
   method: POST
   path: v1beta/tunedModels/{tunedModelsId}:streamGenerateContent
   resource: tunedModels
@@ -143,15 +143,15 @@ endpoints:
   method: POST
   path: v1beta/tunedModels/{tunedModelsId}:batchGenerateContent
   resource: tunedModels
-- description: Enqueues a batch of `EmbedContent` requests for batch processing. We have a `BatchEmbedContents` handler in `GenerativeS
+- description: Enqueue a batch of embedding requests for asynchronous processing by a fine-tuned model.
   method: POST
   path: v1beta/tunedModels/{tunedModelsId}:asyncBatchEmbedContent
   resource: tunedModels
-- description: 'Creates a tuned model. Check intermediate tuning progress (if any) through the [google.longrunning.Operations] service. '
+- description: Create a fine-tuned Gemini model and return a long-running operation for training progress.
   method: POST
   path: v1beta/tunedModels
   resource: tunedModels
-- description: Transfers ownership of the tuned model. This is the only way to change ownership of the tuned model. The current owner w
+- description: Transfer ownership of a fine-tuned Gemini model to another account.
   method: POST
   path: v1beta/tunedModels/{tunedModelsId}:transferOwnership
   resource: tunedModels
@@ -167,23 +167,23 @@ endpoints:
   method: DELETE
   path: v1beta/tunedModels/{tunedModelsId}
   resource: tunedModels
-- description: Lists operations that match the specified filter in the request. If the server doesn't support this method, it returns `
+- description: List long-running operations associated with a fine-tuned Gemini model.
   method: GET
   path: v1beta/tunedModels/{tunedModelsId}/operations
   resource: tunedModels.operations
-- description: Gets the latest state of a long-running operation. Clients can use this method to poll the operation result at intervals
+- description: Get the latest state of a fine-tuned model operation for polling results.
   method: GET
   path: v1beta/tunedModels/{tunedModelsId}/operations/{operationsId}
   resource: tunedModels.operations
-- description: Gets information about a specific Permission.
+- description: Get an access permission on a fine-tuned Gemini model.
   method: GET
   path: v1beta/tunedModels/{tunedModelsId}/permissions/{permissionsId}
   resource: tunedModels.permissions
-- description: Lists permissions for the specific resource.
+- description: List access permissions granted on a fine-tuned Gemini model.
   method: GET
   path: v1beta/tunedModels/{tunedModelsId}/permissions
   resource: tunedModels.permissions
-- description: Create a permission to a specific resource.
+- description: Grant access permission to a user, group, or service account for a fine-tuned Gemini model.
   method: POST
   path: v1beta/tunedModels/{tunedModelsId}/permissions
   resource: tunedModels.permissions
@@ -195,11 +195,11 @@ endpoints:
   method: DELETE
   path: v1beta/tunedModels/{tunedModelsId}/permissions/{permissionsId}
   resource: tunedModels.permissions
-- description: Generates a model response given an input `GenerateContentRequest`. Refer to the [text generation guide](https://ai.goog
+- description: Generate content through a dynamic Gemini model route from text or multimodal inputs.
   method: POST
   path: v1beta/dynamic/{dynamicId}:generateContent
   resource: dynamic
-- description: Generates a [streamed response](https://ai.google.dev/gemini-api/docs/text-generation?lang=python#generate-a-text-stream
+- description: Stream generated content through a dynamic Gemini model route.
   method: POST
   path: v1beta/dynamic/{dynamicId}:streamGenerateContent
   resource: dynamic
@@ -215,7 +215,7 @@ endpoints:
   method: POST
   path: v1beta/cachedContents
   resource: cachedContents
-- description: Updates CachedContent resource (only expiration is updatable).
+- description: Update cached content expiration for reusable Gemini context.
   method: PATCH
   path: v1beta/cachedContents/{cachedContentsId}
   resource: cachedContents
@@ -227,19 +227,19 @@ endpoints:
   method: POST
   path: v1beta/files
   resource: media
-- description: Uploads data to a FileSearchStore, preprocesses and chunks before storing it in a FileSearchStore Document.
+- description: Upload data to a File Search Store, then preprocess, chunk, and index it as a searchable document.
   method: POST
   path: v1beta/fileSearchStores/{fileSearchStoresId}:uploadToFileSearchStore
   resource: media
-- description: Lists the metadata for `File`s owned by the requesting project.
+- description: List Gemini API file metadata for uploaded files owned by the project.
   method: GET
   path: v1beta/files
   resource: files
-- description: Gets the metadata for the given `File`.
+- description: Get Gemini API metadata for an uploaded file, including state, URI, MIME type, and size.
   method: GET
   path: v1beta/files/{filesId}
   resource: files
-- description: Registers a Google Cloud Storage files with FileService. The user is expected to provide Google Cloud Storage URIs and w
+- description: Register Google Cloud Storage files with the Gemini File Service for later use in prompts.
   method: POST
   path: v1beta/files:register
   resource: files
@@ -247,27 +247,27 @@ endpoints:
   method: DELETE
   path: v1beta/files/{filesId}
   resource: files
-- description: Lists the generated files owned by the requesting project.
+- description: List generated files owned by the project, including file metadata and creation state.
   method: GET
   path: v1beta/generatedFiles
   resource: generatedFiles
-- description: Gets the latest state of a long-running operation. Clients can use this method to poll the operation result at intervals
+- description: Get the latest state of a generated-file operation for polling results.
   method: GET
   path: v1beta/generatedFiles/{generatedFilesId}/operations/{operationsId}
   resource: generatedFiles.operations
-- description: Lists all `FileSearchStores` owned by the user.
+- description: List File Search Stores owned by the project for retrieval-augmented Gemini workflows.
   method: GET
   path: v1beta/fileSearchStores
   resource: fileSearchStores
-- description: Gets information about a specific `FileSearchStore`.
+- description: Get File Search Store metadata, including display name and indexing state.
   method: GET
   path: v1beta/fileSearchStores/{fileSearchStoresId}
   resource: fileSearchStores
-- description: Creates an empty `FileSearchStore`.
+- description: Create an empty File Search Store for indexing files used in grounded Gemini responses.
   method: POST
   path: v1beta/fileSearchStores
   resource: fileSearchStores
-- description: Imports a `File` from File Service to a `FileSearchStore`.
+- description: Import an uploaded Gemini file into a File Search Store for indexing and retrieval.
   method: POST
   path: v1beta/fileSearchStores/{fileSearchStoresId}:importFile
   resource: fileSearchStores
@@ -275,19 +275,19 @@ endpoints:
   method: DELETE
   path: v1beta/fileSearchStores/{fileSearchStoresId}
   resource: fileSearchStores
-- description: Gets the latest state of a long-running operation. Clients can use this method to poll the operation result at intervals
+- description: Get the latest state of a File Search Store operation for polling indexing results.
   method: GET
   path: v1beta/fileSearchStores/{fileSearchStoresId}/operations/{operationsId}
   resource: fileSearchStores.operations
-- description: Gets the latest state of a long-running operation. Clients can use this method to poll the operation result at intervals
+- description: Get the latest state of a File Search Store upload operation for polling results.
   method: GET
   path: v1beta/fileSearchStores/{fileSearchStoresId}/upload/operations/{operationsId}
   resource: fileSearchStores.upload.operations
-- description: Gets information about a specific `Document`.
+- description: Get metadata for a document indexed in a File Search Store.
   method: GET
   path: v1beta/fileSearchStores/{fileSearchStoresId}/documents/{documentsId}
   resource: fileSearchStores.documents
-- description: Lists all `Document`s in a `Corpus`.
+- description: List documents indexed in a File Search Store, including document IDs, metadata, and indexing state.
   method: GET
   path: v1beta/fileSearchStores/{fileSearchStoresId}/documents
   resource: fileSearchStores.documents
@@ -295,11 +295,11 @@ endpoints:
   method: DELETE
   path: v1beta/fileSearchStores/{fileSearchStoresId}/documents/{documentsId}
   resource: fileSearchStores.documents
-- description: Lists all `Corpora` owned by the user.
+- description: List semantic retrieval corpora owned by the project.
   method: GET
   path: v1beta/corpora
   resource: corpora
-- description: Gets information about a specific `Corpus`.
+- description: Get metadata for a semantic retrieval corpus, including display name and configuration.
   method: GET
   path: v1beta/corpora/{corporaId}
   resource: corpora
@@ -311,19 +311,19 @@ endpoints:
   method: DELETE
   path: v1beta/corpora/{corporaId}
   resource: corpora
-- description: Gets the latest state of a long-running operation. Clients can use this method to poll the operation result at intervals
+- description: Get the latest state of a corpus operation for polling results.
   method: GET
   path: v1beta/corpora/{corporaId}/operations/{operationsId}
   resource: corpora.operations
-- description: Gets information about a specific Permission.
+- description: Get an access permission on a semantic retrieval corpus.
   method: GET
   path: v1beta/corpora/{corporaId}/permissions/{permissionsId}
   resource: corpora.permissions
-- description: Lists permissions for the specific resource.
+- description: List access permissions granted on a semantic retrieval corpus.
   method: GET
   path: v1beta/corpora/{corporaId}/permissions
   resource: corpora.permissions
-- description: Create a permission to a specific resource.
+- description: Grant access permission to a user, group, or service account for a semantic retrieval corpus.
   method: POST
   path: v1beta/corpora/{corporaId}/permissions
   resource: corpora.permissions

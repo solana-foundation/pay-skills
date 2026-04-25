@@ -1,7 +1,7 @@
 ---
 category: maps
-description: Validate and standardize postal addresses worldwide. Returns geocoded coordinates, USPS data, deliverability verdict, and address component breakdown. Covers residential, commercial, and PO Box addresses across 200+ countries.
-use_case: "verifying shipping addresses, geocoding, address autocomplete, deliverability checks, postal code validation"
+description: "Validate, normalize, and geocode postal addresses worldwide. Returns deliverability verdicts, address component fixes, geocoded coordinates, USPS metadata, plus residential, commercial, and PO Box handling across 200+ countries."
+use_case: "Use for checkout and shipping validation, CRM address cleanup, fraud checks, geocoding, postal code validation, deliverability scoring, standardizing user-entered addresses, and confirming residential, business, or PO Box destinations."
 endpoints:
 - description: Validate a postal address and return its standardized form, geocoded coordinates, deliverability verdict, and USPS data
   method: POST
@@ -14,7 +14,7 @@ endpoints:
       - price_usd: 0.001
       unit: requests
   resource: v1
-- description: Feedback about the outcome of the sequence of validation attempts. This should be the last call made after a sequence of
+- description: Submit final feedback after a sequence of address validation attempts so Google can record the outcome.
   method: POST
   path: v1:provideValidationFeedback
   resource: v1

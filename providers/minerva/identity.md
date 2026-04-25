@@ -1,8 +1,8 @@
 ---
 name: identity
 title: "Minerva"
-description: "Identity resolution, person search, enrichment with demographics and work history, and email validation against a comprehensive people database"
-use_case: "Use when you need to resolve a person's identity to a LinkedIn profile, enrich contact records with demographics, employment history, education, and financial signals, or validate email addresses"
+description: "Resolve identities, search people, enrich contacts, and validate emails against a comprehensive people database. Returns LinkedIn matches, demographics, employment history, education, income and wealth signals, contact data, and confidence scores."
+use_case: "Use for person identity resolution, LinkedIn profile matching, contact enrichment, lead research, demographics and work history, education lookup, financial signals, people search, CRM enrichment, email validation, and confidence-scored identity matching."
 category: data
 service_url: https://agentcash.minerva.io
 endpoints:

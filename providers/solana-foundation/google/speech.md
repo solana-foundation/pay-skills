@@ -1,7 +1,7 @@
 ---
 category: ai_ml
-description: Convert audio to text with Google's speech recognition. Supports 125+ languages, real-time streaming, speaker diarization, word-level timestamps, profanity filtering, and automatic punctuation.
-use_case: "transcribing audio, speech-to-text, meeting transcription, voice command processing, podcast transcription, accessibility"
+description: "Convert speech audio to text with Google Speech-to-Text. Supports 125+ languages, short and long audio, streaming-style workflows, speaker diarization, word timestamps, phrase hints, custom classes, profanity filtering, and punctuation."
+use_case: "Use for audio transcription, meeting notes, podcast and video captions, call center analytics, voice command processing, accessibility, diarized conversations, timestamped transcripts, domain vocabulary hints, and long audio jobs."
 endpoints:
 - description: Retrieve a speech recognition custom class by ID, returning its list of vocabulary items used to improve transcription accuracy
   method: GET
@@ -31,7 +31,7 @@ endpoints:
   method: GET
   path: v1/projects/{projectsId}/locations/{locationsId}/phraseSets/{phraseSetsId}
   resource: projects.locations.phraseSets
-- description: Create a set of phrase hints. Each item in the set can be a single word or a multi-word phrase. The items in the PhraseS
+- description: Create a phrase set of single-word or multi-word hints with boost values to improve recognition accuracy.
   method: POST
   path: v1/projects/{projectsId}/locations/{locationsId}/phraseSets
   resource: projects.locations.phraseSets
@@ -43,15 +43,15 @@ endpoints:
   method: DELETE
   path: v1/projects/{projectsId}/locations/{locationsId}/phraseSets/{phraseSetsId}
   resource: projects.locations.phraseSets
-- description: Lists operations that match the specified filter in the request. If the server doesn't support this method, it returns `
+- description: List long-running Speech-to-Text operations matching an optional filter.
   method: GET
   path: v1/operations
   resource: operations
-- description: Gets the latest state of a long-running operation. Clients can use this method to poll the operation result at intervals
+- description: Get the latest state of a long-running Speech-to-Text operation for polling transcription results.
   method: GET
   path: v1/operations/{operationsId}
   resource: operations
-- description: 'Performs synchronous speech recognition: receive results after all audio has been sent and processed.'
+- description: Transcribe short audio synchronously and return recognition results after the audio is processed.
   method: POST
   path: v1/speech:recognize
   pricing:
@@ -68,7 +68,7 @@ endpoints:
       - price_usd: 0.004
       unit: minutes
   resource: speech
-- description: 'Performs asynchronous speech recognition: receive results via the google.longrunning.Operations interface. Returns eithe'
+- description: Transcribe longer audio asynchronously and poll the operation for speech recognition results.
   method: POST
   path: v1/speech:longrunningrecognize
   pricing:

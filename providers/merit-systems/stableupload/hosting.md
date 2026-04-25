@@ -1,15 +1,15 @@
 ---
 name: hosting
 title: "StableUpload"
-description: "Pay-per-upload file hosting with permanent CDN URLs and static site hosting"
+description: "Upload files for permanent CDN URLs or deploy static websites from zip archives via micropayments. Supports durable artifact hosting, generated download links, static site subdomains, renewals, and simple file or site publishing for agents."
 category: storage
-use_case: "Use when you need to host a file with a permanent CDN download URL or deploy a static website from a zip archive via a single API call"
+use_case: "Use for hosting files, sharing generated artifacts, publishing static websites, uploading zip deployments, creating permanent CDN download URLs, serving images or documents, agent-generated deliverables, simple web hosting, and renewing site deployments."
 service_url: https://stableupload.dev
 endpoints:
   - method: POST
     path: "api/upload"
     resource: files
-    description: "Upload a file and get a permanent CDN download URL"
+    description: "Upload a file and receive a permanent CDN download URL for sharing or agent-generated artifacts"
     pricing:
       dimensions:
         - direction: usage
@@ -20,7 +20,7 @@ endpoints:
   - method: POST
     path: "api/site"
     resource: sites
-    description: "Upload a zip to serve as a static site at a subdomain"
+    description: "Upload a zip archive and deploy it as a static website served from a generated subdomain"
     pricing:
       dimensions:
         - direction: usage
@@ -31,7 +31,7 @@ endpoints:
   - method: POST
     path: "api/site/renew"
     resource: sites
-    description: "Renew a static site for 6-month increments"
+    description: "Renew an existing static site deployment for another 6 months to keep the generated subdomain active"
     pricing:
       dimensions:
         - direction: usage

@@ -1,15 +1,15 @@
 ---
 name: enrichment
 title: "StableEnrich"
-description: "Pay-per-request data enrichment — Apollo, Exa, Firecrawl, Google Maps, and more"
+description: "Unified enrichment gateway for Apollo, Exa, Firecrawl, Google Maps, Hunter, Minerva, Reddit, Serper, Whitepages, Cloudflare, and more. Covers people and company enrichment, web search, scraping, maps, email verification, and property data."
 category: data
-use_case: "Use when you need to enrich contact or company data, search the web, scrape pages, find local businesses, verify emails, or look up people and property records"
+use_case: "Use for contact enrichment, company lookup, prospect search, web search, page scraping, local business discovery, place details, email verification, social profile enrichment, Reddit research, news and shopping search, people search, and property records."
 service_url: https://stableenrich.dev
 endpoints:
   - method: POST
     path: "api/apollo/people-search"
     resource: apollo
-    description: "Apollo — Find prospects by filters"
+    description: "Apollo — Search people by title, company, location, seniority, industry, and other prospecting filters"
     pricing:
       dimensions:
         - direction: usage
@@ -31,7 +31,7 @@ endpoints:
   - method: POST
     path: "api/apollo/org-search"
     resource: apollo
-    description: "Apollo — Find companies by filters"
+    description: "Apollo — Search companies by domain, industry, location, employee count, revenue, and other firmographic filters"
     pricing:
       dimensions:
         - direction: usage
@@ -42,7 +42,7 @@ endpoints:
   - method: POST
     path: "api/apollo/org-enrich"
     resource: apollo
-    description: "Apollo — Enrich company by domain"
+    description: "Apollo — Enrich a company by domain with firmographics, website, industry, employee count, and related metadata"
     pricing:
       dimensions:
         - direction: usage
@@ -64,7 +64,7 @@ endpoints:
   - method: POST
     path: "api/exa/search"
     resource: exa
-    description: "Exa — Neural search across the web"
+    description: "Exa — Run neural web search for semantically relevant pages, returning ranked results with URLs and snippets"
     pricing:
       dimensions:
         - direction: usage
@@ -75,7 +75,7 @@ endpoints:
   - method: POST
     path: "api/exa/find-similar"
     resource: exa
-    description: "Exa — Find pages similar to a URL"
+    description: "Exa — Find pages similar to a seed URL for competitor discovery, source expansion, or related-content research"
     pricing:
       dimensions:
         - direction: usage
@@ -86,7 +86,7 @@ endpoints:
   - method: POST
     path: "api/exa/contents"
     resource: exa
-    description: "Exa — Retrieve content from URLs"
+    description: "Exa — Retrieve clean page content from URLs, including text extraction for downstream analysis or summarization"
     pricing:
       dimensions:
         - direction: usage
@@ -97,7 +97,7 @@ endpoints:
   - method: POST
     path: "api/exa/answer"
     resource: exa
-    description: "Exa — AI-generated answers with citations"
+    description: "Exa — Generate an answer to a research question with cited web sources and supporting search results"
     pricing:
       dimensions:
         - direction: usage
@@ -108,7 +108,7 @@ endpoints:
   - method: POST
     path: "api/firecrawl/scrape"
     resource: firecrawl
-    description: "Firecrawl — Full JS rendering scrape"
+    description: "Firecrawl — Scrape a page with JavaScript rendering and return extracted content in agent-friendly formats"
     pricing:
       dimensions:
         - direction: usage
@@ -119,7 +119,7 @@ endpoints:
   - method: POST
     path: "api/firecrawl/search"
     resource: firecrawl
-    description: "Firecrawl — Web search with scraped results"
+    description: "Firecrawl — Search the web and return scraped page content for each result instead of only links and snippets"
     pricing:
       dimensions:
         - direction: usage
@@ -130,7 +130,7 @@ endpoints:
   - method: POST
     path: "api/google-maps/nearby-search/partial"
     resource: google-maps
-    description: "Google Maps — Nearby places (partial fields)"
+    description: "Google Maps — Search nearby places with a lower-cost partial field set for names, IDs, location, and basic metadata"
     pricing:
       dimensions:
         - direction: usage
@@ -141,7 +141,7 @@ endpoints:
   - method: POST
     path: "api/google-maps/nearby-search/full"
     resource: google-maps
-    description: "Google Maps — Nearby places (all fields)"
+    description: "Google Maps — Search nearby places with the full field set, including ratings, hours, contact data, and richer details"
     pricing:
       dimensions:
         - direction: usage
@@ -152,7 +152,7 @@ endpoints:
   - method: POST
     path: "api/google-maps/text-search/partial"
     resource: google-maps
-    description: "Google Maps — Text query search (partial)"
+    description: "Google Maps — Search places by text query with a lower-cost partial field set for matching businesses or locations"
     pricing:
       dimensions:
         - direction: usage
@@ -163,7 +163,7 @@ endpoints:
   - method: POST
     path: "api/google-maps/text-search/full"
     resource: google-maps
-    description: "Google Maps — Text query search (all fields)"
+    description: "Google Maps — Search places by text query with the full field set, including ratings, hours, contact data, and details"
     pricing:
       dimensions:
         - direction: usage
@@ -174,7 +174,7 @@ endpoints:
   - method: GET
     path: "api/google-maps/place-details/partial"
     resource: google-maps
-    description: "Google Maps — Place details (partial)"
+    description: "Google Maps — Get place details with a lower-cost partial field set for identity, address, and basic metadata"
     pricing:
       dimensions:
         - direction: usage
@@ -185,7 +185,7 @@ endpoints:
   - method: GET
     path: "api/google-maps/place-details/full"
     resource: google-maps
-    description: "Google Maps — Place details (all fields)"
+    description: "Google Maps — Get full place details including ratings, hours, contact data, website, photos, and rich metadata"
     pricing:
       dimensions:
         - direction: usage
@@ -196,7 +196,7 @@ endpoints:
   - method: POST
     path: "api/hunter/email-verifier"
     resource: hunter
-    description: "Hunter — Verify email deliverability"
+    description: "Hunter — Verify whether an email address is deliverable and return confidence, status, and validation signals"
     pricing:
       dimensions:
         - direction: usage
@@ -207,7 +207,7 @@ endpoints:
   - method: POST
     path: "api/influencer/enrich-by-email"
     resource: influencer
-    description: "Find social profiles for an email"
+    description: "Find social profiles associated with an email address, including matched handles and profile metadata"
     pricing:
       dimensions:
         - direction: usage
@@ -218,7 +218,7 @@ endpoints:
   - method: POST
     path: "api/influencer/enrich-by-social"
     resource: influencer
-    description: "Enrich social profile with contact info"
+    description: "Enrich a social profile URL or handle with contact details, audience metadata, and related profile information"
     pricing:
       dimensions:
         - direction: usage
@@ -251,7 +251,7 @@ endpoints:
   - method: POST
     path: "api/minerva/validate-emails"
     resource: minerva
-    description: "Minerva — Check emails in database"
+    description: "Minerva — Validate whether email addresses exist in the Minerva database and return match status"
     pricing:
       dimensions:
         - direction: usage
@@ -262,7 +262,7 @@ endpoints:
   - method: POST
     path: "api/reddit/search"
     resource: reddit
-    description: "Reddit — Search posts by keyword"
+    description: "Reddit — Search posts by keyword or topic and return matching posts with subreddit, score, and author metadata"
     pricing:
       dimensions:
         - direction: usage
@@ -273,7 +273,7 @@ endpoints:
   - method: POST
     path: "api/reddit/post-comments"
     resource: reddit
-    description: "Reddit — Get post details and comments"
+    description: "Reddit — Get a post with its comment thread, including comment text, authors, scores, and nested replies"
     pricing:
       dimensions:
         - direction: usage
@@ -328,7 +328,7 @@ endpoints:
   - method: POST
     path: "api/cloudflare/crawl"
     resource: cloudflare
-    description: "Cloudflare — Start a crawl job (async)"
+    description: "Cloudflare — Start an asynchronous crawl job for a site or URL and return the crawl job identifier"
     pricing:
       dimensions:
         - direction: usage

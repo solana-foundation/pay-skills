@@ -1,8 +1,8 @@
 ---
 category: ai_ml
-description: Analyze text with NLP — extract named entities (people, orgs, locations, dates), detect sentiment and emotion, parse syntax, classify content into 1000+ categories. Supports 12 languages.
+description: "Analyze text with Google NLP: sentiment, emotion, named entities, entity salience, content categories, moderation categories, syntax, and all-in-one annotation. Supports multilingual text analytics for documents, reviews, tickets, and articles."
 endpoints:
-- description: Analyzes the sentiment of the provided text.
+- description: Analyze document sentiment and return overall score, magnitude, and sentence-level sentiment signals.
   method: POST
   path: v2/documents:analyzeSentiment
   pricing:
@@ -13,7 +13,7 @@ endpoints:
       - price_usd: 0.001
       unit: requests
   resource: documents
-- description: Finds named entities (currently proper names and common nouns) in the text along with entity types, probability, mention
+- description: Extract named entities from text with entity types, salience, mentions, metadata, and confidence signals.
   method: POST
   path: v2/documents:analyzeEntities
   pricing:
@@ -24,7 +24,7 @@ endpoints:
       - price_usd: 0.001
       unit: requests
   resource: documents
-- description: Classifies a document into categories.
+- description: Classify a document into content categories from Google's taxonomy with confidence scores.
   method: POST
   path: v2/documents:classifyText
   pricing:
@@ -41,7 +41,7 @@ endpoints:
       - price_usd: 0.5
       unit: requests
   resource: documents
-- description: Moderates a document for harmful and sensitive categories.
+- description: Moderate text for harmful or sensitive categories and return category confidence scores.
   method: POST
   path: v2/documents:moderateText
   pricing:
@@ -58,7 +58,7 @@ endpoints:
       - price_usd: 0.5
       unit: requests
   resource: documents
-- description: A convenience method that provides all features in one call.
+- description: Run multiple Natural Language analyses in one request, including sentiment, entities, syntax, and classification.
   method: POST
   path: v2/documents:annotateText
   pricing:
@@ -79,6 +79,6 @@ name: language
 sandbox_service_url: https://sandbox-pay-google-language-123883807128.us-central1.run.app
 service_url: https://production-pay-google-language-123883807128.us-central1.run.app
 title: Cloud Natural Language API
-use_case: sentiment analysis, named entity recognition, content classification, text analytics, opinion mining, syntax parsing
+use_case: "Use for sentiment analysis, opinion mining, entity extraction, content classification, moderation triage, support ticket routing, review analytics, article tagging, syntax analysis, document annotation, and multilingual text intelligence."
 version: v2
 ---

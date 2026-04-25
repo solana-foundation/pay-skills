@@ -1,15 +1,15 @@
 ---
 name: market-data
 title: "StableCrypto"
-description: "Crypto market data via CoinGecko, DefiLlama, Alchemy, and Etherscan"
+description: "Access crypto market and on-chain data through CoinGecko, DefiLlama, Alchemy, and Etherscan. Covers prices, DEX pools, DeFi TVL, yields, bridges, treasuries, token balances, transactions, contracts, logs, gas, and Ethereum stats."
 category: finance
-use_case: "Use when you need cryptocurrency market data, DeFi analytics, on-chain token balances, transaction history, gas prices, or blockchain contract information"
+use_case: "Use for crypto prices, market charts, DeFi analytics, TVL and yield research, DEX pool data, wallet token balances, Ethereum transfers, contract metadata, gas estimates, bridge volume, stablecoin supply, treasury holdings, and blockchain monitoring."
 service_url: https://stablecrypto.dev
 endpoints:
   - method: POST
     path: "api/coingecko/price"
     resource: coingecko
-    description: "Prices for coin(s) in given currencies"
+    description: "Get current spot prices for one or more coins in selected fiat or crypto currencies"
     pricing:
       dimensions:
         - direction: usage
@@ -20,7 +20,7 @@ endpoints:
   - method: POST
     path: "api/coingecko/markets"
     resource: coingecko
-    description: "Market data with sorting and pagination"
+    description: "List coin market data with price, market cap, volume, rank, sorting, and pagination controls"
     pricing:
       dimensions:
         - direction: usage
@@ -31,7 +31,7 @@ endpoints:
   - method: POST
     path: "api/coingecko/coin"
     resource: coingecko
-    description: "Detailed coin metadata and market data"
+    description: "Get detailed coin metadata, market data, links, categories, supply, and price statistics for a coin"
     pricing:
       dimensions:
         - direction: usage
@@ -64,7 +64,7 @@ endpoints:
   - method: POST
     path: "api/coingecko/history"
     resource: coingecko
-    description: "Historical snapshot of coin data on a specific date"
+    description: "Get a historical snapshot of coin metadata, price, market cap, and volume for a specific date"
     pricing:
       dimensions:
         - direction: usage
@@ -75,7 +75,7 @@ endpoints:
   - method: POST
     path: "api/coingecko/trending"
     resource: coingecko
-    description: "Trending coins, NFTs, and categories"
+    description: "Get currently trending coins, NFTs, and categories ranked by CoinGecko search activity"
     pricing:
       dimensions:
         - direction: usage
@@ -97,7 +97,7 @@ endpoints:
   - method: POST
     path: "api/coingecko/categories"
     resource: coingecko
-    description: "All coin categories with market data"
+    description: "List all coin categories with market cap, volume, top coins, and 24-hour change metrics"
     pricing:
       dimensions:
         - direction: usage
@@ -174,7 +174,7 @@ endpoints:
   - method: POST
     path: "api/coingecko/onchain/trending"
     resource: coingecko-onchain
-    description: "Trending pools across all networks"
+    description: "Get trending on-chain DEX liquidity pools across all supported networks with token and volume data"
     pricing:
       dimensions:
         - direction: usage
@@ -207,7 +207,7 @@ endpoints:
   - method: POST
     path: "api/coingecko/onchain/pool"
     resource: coingecko-onchain
-    description: "Pool data (price, transactions, volume)"
+    description: "Get price, liquidity, volume, transaction, and token-pair data for a specific DEX liquidity pool"
     pricing:
       dimensions:
         - direction: usage
@@ -262,7 +262,7 @@ endpoints:
   - method: POST
     path: "api/coingecko/onchain/network/trending"
     resource: coingecko-onchain
-    description: "Trending pools on a specific network"
+    description: "Get trending DEX liquidity pools on a specific blockchain network with token and volume data"
     pricing:
       dimensions:
         - direction: usage
@@ -295,7 +295,7 @@ endpoints:
   - method: POST
     path: "api/coingecko/onchain/category/pools"
     resource: coingecko-onchain
-    description: "Pools in a specific on-chain category"
+    description: "List DEX liquidity pools in a specific on-chain category with token pairs, liquidity, and volume"
     pricing:
       dimensions:
         - direction: usage
@@ -317,7 +317,7 @@ endpoints:
   - method: POST
     path: "api/defillama/protocol"
     resource: defillama
-    description: "Detailed data for a DeFi protocol"
+    description: "Get detailed DefiLlama data for a DeFi protocol, including TVL history, chain breakdown, and category"
     pricing:
       dimensions:
         - direction: usage
@@ -361,7 +361,7 @@ endpoints:
   - method: POST
     path: "api/defillama/coins/prices"
     resource: defillama
-    description: "Current token prices by contract address"
+    description: "Get current token prices by chain and contract address, including decimals and confidence metadata"
     pricing:
       dimensions:
         - direction: usage
@@ -372,7 +372,7 @@ endpoints:
   - method: POST
     path: "api/defillama/coins/prices-historical"
     resource: defillama
-    description: "Historical token prices at a timestamp"
+    description: "Get token prices by chain and contract address at a specific historical timestamp"
     pricing:
       dimensions:
         - direction: usage
@@ -383,7 +383,7 @@ endpoints:
   - method: POST
     path: "api/defillama/coins/batch-historical"
     resource: defillama
-    description: "Historical prices for multiple tokens"
+    description: "Get historical prices for multiple tokens in one request using contract addresses and timestamps"
     pricing:
       dimensions:
         - direction: usage
@@ -405,7 +405,7 @@ endpoints:
   - method: POST
     path: "api/defillama/coins/block"
     resource: defillama
-    description: "Closest block number to a timestamp"
+    description: "Resolve the closest block number for a chain at a given timestamp for historical on-chain queries"
     pricing:
       dimensions:
         - direction: usage
@@ -416,7 +416,7 @@ endpoints:
   - method: POST
     path: "api/defillama/stablecoins"
     resource: defillama
-    description: "All stablecoins with mcap and peg data"
+    description: "List all tracked stablecoins with market cap, peg status, chain distribution, and supply metrics"
     pricing:
       dimensions:
         - direction: usage
@@ -449,7 +449,7 @@ endpoints:
   - method: POST
     path: "api/defillama/stablecoin-chains"
     resource: defillama
-    description: "Stablecoin distribution across chains"
+    description: "Get stablecoin supply distribution by blockchain network with chain-level market cap totals"
     pricing:
       dimensions:
         - direction: usage
@@ -471,7 +471,7 @@ endpoints:
   - method: POST
     path: "api/defillama/dex-summary"
     resource: defillama
-    description: "Volume summary for a specific DEX"
+    description: "Get volume summary and historical trading activity for a specific decentralized exchange"
     pricing:
       dimensions:
         - direction: usage
@@ -581,7 +581,7 @@ endpoints:
   - method: POST
     path: "api/defillama/emissions"
     resource: defillama
-    description: "Token emissions for all protocols"
+    description: "List token emission schedules across tracked protocols, including emission rates and unlock data"
     pricing:
       dimensions:
         - direction: usage
@@ -592,7 +592,7 @@ endpoints:
   - method: POST
     path: "api/defillama/emission"
     resource: defillama
-    description: "Token emissions for a specific protocol"
+    description: "Get token emission schedule details for a specific protocol, including upcoming unlocks and rates"
     pricing:
       dimensions:
         - direction: usage
@@ -735,7 +735,7 @@ endpoints:
   - method: POST
     path: "api/defillama/treasury"
     resource: defillama
-    description: "Treasury data for an institution"
+    description: "Get treasury holdings for a specific DAO or institution, including assets, values, and chain breakdowns"
     pricing:
       dimensions:
         - direction: usage
@@ -768,7 +768,7 @@ endpoints:
   - method: POST
     path: "api/alchemy/token/token-allowance"
     resource: alchemy
-    description: "Token allowance for owner/spender"
+    description: "Check an ERC-20 token allowance granted by an owner address to a spender contract or wallet"
     pricing:
       dimensions:
         - direction: usage
@@ -801,7 +801,7 @@ endpoints:
   - method: POST
     path: "api/alchemy/prices/by-address"
     resource: alchemy
-    description: "Token prices by contract address"
+    description: "Get current token prices by chain and contract address with USD values and market metadata"
     pricing:
       dimensions:
         - direction: usage
@@ -823,7 +823,7 @@ endpoints:
   - method: POST
     path: "api/alchemy/portfolio/tokens"
     resource: alchemy
-    description: "Portfolio token balances with values"
+    description: "Get a wallet's token portfolio with balances, USD values, token metadata, and price data"
     pricing:
       dimensions:
         - direction: usage
@@ -867,7 +867,7 @@ endpoints:
   - method: POST
     path: "api/alchemy/simulation/simulate-asset-changes"
     resource: alchemy
-    description: "Simulate transaction asset changes"
+    description: "Simulate an Ethereum transaction and return expected token and native asset balance changes"
     pricing:
       dimensions:
         - direction: usage
@@ -889,7 +889,7 @@ endpoints:
   - method: POST
     path: "api/alchemy/utility/transaction-receipts"
     resource: alchemy
-    description: "All transaction receipts for a block"
+    description: "Get all Ethereum transaction receipts in a block, including gas usage, logs, and status values"
     pricing:
       dimensions:
         - direction: usage
@@ -922,7 +922,7 @@ endpoints:
   - method: POST
     path: "api/etherscan/account/balance-multi"
     resource: etherscan
-    description: "ETH balance for up to 20 addresses"
+    description: "Get current ETH balances for up to 20 Ethereum addresses in one request"
     pricing:
       dimensions:
         - direction: usage
@@ -944,7 +944,7 @@ endpoints:
   - method: POST
     path: "api/etherscan/account/txlist-internal"
     resource: etherscan
-    description: "Internal transactions for address"
+    description: "List internal Ethereum transactions for an address, including value transfers created by contract execution"
     pricing:
       dimensions:
         - direction: usage
@@ -955,7 +955,7 @@ endpoints:
   - method: POST
     path: "api/etherscan/account/tokentx"
     resource: etherscan
-    description: "ERC-20 token transfers for address"
+    description: "List ERC-20 token transfers involving an Ethereum address with token, amount, and transaction metadata"
     pricing:
       dimensions:
         - direction: usage
@@ -966,7 +966,7 @@ endpoints:
   - method: POST
     path: "api/etherscan/account/tokennfttx"
     resource: etherscan
-    description: "ERC-721 token transfers for address"
+    description: "List ERC-721 NFT transfers involving an Ethereum address with collection, token ID, and transaction metadata"
     pricing:
       dimensions:
         - direction: usage
@@ -977,7 +977,7 @@ endpoints:
   - method: POST
     path: "api/etherscan/account/token1155tx"
     resource: etherscan
-    description: "ERC-1155 token transfers for address"
+    description: "List ERC-1155 token transfers involving an Ethereum address with token IDs, amounts, and transaction metadata"
     pricing:
       dimensions:
         - direction: usage
@@ -999,7 +999,7 @@ endpoints:
   - method: POST
     path: "api/etherscan/contract/getsourcecode"
     resource: etherscan
-    description: "Source code of verified contract"
+    description: "Get verified smart contract source code, compiler settings, ABI, and metadata from Etherscan"
     pricing:
       dimensions:
         - direction: usage
@@ -1010,7 +1010,7 @@ endpoints:
   - method: POST
     path: "api/etherscan/contract/getcontractcreation"
     resource: etherscan
-    description: "Creator and tx hash for contract"
+    description: "Get the creator address and deployment transaction hash for one or more Ethereum contracts"
     pricing:
       dimensions:
         - direction: usage
@@ -1054,7 +1054,7 @@ endpoints:
   - method: POST
     path: "api/etherscan/logs/getLogs"
     resource: etherscan
-    description: "Event logs by address and topics"
+    description: "Search Ethereum event logs by contract address, block range, and indexed topic filters"
     pricing:
       dimensions:
         - direction: usage
@@ -1076,7 +1076,7 @@ endpoints:
   - method: POST
     path: "api/etherscan/token/tokeninfo"
     resource: etherscan
-    description: "Token name, symbol, decimals, holders"
+    description: "Get ERC-20 token metadata such as name, symbol, decimals, total supply, and holder count"
     pricing:
       dimensions:
         - direction: usage
@@ -1087,7 +1087,7 @@ endpoints:
   - method: POST
     path: "api/etherscan/gas/gasestimate"
     resource: etherscan
-    description: "Estimated confirmation time for gas price"
+    description: "Estimate Ethereum confirmation time for a supplied gas price in gwei"
     pricing:
       dimensions:
         - direction: usage
@@ -1098,7 +1098,7 @@ endpoints:
   - method: POST
     path: "api/etherscan/gas/gasoracle"
     resource: etherscan
-    description: "Safe, standard, and fast gas prices"
+    description: "Get Etherscan gas oracle estimates for safe, standard, and fast Ethereum transaction speeds"
     pricing:
       dimensions:
         - direction: usage

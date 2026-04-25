@@ -1,8 +1,8 @@
 ---
 name: blockchain-analytics
 title: "Allium"
-description: "Token prices, wallet balances, transaction history, and on-chain analytics across 150+ EVM, Solana, and Bitcoin chains with natural language SQL queries"
-use_case: "Use when you need real-time or historical token pricing, wallet portfolio balances across multiple chains, transaction history lookups, or custom on-chain analytics via natural language SQL queries"
+description: "Query token prices, wallet balances, transaction history, and on-chain analytics across 150+ EVM, Solana, and Bitcoin chains. Supports portfolio analysis, decoded transactions, natural-language SQL, and custom blockchain data research."
+use_case: "Use for real-time or historical token pricing, wallet portfolio balances, transaction history, decoded transfers, swaps, PnL research, Solana/EVM/Bitcoin analytics, custom SQL over blockchain data, and multi-chain portfolio enrichment."
 category: finance
 service_url: https://agents.allium.so
 endpoints:

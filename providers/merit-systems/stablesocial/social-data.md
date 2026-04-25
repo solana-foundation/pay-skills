@@ -1,9 +1,9 @@
 ---
 name: social-data
 title: "StableSocial"
-description: "Pay-per-request social media data from TikTok, Instagram, Facebook, and Reddit"
+description: "Retrieve social media data from TikTok, Instagram, Facebook, and Reddit. Covers profiles, posts, comments, followers, following lists, search results, subreddit content, engagement metrics, captions, authors, timestamps, and nested threads."
 category: media
-use_case: "Use when you need to retrieve social media profiles, posts, comments, followers, or search content across TikTok, Instagram, Facebook, and Reddit"
+use_case: "Use for social profile lookup, post retrieval, comment analysis, follower and following lists, TikTok/Instagram/Facebook/Reddit research, engagement metrics, subreddit monitoring, social listening, creator intelligence, and content discovery."
 service_url: https://stablesocial.dev
 endpoints:
   - method: POST

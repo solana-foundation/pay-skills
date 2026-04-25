@@ -1,9 +1,9 @@
 ---
 name: email
 title: "StableEmail"
-description: "Pay-per-send email delivery with dedicated inboxes, custom subdomains, and message retrieval for AI agents"
+description: "Send email, buy dedicated inboxes, manage custom subdomains, and retrieve inbound messages through per-request email APIs. Supports shared relay sending, subdomain sender identities, forwarding inboxes, message storage, and attachment access."
 category: messaging
-use_case: "Use when you need to send emails, create inboxes for receiving mail, or set up custom email subdomains with per-message micropayment billing"
+use_case: "Use for sending outbound emails, creating receiving inboxes, reading inbound messages, managing custom email subdomains, agent email workflows, forwarding inboxes, reply handling, verification messages, customer outreach, and per-message email delivery."
 service_url: https://stableemail.dev
 endpoints:
   - method: POST
@@ -42,7 +42,7 @@ endpoints:
   - method: POST
     path: "api/subdomain/inbox/create"
     resource: inboxes
-    description: "Create an inbox on your subdomain (max 100 inboxes, 500 msgs each)"
+    description: "Create a receiving inbox on your custom subdomain with its own address and message storage quota"
     pricing:
       dimensions:
         - direction: usage
@@ -53,7 +53,7 @@ endpoints:
   - method: POST
     path: "api/subdomain/inbox/messages"
     resource: inboxes
-    description: "List messages in a subdomain inbox"
+    description: "List received messages in a subdomain inbox with sender, subject, timestamp, and message identifiers"
     pricing:
       dimensions:
         - direction: usage
@@ -108,7 +108,7 @@ endpoints:
   - method: POST
     path: "api/inbox/topup/quarter"
     resource: inboxes
-    description: "Extend inbox by 90 days (save 17%)"
+    description: "Extend a forwarding inbox subscription by 90 days to keep receiving and storing inbound messages"
     pricing:
       dimensions:
         - direction: usage
@@ -119,7 +119,7 @@ endpoints:
   - method: POST
     path: "api/inbox/topup/year"
     resource: inboxes
-    description: "Extend inbox by 365 days (save 34%)"
+    description: "Extend a forwarding inbox subscription by 365 days to keep receiving and storing inbound messages"
     pricing:
       dimensions:
         - direction: usage
