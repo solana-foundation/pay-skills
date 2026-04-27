@@ -405,4 +405,23 @@ endpoints:
 ---
 
 Social media data API covering TikTok, Instagram, Facebook, and Reddit.
-All endpoints are POST and priced at $0.06 per request.
+All trigger endpoints are POST and priced at $0.06 per request.
+
+### Two-step async flow
+
+Every data endpoint is a **trigger**, not a fetch. The flow is:
+
+1. **POST `/api/<platform>/<resource>`** with payment → returns `202 Accepted`
+   with `{ "token": "<jwt>" }`. The token is your receipt and encodes the data
+   path and the wallet that paid.
+2. **GET `/api/jobs?token=<jwt>`** → returns
+   `{ "status": "pending" | "finished" | "failed", "data"?, "error"? }`. Poll
+   every few seconds; jobs typically finish in 5-60s. Tokens expire after 30
+   minutes and are replayable.
+
+The polling endpoint requires **SIWX wallet authentication** — only the wallet
+that paid can poll. Pure x402 clients (no SIWX support) cannot complete the
+flow; use a client that signs SIWX challenges (e.g. AgentCash) or implement
+SIWX directly.
+
+x402 and MPP payment in USDC accepted on Base, Solana mainnet, and Tempo.
