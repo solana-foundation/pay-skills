@@ -24,3 +24,13 @@ service_url: https://production-pay-google-addressvalidation-123883807128.us-cen
 title: Address Validation API
 version: v1
 ---
+
+## Spend-aware usage
+
+- Use `v1:validateAddress` once with the most complete address the user can
+  provide, including region code and postal code when known.
+- Do not call this provider for generic geocoding or place search; use Places
+  when the task is finding a venue or coordinates rather than validating a
+  deliverable postal address.
+- Call `v1:provideValidationFeedback` only after the user or workflow has chosen
+  a final validated address. It is not needed for one-shot validation answers.

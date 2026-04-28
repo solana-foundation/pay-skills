@@ -235,3 +235,14 @@ Pricing is dynamic -- the actual cost for each generation is determined at compl
 To use image-to-video or edit endpoints, first upload a reference image via `/api/upload` to obtain a token, then pass that token in your generation request.
 
 All generation endpoints return a `jobId`. Poll `GET /api/jobs/{jobId}` to track status until the job completes and the result URL is available.
+
+## Spend-aware usage
+
+- Pricing is dynamic. Before generation, state the model, media type, resolution,
+  duration or image count, and expected price range; ask before paying.
+- Use the cheapest model and smallest resolution/duration that meets the user's
+  stated need. Do not create variants unless the user asked for alternatives.
+- Upload each reference asset once and reuse the returned token across the
+  generation request. Do not re-upload the same file.
+- Poll the returned `jobId` for completion. Do not start a second generation
+  because the first job is still pending.

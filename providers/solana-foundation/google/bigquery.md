@@ -288,3 +288,40 @@ FROM `adventures-on-gcp.bigquery_public_datasets.bq_public_metadata`
 WHERE LOWER(dataset_description) LIKE '%<keyword>%'
 ORDER BY dataset_id
 ```
+
+## Spend-aware usage
+
+- Make a query plan before paying: target dataset/table, expected paid queries,
+  partition filter, and `maximumBytesBilled` when practical.
+- If the dataset and table are known, skip `INFORMATION_SCHEMA` discovery and
+  run the aggregate directly. Use schema discovery only when the user request
+  cannot be mapped to a known table.
+- For large public datasets, always constrain date/time partitions and select
+  only aggregate columns needed for the answer. Avoid `SELECT *` except with a
+  small `LIMIT` during schema exploration.
+- Prefer one aggregate query over multiple exploratory queries. If the first
+  query returns zero rows or a schema error, explain the correction before
+  making one follow-up call.
+
+### Known low-call recipes
+
+For "USDC volume moved on Solana over the past week", use the public Solana
+token transfer table directly instead of probing schemas first:
+
+```sql
+DECLARE usdc_mint STRING DEFAULT 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+DECLARE window_end TIMESTAMP DEFAULT CURRENT_TIMESTAMP();
+DECLARE window_start TIMESTAMP DEFAULT TIMESTAMP_SUB(window_end, INTERVAL 7 DAY);
+
+SELECT
+  FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S UTC', window_start) AS window_start_utc,
+  FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S UTC', window_end) AS window_end_utc,
+  COUNT(*) AS transfer_rows,
+  COUNT(DISTINCT tx_signature) AS distinct_transactions,
+  ROUND(SUM(value / POW(10, decimals)), 2) AS total_usdc_moved
+FROM `bigquery-public-data.crypto_solana_mainnet_us.Token Transfers`
+WHERE mint = usdc_mint
+  AND block_timestamp >= window_start
+  AND block_timestamp < window_end
+  AND transfer_type = 'spl-transfer';
+```

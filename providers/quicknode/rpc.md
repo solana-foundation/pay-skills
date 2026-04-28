@@ -76,3 +76,15 @@ hour.
 
 x402 USDC accepted on Solana mainnet, Solana devnet, Base, Polygon, and several
 other chains.
+
+## Spend-aware usage
+
+- Call the chain-specific path directly, such as `/solana-mainnet`. There is no
+  generic `/rpc`; use `/networks` only when the slug is unknown.
+- Use JSON-RPC batch requests when the upstream method and gateway accept them.
+  Otherwise, keep calls sequential and ask before loops or polling.
+- Use RPC for live state, account reads, and transaction submission. For large
+  historical aggregates, prefer a data provider such as BigQuery or blockchain
+  analytics instead of many paid RPC calls.
+- For high-volume sessions, use `/auth` once to obtain a JWT and reuse it for an
+  hour instead of signing every request.

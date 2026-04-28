@@ -425,3 +425,15 @@ flow; use a client that signs SIWX challenges (e.g. AgentCash) or implement
 SIWX directly.
 
 x402 and MPP payment in USDC accepted on Base, Solana mainnet, and Tempo.
+
+## Spend-aware usage
+
+- Each data endpoint is a paid trigger plus a later job read. Choose one
+  platform and one resource per user question; do not trigger the same search on
+  TikTok, Instagram, Facebook, and Reddit unless the user asks for all of them.
+- Set the smallest limit or date window that can answer the question. Ask before
+  multi-platform or repeated monitoring workflows.
+- Keep the returned JWT token and poll the job endpoint with that token. Do not
+  pay to retrigger the same job just because the first poll is still pending.
+- If the client cannot sign SIWX challenges, explain that the trigger can be
+  paid but results cannot be fetched with this client.

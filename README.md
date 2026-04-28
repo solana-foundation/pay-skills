@@ -148,8 +148,6 @@ providers/                     Provider specs (.md with YAML frontmatter)
   merit-systems/
     stableenrich/              Data enrichment APIs
     stablesocial/              Social media data
-  perplexity/
-    sonar.md                   AI search
 affiliates/                    Affiliate entries
 aggregators/                   Other registries
 ```

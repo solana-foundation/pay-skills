@@ -341,3 +341,14 @@ service_url: https://production-pay-google-generativelanguage-123883807128.us-ce
 title: Generative Language API (Gemini)
 version: v1beta
 ---
+
+## Spend-aware usage
+
+- Use `generateContent` for a one-shot Gemini answer and `streamGenerateContent`
+  only when streaming is useful to the caller.
+- Use `countTokens` before paying for generation only when the prompt is large
+  or the user gave a strict budget. Do not count tokens for short prompts.
+- Use batch embedding endpoints for multiple texts. Do not call single embedding
+  repeatedly when a batch endpoint fits.
+- Corpus, file, and permission endpoints are setup/state management. Ask before
+  creating persistent retrieval resources.

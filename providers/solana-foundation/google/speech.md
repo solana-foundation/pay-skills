@@ -91,3 +91,14 @@ service_url: https://production-pay-google-speech-123883807128.us-central1.run.a
 title: Cloud Speech-to-Text API
 version: v1
 ---
+
+## Spend-aware usage
+
+- Use synchronous `v1/speech:recognize` for short audio and
+  `v1/speech:longrunningrecognize` for longer audio or Cloud Storage inputs.
+- Provide encoding, sample rate, language code, and channel count when known to
+  avoid failed paid attempts.
+- Transcribe the smallest useful audio segment. Ask before transcribing long
+  files, multiple files, or repeated language/model variants.
+- Poll long-running operations returned by the API. Do not resubmit audio while
+  an operation is pending.

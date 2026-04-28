@@ -43,3 +43,13 @@ endpoints:
 
 Custom merchandise via micropayments. Shirts (standard and heavyweight) and
 mugs printed with AI-generated or user-provided images, shipped to any address.
+
+## Spend-aware usage
+
+- These endpoints place real merchandise orders. Confirm product type, size,
+  color, quantity, artwork URL or prompt, shipping address, and total expected
+  price before paying.
+- Do not use order endpoints for design previews. Generate or upload artwork
+  elsewhere first, then place one final merchandise order.
+- If the user is comparing options, summarize prices from metadata and ask them
+  to pick before calling a paid order endpoint.

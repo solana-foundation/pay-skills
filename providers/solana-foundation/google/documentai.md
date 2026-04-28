@@ -195,3 +195,15 @@ service_url: https://production-pay-google-documentai-123883807128.us-central1.r
 title: Cloud Document AI API
 version: v1
 ---
+
+## Spend-aware usage
+
+- Use document processing endpoints only when an existing processor is known or
+  the provider instructions returned a ready processor path. Creating processors,
+  schemas, or schema versions is setup work and should be confirmed separately.
+- For one document, use the synchronous process endpoint when available. Use
+  batch or long-running operations only for multiple documents or large files.
+- Request only the needed extraction fields or processor type. Do not create a
+  custom schema just to parse a one-off document.
+- Poll operation IDs returned by async calls. Do not resubmit the same document
+  because an operation is still running.

@@ -50,3 +50,15 @@ service_url: https://production-pay-google-places-123883807128.us-central1.run.a
 title: Places API (New)
 version: v1
 ---
+
+## Spend-aware usage
+
+- Use `v1/places:searchText` for natural-language requests such as "best vegan
+  restaurant near me". Include location bias, radius, price level, open-now, or
+  category filters when the user provides them.
+- Use `v1/places:autocomplete` only for interactive partial-input UX. Do not use
+  autocomplete for a one-shot recommendation.
+- Request place photos only if the user needs images. For text answers, avoid
+  extra photo media calls.
+- Use field masks or response filters when available so the first call returns
+  only the fields needed for the answer.

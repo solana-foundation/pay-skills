@@ -44,3 +44,14 @@ $0.80 for 50, $1.30 for 100. The free `v1/search/free` returns up to 3 results
 with no payment (5 req/hr limit) — useful for preview and demos.
 
 x402 payment with USDC accepted on Solana mainnet, Base, Polygon, and Arbitrum.
+
+## Spend-aware usage
+
+- If the user only needs a quick preview, use `v1/search/free` first; it returns
+  up to 3 results without payment but is rate-limited.
+- For paid search, choose the smallest `limit` that answers the task. Do not
+  default to 100 results for discovery questions.
+- If the user gives an exact Instagram username, use `v1/user/{username}` rather
+  than a broader paid search.
+- Add filters such as country, city, follower range, category, gender, or
+  `has_email` before paying so the first result set is usable.

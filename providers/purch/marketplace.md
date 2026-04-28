@@ -90,3 +90,13 @@ Shopify products use `productUrl` plus `variantId`; vault items use `slug`.
 Note: the public OpenAPI spec advertises `apiKey+paid` auth, but the live 402
 challenge accepts pure x402 payment with no API key. Verified end-to-end on
 Solana mainnet.
+
+## Spend-aware usage
+
+- Search or use `x402/shop` for recommendations before any purchase. A purchase
+  endpoint must only be called after the user confirms the exact item, variant,
+  shipping destination, and total expected cost.
+- Use exact identifiers when available: `asin` or `productUrl` for Amazon,
+  `productUrl` plus `variantId` for Shopify, and `slug` for vault items.
+- Do not call purchase endpoints for price discovery. Use search results first,
+  then ask the user to pick one item.

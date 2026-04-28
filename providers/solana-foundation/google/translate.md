@@ -248,3 +248,13 @@ service_url: https://production-pay-google-translate-123883807128.us-central1.ru
 title: Cloud Translation API
 version: v3
 ---
+
+## Spend-aware usage
+
+- Use `translateText` when source and target languages are known. Use
+  `detectLanguage` only when the source language is unknown.
+- Batch multiple short strings in one request when they share the same language
+  pair.
+- Use romanization, adaptive translation, glossaries, datasets, or custom models
+  only when the user asks for those advanced features. They are not needed for
+  ordinary translation.

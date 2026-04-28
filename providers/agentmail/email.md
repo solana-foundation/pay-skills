@@ -7,18 +7,28 @@ category: messaging
 service_url: https://x402.api.agentmail.to
 endpoints:
   - method: POST
-    path: "inbox/create"
+    path: "v0/inboxes"
     resource: inboxes
     description: "Create a new dedicated email inbox for an AI agent, returning a unique email address that can send and receive messages"
   - method: POST
-    path: "send"
+    path: "v0/inboxes/{inbox_id}/messages/send"
     resource: messages
     description: "Send an outbound email from an agent inbox, supporting recipients, subject, body, and standard email fields"
-  - method: POST
-    path: "inbox/messages"
+  - method: GET
+    path: "v0/inboxes/{inbox_id}/messages"
     resource: messages
     description: "Retrieve and list all messages in an agent inbox, including sender, subject, body, and metadata for each email received"
 ---
 
 Agentic email service. Create inboxes, send and receive email for AI agents.
 Each inbox gets a unique address that can send and receive messages immediately.
+
+## Spend-aware usage
+
+- Use `v0/inboxes/{inbox_id}/messages` directly when the user already has an
+  inbox identifier or address. Do not create a new inbox just to check existing
+  mail.
+- Create an inbox once, then reuse it for send and receive workflows. Ask before
+  creating multiple inboxes or long-running polling loops.
+- For "check my mail" style requests, make one message-list call first and only
+  fetch or summarize individual messages if the returned list is not enough.

@@ -127,3 +127,14 @@ parameter. Optional `country` defaults to `us`; pass `ca` for Canada.
 
 x402 and MPP payment accepted in USDC on Base or Solana mainnet (and MPP via
 Tempo). Shopper and marketing endpoints are $0.01; analyst endpoints are $0.02.
+
+## Spend-aware usage
+
+- For one product, use `v1/shopper/best-price` first. It already compares the
+  tracked retailers, so do not call one endpoint per store.
+- For category browsing, use `deal-finder` for discounted products and
+  `category-summary` only when the user asks for aggregate category stats.
+- Analyst endpoints cost more. Use `inflation`, `price-dispersion`, or
+  `category-summary` only when the answer requires trend or market analysis.
+- Put the product name/model and country in the first request. A precise `q` or
+  `category` avoids follow-up calls caused by ambiguous results.

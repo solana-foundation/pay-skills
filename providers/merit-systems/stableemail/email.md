@@ -208,3 +208,15 @@ same forwardTo / retainMessages rules.
 ### Payment
 
 x402 and MPP accepted in USDC on Base, Solana, and Tempo.
+
+## Spend-aware usage
+
+- For one outbound email, use `POST /api/send` unless the user specifically
+  needs a custom sender domain. Buying a subdomain is a separate $5 decision.
+- For receiving mail, decide between forwarding and retained storage before
+  buying the inbox. If the user later needs both, explain that update requires
+  SIWX and the wallet that bought the inbox.
+- When checking mail, call the list endpoint once, then read only the specific
+  message IDs needed. Avoid tight polling loops; ask before repeated checks.
+- Batch email validation or lookup work where supported instead of paying one
+  request per address.

@@ -82,3 +82,13 @@ title: Cloud Natural Language API
 use_case: "Use for sentiment analysis, opinion mining, entity extraction, content classification, moderation triage, support ticket routing, review analytics, article tagging, syntax analysis, document annotation, and multilingual text intelligence."
 version: v2
 ---
+
+## Spend-aware usage
+
+- Prefer `v2/documents:annotateText` when the user needs multiple analyses
+  such as sentiment plus entities plus classification. One combined call is
+  cheaper than separate analysis calls.
+- Send only the text needed for the decision. Trim boilerplate, quoted replies,
+  and unrelated document sections before paying.
+- Provide language and encoding hints when known to avoid follow-up calls caused
+  by ambiguous input.
