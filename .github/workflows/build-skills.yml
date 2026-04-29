@@ -3,7 +3,15 @@ name: Build & Publish Skills Index
 on:
   push:
     branches: [main]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Build mode — incremental (only providers changed in this commit) or rebuild (every provider)."
+        type: choice
+        options:
+          - incremental
+          - rebuild
+        default: incremental
 
 env:
   PAY_IMAGE: us-central1-docker.pkg.dev/gateway-402/agent-gateway/pay:latest
@@ -28,6 +36,19 @@ jobs:
           service_account: pay-skills-ci@gateway-402.iam.gserviceaccount.com
 
       - run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      # Resolve the run mode. Default to `incremental` for ordinary push events;
+      # respect the workflow_dispatch input when manually dispatched. A full
+      # `rebuild` re-resolves and re-probes every provider — use it when the
+      # `pay` image, the build pipeline, or the prune logic changed in a way
+      # that affects already-cached providers.
+      - name: Resolve build mode
+        id: mode
+        run: |
+          MODE="${{ github.event.inputs.mode }}"
+          if [ -z "$MODE" ]; then MODE="incremental"; fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "Run mode: $MODE"
 
       # Re-run the Solana-compat gate against whatever changed in this
       # merge so a bypassed PR can't silently publish a broken provider.
@@ -59,10 +80,11 @@ jobs:
             --format github
 
       # Pull the previously-published dist so we can copy unchanged
-      # providers through. Falls back to a full rebuild if the previous
-      # bundle isn't available (first run, manual dispatch, etc).
-      - name: Fetch previous dist (for partial rebuild)
+      # providers through. Skipped in `rebuild` mode since we want a fresh
+      # full build.
+      - name: Fetch previous dist (incremental mode only)
         id: prev
+        if: steps.mode.outputs.mode == 'incremental'
         continue-on-error: true
         run: |
           mkdir -p prev-dist
@@ -72,12 +94,12 @@ jobs:
             echo "Pulled prior dist from gs://pay-skills/v1/"
           else
             echo "have_prev=false" >> "$GITHUB_OUTPUT"
-            echo "No prior dist available — falling back to full rebuild"
+            echo "No prior dist available — incremental falls back to a full rebuild"
           fi
 
       - name: Compute --only FQNs for partial rebuild
         id: only
-        if: steps.prev.outputs.have_prev == 'true' && steps.changed.outputs.skip == 'false'
+        if: steps.mode.outputs.mode == 'incremental' && steps.prev.outputs.have_prev == 'true' && steps.changed.outputs.skip == 'false'
         run: |
           # Translate "providers/<fqn>.md" → "<fqn>", comma-joined.
           ONLY=$(echo "${{ steps.changed.outputs.files }}" | tr ' ' '\n' | \
@@ -87,15 +109,25 @@ jobs:
 
       # Probe-driven build: each endpoint's pricing / protocol[] /
       # supported_usd is reconstructed from the live 402 challenge.
-      # Partial mode kicks in when a previous dist is available — only the
-      # changed providers are re-probed; the rest are copied verbatim.
+      #
+      # - `incremental` (default): only the providers changed in this commit
+      #   are re-probed; everyone else is copied verbatim from the prior
+      #   dist. Fast (seconds per provider) and idempotent.
+      # - `rebuild` (manual): full re-resolve + re-probe of every provider.
+      #   Use after image changes that affect cached providers (new prune
+      #   logic, new Discovery support, etc.) — it's slower (~5-15 min) but
+      #   guarantees the published index reflects the latest pipeline.
       - name: Build dist/ (probe-driven)
         run: |
           PARTIAL_ARGS=""
-          if [ "${{ steps.prev.outputs.have_prev }}" = "true" ] \
+          if [ "${{ steps.mode.outputs.mode }}" = "incremental" ] \
+             && [ "${{ steps.prev.outputs.have_prev }}" = "true" ] \
              && [ "${{ steps.changed.outputs.skip }}" = "false" ] \
              && [ -n "${{ steps.only.outputs.fqns }}" ]; then
             PARTIAL_ARGS="--only ${{ steps.only.outputs.fqns }} --previous-dist /repo/prev-dist"
+            echo "Mode: incremental (--only ${{ steps.only.outputs.fqns }})"
+          else
+            echo "Mode: full rebuild (every provider re-resolved + re-probed)"
           fi
           docker run --rm \
             -u "$(id -u):$(id -g)" \
