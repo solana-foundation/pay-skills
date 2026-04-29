@@ -5,74 +5,8 @@ description: "Search and buy products from Amazon and Shopify with USDC on Solan
 use_case: "Use for product search, Amazon and Shopify shopping, AI shopping assistance, price and review comparison, agent-initiated purchases with shipping address, and buying or downloading Purch Vault digital items like skills, knowledge bases, and personas."
 category: productivity
 service_url: https://api.purch.xyz
-openapi_url: https://api.purch.xyz/openapi.json
-endpoints:
-  - method: GET
-    path: "x402/search"
-    resource: products
-    description: "Search products on Amazon and Shopify by keyword with optional price, brand, and pagination filters"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.01
-  - method: POST
-    path: "x402/shop"
-    resource: products
-    description: "Send a natural-language shopping request and get curated product recommendations across retailers"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.10
-  - method: POST
-    path: "x402/buy"
-    resource: products
-    description: "Purchase a product by ASIN or product URL with shipping address and email; price is dynamic and equals product total"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.01
-  - method: GET
-    path: "x402/vault/search"
-    resource: vault
-    description: "Search Purch Vault for digital items including skills, knowledge bases, and agent personas by keyword"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.01
-  - method: POST
-    path: "x402/vault/buy"
-    resource: vault
-    description: "Buy a vault item by slug; price is dynamic and equals the listed item price in USDC"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.01
-  - method: GET
-    path: "x402/vault/download/{purchaseId}"
-    resource: vault
-    description: "Download a previously purchased vault item using the purchase ID returned from x402/vault/buy"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.01
+openapi:
+  url: https://api.purch.xyz/openapi.json
 ---
 
 E-commerce API for AI agents. Search and buy from Amazon and Shopify, or trade

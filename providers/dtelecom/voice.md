@@ -5,27 +5,8 @@ description: "Use wallet-authenticated WebRTC voice, speech-to-text, and text-to
 use_case: "Use for realtime AI voice conversations, WebRTC calling, speech-to-text transcription, text-to-speech playback, voice agents, audio interfaces, agent-to-user communication, low-latency conversations, and programmable voice workflows."
 category: ai_ml
 service_url: https://x402.dtelecom.org
-endpoints:
-  - method: POST
-    path: "v1/credits/purchase"
-    resource: credits
-    description: "Purchase prepaid credits used to authorize subsequent session endpoints; returns a Bearer token for the WebRTC, STT, TTS, and agent-session APIs"
-  - method: POST
-    path: "v1/webrtc/token"
-    resource: communication
-    description: "Create a WebRTC session token for real-time bidirectional voice communication between AI agents and users or other agents"
-  - method: POST
-    path: "v1/stt/session"
-    resource: transcription
-    description: "Open a speech-to-text session for high-accuracy transcription, supporting multiple audio formats and returning timestamped results"
-  - method: POST
-    path: "v1/tts/session"
-    resource: synthesis
-    description: "Open a text-to-speech session that converts text to natural-sounding speech audio with configurable voice options"
-  - method: POST
-    path: "v1/agent-session"
-    resource: communication
-    description: "Open a managed agent session that combines WebRTC, STT, and TTS into a single live voice conversation"
+openapi:
+  url: https://x402.dtelecom.org/openapi.json
 ---
 
 Pay-per-use communication APIs for AI agents. WebRTC for real-time voice,

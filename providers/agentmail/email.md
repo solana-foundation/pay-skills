@@ -5,19 +5,8 @@ description: "Create and operate dedicated email inboxes for AI agents. Supports
 use_case: "Use for giving agents their own email address, sending outbound email, receiving replies, monitoring inboxes, automating email-based workflows, collecting verification messages, routing support mail, and managing correspondence without manual setup."
 category: messaging
 service_url: https://x402.api.agentmail.to
-endpoints:
-  - method: POST
-    path: "v0/inboxes"
-    resource: inboxes
-    description: "Create a new dedicated email inbox for an AI agent, returning a unique email address that can send and receive messages"
-  - method: POST
-    path: "v0/inboxes/{inbox_id}/messages/send"
-    resource: messages
-    description: "Send an outbound email from an agent inbox, supporting recipients, subject, body, and standard email fields"
-  - method: GET
-    path: "v0/inboxes/{inbox_id}/messages"
-    resource: messages
-    description: "Retrieve and list all messages in an agent inbox, including sender, subject, body, and metadata for each email received"
+openapi:
+  url: https://x402.api.agentmail.to/openapi.json
 ---
 
 Agentic email service. Create inboxes, send and receive email for AI agents.

@@ -17,6 +17,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Need at least one parent commit so we can diff what this merge
+          # actually changed (the Solana-compat re-gate below).
+          fetch-depth: 2
 
       - uses: google-github-actions/auth@v2
         with:
@@ -25,27 +29,83 @@ jobs:
 
       - run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
-      - name: Build dist/
+      # Re-run the Solana-compat gate against whatever changed in this
+      # merge so a bypassed PR can't silently publish a broken provider.
+      - name: Detect providers changed in this commit
+        id: changed
         run: |
+          CHANGED=$(git diff --name-only --diff-filter=ACMR HEAD~1...HEAD -- 'providers/**/*.md' | tr '\n' ' ')
+          echo "files=$CHANGED" >> "$GITHUB_OUTPUT"
+          if [ -z "$CHANGED" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Changed in this merge:"
+            for f in $CHANGED; do echo "  $f"; done
+          fi
+
+      - name: Solana-compat validation (gate)
+        if: steps.changed.outputs.skip == 'false'
+        run: |
+          docker run --rm \
+            -u "$(id -u):$(id -g)" \
+            -v "$PWD:/repo" \
+            $PAY_IMAGE \
+            skills validate /repo \
+            --files ${{ steps.changed.outputs.files }} \
+            --currencies USDC,USDT \
+            --timeout 15 \
+            --concurrency 5 \
+            --format github
+
+      # Pull the previously-published dist so we can copy unchanged
+      # providers through. Falls back to a full rebuild if the previous
+      # bundle isn't available (first run, manual dispatch, etc).
+      - name: Fetch previous dist (for partial rebuild)
+        id: prev
+        continue-on-error: true
+        run: |
+          mkdir -p prev-dist
+          if gcloud storage rsync gs://pay-skills/v1/ prev-dist/ --recursive 2>/dev/null \
+             && [ -f prev-dist/skills.json ]; then
+            echo "have_prev=true" >> "$GITHUB_OUTPUT"
+            echo "Pulled prior dist from gs://pay-skills/v1/"
+          else
+            echo "have_prev=false" >> "$GITHUB_OUTPUT"
+            echo "No prior dist available — falling back to full rebuild"
+          fi
+
+      - name: Compute --only FQNs for partial rebuild
+        id: only
+        if: steps.prev.outputs.have_prev == 'true' && steps.changed.outputs.skip == 'false'
+        run: |
+          # Translate "providers/<fqn>.md" → "<fqn>", comma-joined.
+          ONLY=$(echo "${{ steps.changed.outputs.files }}" | tr ' ' '\n' | \
+            sed -E 's|^providers/(.+)\.md$|\1|' | grep -v '^$' | paste -sd, -)
+          echo "fqns=$ONLY" >> "$GITHUB_OUTPUT"
+          echo "Partial rebuild scope: $ONLY"
+
+      # Probe-driven build: each endpoint's pricing / protocol[] /
+      # supported_usd is reconstructed from the live 402 challenge.
+      # Partial mode kicks in when a previous dist is available — only the
+      # changed providers are re-probed; the rest are copied verbatim.
+      - name: Build dist/ (probe-driven)
+        run: |
+          PARTIAL_ARGS=""
+          if [ "${{ steps.prev.outputs.have_prev }}" = "true" ] \
+             && [ "${{ steps.changed.outputs.skip }}" = "false" ] \
+             && [ -n "${{ steps.only.outputs.fqns }}" ]; then
+            PARTIAL_ARGS="--only ${{ steps.only.outputs.fqns }} --previous-dist /repo/prev-dist"
+          fi
           docker run --rm \
             -u "$(id -u):$(id -g)" \
             -v "$PWD:/repo" \
             $PAY_IMAGE \
             skills build /repo \
-            --base-url https://storage.googleapis.com/pay-skills/v1
-
-      - name: Probe all endpoints
-        continue-on-error: true
-        run: |
-          docker run --rm \
-            -u "$(id -u):$(id -g)" \
-            -v "$PWD:/repo" \
-            $PAY_IMAGE \
-            skills probe /repo \
-            --currencies USDC,USDT \
-            --timeout 15 \
-            --concurrency 5 \
-            --format json | tee probe-results.json
+            --base-url https://storage.googleapis.com/pay-skills/v1 \
+            --probe-timeout 15 \
+            --probe-concurrency 5 \
+            $PARTIAL_ARGS
 
       - name: Show summary
         run: |
@@ -55,16 +115,18 @@ jobs:
           echo "=== detail files ==="
           find dist/providers -name '*.json' | sort
           echo ""
-          echo "=== probe results ==="
-          if [ -f probe-results.json ] && [ -s probe-results.json ]; then
-            python3 -c "
-          import json
-          r = json.load(open('probe-results.json'))
-          print(f'{r[\"passed\"]}/{r[\"total_endpoints\"]} endpoints passed, {r[\"failed\"]} failed')
+          echo "=== status counts (per probe_status) ==="
+          python3 -c "
+          import json, glob
+          counts = {}
+          for f in sorted(glob.glob('dist/providers/**/*.json', recursive=True)):
+              d = json.load(open(f))
+              for e in d.get('endpoints', []):
+                  s = e.get('probe_status', 'unknown')
+                  counts[s] = counts.get(s, 0) + 1
+          for s, c in sorted(counts.items(), key=lambda kv: -kv[1]):
+              print(f'  {s:30s} {c}')
           "
-          else
-            echo "Probe results not available"
-          fi
 
       - name: Upload dist/ as artifact
         uses: actions/upload-artifact@v4

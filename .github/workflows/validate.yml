@@ -12,12 +12,15 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
+      # Static validation: shape/category/required-field checks via the
+      # build pipeline (no probe — that lives in the next step).
       - name: Static validation (pay skills build)
         run: |
           docker run --rm \
@@ -26,76 +29,99 @@ jobs:
             $PAY_IMAGE \
             skills build /repo \
             --output /repo/dist \
+            --no-probe \
             --base-url https://storage.googleapis.com/pay-skills/v1
 
       - name: Detect changed providers
         id: changed
         run: |
-          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- 'providers/**/*.md' | tr '\n' ' ')
+          CHANGED=$(git diff --name-only --diff-filter=ACMR origin/${{ github.base_ref }}...HEAD -- 'providers/**/*.md' | tr '\n' ' ')
           echo "files=$CHANGED" >> "$GITHUB_OUTPUT"
           if [ -z "$CHANGED" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No provider changes — validation will be skipped."
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "Changed providers: $CHANGED"
+            echo "Changed providers:"
+            for f in $CHANGED; do echo "  $f"; done
           fi
 
-      - name: Probe changed endpoints
+      # Solana-compat gate: warns per gated endpoint that doesn't accept
+      # USDC/USDT on Solana, and *errors* (blocking) when a changed provider
+      # has zero classifiable endpoints that accept Solana stables.
+      # `--format github` emits ::warning::/::error:: workflow-command lines
+      # so the failures land inline on the PR diff.
+      - name: Probe + Solana-compat validation
         if: steps.changed.outputs.skip == 'false'
         run: |
           docker run --rm \
             -u "$(id -u):$(id -g)" \
             -v "$PWD:/repo" \
             $PAY_IMAGE \
-            skills probe /repo \
+            skills validate /repo \
             --files ${{ steps.changed.outputs.files }} \
             --currencies USDC,USDT \
             --timeout 15 \
             --concurrency 5 \
-            --format json > probe-results.json 2>/dev/null || true
+            --format github
 
-      - name: Summary
-        if: always()
+      # Step Summary block — JSON copy of the probe + verdict, useful for
+      # human-readable per-PR status without scrolling through annotations.
+      - name: Verdict summary
+        if: steps.changed.outputs.skip == 'false' && always()
         run: |
-          echo "### Static Validation" >> "$GITHUB_STEP_SUMMARY"
-          if [ -f dist/skills.json ]; then
-            echo ":white_check_mark: Build succeeded" >> "$GITHUB_STEP_SUMMARY"
-            python3 -c "
-          import json
-          idx = json.load(open('dist/skills.json'))
-          print(f'- **{idx[\"provider_count\"]}** providers')
-          print(f'- **{idx[\"affiliate_count\"]}** affiliates')
-          print(f'- **{idx[\"aggregator_count\"]}** aggregators')
-          " >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo ":x: Build failed" >> "$GITHUB_STEP_SUMMARY"
-            echo "Check the logs above for validation errors." >> "$GITHUB_STEP_SUMMARY"
-          fi
+          docker run --rm \
+            -u "$(id -u):$(id -g)" \
+            -v "$PWD:/repo" \
+            $PAY_IMAGE \
+            skills validate /repo \
+            --files ${{ steps.changed.outputs.files }} \
+            --currencies USDC,USDT \
+            --timeout 15 \
+            --concurrency 5 \
+            --format json > validate.json 2>/dev/null || true
 
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "### Endpoint Probes" >> "$GITHUB_STEP_SUMMARY"
-          if [ -f probe-results.json ] && [ -s probe-results.json ]; then
-            python3 -c "
-          import json, sys
-          results = json.load(open('probe-results.json'))
-          total = results['total_endpoints']
-          passed = results['passed']
-          failed = results['failed']
-          emoji = ':white_check_mark:' if failed == 0 else ':x:'
-          print(f'{emoji} **{passed}/{total}** endpoints passed')
-          if failed > 0:
-              print('')
-              print('| Provider | Endpoint | Issue |')
-              print('|----------|----------|-------|')
-              for p in results['providers']:
-                  for e in p['endpoints']:
-                      t = e['status']['type']
-                      if t not in ('ok', 'free'):
-                          detail = e['status'].get('details', e['status'].get('message', e['status'].get('got', t)))
-                          print(f'| {p[\"fqn\"]} | {e[\"method\"]} {e[\"path\"]} | {t}: {detail} |')
-          " >> "$GITHUB_STEP_SUMMARY"
-          elif [ "${{ steps.changed.outputs.skip }}" = "true" ]; then
-            echo "No provider changes detected — probe skipped." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo ":warning: Probe did not produce results." >> "$GITHUB_STEP_SUMMARY"
-          fi
+          {
+            echo "### Solana-compatibility verdict"
+            if [ -s validate.json ]; then
+              python3 -c "
+          import json
+          r = json.load(open('validate.json'))
+          blocks = sum(1 for p in r['providers'] if p['block'])
+          warns = sum(p['non_solana_count'] for p in r['providers'])
+          oks   = sum(p['ok_count'] for p in r['providers'])
+          if blocks > 0:
+              icon = ':no_entry:'
+              status = f'**{blocks}** provider(s) blocked'
+          elif warns > 0:
+              icon = ':warning:'
+              status = f'{warns} non-Solana endpoint(s) flagged'
+          else:
+              icon = ':white_check_mark:'
+              status = f'{oks} Solana-compatible endpoint(s)'
+          print(f'{icon} {status}')
+          print()
+          print('| Provider | OK | Non-Solana | Verdict |')
+          print('|----------|----|------------|---------|')
+          for p in r['providers']:
+              v = ':no_entry: BLOCK' if p['block'] else (':warning: warn' if p['non_solana_count'] > 0 else ':white_check_mark: pass')
+              print(f\"| \`{p['fqn']}\` | {p['ok_count']} | {p['non_solana_count']} | {v} |\")
+          for p in r['providers']:
+              if p['non_solana_count'] == 0:
+                  continue
+              print()
+              print(f\"<details><summary>{p['fqn']} — non-Solana endpoints</summary>\")
+              print()
+              print('| Method | Path | Status | Note |')
+              print('|--------|------|--------|------|')
+              for e in p['endpoints']:
+                  if e['verdict'] != 'not_solana':
+                      continue
+                  print(f\"| \`{e['method']}\` | \`{e['path']}\` | \`{e['probe_status']}\` | {e['note']} |\")
+              print()
+              print('</details>')
+          "
+            else
+              echo ':warning: Validate did not produce JSON output (probe may have been skipped).'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
