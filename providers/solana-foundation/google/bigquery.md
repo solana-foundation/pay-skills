@@ -3,10 +3,10 @@ category: data
 description: "Run SQL over BigQuery and 255 public datasets: crypto, weather, healthcare, genomics, patents, GitHub, PyPI, Stack Overflow, census, Wikipedia, real estate, transportation, satellite imagery, NLP corpora, SEC filings, and IoT."
 use_case: "Use for data analytics, market research, fact-finding from public datasets, blockchain and crypto analysis, weather and climate queries, SQL exploration, benchmark datasets, investigative research, and large-scale structured data retrieval."
 openapi:
-  url: https://production-pay-google-bigquery-123883807128.us-central1.run.app/openapi.json
+  url: https://bigquery.google.gateway-402.com/openapi.json
 name: bigquery
-sandbox_service_url: https://sandbox-pay-google-bigquery-123883807128.us-central1.run.app
-service_url: https://production-pay-google-bigquery-123883807128.us-central1.run.app
+sandbox_service_url: https://bigquery.google-sandbox.gateway-402.com
+service_url: https://bigquery.google.gateway-402.com
 title: BigQuery API
 version: v2
 

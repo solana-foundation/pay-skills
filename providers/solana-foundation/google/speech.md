@@ -3,10 +3,10 @@ category: ai_ml
 description: "Convert speech audio to text with Google Speech-to-Text. Supports 125+ languages, short and long audio, streaming-style workflows, speaker diarization, word timestamps, phrase hints, custom classes, profanity filtering, and punctuation."
 use_case: "Use for audio transcription, meeting notes, podcast and video captions, call center analytics, voice command processing, accessibility, diarized conversations, timestamped transcripts, domain vocabulary hints, and long audio jobs."
 openapi:
-  url: https://production-pay-google-speech-123883807128.us-central1.run.app/openapi.json
+  url: https://speech.google.gateway-402.com/openapi.json
 name: speech
-sandbox_service_url: https://sandbox-pay-google-speech-123883807128.us-central1.run.app
-service_url: https://production-pay-google-speech-123883807128.us-central1.run.app
+sandbox_service_url: https://speech.google-sandbox.gateway-402.com
+service_url: https://speech.google.gateway-402.com
 title: Cloud Speech-to-Text API
 version: v1
 

@@ -2,10 +2,10 @@
 category: search
 description: "Look up US civic data by address: elected representatives, offices, political divisions, elections, polling locations, ballot contests, and voter guidance, with official contact info, social links, photos, and district metadata."
 openapi:
-  url: https://production-pay-google-civicinfo-123883807128.us-central1.run.app/openapi.json
+  url: https://civicinfo.google.gateway-402.com/openapi.json
 name: civicinfo
-sandbox_service_url: https://sandbox-pay-google-civicinfo-123883807128.us-central1.run.app
-service_url: https://production-pay-google-civicinfo-123883807128.us-central1.run.app
+sandbox_service_url: https://civicinfo.google-sandbox.gateway-402.com
+service_url: https://civicinfo.google.gateway-402.com
 title: Google Civic Information API
 use_case: "Use for finding elected officials, election lookup, polling place search, ballot and contest research, political district mapping, civic engagement tools, voter guidance, officeholder contact data, and address-to-district resolution."
 version: v2

@@ -2,10 +2,10 @@
 category: maps
 description: "Look up current, historical, and forecast air quality for global coordinates. Returns AQI, pollutant concentrations (PM2.5, PM10, O3, NO2, SO2, CO), health recommendations, local indexes, and heatmap tiles for maps."
 openapi:
-  url: https://production-pay-google-airquality-123883807128.us-central1.run.app/openapi.json
+  url: https://airquality.google.gateway-402.com/openapi.json
 name: airquality
-sandbox_service_url: https://sandbox-pay-google-airquality-123883807128.us-central1.run.app
-service_url: https://production-pay-google-airquality-123883807128.us-central1.run.app
+sandbox_service_url: https://airquality.google-sandbox.gateway-402.com
+service_url: https://airquality.google.gateway-402.com
 title: Air Quality API
 use_case: "Use for pollution checks, health risk guidance, outdoor activity planning, environmental monitoring, travel decisions, climate dashboards, school or workplace safety alerts, and map overlays showing AQI or pollutant heatmaps."
 version: v1

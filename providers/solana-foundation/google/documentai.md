@@ -3,10 +3,10 @@ category: ai_ml
 description: "Extract structured data from PDFs, scans, and document images using OCR and ML. Handles invoices, receipts, forms, contracts, tax documents, IDs, and custom schemas, returning text, tables, entities, fields, and confidence signals."
 use_case: "Use for invoice and receipt parsing, OCR on scanned files, form digitization, contract analysis, tax document processing, ID extraction, table extraction, document classification, custom schema extraction, and human-review workflows."
 openapi:
-  url: https://production-pay-google-documentai-123883807128.us-central1.run.app/openapi.json
+  url: https://documentai.google.gateway-402.com/openapi.json
 name: documentai
-sandbox_service_url: https://sandbox-pay-google-documentai-123883807128.us-central1.run.app
-service_url: https://production-pay-google-documentai-123883807128.us-central1.run.app
+sandbox_service_url: https://documentai.google-sandbox.gateway-402.com
+service_url: https://documentai.google.gateway-402.com
 title: Cloud Document AI API
 version: v1
 
