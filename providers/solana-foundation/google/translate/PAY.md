@@ -5,7 +5,6 @@ use_case: "Use for multilingual content, localization, document translation, lan
 openapi:
   url: https://translate.google.gateway-402.com/openapi.json
 name: translate
-sandbox_service_url: https://translate.google-sandbox.gateway-402.com
 service_url: https://translate.google.gateway-402.com
 title: Cloud Translation API
 version: v3

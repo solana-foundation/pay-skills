@@ -5,7 +5,6 @@ use_case: "Use for address Similarity Comparison, address Verification, address 
 openapi:
   url: https://cloudauth-intl.alibaba.gateway-402.com/openapi.json
 name: cloudauth-intl
-sandbox_service_url: https://cloudauth-intl.alibaba-sandbox.gateway-402.com
 service_url: https://cloudauth-intl.alibaba.gateway-402.com
 title: Alibaba Cloud Cloudauth International
 version: "2022-08-09"

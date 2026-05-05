@@ -5,7 +5,6 @@ use_case: "Use for bank Card Recognition, business License Recognition, general 
 openapi:
   url: https://viapi-ocr.alibaba.gateway-402.com/openapi.json
 name: viapi-ocr
-sandbox_service_url: https://viapi-ocr.alibaba-sandbox.gateway-402.com
 service_url: https://viapi-ocr.alibaba.gateway-402.com
 title: Alibaba Cloud OCR (VIAPI)
 version: "2019-12-30"

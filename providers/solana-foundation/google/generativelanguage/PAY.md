@@ -5,7 +5,6 @@ use_case: "Use for AI chat, text generation, summarization, code help, image and
 openapi:
   url: https://generativelanguage.google.gateway-402.com/openapi.json
 name: generativelanguage
-sandbox_service_url: https://generativelanguage.google-sandbox.gateway-402.com
 service_url: https://generativelanguage.google.gateway-402.com
 title: Generative Language API (Gemini)
 version: v1beta

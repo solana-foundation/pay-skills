@@ -5,7 +5,6 @@ use_case: "Use for batch content synchronization detection, synchronize detectio
 openapi:
   url: https://rai.alibaba.gateway-402.com/openapi.json
 name: rai
-sandbox_service_url: https://rai.alibaba-sandbox.gateway-402.com
 service_url: https://rai.alibaba.gateway-402.com
 title: Alibaba Cloud Responsible AI
 version: "2024-07-01"

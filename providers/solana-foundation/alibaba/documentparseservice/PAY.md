@@ -5,7 +5,6 @@ use_case: "Use for document Mind Parsing, and related document OCR, structured e
 openapi:
   url: https://documentparseservice.alibaba.gateway-402.com/openapi.json
 name: documentparseservice
-sandbox_service_url: https://documentparseservice.alibaba-sandbox.gateway-402.com
 service_url: https://documentparseservice.alibaba.gateway-402.com
 title: Alibaba Cloud Document Parse Service
 version: "2026-04-14"

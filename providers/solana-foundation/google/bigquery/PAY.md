@@ -5,8 +5,7 @@ use_case: "Use for data analytics, market research, fact-finding from public dat
 openapi:
   url: https://bigquery.google.gateway-402.com/openapi.json
 name: bigquery
-sandbox_service_url: https://bigquery.google-sandbox.gateway-402.com
-service_url: https://bigquery.google.gateway-402.com
+service_url: https://bigquery.google.gateway-402.com/bigquery/v2
 title: BigQuery API
 version: v2
 

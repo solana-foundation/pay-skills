@@ -5,7 +5,6 @@ use_case: "Use for enhanced Search, general Search, globalSearch - International
 openapi:
   url: https://iqs.alibaba.gateway-402.com/openapi.json
 name: iqs
-sandbox_service_url: https://iqs.alibaba-sandbox.gateway-402.com
 service_url: https://iqs.alibaba.gateway-402.com
 title: Alibaba Cloud Information Query Service
 version: "2024-11-11"

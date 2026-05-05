@@ -4,7 +4,6 @@ description: "Look up current, historical, and forecast air quality for global c
 openapi:
   url: https://airquality.google.gateway-402.com/openapi.json
 name: airquality
-sandbox_service_url: https://airquality.google-sandbox.gateway-402.com
 service_url: https://airquality.google.gateway-402.com
 title: Air Quality API
 use_case: "Use for pollution checks, health risk guidance, outdoor activity planning, environmental monitoring, travel decisions, climate dashboards, school or workplace safety alerts, and map overlays showing AQI or pollutant heatmaps."

@@ -5,7 +5,6 @@ use_case: "Use for aIGC Image Generation Detection, verification of Two, three, 
 openapi:
   url: https://cloudauth.alibaba.gateway-402.com/openapi.json
 name: cloudauth
-sandbox_service_url: https://cloudauth.alibaba-sandbox.gateway-402.com
 service_url: https://cloudauth.alibaba.gateway-402.com
 title: Alibaba Cloud Cloudauth
 version: "2019-03-07"

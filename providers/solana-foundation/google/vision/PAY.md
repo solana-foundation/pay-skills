@@ -4,7 +4,6 @@ description: "Analyze images with Google Cloud Vision ML. Detect objects, faces,
 openapi:
   url: https://vision.google.gateway-402.com/openapi.json
 name: vision
-sandbox_service_url: https://vision.google-sandbox.gateway-402.com
 service_url: https://vision.google.gateway-402.com
 title: Cloud Vision API
 use_case: "Use for OCR, image labeling, object and face detection, content moderation, logo and landmark recognition, product search, PDF/TIFF text extraction, web entity lookup, crop hints, color analysis, and visual metadata enrichment."

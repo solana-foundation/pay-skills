@@ -5,7 +5,6 @@ use_case: "Use for semantic search, retrieval, reranking pipelines, clustering, 
 openapi:
   url: https://embeddings.alibaba.gateway-402.com/openapi.json
 name: embeddings
-sandbox_service_url: https://embeddings.alibaba-sandbox.gateway-402.com
 service_url: https://embeddings.alibaba.gateway-402.com
 title: Alibaba Cloud Model Studio Embeddings
 version: v1

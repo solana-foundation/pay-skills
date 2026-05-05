@@ -5,7 +5,6 @@ use_case: "Use for video Rendering Intent, video Aspect Ratio Transformation, vi
 openapi:
   url: https://videoenhan.alibaba.gateway-402.com/openapi.json
 name: videoenhan
-sandbox_service_url: https://videoenhan.alibaba-sandbox.gateway-402.com
 service_url: https://videoenhan.alibaba.gateway-402.com
 title: Alibaba Cloud Video Enhancement
 version: "2020-03-20"

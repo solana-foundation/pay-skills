@@ -5,7 +5,6 @@ use_case: "Use for multi-Scenario Risk Identification and Detection, decision En
 openapi:
   url: https://saf.alibaba.gateway-402.com/openapi.json
 name: saf
-sandbox_service_url: https://saf.alibaba-sandbox.gateway-402.com
 service_url: https://saf.alibaba.gateway-402.com
 title: Alibaba Cloud SAF
 version: "2019-05-21"

@@ -5,7 +5,6 @@ use_case: "Use for high-Precision Full-Text Recognition, air Travel Itinerary Re
 openapi:
   url: https://ocr-api.alibaba.gateway-402.com/openapi.json
 name: ocr-api
-sandbox_service_url: https://ocr-api.alibaba-sandbox.gateway-402.com
 service_url: https://ocr-api.alibaba.gateway-402.com
 title: Alibaba Cloud OCR API
 version: "2021-07-07"

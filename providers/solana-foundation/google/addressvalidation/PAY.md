@@ -5,7 +5,6 @@ use_case: "Use for checkout and shipping validation, CRM address cleanup, fraud 
 openapi:
   url: https://addressvalidation.google.gateway-402.com/openapi.json
 name: addressvalidation
-sandbox_service_url: https://addressvalidation.google-sandbox.gateway-402.com
 service_url: https://addressvalidation.google.gateway-402.com
 title: Address Validation API
 version: v1

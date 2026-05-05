@@ -4,7 +4,6 @@ description: "Analyze video content asynchronously with Google Video Intelligenc
 openapi:
   url: https://videointelligence.google.gateway-402.com/openapi.json
 name: videointelligence
-sandbox_service_url: https://videointelligence.google-sandbox.gateway-402.com
 service_url: https://videointelligence.google.gateway-402.com
 title: Cloud Video Intelligence API
 use_case: "Use for video indexing, content moderation, scene and shot detection, object tracking, logo recognition, OCR on video frames, speech transcription, media search, compliance review, archive tagging, and extracting structured video metadata."

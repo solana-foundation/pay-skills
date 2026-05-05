@@ -5,7 +5,6 @@ use_case: "Use for imageBatchModeration, imageModeration, multiModalAgent, and r
 openapi:
   url: https://green.alibaba.gateway-402.com/openapi.json
 name: green
-sandbox_service_url: https://green.alibaba-sandbox.gateway-402.com
 service_url: https://green.alibaba.gateway-402.com
 title: Alibaba Cloud Green
 version: "2022-03-02"

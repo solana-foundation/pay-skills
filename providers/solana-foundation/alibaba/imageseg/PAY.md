@@ -5,7 +5,6 @@ use_case: "Use for sky Replacement, facial Feature Segmentation, fine-Grained Ma
 openapi:
   url: https://imageseg.alibaba.gateway-402.com/openapi.json
 name: imageseg
-sandbox_service_url: https://imageseg.alibaba-sandbox.gateway-402.com
 service_url: https://imageseg.alibaba.gateway-402.com
 title: Alibaba Cloud Image Segmentation
 version: "2019-12-30"

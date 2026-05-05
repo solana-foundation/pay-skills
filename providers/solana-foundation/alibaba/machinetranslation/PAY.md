@@ -5,7 +5,6 @@ use_case: "Use for synchronous text translation, localization, buyer-seller comm
 openapi:
   url: https://machinetranslation.alibaba.gateway-402.com/openapi.json
 name: machinetranslation
-sandbox_service_url: https://machinetranslation.alibaba-sandbox.gateway-402.com
 service_url: https://machinetranslation.alibaba.gateway-402.com
 title: Alibaba Cloud Machine Translation
 version: "2019-01-02"

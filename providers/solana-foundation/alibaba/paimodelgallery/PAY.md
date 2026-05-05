@@ -5,7 +5,6 @@ use_case: "Use for retrieve the ModelGallery model list, and related catalog dis
 openapi:
   url: https://paimodelgallery.alibaba.gateway-402.com/openapi.json
 name: paimodelgallery
-sandbox_service_url: https://paimodelgallery.alibaba-sandbox.gateway-402.com
 service_url: https://paimodelgallery.alibaba.gateway-402.com
 title: Alibaba Cloud PAI Model Gallery
 version: "2025-06-30"

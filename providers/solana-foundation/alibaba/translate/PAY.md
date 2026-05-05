@@ -5,7 +5,6 @@ use_case: "Use for single-turn machine translation, localization, multilingual c
 openapi:
   url: https://translate.alibaba.gateway-402.com/openapi.json
 name: translate
-sandbox_service_url: https://translate.alibaba-sandbox.gateway-402.com
 service_url: https://translate.alibaba.gateway-402.com
 title: Alibaba Cloud Model Studio Translation
 version: v1

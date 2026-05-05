@@ -5,7 +5,6 @@ use_case: "Use for iPC Image Object Detection, cat and Mouse Recognition, entity
 openapi:
   url: https://objectdet.alibaba.gateway-402.com/openapi.json
 name: objectdet
-sandbox_service_url: https://objectdet.alibaba-sandbox.gateway-402.com
 service_url: https://objectdet.alibaba.gateway-402.com
 title: Alibaba Cloud Object Detection
 version: "2019-12-30"

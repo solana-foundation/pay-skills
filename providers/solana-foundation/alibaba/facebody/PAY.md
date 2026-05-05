@@ -5,7 +5,6 @@ use_case: "Use for face Information Desensitization, human Pose Keypoints, face 
 openapi:
   url: https://facebody.alibaba.gateway-402.com/openapi.json
 name: facebody
-sandbox_service_url: https://facebody.alibaba-sandbox.gateway-402.com
 service_url: https://facebody.alibaba.gateway-402.com
 title: Alibaba Cloud Facebody
 version: "2019-12-30"

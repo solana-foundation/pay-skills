@@ -5,7 +5,6 @@ use_case: "Use for short-form voice command recognition, conversational speech i
 openapi:
   url: https://intelligentspeechinteraction.alibaba.gateway-402.com/openapi.json
 name: intelligentspeechinteraction
-sandbox_service_url: https://intelligentspeechinteraction.alibaba-sandbox.gateway-402.com
 service_url: https://intelligentspeechinteraction.alibaba.gateway-402.com
 title: Alibaba Cloud Intelligent Speech Interaction
 version: v1

@@ -5,7 +5,6 @@ use_case: "Use for voiceovers, accessibility audio, narration, dubbing, spoken p
 openapi:
   url: https://texttospeech.alibaba.gateway-402.com/openapi.json
 name: texttospeech
-sandbox_service_url: https://texttospeech.alibaba-sandbox.gateway-402.com
 service_url: https://texttospeech.alibaba.gateway-402.com
 title: Alibaba Cloud Model Studio Text-to-Speech
 version: v1

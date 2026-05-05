@@ -5,7 +5,6 @@ use_case: "Use for resize Image, element detection, style Transfer, and related 
 openapi:
   url: https://ivpd.alibaba.gateway-402.com/openapi.json
 name: ivpd
-sandbox_service_url: https://ivpd.alibaba-sandbox.gateway-402.com
 service_url: https://ivpd.alibaba.gateway-402.com
 title: Alibaba Cloud IVPD
 version: "2019-06-25"

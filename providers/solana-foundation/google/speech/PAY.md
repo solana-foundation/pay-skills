@@ -5,7 +5,6 @@ use_case: "Use for audio transcription, meeting notes, podcast and video caption
 openapi:
   url: https://speech.google.gateway-402.com/openapi.json
 name: speech
-sandbox_service_url: https://speech.google-sandbox.gateway-402.com
 service_url: https://speech.google.gateway-402.com
 title: Cloud Speech-to-Text API
 version: v1

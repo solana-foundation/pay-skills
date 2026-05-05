@@ -5,7 +5,6 @@ use_case: "Use for invoice and receipt parsing, OCR on scanned files, form digit
 openapi:
   url: https://documentai.google.gateway-402.com/openapi.json
 name: documentai
-sandbox_service_url: https://documentai.google-sandbox.gateway-402.com
 service_url: https://documentai.google.gateway-402.com
 title: Cloud Document AI API
 version: v1

@@ -5,7 +5,6 @@ use_case: "Use for retrieve the content of the Agent Skill file, obtain informat
 openapi:
   url: https://agentexplorer.alibaba.gateway-402.com/openapi.json
 name: agentexplorer
-sandbox_service_url: https://agentexplorer.alibaba-sandbox.gateway-402.com
 service_url: https://agentexplorer.alibaba.gateway-402.com
 title: Alibaba Cloud Agent Skills Explorer
 version: "2026-03-17"

@@ -5,7 +5,6 @@ use_case: "Use for contract Extraction, generate contract review result, legal C
 openapi:
   url: https://farui.alibaba.gateway-402.com/openapi.json
 name: farui
-sandbox_service_url: https://farui.alibaba-sandbox.gateway-402.com
 service_url: https://farui.alibaba.gateway-402.com
 title: Alibaba Cloud FaRui
 version: "2024-06-28"

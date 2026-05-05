@@ -5,7 +5,6 @@ use_case: "Use for intelligent Verification Code Authentication, and related mod
 openapi:
   url: https://captcha.alibaba.gateway-402.com/openapi.json
 name: captcha
-sandbox_service_url: https://captcha.alibaba-sandbox.gateway-402.com
 service_url: https://captcha.alibaba.gateway-402.com
 title: Alibaba Cloud CAPTCHA
 version: "2023-03-05"

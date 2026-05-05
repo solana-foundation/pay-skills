@@ -5,7 +5,6 @@ use_case: "Use for video Portrait Segmentation, and related image or video gener
 openapi:
   url: https://videoseg.alibaba.gateway-402.com/openapi.json
 name: videoseg
-sandbox_service_url: https://videoseg.alibaba-sandbox.gateway-402.com
 service_url: https://videoseg.alibaba.gateway-402.com
 title: Alibaba Cloud Video Segmentation
 version: "2020-03-20"

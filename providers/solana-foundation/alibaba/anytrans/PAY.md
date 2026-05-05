@@ -5,7 +5,6 @@ use_case: "Use for text Translation, batch Text Translation, batch Web Page Tran
 openapi:
   url: https://anytrans.alibaba.gateway-402.com/openapi.json
 name: anytrans
-sandbox_service_url: https://anytrans.alibaba-sandbox.gateway-402.com
 service_url: https://anytrans.alibaba.gateway-402.com
 title: Alibaba Cloud AnyTrans
 version: "2025-07-07"

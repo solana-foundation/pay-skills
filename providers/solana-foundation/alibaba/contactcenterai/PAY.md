@@ -5,7 +5,6 @@ use_case: "Use for real-time Analysis of Audio Files, the Tongyi Xiaomi CCAI - C
 openapi:
   url: https://contactcenterai.alibaba.gateway-402.com/openapi.json
 name: contactcenterai
-sandbox_service_url: https://contactcenterai.alibaba-sandbox.gateway-402.com
 service_url: https://contactcenterai.alibaba.gateway-402.com
 title: Alibaba Cloud Contact Center AI
 version: "2024-06-03"

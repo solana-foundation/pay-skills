@@ -5,7 +5,6 @@ use_case: "Use for receipt extraction, invoice parsing, document OCR, table extr
 openapi:
   url: https://ocr.alibaba.gateway-402.com/openapi.json
 name: ocr
-sandbox_service_url: https://ocr.alibaba-sandbox.gateway-402.com
 service_url: https://ocr.alibaba.gateway-402.com
 title: Alibaba Cloud Model Studio OCR
 version: v1

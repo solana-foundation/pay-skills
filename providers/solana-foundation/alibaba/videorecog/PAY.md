@@ -5,7 +5,6 @@ use_case: "Use for shot parsing, video Quality Assessment, video Thumbnail, and 
 openapi:
   url: https://videorecog.alibaba.gateway-402.com/openapi.json
 name: videorecog
-sandbox_service_url: https://videorecog.alibaba-sandbox.gateway-402.com
 service_url: https://videorecog.alibaba.gateway-402.com
 title: Alibaba Cloud Video Recognition
 version: "2020-03-20"

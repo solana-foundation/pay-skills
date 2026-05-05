@@ -4,7 +4,6 @@ description: "Search Google Knowledge Graph for entities including people, place
 openapi:
   url: https://kgsearch.google.gateway-402.com/openapi.json
 name: kgsearch
-sandbox_service_url: https://kgsearch.google-sandbox.gateway-402.com
 service_url: https://kgsearch.google.gateway-402.com
 title: Knowledge Graph Search API
 use_case: "Use for entity lookup, name disambiguation, canonical descriptions, enriching search results, finding official URLs or images, resolving people, places, brands, and organizations, and attaching structured knowledge to records."

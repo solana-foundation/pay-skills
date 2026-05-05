@@ -5,7 +5,6 @@ use_case: "Use for cosplay - Anime Character Generation, interactive Full-image 
 openapi:
   url: https://aigen.alibaba.gateway-402.com/openapi.json
 name: aigen
-sandbox_service_url: https://aigen.alibaba-sandbox.gateway-402.com
 service_url: https://aigen.alibaba.gateway-402.com
 title: Alibaba Cloud AI Generation
 version: "2024-01-11"

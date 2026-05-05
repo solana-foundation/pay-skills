@@ -5,7 +5,6 @@ use_case: "Use for exam Paper Question Segmentation, and related document OCR, s
 openapi:
   url: https://edututor.alibaba.gateway-402.com/openapi.json
 name: edututor
-sandbox_service_url: https://edututor.alibaba-sandbox.gateway-402.com
 service_url: https://edututor.alibaba.gateway-402.com
 title: Alibaba Cloud EduTutor
 version: "2025-07-07"

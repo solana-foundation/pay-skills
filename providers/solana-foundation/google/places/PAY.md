@@ -5,7 +5,6 @@ use_case: "Use for restaurant and business search, hotel and POI lookup, local d
 openapi:
   url: https://places.google.gateway-402.com/openapi.json
 name: places
-sandbox_service_url: https://places.google-sandbox.gateway-402.com
 service_url: https://places.google.gateway-402.com
 title: Places API (New)
 version: v1

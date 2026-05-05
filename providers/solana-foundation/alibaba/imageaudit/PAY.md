@@ -5,7 +5,6 @@ use_case: "Use for image Content Moderation, text Content Moderation, and relate
 openapi:
   url: https://imageaudit.alibaba.gateway-402.com/openapi.json
 name: imageaudit
-sandbox_service_url: https://imageaudit.alibaba-sandbox.gateway-402.com
 service_url: https://imageaudit.alibaba.gateway-402.com
 title: Alibaba Cloud Image Audit
 version: "2019-12-30"

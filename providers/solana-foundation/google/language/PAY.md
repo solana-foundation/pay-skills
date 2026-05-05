@@ -4,7 +4,6 @@ description: "Analyze text with Google NLP: sentiment, emotion, named entities, 
 openapi:
   url: https://language.google.gateway-402.com/openapi.json
 name: language
-sandbox_service_url: https://language.google-sandbox.gateway-402.com
 service_url: https://language.google.gateway-402.com
 title: Cloud Natural Language API
 use_case: "Use for sentiment analysis, opinion mining, entity extraction, content classification, moderation triage, support ticket routing, review analytics, article tagging, syntax analysis, document annotation, and multilingual text intelligence."

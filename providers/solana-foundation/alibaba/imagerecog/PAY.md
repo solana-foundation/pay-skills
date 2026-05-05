@@ -5,7 +5,6 @@ use_case: "Use for garbage Classification Detection, element Detection, certific
 openapi:
   url: https://imagerecog.alibaba.gateway-402.com/openapi.json
 name: imagerecog
-sandbox_service_url: https://imagerecog.alibaba-sandbox.gateway-402.com
 service_url: https://imagerecog.alibaba.gateway-402.com
 title: Alibaba Cloud Image Recognition
 version: "2019-09-30"

@@ -5,7 +5,6 @@ use_case: "Use for product Categorization, and related image or video generation
 openapi:
   url: https://goodstech.alibaba.gateway-402.com/openapi.json
 name: goodstech
-sandbox_service_url: https://goodstech.alibaba-sandbox.gateway-402.com
 service_url: https://goodstech.alibaba.gateway-402.com
 title: Alibaba Cloud Goods Tech
 version: "2019-12-30"

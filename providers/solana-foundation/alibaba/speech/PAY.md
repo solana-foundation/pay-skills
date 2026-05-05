@@ -5,7 +5,6 @@ use_case: "Use for audio transcription, meeting notes, subtitle generation, inte
 openapi:
   url: https://speech.alibaba.gateway-402.com/openapi.json
 name: speech
-sandbox_service_url: https://speech.alibaba-sandbox.gateway-402.com
 service_url: https://speech.alibaba.gateway-402.com
 title: Alibaba Cloud Model Studio Speech Recognition
 version: v1
