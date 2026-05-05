@@ -1,177 +1,97 @@
 # pay-skills
 
-A public good and community-led registry for [pay](https://github.com/solana-foundation/pay) — an open directory of stablecoin-gated APIs that anyone can search, use, or contribute to. Built and maintained by the community, for the community.
+A community registry of stablecoin-gated APIs for [pay](https://github.com/solana-foundation/pay) — an open directory the `pay` CLI and AI agents can search, route to, and pay through. Public good, community-maintained.
 
-## Add your API
+## Add your API in three commands
 
-Have a paid API? List it here so the `pay` CLI and AI agents can discover it.
+```bash
+# 1. Scaffold a new provider — fetches the OpenAPI doc and writes a PAY.md
+#    pre-filled with title, description, service_url, and TODO placeholders.
+pay catalog scaffold <your-org>/<api-name> https://api.example.com/openapi.json
 
-### 1. Fork this repo
+# 2. Edit the generated providers/<your-org>/<api-name>/PAY.md:
+#      - replace the `category: TODO` placeholder
+#      - replace the `use_case: TODO` placeholder
+#    (TODO values fail validation, so you'll catch unfinished work locally.)
 
-### 2. Create your provider file
+# 3. Validate locally — parses frontmatter, fetches the OpenAPI, probes every
+#    endpoint, applies the Solana-compat verdict.
+pay catalog check providers/<your-org>/<api-name>/PAY.md
+```
 
-Add `providers/<your-org>/<your-api>.md`:
+When `pay catalog check` prints `PAY.md check successful`, open a PR. CI runs the same pipeline; once merged, your API is live in `pay skills search` within minutes.
+
+## Provider directory layout
+
+```
+providers/
+  <operator>/<name>/PAY.md                 ← native API
+  <operator>/<origin>/<name>/PAY.md        ← proxied API (gateway)
+```
+
+Each provider lives in its own directory. The directory's path under `providers/` becomes the provider FQN: `agentmail/email`, `merit-systems/stablecrypto/market-data`, `solana-foundation/google/translate`. You can co-locate sidecar files (e.g. `openapi.json`) next to `PAY.md` and reference them with `openapi: { path: openapi.json }` — the build inlines the resolved spec into the published index.
+
+## PAY.md structure
 
 ```markdown
 ---
-name: my-api
-title: "My API"
-description: "A clear description of what this API does and what data it returns (min 64, max 255 chars)."
-use_case: "when to use this API, what problems it solves, example queries (min 32 chars)"
-category: data
-service_url: https://my-api.example.com
-sandbox_service_url: https://sandbox.my-api.example.com
-endpoints:
-  - method: POST
-    path: "v1/search"
-    resource: "search"
-    description: "Search for items by keyword with filtering and pagination support (min 32 chars)"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.01
+name: rpc                                  # must match parent directory name
+title: "QuickNode"
+description: "..."                         # 64–255 chars, powers search
+use_case: "Use for ..."                    # 32–255 chars, helps LLMs route
+category: compute                          # see categories list below
+service_url: https://x402.quicknode.com    # production HTTPS URL, no IPs
+openapi:
+  url: https://x402.quicknode.com/openapi.json
+  # OR (for co-located specs):
+  # path: openapi.json
 ---
 
-Longer description, usage examples, pricing notes — whatever helps
-people understand your API. This shows up in `pay skills info`.
+Free-form prose. Explain what the API offers, when an agent should reach
+for it, and any spend-aware patterns (prefer narrow lookups over broad
+searches, reuse identifiers, cap result limits, …).
+
+## Spend-aware usage
+
+- TODO: list patterns that minimize paid calls.
 ```
 
-### 3. Open a PR
+**Required frontmatter:** `name` `title` `description` `use_case` `category` `service_url` plus exactly one of `openapi:` or inline `endpoints:`.
 
-CI validates your spec and probes your endpoints automatically. Once merged, your API appears in `pay skills search` within minutes.
+**Categories:** `ai_ml` `analytics` `cloud` `compute` `data` `devtools` `finance` `identity` `iot` `maps` `media` `messaging` `other` `productivity` `search` `security` `storage` `translation`
 
-## Provider spec
+**Optional:** `version`, `sandbox_service_url`.
 
-**Required frontmatter:**
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full field reference and writing guide.
 
-| Field | Description |
+## Local commands
+
+| Command | What it does |
 |---|---|
-| `name` | Must match filename |
-| `title` | Human-readable name |
-| `description` | What it does (min 64, max 255 chars) — powers search |
-| `use_case` | When to use it (min 32 chars) — helps LLMs pick the right API |
-| `category` | See categories below |
-| `service_url` | HTTPS URL with a domain name (no IPs) |
-| `endpoints` | At least one (see format above) |
+| `pay catalog scaffold <fqn> <openapi_url>` | Generate a starter `<fqn>/PAY.md` from an OpenAPI document. |
+| `pay catalog check <PAY.md>` | Validate one provider: frontmatter shape, OpenAPI resolution, live probe, Solana verdict. |
+| `pay catalog check . --no-probe` | Walk the entire registry; frontmatter-only check (fast, offline-ish). |
+| `pay catalog check . --changed-from origin/main` | Probe + verdict only on providers changed since `origin/main`. Mirrors PR CI. |
+| `pay catalog build .` | Full registry build → writes `dist/skills.json` and per-provider detail JSONs. Used on `main` only. |
 
-**Optional:**
-
-| Field | Description |
-|---|---|
-| `version` | API version (e.g. `v1`) |
-| `sandbox_service_url` | Staging URL for testing without real payments (service should use `https://402.surfnet.dev` as its Solana RPC) |
-| `openapi_url` | Link to OpenAPI spec |
-| `affiliate_policy` | Opt into affiliate referrals (see Affiliates below) |
-
-**Categories:** `ai_ml` `data` `compute` `maps` `search` `translation` `productivity` `finance` `identity` `storage` `messaging` `media` `iot` `security` `analytics` `devtools` `other`
-
-**Per endpoint:**
-
-| Field | Required | Description |
-|---|---|---|
-| `method` | yes | HTTP method |
-| `path` | yes | URL path |
-| `description` | yes | What it does (min 32, max 255 chars) |
-| `resource` | no | Group name (e.g. `jobs`, `datasets`) |
-| `pricing` | no | Omit for free endpoints |
-
-### Directory structure
-
-If you operate your own API directly:
-```
-providers/<your-org>/<your-api>.md
-```
-
-If you proxy third-party APIs (like a gateway):
-```
-providers/<your-org>/<origin-org>/<api-name>.md
-```
-
-## Affiliates
-
-Affiliates are systems (AI agents, CLIs, platforms) that recommend APIs to users and earn referral commission.
-
-Add `affiliates/<name>.md`:
-
-```markdown
----
-name: my-agent
-title: "My Agent"
-type: agent
-account: "7xKpFz...base58pubkey..."
-network: mainnet
-contact: hello@example.com
-url: https://example.com
----
-
-What this affiliate does and how it recommends APIs.
-```
-
-**Required:** `name`, `title`, `type` (`agent` | `cli` | `platform`), `account` (Solana pubkey), `contact`
-
-Providers opt into affiliate referrals with:
-```yaml
-affiliate_policy:
-  enabled: true
-  default_percent: 10
-```
-
-## Aggregators
-
-Aggregators are other registries in the ecosystem. We list them for visibility.
-
-Add `aggregators/<name>.md`:
-
-```markdown
----
-name: other-registry
-title: "Other Registry"
-url: https://other-registry.dev
-contact: team@other-registry.dev
----
-
-What this registry focuses on.
-```
-
-**Required:** `name`, `title`, `url`, `contact`
-
-## How it works
-
-```
-providers/                     Provider specs (.md with YAML frontmatter)
-  solana-foundation/
-    google/                    Proxied Google APIs
-    payment-debugger.md        Native API
-  merit-systems/
-    stableenrich/              Data enrichment APIs
-    stablesocial/              Social media data
-affiliates/                    Affiliate entries
-aggregators/                   Other registries
-```
-
-1. Contributors open PRs to add `.md` files. CI validates the spec and probes endpoints on every PR.
-2. On merge, CI probes **all** endpoints — if any fail, the index is not published.
-3. `pay skills build` compiles a lightweight index (`skills.json`) + per-provider detail files and publishes to CDN.
-4. The `pay` CLI fetches the index for `pay skills search`, then lazy-loads provider detail on demand.
+`-v` / `--verbose` on any `check` adds the per-endpoint probe + verdict tables. `--strict` upgrades non-Solana warnings to blocking errors.
 
 ## Payment requirements
 
-All paid endpoints must:
+Paid endpoints must:
 
-- Return HTTP **402** with a valid payment challenge (MPP or x402 protocol)
-- Accept payment on **Solana mainnet**
-- Accept **USDC** or **USDT** stablecoins
+- Return HTTP **402** with a valid payment challenge (MPP or x402 protocol).
+- Accept payment on **Solana mainnet**.
+- Accept **USDC** or **USDT** stablecoins.
 
-CI probes every endpoint to verify this. Endpoints that don't return a valid Solana 402 challenge will block the PR.
+CI probes every endpoint and emits `::warning::` / `::error::` annotations inline on PRs. Endpoints that don't return a valid Solana 402 challenge block the merge. Indeterminate statuses (auth-required, SIWX, body-required) neither warn nor error — they pass through.
 
-## Writing good descriptions
+## How publication works
 
-Descriptions power `pay skills search`. Both humans and AI agents read them.
-
-1. **Min 64 characters** for provider descriptions, **min 32** for endpoints.
-2. **Start with a verb.** "Search", "Generate", "Detect", "Translate".
-3. **Name the domain object.** "Search influencers", not "Search items".
-4. **Skip boilerplate.** No auth/pagination/error handling.
+1. Contributors open PRs adding/editing PAY.md files (and optional sidecars). The `Validate providers` workflow parses, probes, and emits inline annotations.
+2. On merge to `main`, the `Build & Publish Skills Index` workflow:
+   - Re-runs the Solana-compat gate against this commit's diff (so a bypassed PR can't slip through).
+   - Pulls the previous dist from `gs://pay-skills/v1/`.
+   - Runs an incremental build (`--only <changed-fqns> --previous-dist prev-dist`) — unchanged providers are copied verbatim.
+   - Publishes `dist/` to `gs://pay-skills/v1/`.
+3. `pay skills update` clients refetch the index. Search updates within minutes.

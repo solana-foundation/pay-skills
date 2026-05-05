@@ -6,7 +6,7 @@ use_case: "Use for transactional SMS, alerts, reminders, verification messages, 
 category: messaging
 service_url: https://api.paysponge.com/x402/purchase/svc_d6kszbre4qwg5n4n4
 openapi:
-  url: https://raw.githubusercontent.com/solana-foundation/pay-skills/main/specs/textbelt.json
+  path: openapi.json
 ---
 
 Textbelt SMS through PaySponge with x402 payments.

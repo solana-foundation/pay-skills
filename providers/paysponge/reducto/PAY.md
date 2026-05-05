@@ -6,7 +6,7 @@ use_case: "Use for document OCR, PDF and spreadsheet parsing, structured extract
 category: ai_ml
 service_url: https://api.paysponge.com/x402/purchase/svc_d672d90ggvqqygj60
 openapi:
-  url: https://raw.githubusercontent.com/solana-foundation/pay-skills/main/specs/reducto.json
+  path: openapi.json
 ---
 
 Reducto document parsing and extraction through PaySponge with x402 payments.

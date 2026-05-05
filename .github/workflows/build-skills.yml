@@ -27,7 +27,7 @@ jobs:
       - uses: actions/checkout@v5
         with:
           # Need at least one parent commit so we can diff what this merge
-          # actually changed (the Solana-compat re-gate below).
+          # actually changed (the Solana-compat re-gate + --only computation).
           fetch-depth: 2
 
       - uses: google-github-actions/auth@v2
@@ -50,34 +50,54 @@ jobs:
           echo "mode=$MODE" >> "$GITHUB_OUTPUT"
           echo "Run mode: $MODE"
 
-      # Re-run the Solana-compat gate against whatever changed in this
-      # merge so a bypassed PR can't silently publish a broken provider.
+      # Detect provider directories whose contents changed in this merge. We
+      # consider any file under `providers/` (not just PAY.md): a change to a
+      # sidecar like `openapi.json` or `schemas/req.json` must rebuild the
+      # owning provider's dist entry. For each changed file we walk up to the
+      # nearest ancestor directory holding a PAY.md and emit that PAY.md.
       - name: Detect providers changed in this commit
         id: changed
         run: |
-          CHANGED=$(git diff --name-only --diff-filter=ACMR HEAD~1...HEAD -- 'providers/**/*.md' | tr '\n' ' ')
-          echo "files=$CHANGED" >> "$GITHUB_OUTPUT"
-          if [ -z "$CHANGED" ]; then
+          ALL=$(git diff --name-only --diff-filter=ACMR HEAD~1...HEAD -- 'providers/**')
+          PAY_FILES=""
+          for f in $ALL; do
+            dir="$f"
+            while [ -n "$dir" ] && [ "$dir" != "providers" ] && [ "$dir" != "." ] && [ ! -f "$dir/PAY.md" ]; do
+              dir=$(dirname "$dir")
+            done
+            if [ -f "$dir/PAY.md" ]; then
+              PAY_FILES="$PAY_FILES $dir/PAY.md"
+            fi
+          done
+          UNIQ=$(echo $PAY_FILES | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/[[:space:]]*$//')
+          echo "files=$UNIQ" >> "$GITHUB_OUTPUT"
+          if [ -z "$UNIQ" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No provider changes in this merge."
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "Changed in this merge:"
-            for f in $CHANGED; do echo "  $f"; done
+            echo "Changed providers in this merge:"
+            for f in $UNIQ; do echo "  $f"; done
           fi
 
+      # Re-run the Solana-compat gate against this merge's changes so a
+      # bypassed PR can't silently publish a broken provider. The PAY.md
+      # list was already resolved in the previous step; pass it as
+      # `--files` so we don't need git inside the container.
       - name: Solana-compat validation (gate)
         if: steps.changed.outputs.skip == 'false'
         run: |
           docker run --rm \
             -u "$(id -u):$(id -g)" \
             -v "$PWD:/repo" \
+            -w /repo \
             $PAY_IMAGE \
-            skills validate /repo \
-            --files ${{ steps.changed.outputs.files }} \
-            --currencies USDC,USDT \
-            --timeout 15 \
-            --concurrency 5 \
-            --format github
+            catalog check . \
+              --files ${{ steps.changed.outputs.files }} \
+              --currencies USDC,USDT \
+              --probe-timeout 15 \
+              --probe-concurrency 5 \
+              --format github
 
       # Pull the previously-published dist so we can copy unchanged
       # providers through. Skipped in `rebuild` mode since we want a fresh
@@ -101,9 +121,9 @@ jobs:
         id: only
         if: steps.mode.outputs.mode == 'incremental' && steps.prev.outputs.have_prev == 'true' && steps.changed.outputs.skip == 'false'
         run: |
-          # Translate "providers/<fqn>.md" → "<fqn>", comma-joined.
+          # Translate "providers/<fqn>/PAY.md" → "<fqn>", comma-joined.
           ONLY=$(echo "${{ steps.changed.outputs.files }}" | tr ' ' '\n' | \
-            sed -E 's|^providers/(.+)\.md$|\1|' | grep -v '^$' | paste -sd, -)
+            sed -E 's|^providers/(.+)/PAY\.md$|\1|' | grep -v '^$' | paste -sd, -)
           echo "fqns=$ONLY" >> "$GITHUB_OUTPUT"
           echo "Partial rebuild scope: $ONLY"
 
@@ -132,12 +152,13 @@ jobs:
           docker run --rm \
             -u "$(id -u):$(id -g)" \
             -v "$PWD:/repo" \
+            -w /repo \
             $PAY_IMAGE \
-            skills build /repo \
-            --base-url https://storage.googleapis.com/pay-skills/v1 \
-            --probe-timeout 15 \
-            --probe-concurrency 5 \
-            $PARTIAL_ARGS
+            catalog build . \
+              --base-url https://storage.googleapis.com/pay-skills/v1 \
+              --probe-timeout 15 \
+              --probe-concurrency 5 \
+              $PARTIAL_ARGS
 
       - name: Show summary
         run: |

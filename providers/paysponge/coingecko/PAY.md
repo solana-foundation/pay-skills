@@ -6,7 +6,7 @@ use_case: "Use for onchain token pricing, token detail enrichment, trending-pool
 category: finance
 service_url: https://pro-api.coingecko.com/api/v3/x402/onchain
 openapi:
-  url: https://raw.githubusercontent.com/solana-foundation/pay-skills/main/specs/coingecko.json
+  path: openapi.json
 ---
 
 CoinGecko onchain DEX data through x402 payments.

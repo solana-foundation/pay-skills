@@ -1,4 +1,4 @@
-name: Validate
+name: Validate providers
 
 on:
   pull_request:
@@ -8,7 +8,8 @@ env:
   PAY_IMAGE: us-central1-docker.pkg.dev/gateway-402/agent-gateway/pay:latest
 
 jobs:
-  validate:
+  probe-and-verdict:
+    name: Probe + Solana verdict
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -19,67 +20,85 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Static validation: shape/category/required-field checks via the
-      # build pipeline (no probe — that lives in the next step).
-      - name: Static validation (pay skills build)
+      # Static check across the entire registry: every PAY.md is parsed,
+      # frontmatter is shape-validated (category / required fields / lengths),
+      # OpenAPI is resolved (URL fetch or relative-path read). No live probe —
+      # that lives in the next step. Catches regressions in unchanged
+      # providers (e.g. a renamed category enum).
+      - name: Static check (entire registry)
         run: |
           docker run --rm \
             -u "$(id -u):$(id -g)" \
             -v "$PWD:/repo" \
+            -w /repo \
             $PAY_IMAGE \
-            skills build /repo \
-            --output /repo/dist \
-            --no-probe \
-            --base-url https://storage.googleapis.com/pay-skills/v1
+            catalog check . --no-probe
 
-      - name: Detect changed providers
+      # Resolve providers changed in this PR. We do the diff in bash (not
+      # inside the container) so the `pay` runtime image stays slim — no
+      # `git` dependency. For each changed file under `providers/`, walk up
+      # to the nearest ancestor directory holding a `PAY.md`; emit that
+      # `PAY.md`'s relative path. A change to a sidecar like `openapi.json`
+      # therefore correctly triggers a re-probe of its owning provider.
+      - name: Resolve changed providers
         id: changed
         run: |
-          CHANGED=$(git diff --name-only --diff-filter=ACMR origin/${{ github.base_ref }}...HEAD -- 'providers/**/*.md' | tr '\n' ' ')
-          echo "files=$CHANGED" >> "$GITHUB_OUTPUT"
-          if [ -z "$CHANGED" ]; then
+          ALL=$(git diff --name-only --diff-filter=ACMR origin/${{ github.base_ref }}...HEAD -- 'providers/**')
+          PAY_FILES=""
+          for f in $ALL; do
+            dir="$f"
+            while [ -n "$dir" ] && [ "$dir" != "providers" ] && [ "$dir" != "." ] && [ ! -f "$dir/PAY.md" ]; do
+              dir=$(dirname "$dir")
+            done
+            if [ -f "$dir/PAY.md" ]; then
+              PAY_FILES="$PAY_FILES $dir/PAY.md"
+            fi
+          done
+          UNIQ=$(echo $PAY_FILES | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/[[:space:]]*$//')
+          echo "files=$UNIQ" >> "$GITHUB_OUTPUT"
+          if [ -z "$UNIQ" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "No provider changes — validation will be skipped."
+            echo "No provider changes in this PR."
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "Changed providers:"
-            for f in $CHANGED; do echo "  $f"; done
+            echo "Changed providers in this PR:"
+            for f in $UNIQ; do echo "  $f"; done
           fi
 
-      # Solana-compat gate: warns per gated endpoint that doesn't accept
-      # USDC/USDT on Solana, and *errors* (blocking) when a changed provider
-      # has zero classifiable endpoints that accept Solana stables.
-      # `--format github` emits ::warning::/::error:: workflow-command lines
-      # so the failures land inline on the PR diff.
-      - name: Probe + Solana-compat validation
+      # Solana-compat gate on the diff. `--format github` emits ::warning:: /
+      # ::error:: workflow-command lines so failures land inline on the PR.
+      - name: Probe + Solana-compat gate (changed providers)
         if: steps.changed.outputs.skip == 'false'
         run: |
           docker run --rm \
             -u "$(id -u):$(id -g)" \
             -v "$PWD:/repo" \
+            -w /repo \
             $PAY_IMAGE \
-            skills validate /repo \
-            --files ${{ steps.changed.outputs.files }} \
-            --currencies USDC,USDT \
-            --timeout 15 \
-            --concurrency 5 \
-            --format github
+            catalog check . \
+              --files ${{ steps.changed.outputs.files }} \
+              --currencies USDC,USDT \
+              --probe-timeout 15 \
+              --probe-concurrency 5 \
+              --format github
 
-      # Step Summary block — JSON copy of the probe + verdict, useful for
-      # human-readable per-PR status without scrolling through annotations.
+      # Step Summary block — re-run the verdict in JSON form and turn it into
+      # a per-PR markdown table for human review. Always runs (`always()`)
+      # even if the previous step failed, so reviewers see why.
       - name: Verdict summary
-        if: steps.changed.outputs.skip == 'false' && always()
+        if: always() && steps.changed.outputs.skip == 'false'
         run: |
           docker run --rm \
             -u "$(id -u):$(id -g)" \
             -v "$PWD:/repo" \
+            -w /repo \
             $PAY_IMAGE \
-            skills validate /repo \
-            --files ${{ steps.changed.outputs.files }} \
-            --currencies USDC,USDT \
-            --timeout 15 \
-            --concurrency 5 \
-            --format json > validate.json 2>/dev/null || true
+            catalog check . \
+              --files ${{ steps.changed.outputs.files }} \
+              --currencies USDC,USDT \
+              --probe-timeout 15 \
+              --probe-concurrency 5 \
+              --format json > validate.json 2>/dev/null || true
 
           {
             echo "### Solana-compatibility verdict"
@@ -122,6 +141,6 @@ jobs:
               print('</details>')
           "
             else
-              echo ':warning: Validate did not produce JSON output (probe may have been skipped).'
+              echo ':information_source: No changed providers in this PR — verdict skipped.'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
