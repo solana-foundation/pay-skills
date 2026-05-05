@@ -6,7 +6,7 @@ use_case: "Use for text-to-image, design graphics, illustration, photo-style ren
 category: media
 service_url: https://fal.x402.paysponge.com
 openapi:
-  url: https://fal.x402.paysponge.com/openapi.json
+  path: openapi.json
 ---
 
 fal.ai generation endpoints exposed through PaySponge with x402 payments.
@@ -22,9 +22,9 @@ Polling, result retrieval, and cancel routes are listed as zero-cost in the
 spec, while paid generation endpoints accept x402 USDC on Solana mainnet, Base,
 and Avalanche.
 
-Note: the published OpenAPI document is intentionally light on typed request
-schemas. Agents that need exact model-specific input fields, path coverage, or
-payment metadata should inspect the linked spec directly before building calls.
+The bundled local OpenAPI document preserves the PaySponge x402 metadata and
+adds model-specific request bodies plus shared async queue, status, result, and
+cancel response shapes for the supported fal.ai routes.
 
 ## Spend-aware usage
 
