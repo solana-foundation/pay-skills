@@ -1,5 +1,5 @@
 ---
-category: ai_ml
+category: security
 description: "Run moderation, verification, and risk checks with Alibaba Cloud Green, including imageBatchModeration, imageModeration, and multiModalAgent."
 use_case: "Use for imageBatchModeration, imageModeration, multiModalAgent, and related moderation, compliance, identity verification, fraud screening, and risk analysis."
 openapi:

@@ -1,5 +1,5 @@
 ---
-category: ai_ml
+category: translation
 description: "Translate and localize content with Alibaba Cloud AnyTrans, including text Translation, batch Text Translation, and batch Web Page Translation, for multilingual workflows."
 use_case: "Use for text Translation, batch Text Translation, batch Web Page Translation, and related translation, localization, and multilingual communication."
 openapi:

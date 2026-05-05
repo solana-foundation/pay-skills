@@ -2,7 +2,7 @@
 name: domains
 title: "StableDomains"
 description: "Register, renew, and manage DNS for domains via stablecoin micropayments. Supports common TLDs including .com, .org, .net, .io, .ai, .dev, .app, and .xyz, plus DNS record creation and updates without traditional registrar billing."
-category: productivity
+category: cloud
 use_case: "Use for domain registration, renewing existing names, managing DNS records, buying agent-owned domains, setting A/AAAA/CNAME/MX/TXT records, launching websites, configuring branded email, and handling registrar workflows through micropayments."
 service_url: https://stabledomains.dev
 openapi:

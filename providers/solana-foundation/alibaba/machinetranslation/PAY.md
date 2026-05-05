@@ -1,5 +1,5 @@
 ---
-category: ai_ml
+category: translation
 description: "Translate text with Alibaba Cloud Machine Translation's REST APIs for general-purpose and e-commerce scenarios."
 use_case: "Use for synchronous text translation, localization, buyer-seller communication, and e-commerce content workflows that need Alibaba Cloud's classic translation engines."
 openapi:

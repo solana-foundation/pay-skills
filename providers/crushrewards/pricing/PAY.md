@@ -3,7 +3,7 @@ name: pricing
 title: "Crush Rewards"
 description: "Track competitive retail pricing across Amazon, Walmart, Costco, Home Depot, Nordstrom, IKEA, and other US/Canadian retailers. Returns live prices, availability, deal alerts, brand positioning, inflation trends, and price-drop signals."
 use_case: "Use for comparing prices across major US and Canadian retailers, monitoring deal alerts, tracking price drops, checking product availability, analyzing brand positioning, competitive pricing research, ecommerce intelligence, and shopping recommendations."
-category: data
+category: shopping
 service_url: https://api.crushrewards.dev
 openapi:
   url: https://api.crushrewards.dev/openapi.json

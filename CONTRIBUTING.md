@@ -103,9 +103,31 @@ reach for it, and any spend-aware patterns.
 ### Categories
 
 ```text
-ai_ml analytics cloud compute data devtools finance identity iot maps media
-messaging other productivity search security storage translation
+ai_ml cloud compute data devtools finance identity maps media messaging other
+productivity search security shopping storage translation
 ```
+
+Use the narrowest category that matches the user's task:
+
+| Category | Use for |
+|---|---|
+| `ai_ml` | Model inference, embeddings, OCR/vision/NLP, speech, and model-powered extraction when no narrower category fits. |
+| `cloud` | Domains, DNS, hosting control planes, cloud platform APIs, and infrastructure management. |
+| `compute` | RPC, execution, node access, server workloads, and metered compute resources. |
+| `data` | Structured datasets, enrichment, records, analytics datasets, and factual lookups that are not primarily search. |
+| `devtools` | Developer utilities, testing, CI, code, automation helpers, and integration tools. |
+| `finance` | Market data, crypto data, financial research, payments data, portfolio and asset analytics. |
+| `identity` | KYC, verification, account/person/business identity, credentials, and trust assertions. |
+| `maps` | Places, geocoding, addresses, local discovery, travel locations, routing, and geographic context. |
+| `media` | Image/video/audio generation or processing, social content, creator data, and visual web artifacts. |
+| `messaging` | Email, SMS, phone calls, inboxes, notifications, and communication channels. |
+| `productivity` | Workflows around documents, tasks, scheduling, collaboration, office tools, and personal productivity. |
+| `search` | Web search, knowledge search, fact-check search, catalog discovery, and query-first retrieval. |
+| `security` | Moderation, abuse/risk checks, fraud signals, CAPTCHA/security workflows, and policy compliance. |
+| `shopping` | Product search, retail pricing, marketplaces, purchases, merchandise, checkout, and fulfillment. |
+| `storage` | File upload, object storage, durable artifacts, CDN links, backups, and static asset storage. |
+| `translation` | Translation, localization, language detection, transliteration, and glossary-controlled language workflows. |
+| `other` | Only when none of the categories above is a truthful fit. |
 
 ### `openapi:` source variants
 

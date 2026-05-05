@@ -1,5 +1,5 @@
 ---
-category: ai_ml
+category: translation
 description: "Translate text and documents across 130+ languages. Supports language detection, romanization, synchronous and batch translation, glossaries for domain terminology, adaptive MT datasets, custom models, and document formatting."
 use_case: "Use for multilingual content, localization, document translation, language detection, cross-language communication, glossary-controlled terminology, romanization, batch translation jobs, adaptive MT, and custom translation models."
 openapi:

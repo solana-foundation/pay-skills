@@ -1,5 +1,5 @@
 ---
-category: ai_ml
+category: identity
 description: "Run moderation, verification, and risk checks with Alibaba Cloud Cloudauth, including aIGC Image Generation Detection, verification of Two, and three plus additional screening and verification operations."
 use_case: "Use for aIGC Image Generation Detection, verification of Two, three, and Four Elements of Bank Card, and related moderation, compliance, identity verification, fraud screening, and risk analysis."
 openapi:

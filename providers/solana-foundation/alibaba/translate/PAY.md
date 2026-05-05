@@ -1,5 +1,5 @@
 ---
-category: ai_ml
+category: translation
 description: "Translate text with Qwen-MT through Alibaba Cloud Model Studio's OpenAI-compatible chat completions API."
 use_case: "Use for single-turn machine translation, localization, multilingual content generation, and cross-language messaging."
 openapi:

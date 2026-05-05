@@ -1,5 +1,5 @@
 ---
-category: ai_ml
+category: identity
 description: "Run moderation, verification, and risk checks with Alibaba Cloud Cloudauth International, including address Similarity Comparison, address Verification, and address Verification V2."
 use_case: "Use for address Similarity Comparison, address Verification, address Verification V2, and related moderation, compliance, identity verification, fraud screening, and risk analysis."
 openapi:

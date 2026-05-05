@@ -2,7 +2,7 @@
 name: merchandise
 title: "StableMerch"
 description: "Order custom printed merchandise from images or generated artwork via micropayments. Supports standard shirts, heavyweight shirts, mugs, multiple sizes and colors, uploaded image assets, worldwide shipping, and no traditional ecommerce checkout."
-category: productivity
+category: shopping
 use_case: "Use for creating and shipping custom shirts or mugs, turning AI-generated art into physical merchandise, ordering branded swag, fulfillment for user-provided images, gifts, prototypes, creator products, and agent-initiated print-on-demand workflows."
 service_url: https://stablemerch.dev
 openapi:

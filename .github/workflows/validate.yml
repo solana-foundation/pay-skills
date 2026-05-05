@@ -65,11 +65,15 @@ jobs:
             for f in $UNIQ; do echo "  $f"; done
           fi
 
-      # Solana-compat gate on the diff. `--format github` emits ::warning:: /
-      # ::error:: workflow-command lines so failures land inline on the PR.
+      # Single step: `--format github` streams inline ::warning:: /
+      # ::error:: annotations to stdout (captured live by Actions);
+      # `--summary-out` writes a markdown table for the PR Step Summary.
+      # The trap appends the table even when `catalog check` exits 1
+      # (provider blocked), so reviewers see the verdict either way.
       - name: Probe + Solana-compat gate (changed providers)
         if: steps.changed.outputs.skip == 'false'
         run: |
+          trap '[ -s verdict.md ] && cat verdict.md >> "$GITHUB_STEP_SUMMARY" || true' EXIT
           docker run --rm \
             -u "$(id -u):$(id -g)" \
             -v "$PWD:/repo" \
@@ -80,67 +84,5 @@ jobs:
               --currencies USDC,USDT \
               --probe-timeout 15 \
               --probe-concurrency 5 \
-              --format github
-
-      # Step Summary block — re-run the verdict in JSON form and turn it into
-      # a per-PR markdown table for human review. Always runs (`always()`)
-      # even if the previous step failed, so reviewers see why.
-      - name: Verdict summary
-        if: always() && steps.changed.outputs.skip == 'false'
-        run: |
-          docker run --rm \
-            -u "$(id -u):$(id -g)" \
-            -v "$PWD:/repo" \
-            -w /repo \
-            $PAY_IMAGE \
-            catalog check . \
-              --files ${{ steps.changed.outputs.files }} \
-              --currencies USDC,USDT \
-              --probe-timeout 15 \
-              --probe-concurrency 5 \
-              --format json > validate.json 2>/dev/null || true
-
-          {
-            echo "### Solana-compatibility verdict"
-            if [ -s validate.json ]; then
-              python3 -c "
-          import json
-          r = json.load(open('validate.json'))
-          blocks = sum(1 for p in r['providers'] if p['block'])
-          warns = sum(p['non_solana_count'] for p in r['providers'])
-          oks   = sum(p['ok_count'] for p in r['providers'])
-          if blocks > 0:
-              icon = ':no_entry:'
-              status = f'**{blocks}** provider(s) blocked'
-          elif warns > 0:
-              icon = ':warning:'
-              status = f'{warns} non-Solana endpoint(s) flagged'
-          else:
-              icon = ':white_check_mark:'
-              status = f'{oks} Solana-compatible endpoint(s)'
-          print(f'{icon} {status}')
-          print()
-          print('| Provider | OK | Non-Solana | Verdict |')
-          print('|----------|----|------------|---------|')
-          for p in r['providers']:
-              v = ':no_entry: BLOCK' if p['block'] else (':warning: warn' if p['non_solana_count'] > 0 else ':white_check_mark: pass')
-              print(f\"| \`{p['fqn']}\` | {p['ok_count']} | {p['non_solana_count']} | {v} |\")
-          for p in r['providers']:
-              if p['non_solana_count'] == 0:
-                  continue
-              print()
-              print(f\"<details><summary>{p['fqn']} — non-Solana endpoints</summary>\")
-              print()
-              print('| Method | Path | Status | Note |')
-              print('|--------|------|--------|------|')
-              for e in p['endpoints']:
-                  if e['verdict'] != 'not_solana':
-                      continue
-                  print(f\"| \`{e['method']}\` | \`{e['path']}\` | \`{e['probe_status']}\` | {e['note']} |\")
-              print()
-              print('</details>')
-          "
-            else
-              echo ':information_source: No changed providers in this PR — verdict skipped.'
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+              --format github \
+              --summary-out verdict.md

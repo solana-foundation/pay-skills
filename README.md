@@ -58,7 +58,7 @@ searches, reuse identifiers, cap result limits, …).
 
 **Required frontmatter:** `name` `title` `description` `use_case` `category` `service_url` plus exactly one of `openapi:` or inline `endpoints:`.
 
-**Categories:** `ai_ml` `analytics` `cloud` `compute` `data` `devtools` `finance` `identity` `iot` `maps` `media` `messaging` `other` `productivity` `search` `security` `storage` `translation`
+**Categories:** `ai_ml` `cloud` `compute` `data` `devtools` `finance` `identity` `maps` `media` `messaging` `other` `productivity` `search` `security` `shopping` `storage` `translation`
 
 **Optional:** `version`, `sandbox_service_url`.
 

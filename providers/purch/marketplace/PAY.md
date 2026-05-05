@@ -3,7 +3,7 @@ name: marketplace
 title: "Purch"
 description: "Search and buy products from Amazon and Shopify with USDC on Solana. Includes an AI shopping assistant, dynamic-priced product purchase flow, and Purch Vault for digital goods (skills, knowledge, personas) with downloadable artifacts."
 use_case: "Use for product search, Amazon and Shopify shopping, AI shopping assistance, price and review comparison, agent-initiated purchases with shipping address, and buying or downloading Purch Vault digital items like skills, knowledge bases, and personas."
-category: productivity
+category: shopping
 service_url: https://api.purch.xyz
 openapi:
   url: https://api.purch.xyz/openapi.json

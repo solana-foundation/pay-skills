@@ -1,5 +1,5 @@
 ---
-category: ai_ml
+category: security
 description: "Run moderation, verification, and risk checks with Alibaba Cloud SAF, including multi-Scenario Risk Identification and Detection, decision Engine for Malaysian Cluster, and decision Engine Singapore Cluster."
 use_case: "Use for multi-Scenario Risk Identification and Detection, decision Engine for Malaysian Cluster, decision Engine Singapore Cluster, and related moderation, compliance, identity verification, fraud screening, and risk analysis."
 openapi:

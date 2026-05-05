@@ -137,7 +137,14 @@ jobs:
       #   Use after image changes that affect cached providers (new prune
       #   logic, new Discovery support, etc.) — it's slower (~5-15 min) but
       #   guarantees the published index reflects the latest pipeline.
+      # Skip build + publish entirely when an incremental run has no
+      # provider changes (e.g. a commit that only touched docs / CI / a
+      # README). Without this gate, a flaky upstream `openapi.url` could
+      # cause an unrelated commit to fail CI even though no provider
+      # change is being published. `rebuild` mode bypasses the gate and
+      # always re-probes every provider.
       - name: Build dist/ (probe-driven)
+        if: steps.mode.outputs.mode == 'rebuild' || steps.changed.outputs.skip == 'false'
         run: |
           PARTIAL_ARGS=""
           if [ "${{ steps.mode.outputs.mode }}" = "incremental" ] \
@@ -161,6 +168,7 @@ jobs:
               $PARTIAL_ARGS
 
       - name: Show summary
+        if: steps.mode.outputs.mode == 'rebuild' || steps.changed.outputs.skip == 'false'
         run: |
           echo "=== skills.json ==="
           python3 -m json.tool dist/skills.json | head -20
@@ -182,12 +190,14 @@ jobs:
           "
 
       - name: Upload dist/ as artifact
+        if: steps.mode.outputs.mode == 'rebuild' || steps.changed.outputs.skip == 'false'
         uses: actions/upload-artifact@v4
         with:
           name: skills-dist
           path: dist/
 
       - name: Publish to GCS
+        if: steps.mode.outputs.mode == 'rebuild' || steps.changed.outputs.skip == 'false'
         run: |
           gcloud storage rsync dist/ gs://pay-skills/v1/ \
             --recursive \
