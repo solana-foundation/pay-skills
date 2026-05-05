@@ -6,26 +6,22 @@ use_case: "Use for math and science questions, unit conversion, formula evaluati
 category: data
 service_url: https://wolframalpha.x402.paysponge.com
 openapi:
-  url: https://wolframalpha.x402.paysponge.com/openapi.json
+  path: openapi.json
 ---
 
 Wolfram|Alpha computational knowledge endpoints exposed through PaySponge with
 x402 payments.
 
-The published spec currently exposes 3 paid `GET` routes: `/v1/result` for a
-short answer, `/v1/simple` for a simple image result, and `/v2/query` for a
-full Wolfram|Alpha query response. These routes are suited to math, science,
-finance, date/time, unit conversion, geography, and other computational
-knowledge tasks where a web search or LLM-only answer is weaker than a
-symbolic or numeric engine.
+The live x402 wrapper currently exposes 3 paid `GET` routes: `/v1/result` for
+a short textual answer, `/v1/simple` for a static rendered result image, and
+`/v2/query` for the full structured Wolfram|Alpha result. These routes are
+suited to math, science, finance, date/time, unit conversion, geography, and
+other computational knowledge tasks where symbolic or numeric computation is
+more reliable than web search or an LLM-only answer.
 
-The current spec prices `/v1/result` and `/v1/simple` at $0.01 per request and
-`/v2/query` at $0.02 per request. All routes accept x402 USDC on Solana
+`/v1/result` and `/v1/simple` cost $0.01 per request and `/v2/query` costs
+$0.02 per request. All currently exposed routes accept x402 USDC on Solana
 mainnet, Base, and Avalanche.
-
-Note: the OpenAPI document is minimal and does not include rich inline query
-parameter schemas. Agents that need the exact request contract should inspect
-the linked spec directly before building calls.
 
 ## Spend-aware usage
 
@@ -33,5 +29,11 @@ the linked spec directly before building calls.
   for cases that need richer structured output.
 - Use `/v1/simple` only when the caller specifically needs an image-style result
   rather than text.
+- Use `/v2/query` with `includepodid`, `podtitle`, `podindex`, `scanner`, or
+  `podstate` to narrow the returned surface before paying again for broader
+  output.
+- Reuse `assumption` and `podstate` values returned by earlier `/v2/query`
+  results when refining an ambiguous query or driving an Instant Calculators
+  workflow, instead of rewriting the query from scratch.
 - Prefer one precise computational query over several retries. Tighten the
   input phrasing before paying again.
