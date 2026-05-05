@@ -6,15 +6,16 @@ use_case: "Use for automated CAPTCHA solving in web agents, scraping and form-su
 category: devtools
 service_url: https://2captcha.x402.paysponge.com
 openapi:
-  url: https://2captcha.x402.paysponge.com/openapi.json
+  path: openapi.json
 ---
 
 2Captcha CAPTCHA-solving endpoints exposed through PaySponge with x402
 payments.
 
-The published OpenAPI document advertises task creation, result polling, and
-correct or incorrect solve reporting for reCAPTCHA v2/v3, hCaptcha, Cloudflare
-Turnstile, FunCaptcha, GeeTest, image captchas, and related challenge types.
+The bundled OpenAPI document advertises task creation, result polling, and
+correct or incorrect solve reporting across reCAPTCHA v2/v3, hCaptcha,
+Cloudflare Turnstile, FunCaptcha, GeeTest, image captchas, and related task
+types.
 
 ## Spend-aware usage
 
