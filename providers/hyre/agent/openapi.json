@@ -1,0 +1,3956 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "HYRE Agent API",
+    "version": "2.1.0",
+    "description": "AI-enhanced DeFi data on Solana. 26 endpoints across Trenchers (Pump.fun bonding curves, snipers, graduating tokens), Traders (whale PnL, top wallets, OHLCV), LPs (Meteora DLMM pools, rebalance signals, strategies), DeFi (TVL, yields, deBridge cross-chain quote + yield-migrate), and Agents (registry + /ask meta-endpoint that routes natural-language queries to the right segment). Every paid response includes LLM-interpreted insight + signal vocabulary (snipe/follow/add_liquidity/migrate/etc) + confidence + sources.",
+    "contact": {
+      "url": "https://hyreagent.fun"
+    },
+    "x-guidance": "HYRE Agent provides 24 DeFi intelligence endpoints across 5 segments. Three payment chains supported via x402:\n\n**Solana (Dexter):** Root paths (/, /trenches/*, /traders/*, etc.). Facilitator: x402.dexter.cash. Gas sponsored.\n\n**Base (PayAI):** Prefixed /base/* paths (/base/trenches/*, /base/defi/*, etc.). Facilitator: facilitator.payai.network.\n\n**SKALE (PayAI):** Prefixed /skale/* paths (/skale/trenches/*, /skale/defi/*, etc.). Facilitator: facilitator.payai.network. Zero gas fees.\n\n**ME Protocol agents (/agents/:name/*):** Each claimed .me agent proxies a subset of the catalog above. Calls to /agents/alice/trenches/verdict/<token> route payment to alice's Asset Signer PDA instead of HYRE's wallet. Template gating rejects endpoints the agent's template does not cover. See the /agents/{name} operation below for details.\n\nAll chains return identical AI-enriched data. Every response includes: data, insight, signal, confidence, model_used, latency_ms.",
+    "x-payment-protocols": {
+      "x402-solana": {
+        "facilitator": "https://x402.dexter.cash",
+        "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "payTo": "7G73PLhKvAPBGTzG5ESAE4coE7QrVeTTKfhTxQZbyGgC",
+        "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "basePath": "/"
+      },
+      "x402-base": {
+        "facilitator": "https://facilitator.payai.network",
+        "network": "eip155:8453",
+        "payTo": "0xb5998e11E666Fd1e7f3B8e8d9122A755eec1E9b7",
+        "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        "basePath": "/base/"
+      },
+      "x402-skale": {
+        "facilitator": "https://facilitator.payai.network",
+        "network": "eip155:1187947933",
+        "payTo": "0xb5998e11E666Fd1e7f3B8e8d9122A755eec1E9b7",
+        "asset": "0x85889c8c714505E0c94b30fcfcF64fE3Ac8FCb20",
+        "basePath": "/skale/"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://mpp.hyreagent.fun",
+      "description": "Production \u2014 x402 on Solana mainnet (USDC, Dexter facilitator with sponsored gas)"
+    }
+  ],
+  "x-discovery": {
+    "ownershipProofs": []
+  },
+  "components": {
+    "schemas": {
+      "HyreResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "description": "Structured data from upstream sources"
+          },
+          "insight": {
+            "type": "string",
+            "nullable": true,
+            "description": "AI-generated actionable insight (1-2 sentences)"
+          },
+          "signal": {
+            "type": "string",
+            "description": "Decision signal for the caller"
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "LLM confidence in the signal"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Data sources used"
+          },
+          "model_used": {
+            "type": "string",
+            "nullable": true,
+            "description": "LLM model that produced the insight"
+          },
+          "latency_ms": {
+            "type": "integer",
+            "description": "Total response time in milliseconds"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/trenches/new-tokens": {
+      "get": {
+        "summary": "Real-time token launches from PumpFun",
+        "operationId": "real_time_token_launches_from_pumpfun",
+        "description": "Latest PumpFun token creations with AI snipe signal. Signal vocabulary: snipe | watch | avoid. Sources: pumpportal.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.008000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10
+            },
+            "description": "Maximum number of results"
+          },
+          {
+            "name": "Authorization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP payment credential. Omit on first call to receive 402 challenge."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM-enriched response",
+            "headers": {
+              "Payment-Receipt": {
+                "description": "MPP payment receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "Structured data from upstream sources"
+                    },
+                    "insight": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "AI-generated actionable insight"
+                    },
+                    "signal": {
+                      "type": "string",
+                      "description": "Decision signal (e.g. snipe, watch, avoid, follow, rebalance)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "LLM confidence score"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Data sources used"
+                    },
+                    "model_used": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "LLM model name"
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Response time in ms"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial \u2014 raw data without LLM insight (all models failed)"
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Payment challenge",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 402
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trenches/curve/{mint}": {
+      "get": {
+        "summary": "Bonding curve progress for a PumpFun token",
+        "operationId": "bonding_curve_progress_for_a_pumpfun_token",
+        "description": "Graduation progress, SOL in curve, estimated time. Signal vocabulary: graduate_soon | watch | avoid. Sources: solana-rpc.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "mint",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Token mint address",
+            "example": "So11111111111111111111111111111111111111112"
+          },
+          {
+            "name": "curve_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Bonding curve account address"
+          },
+          {
+            "name": "Authorization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP payment credential. Omit on first call to receive 402 challenge."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM-enriched response",
+            "headers": {
+              "Payment-Receipt": {
+                "description": "MPP payment receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "Structured data from upstream sources"
+                    },
+                    "insight": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "AI-generated actionable insight"
+                    },
+                    "signal": {
+                      "type": "string",
+                      "description": "Decision signal (e.g. snipe, watch, avoid, follow, rebalance)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "LLM confidence score"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Data sources used"
+                    },
+                    "model_used": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "LLM model name"
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Response time in ms"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial \u2014 raw data without LLM insight (all models failed)"
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Payment challenge",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 402
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trenches/token/{mint}": {
+      "get": {
+        "summary": "Token metadata and holder analysis",
+        "operationId": "token_metadata_and_holder_analysis",
+        "description": "Dev wallet, socials, freeze/mint authority, top holders. Signal vocabulary: watch | avoid. Sources: solana-rpc.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.002000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "mint",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Token mint address",
+            "example": "So11111111111111111111111111111111111111112"
+          },
+          {
+            "name": "Authorization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP payment credential. Omit on first call to receive 402 challenge."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM-enriched response",
+            "headers": {
+              "Payment-Receipt": {
+                "description": "MPP payment receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "Structured data from upstream sources"
+                    },
+                    "insight": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "AI-generated actionable insight"
+                    },
+                    "signal": {
+                      "type": "string",
+                      "description": "Decision signal (e.g. snipe, watch, avoid, follow, rebalance)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "LLM confidence score"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Data sources used"
+                    },
+                    "model_used": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "LLM model name"
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Response time in ms"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial \u2014 raw data without LLM insight (all models failed)"
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Payment challenge",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 402
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trenches/token/{mint}/snipers": {
+      "get": {
+        "summary": "Sniper detection \u2014 early buyers in first blocks",
+        "operationId": "sniper_detection_early_buyers_in_first_blocks",
+        "description": "Wallets that bought in first 3 blocks, risk level. Signal vocabulary: avoid | watch | snipe. Sources: solana-rpc.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.004000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "mint",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Token mint address",
+            "example": "So11111111111111111111111111111111111111112"
+          },
+          {
+            "name": "Authorization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP payment credential. Omit on first call to receive 402 challenge."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM-enriched response",
+            "headers": {
+              "Payment-Receipt": {
+                "description": "MPP payment receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "Structured data from upstream sources"
+                    },
+                    "insight": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "AI-generated actionable insight"
+                    },
+                    "signal": {
+                      "type": "string",
+                      "description": "Decision signal (e.g. snipe, watch, avoid, follow, rebalance)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "LLM confidence score"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Data sources used"
+                    },
+                    "model_used": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "LLM model name"
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Response time in ms"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial \u2014 raw data without LLM insight (all models failed)"
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Payment challenge",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 402
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trenches/graduating": {
+      "get": {
+        "summary": "Tokens near bonding curve graduation (>85%)",
+        "operationId": "tokens_near_bonding_curve_graduation_85",
+        "description": "Tokens close to graduating with urgency scores. Signal vocabulary: graduate_soon | watch. Sources: pumpportal, solana-rpc.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.003000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10
+            },
+            "description": "Maximum number of results"
+          },
+          {
+            "name": "Authorization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP payment credential. Omit on first call to receive 402 challenge."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM-enriched response",
+            "headers": {
+              "Payment-Receipt": {
+                "description": "MPP payment receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "Structured data from upstream sources"
+                    },
+                    "insight": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "AI-generated actionable insight"
+                    },
+                    "signal": {
+                      "type": "string",
+                      "description": "Decision signal (e.g. snipe, watch, avoid, follow, rebalance)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "LLM confidence score"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Data sources used"
+                    },
+                    "model_used": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "LLM model name"
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Response time in ms"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial \u2014 raw data without LLM insight (all models failed)"
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Payment challenge",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 402
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trenches/bags/new-tokens": {
+      "get": {
+        "summary": "New tokens from Bags.fm (Meteora DBC)",
+        "operationId": "new_tokens_from_bags_fm_meteora_dbc",
+        "description": "Bags.fm token launches with creator info and fee share. Signal vocabulary: snipe | watch | avoid. Sources: bags.fm.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.008000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10
+            },
+            "description": "Maximum number of results"
+          },
+          {
+            "name": "Authorization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP payment credential. Omit on first call to receive 402 challenge."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM-enriched response",
+            "headers": {
+              "Payment-Receipt": {
+                "description": "MPP payment receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "Structured data from upstream sources"
+                    },
+                    "insight": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "AI-generated actionable insight"
+                    },
+                    "signal": {
+                      "type": "string",
+                      "description": "Decision signal (e.g. snipe, watch, avoid, follow, rebalance)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "LLM confidence score"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Data sources used"
+                    },
+                    "model_used": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "LLM model name"
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Response time in ms"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial \u2014 raw data without LLM insight (all models failed)"
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Payment challenge",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 402
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trenches/token/{mint}/verdict": {
+      "get": {
+        "summary": "Full AI verdict combining all data sources",
+        "operationId": "full_ai_verdict_combining_all_data_sources",
+        "description": "Comprehensive risk assessment: holders, snipers, dev history, curve. Signal vocabulary: snipe | watch | avoid. Sources: solana-rpc, pumpportal.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.015000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "mint",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Token mint address",
+            "example": "So11111111111111111111111111111111111111112"
+          },
+          {
+            "name": "curve_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Bonding curve account address"
+          },
+          {
+            "name": "Authorization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP payment credential. Omit on first call to receive 402 challenge."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM-enriched response",
+            "headers": {
+              "Payment-Receipt": {
+                "description": "MPP payment receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "Structured data from upstream sources"
+                    },
+                    "insight": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "AI-generated actionable insight"
+                    },
+                    "signal": {
+                      "type": "string",
+                      "description": "Decision signal (e.g. snipe, watch, avoid, follow, rebalance)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "LLM confidence score"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Data sources used"
+                    },
+                    "model_used": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "LLM model name"
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Response time in ms"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial \u2014 raw data without LLM insight (all models failed)"
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Payment challenge",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 402
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/traders/wallet/{address}/pnl": {
+      "get": {
+        "summary": "Wallet PnL \u2014 realized + unrealized",
+        "operationId": "wallet_pnl_realized_unrealized",
+        "description": "Trading history, portfolio value, win rate assessment. Signal vocabulary: follow | ignore. Sources: solana-rpc, jupiter.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.005000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Solana wallet address",
+            "example": "vhu9Nc7EQi6dpvk9R6GyrDjgrgnR2oyfRAeeYVmQCAp"
+          },
+          {
+            "name": "Authorization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP payment credential. Omit on first call to receive 402 challenge."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM-enriched response",
+            "headers": {
+              "Payment-Receipt": {
+                "description": "MPP payment receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "Structured data from upstream sources"
+                    },
+                    "insight": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "AI-generated actionable insight"
+                    },
+                    "signal": {
+                      "type": "string",
+                      "description": "Decision signal (e.g. snipe, watch, avoid, follow, rebalance)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "LLM confidence score"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Data sources used"
+                    },
+                    "model_used": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "LLM model name"
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Response time in ms"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial \u2014 raw data without LLM insight (all models failed)"
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Payment challenge",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 402
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/traders/wallet/{address}/positions": {
+      "get": {
+        "summary": "Current token holdings with prices",
+        "operationId": "current_token_holdings_with_prices",
+        "description": "Token positions with entry info and current USD value. Signal vocabulary: accumulate | distribute | ignore. Sources: solana-rpc, jupiter.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.003000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Solana wallet address",
+            "example": "vhu9Nc7EQi6dpvk9R6GyrDjgrgnR2oyfRAeeYVmQCAp"
+          },
+          {
+            "name": "Authorization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP payment credential. Omit on first call to receive 402 challenge."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM-enriched response",
+            "headers": {
+              "Payment-Receipt": {
+                "description": "MPP payment receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "Structured data from upstream sources"
+                    },
+                    "insight": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "AI-generated actionable insight"
+                    },
+                    "signal": {
+                      "type": "string",
+                      "description": "Decision signal (e.g. snipe, watch, avoid, follow, rebalance)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "LLM confidence score"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Data sources used"
+                    },
+                    "model_used": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "LLM model name"
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Response time in ms"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial \u2014 raw data without LLM insight (all models failed)"
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Payment challenge",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 402
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/traders/top-wallets": {
+      "get": {
+        "summary": "Top performing wallets leaderboard",
+        "operationId": "top_performing_wallets_leaderboard",
+        "description": "Wallet PnL rankings by period. Signal vocabulary: follow | ignore. Sources: solana-rpc.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.008000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "24h or 7d",
+            "example": "24h"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Max results",
+            "example": "20"
+          },
+          {
+            "name": "Authorization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP payment credential. Omit on first call to receive 402 challenge."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM-enriched response",
+            "headers": {
+              "Payment-Receipt": {
+                "description": "MPP payment receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "Structured data from upstream sources"
+                    },
+                    "insight": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "AI-generated actionable insight"
+                    },
+                    "signal": {
+                      "type": "string",
+                      "description": "Decision signal (e.g. snipe, watch, avoid, follow, rebalance)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "LLM confidence score"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Data sources used"
+                    },
+                    "model_used": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "LLM model name"
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Response time in ms"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial \u2014 raw data without LLM insight (all models failed)"
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Payment challenge",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 402
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/traders/token/{mint}/whales": {
+      "get": {
+        "summary": "Whale activity \u2014 large holders and flows",
+        "operationId": "whale_activity_large_holders_and_flows",
+        "description": "Top holders, accumulation/distribution signal. Signal vocabulary: accumulate | distribute | ignore. Sources: solana-rpc, jupiter.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.003000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "mint",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Token mint address",
+            "example": "So11111111111111111111111111111111111111112"
+          },
+          {
+            "name": "Authorization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP payment credential. Omit on first call to receive 402 challenge."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM-enriched response",
+            "headers": {
+              "Payment-Receipt": {
+                "description": "MPP payment receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "Structured data from upstream sources"
+                    },
+                    "insight": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "AI-generated actionable insight"
+                    },
+                    "signal": {
+                      "type": "string",
+                      "description": "Decision signal (e.g. snipe, watch, avoid, follow, rebalance)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "LLM confidence score"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Data sources used"
+                    },
+                    "model_used": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "LLM model name"
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Response time in ms"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial \u2014 raw data without LLM insight (all models failed)"
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Payment challenge",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 402
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/traders/token/{mint}/ohlcv": {
+      "get": {
+        "summary": "Price and volume data",
+        "operationId": "price_and_volume_data",
+        "description": "OHLCV-like metrics with trend analysis. Signal vocabulary: accumulate | distribute | ignore. Sources: solana-rpc, jupiter.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.002000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "mint",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Token mint address",
+            "example": "So11111111111111111111111111111111111111112"
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "1m|5m|1h|1d",
+            "example": "1h"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Data points",
+            "example": "24"
+          },
+          {
+            "name": "Authorization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP payment credential. Omit on first call to receive 402 challenge."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM-enriched response",
+            "headers": {
+              "Payment-Receipt": {
+                "description": "MPP payment receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "Structured data from upstream sources"
+                    },
+                    "insight": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "AI-generated actionable insight"
+                    },
+                    "signal": {
+                      "type": "string",
+                      "description": "Decision signal (e.g. snipe, watch, avoid, follow, rebalance)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "LLM confidence score"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Data sources used"
+                    },
+                    "model_used": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "LLM model name"
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Response time in ms"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial \u2014 raw data without LLM insight (all models failed)"
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Payment challenge",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 402
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/traders/wallet/{address}/intel": {
+      "get": {
+        "summary": "30-day wallet intelligence profile",
+        "operationId": "30_day_wallet_intelligence_profile",
+        "description": "Trader archetype, copy-worthiness score, specialty. Signal vocabulary: follow | ignore. Sources: solana-rpc, jupiter.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.012000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Solana wallet address",
+            "example": "vhu9Nc7EQi6dpvk9R6GyrDjgrgnR2oyfRAeeYVmQCAp"
+          },
+          {
+            "name": "Authorization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP payment credential. Omit on first call to receive 402 challenge."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM-enriched response",
+            "headers": {
+              "Payment-Receipt": {
+                "description": "MPP payment receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "Structured data from upstream sources"
+                    },
+                    "insight": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "AI-generated actionable insight"
+                    },
+                    "signal": {
+                      "type": "string",
+                      "description": "Decision signal (e.g. snipe, watch, avoid, follow, rebalance)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "LLM confidence score"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Data sources used"
+                    },
+                    "model_used": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "LLM model name"
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Response time in ms"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial \u2014 raw data without LLM insight (all models failed)"
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Payment challenge",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 402
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lp/meteora/pools": {
+      "get": {
+        "summary": "All Meteora DLMM pools with analytics",
+        "operationId": "all_meteora_dlmm_pools_with_analytics",
+        "description": "Pool list with TVL, volume, fees, APR. Signal vocabulary: add_liquidity | hold. Sources: meteora-dlmm.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "apr|volume|tvl",
+            "example": "apr"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Max results",
+            "example": "50"
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by token mint"
+          },
+          {
+            "name": "Authorization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP payment credential. Omit on first call to receive 402 challenge."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM-enriched response",
+            "headers": {
+              "Payment-Receipt": {
+                "description": "MPP payment receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "Structured data from upstream sources"
+                    },
+                    "insight": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "AI-generated actionable insight"
+                    },
+                    "signal": {
+                      "type": "string",
+                      "description": "Decision signal (e.g. snipe, watch, avoid, follow, rebalance)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "LLM confidence score"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Data sources used"
+                    },
+                    "model_used": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "LLM model name"
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Response time in ms"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial \u2014 raw data without LLM insight (all models failed)"
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Payment challenge",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 402
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lp/meteora/pools/recommend": {
+      "get": {
+        "summary": "AI pool recommendation for a token pair",
+        "operationId": "ai_pool_recommendation_for_a_token_pair",
+        "description": "Optimal pool + strategy based on criteria. Signal vocabulary: add_liquidity | hold. Sources: meteora-dlmm.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.008000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "base",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Base token",
+            "example": "SOL"
+          },
+          {
+            "name": "quote",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Quote token",
+            "example": "USDC"
+          },
+          {
+            "name": "strategy",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "spot|curve|bidask",
+            "example": "spot"
+          },
+          {
+            "name": "risk",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "low|mid|high",
+            "example": "mid"
+          },
+          {
+            "name": "Authorization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP payment credential. Omit on first call to receive 402 challenge."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM-enriched response",
+            "headers": {
+              "Payment-Receipt": {
+                "description": "MPP payment receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "Structured data from upstream sources"
+                    },
+                    "insight": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "AI-generated actionable insight"
+                    },
+                    "signal": {
+                      "type": "string",
+                      "description": "Decision signal (e.g. snipe, watch, avoid, follow, rebalance)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "LLM confidence score"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Data sources used"
+                    },
+                    "model_used": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "LLM model name"
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Response time in ms"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial \u2014 raw data without LLM insight (all models failed)"
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Payment challenge",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 402
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lp/meteora/pools/{address}": {
+      "get": {
+        "summary": "Deep analytics for a specific pool",
+        "operationId": "deep_analytics_for_a_specific_pool",
+        "description": "OHLCV, volume history, fee breakdown, bin distribution. Signal vocabulary: add_liquidity | hold | remove. Sources: meteora-dlmm.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.003000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Pool address",
+            "example": "vhu9Nc7EQi6dpvk9R6GyrDjgrgnR2oyfRAeeYVmQCAp"
+          },
+          {
+            "name": "Authorization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP payment credential. Omit on first call to receive 402 challenge."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM-enriched response",
+            "headers": {
+              "Payment-Receipt": {
+                "description": "MPP payment receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "Structured data from upstream sources"
+                    },
+                    "insight": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "AI-generated actionable insight"
+                    },
+                    "signal": {
+                      "type": "string",
+                      "description": "Decision signal (e.g. snipe, watch, avoid, follow, rebalance)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "LLM confidence score"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Data sources used"
+                    },
+                    "model_used": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "LLM model name"
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Response time in ms"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial \u2014 raw data without LLM insight (all models failed)"
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Payment challenge",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 402
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lp/wallet/{address}/positions": {
+      "get": {
+        "summary": "LP positions for a wallet",
+        "operationId": "lp_positions_for_a_wallet",
+        "description": "Active LP positions with in-range status and fees. Signal vocabulary: hold | rebalance | remove. Sources: solana-rpc.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.004000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Wallet address",
+            "example": "vhu9Nc7EQi6dpvk9R6GyrDjgrgnR2oyfRAeeYVmQCAp"
+          },
+          {
+            "name": "Authorization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP payment credential. Omit on first call to receive 402 challenge."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM-enriched response",
+            "headers": {
+              "Payment-Receipt": {
+                "description": "MPP payment receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "Structured data from upstream sources"
+                    },
+                    "insight": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "AI-generated actionable insight"
+                    },
+                    "signal": {
+                      "type": "string",
+                      "description": "Decision signal (e.g. snipe, watch, avoid, follow, rebalance)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "LLM confidence score"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Data sources used"
+                    },
+                    "model_used": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "LLM model name"
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Response time in ms"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial \u2014 raw data without LLM insight (all models failed)"
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Payment challenge",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 402
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lp/positions/{id}/rebalance": {
+      "get": {
+        "summary": "Rebalance signal for an LP position",
+        "operationId": "rebalance_signal_for_an_lp_position",
+        "description": "Whether to rebalance with suggested new range. Signal vocabulary: rebalance | hold. Sources: solana-rpc, meteora-dlmm.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Position ID",
+            "example": "position-id-here"
+          },
+          {
+            "name": "Authorization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP payment credential. Omit on first call to receive 402 challenge."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM-enriched response",
+            "headers": {
+              "Payment-Receipt": {
+                "description": "MPP payment receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "Structured data from upstream sources"
+                    },
+                    "insight": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "AI-generated actionable insight"
+                    },
+                    "signal": {
+                      "type": "string",
+                      "description": "Decision signal (e.g. snipe, watch, avoid, follow, rebalance)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "LLM confidence score"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Data sources used"
+                    },
+                    "model_used": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "LLM model name"
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Response time in ms"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial \u2014 raw data without LLM insight (all models failed)"
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Payment challenge",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 402
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/lp/meteora/pools/strategy": {
+      "get": {
+        "summary": "Full LP strategy brief",
+        "operationId": "full_lp_strategy_brief",
+        "description": "Best pool + strategy + range + expected APR for given capital. Signal vocabulary: add_liquidity | hold. Sources: meteora-dlmm.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.020000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "token_pair",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "e.g. SOL-USDC"
+          },
+          {
+            "name": "capital_usdc",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Capital in USD",
+            "example": "1000"
+          },
+          {
+            "name": "Authorization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP payment credential. Omit on first call to receive 402 challenge."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM-enriched response",
+            "headers": {
+              "Payment-Receipt": {
+                "description": "MPP payment receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "Structured data from upstream sources"
+                    },
+                    "insight": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "AI-generated actionable insight"
+                    },
+                    "signal": {
+                      "type": "string",
+                      "description": "Decision signal (e.g. snipe, watch, avoid, follow, rebalance)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "LLM confidence score"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Data sources used"
+                    },
+                    "model_used": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "LLM model name"
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Response time in ms"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial \u2014 raw data without LLM insight (all models failed)"
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Payment challenge",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 402
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/defi/tvl": {
+      "get": {
+        "summary": "Total Value Locked across chains",
+        "operationId": "total_value_locked_across_chains",
+        "description": "Chain TVL rankings with trend narrative. Signal vocabulary: high_yield | medium_yield | low_yield | risky. Sources: defillama.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "chain",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "solana|ethereum|all",
+            "example": "all"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Max results",
+            "example": "20"
+          },
+          {
+            "name": "Authorization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP payment credential. Omit on first call to receive 402 challenge."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM-enriched response",
+            "headers": {
+              "Payment-Receipt": {
+                "description": "MPP payment receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "Structured data from upstream sources"
+                    },
+                    "insight": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "AI-generated actionable insight"
+                    },
+                    "signal": {
+                      "type": "string",
+                      "description": "Decision signal (e.g. snipe, watch, avoid, follow, rebalance)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "LLM confidence score"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Data sources used"
+                    },
+                    "model_used": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "LLM model name"
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Response time in ms"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial \u2014 raw data without LLM insight (all models failed)"
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Payment challenge",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 402
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/defi/yields": {
+      "get": {
+        "summary": "Top yield pools multi-chain",
+        "operationId": "top_yield_pools_multi_chain",
+        "description": "Best yield opportunities sorted by APY. Signal vocabulary: high_yield | medium_yield | low_yield | risky. Sources: defillama.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.002000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "chain",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Chain filter",
+            "example": "all"
+          },
+          {
+            "name": "stablecoin",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "true to filter stablecoins"
+          },
+          {
+            "name": "min_apy",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Minimum APY %"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Max results",
+            "example": "20"
+          },
+          {
+            "name": "Authorization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP payment credential. Omit on first call to receive 402 challenge."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM-enriched response",
+            "headers": {
+              "Payment-Receipt": {
+                "description": "MPP payment receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "Structured data from upstream sources"
+                    },
+                    "insight": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "AI-generated actionable insight"
+                    },
+                    "signal": {
+                      "type": "string",
+                      "description": "Decision signal (e.g. snipe, watch, avoid, follow, rebalance)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "LLM confidence score"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Data sources used"
+                    },
+                    "model_used": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "LLM model name"
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Response time in ms"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial \u2014 raw data without LLM insight (all models failed)"
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Payment challenge",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 402
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/debridge/quote": {
+      "get": {
+        "summary": "Cross-chain swap quote with LLM verdict",
+        "operationId": "cross_chain_swap_quote_with_llm_verdict",
+        "description": "Bridge route quote from deBridge DLN, enriched with route quality verdict from LLM. Signal vocabulary: execute | wait | avoid. Sources: debridge.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.002000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "src",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Source chain (solana|arbitrum|ethereum|base|...)",
+            "example": "solana"
+          },
+          {
+            "name": "dst",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Destination chain",
+            "example": "arbitrum"
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Token symbol (USDC only in v1)",
+            "example": "USDC"
+          },
+          {
+            "name": "amount",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Human-readable amount",
+            "example": "100"
+          },
+          {
+            "name": "Authorization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP payment credential. Omit on first call to receive 402 challenge."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM-enriched response",
+            "headers": {
+              "Payment-Receipt": {
+                "description": "MPP payment receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "Structured data from upstream sources"
+                    },
+                    "insight": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "AI-generated actionable insight"
+                    },
+                    "signal": {
+                      "type": "string",
+                      "description": "Decision signal (e.g. snipe, watch, avoid, follow, rebalance)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "LLM confidence score"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Data sources used"
+                    },
+                    "model_used": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "LLM model name"
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Response time in ms"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial \u2014 raw data without LLM insight (all models failed)"
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Payment challenge",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 402
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/debridge/yield-migrate": {
+      "get": {
+        "summary": "Cross-chain yield migration advisor",
+        "operationId": "cross_chain_yield_migration_advisor",
+        "description": "Compares your stablecoin pool against alternatives across chains, factoring in deBridge bridge cost and break-even days. Returns the best migration if any beats your current position.. Signal vocabulary: migrate | stay | wait. Sources: debridge, defillama.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.005000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "src",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Source chain where your stablecoin sits",
+            "example": "solana"
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Token symbol (USDC only in v1)",
+            "example": "USDC"
+          },
+          {
+            "name": "amount",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Amount in human units, e.g. \"10000\"",
+            "example": "100"
+          },
+          {
+            "name": "min_tvl_usd",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Minimum pool TVL filter in USD",
+            "example": "10000000"
+          },
+          {
+            "name": "whitelist",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Set \"false\" to disable protocol whitelist",
+            "example": "true"
+          },
+          {
+            "name": "Authorization",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP payment credential. Omit on first call to receive 402 challenge."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "LLM-enriched response",
+            "headers": {
+              "Payment-Receipt": {
+                "description": "MPP payment receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "description": "Structured data from upstream sources"
+                    },
+                    "insight": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "AI-generated actionable insight"
+                    },
+                    "signal": {
+                      "type": "string",
+                      "description": "Decision signal (e.g. snipe, watch, avoid, follow, rebalance)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "LLM confidence score"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Data sources used"
+                    },
+                    "model_used": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "LLM model name"
+                    },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Response time in ms"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "Partial \u2014 raw data without LLM insight (all models failed)"
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Payment challenge",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "example": 402
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/{name}/{proxied_path}": {
+      "get": {
+        "summary": "Per-agent proxy (dynamic)",
+        "operationId": "me_agent_proxy",
+        "description": "Dispatch a paid call scoped to a registered .me agent. `{name}` must be an active agent (see POST /agents/register). `{proxied_path}` is any of the catalog routes (e.g. `trenches/token/<mint>/verdict`). The path is matched against the agent's template allowlist: trench-hunter \u2192 /trenches/*; lp-strategist \u2192 /lps/*; trader-copy \u2192 /traders/*; defi-yield \u2192 /defi/* + /debridge/*; yield-farmer \u2192 /defi/* + /lps/*; nft-minter \u2192 none; custom \u2192 all. Unmatched paths return 403. Payment (x402 USDC on Solana) is routed to the agent owner's Asset Signer PDA, not the HYRE main wallet, so 100% of gross lands with the claimer before HYRE's off-chain infra-cost accounting. Every call is logged to `me_agent_events` keyed on the agent name and surfaced via GET /me-agent-stats/:name.",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{1,31}$"
+            },
+            "description": "Agent name (without the .me suffix)."
+          },
+          {
+            "name": "proxied_path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "One of the catalog routes (e.g. trenches/token-verdict)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Downstream 2xx \u2014 identical shape to the proxied endpoint (HyreResponse)."
+          },
+          "402": {
+            "description": "Payment required \u2014 standard x402 challenge. Pay to the agent's Asset Signer PDA."
+          },
+          "403": {
+            "description": "Template does not allow this endpoint for this agent."
+          },
+          "404": {
+            "description": "Agent not registered or status != active."
+          }
+        }
+      }
+    },
+    "/agents/register": {
+      "post": {
+        "summary": "Register or update a ME Protocol agent",
+        "operationId": "me_agent_register",
+        "description": "Called by the ME Protocol frontend after the claim flow completes (Solana NFT mint + SKALE ERC-8004 registration). Upserts a row into me_agents. Idempotent for the same (name, ownerWallet); 409 if another wallet owns the name. Requires `Authorization: Bearer <ME_PROTOCOL_API_KEY>`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "templateId",
+                  "ownerWallet"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{1,31}$"
+                  },
+                  "templateId": {
+                    "type": "string",
+                    "enum": [
+                      "trench-hunter",
+                      "lp-strategist",
+                      "trader-copy",
+                      "defi-yield",
+                      "nft-minter",
+                      "yield-farmer",
+                      "custom"
+                    ]
+                  },
+                  "ownerWallet": {
+                    "type": "string",
+                    "description": "Solana pubkey of the claimer (base58)."
+                  },
+                  "assetAddress": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Metaplex Core asset mint."
+                  },
+                  "assetSignerPda": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Precomputed PDA \u2014 payout recipient for all paid calls."
+                  },
+                  "manifestUrl": {
+                    "type": "string",
+                    "nullable": true,
+                    "format": "uri",
+                    "description": "Irys gateway URL."
+                  },
+                  "skaleAgentId": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "ERC-8004 tokenId on SKALE."
+                  }
+                }
+              },
+              "example": {
+                "name": "alpha-hunter",
+                "templateId": "trench-hunter",
+                "ownerWallet": "11111111111111111111111111111111"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated existing agent."
+          },
+          "201": {
+            "description": "Created new agent."
+          },
+          "400": {
+            "description": "Validation error."
+          },
+          "401": {
+            "description": "Missing or invalid bearer token."
+          },
+          "409": {
+            "description": "Name already claimed by a different wallet."
+          },
+          "503": {
+            "description": "ME_PROTOCOL_API_KEY not configured on this deployment."
+          }
+        }
+      }
+    },
+    "/ask": {
+      "post": {
+        "summary": "Natural language DeFi query",
+        "description": "Ask any DeFi question. LLM orchestrates multiple data sources to answer.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.025000"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "solana",
+                "facilitator": "https://x402.dexter.cash"
+              }
+            },
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "currency": "USDC"
+              }
+            }
+          ]
+        },
+        "operationId": "natural_language_defi_query",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "query"
+                ],
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "Natural language DeFi question"
+                  }
+                }
+              },
+              "example": {
+                "query": "what are the top whales on bonk in the last 24h?"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "LLM-enriched answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HyreResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required"
+          }
+        }
+      }
+    }
+  }
+}
