@@ -1,5 +1,5 @@
 ---
-name: x402
+name: akca-x402
 title: "Akca x402 Anonymous Proxy"
 description: "Privacy-first HTTP proxy API on Solana. Pay-per-use anonymous web requests for API scraping, geo-restricted content, bot traffic, and AI agent operations. No accounts, no logs, pay with USDC."
 use_case: "Use for anonymous HTTP requests, geo-restricted API access, web scraping, bot traffic routing, privacy-preserving research, AI agent web access, and bypassing IP-based rate limits without logging."
