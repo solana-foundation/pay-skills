@@ -7,7 +7,7 @@ category: finance
 service_url: https://mpp.hyreagent.fun
 version: v2
 openapi:
-  path: openapi.json
+  url: https://mpp.hyreagent.fun/openapi.json?chain=solana
 ---
 
 HYRE Agent is an AI-interpreted DeFi data layer for Solana, paid per-call via x402 on Solana mainnet (USDC, sponsored gas via the Dexter facilitator). 26 endpoints are organised into four segments — **Trenchers** (Pump.fun launches, bonding curves, snipers, graduates), **Traders** (whale PnL, top wallets, OHLCV, intel), **LPs** (Meteora DLMM pools, recommendations, rebalance signals, strategies), and **DeFi** (TVL, yields, deBridge cross-chain quotes, yield-migrate break-even math) — plus an **/ask** meta-endpoint that routes natural-language queries to the right segment, and an **/agents** registry (claim + proxy endpoints for community-run HYRE agents).
