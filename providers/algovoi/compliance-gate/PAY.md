@@ -11,7 +11,7 @@ openapi:
 
 # AlgoVoi Compliance Gate
 
-A public, no-auth, agent-callable compliance surface. Two endpoints that expose AlgoVoi's existing compliance machinery — KYB gating, sanctions screening, audit-chain shipping, risk-tier classification — to any agent making payment decisions.
+A public, no-auth, agent-callable compliance surface. Two endpoints that expose AlgoVoi's existing compliance machinery — KYB gating, sanctions screening, in-DB SHA-256 hash chain across `audit_log` / `screening_hits` / `compliance_events`, risk-tier classification — to any agent making payment decisions. Off-VM Object Lock shipping (FCA / UK MLRs Reg 40(3) 7-year) is on the roadmap; current `/compliance/attestation` reports the off-VM shipment status as `planned` until a bucket is provisioned.
 
 ## Why this exists
 
