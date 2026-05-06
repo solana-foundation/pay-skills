@@ -9,7 +9,7 @@ openapi:
   url: https://paysh-shield-production.up.railway.app/openapi.json
 ---
 
-Private USDC transfer service. The payer settles `principal + fee` USDC over x402; the recipient receives `principal` at the wallet you specify. The unshield is signed by the b402 hosted relayer, so the operator wallet does not appear on the spend tx and the on-chain edge from payer to recipient is broken at the cryptographic level.
+Private USDC transfer service. The payer settles `principal + fee` USDC over x402; the recipient receives `principal` at the wallet you specify. The unshield is signed by the b402 hosted relayer, so the operator wallet does not appear on the recipient-side tx — there is no graph-traversal edge from the payer to the recipient.
 
 Single endpoint: `POST /send` with body `{ "to": "<base58>", "amount": "<u64-string smallest units>" }`. First call returns 402 with the total price (principal + fee); retry with `X-PAYMENT` to settle. Response on success: `{ paymentSig, shieldSig, unshieldSig, recipient, principal, fee }`.
 
