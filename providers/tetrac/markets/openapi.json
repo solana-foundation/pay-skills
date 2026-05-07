@@ -1,0 +1,1289 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "TTC Trading API",
+    "description": "Multi-exchange trading data API — tickers, funding rates, open interest,\ntechnical analysis (TTC scanner), news, economic calendar, market\nintelligence, volume data, and order execution across 30+ CEXs and DEXs.\n\n## Authentication\n\nAll endpoints require one of:\n\n- **Session auth** — pass `ttc-auth-token` (Bearer) + `ttc-public-key` header for registered TTC users.\n- **x402 micropayment** — pass a signed Solana USDC payment ($0.05) in the `x-x402-payment` header.\n  See [x402.json](https://ttc.box/.well-known/x402.json) for payment details.\n\nResponses from paid endpoints include an `x-x402-receipt` header confirming payment.\n",
+    "version": "1.0.0",
+    "contact": {
+      "email": "security@ttc.box"
+    },
+    "license": {
+      "name": "Proprietary"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://ttc.box",
+      "description": "Production"
+    }
+  ],
+  "paths": {
+    "/api/v1/markets/hybrid-tickers": {
+      "get": {
+        "operationId": "getHybridTickers",
+        "summary": "Multi-exchange tickers",
+        "description": "Returns an array of unified ticker objects (`symbol`, `price`, `change24h`, `volume24hUSD`, `bid`, `ask`, `exchange`) covering spot and perpetual pairs across 30+ CEXs and DEXs, served from a single hybrid cache. Use this to screen markets in one paid call instead of fanning out per-exchange. Query params filter the result set: `type` (spot|futures), `exchange`, `symbol`, `minimumVolume`, `minimumPrice`, `maximumPrice`, `up` (gainers ≥ X%), `down` (losers ≥ X%). ($0.05 USDC on Solana mainnet)\n",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Market type filter",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "futures",
+                "spot"
+              ]
+            }
+          },
+          {
+            "name": "symbol",
+            "in": "query",
+            "description": "Exact symbol match",
+            "schema": {
+              "type": "string",
+              "example": "BTCUSDT"
+            }
+          },
+          {
+            "name": "minimumVolume",
+            "in": "query",
+            "description": "Minimum 24h volume in USD",
+            "schema": {
+              "type": "integer",
+              "example": 10000000
+            }
+          },
+          {
+            "name": "up",
+            "in": "query",
+            "description": "Filter markets up by at least X%",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "down",
+            "in": "query",
+            "description": "Filter markets down by at least X%",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "exchange",
+            "in": "query",
+            "description": "Filter by specific exchange",
+            "schema": {
+              "type": "string",
+              "example": "binance"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ticker data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "spot": {
+                          "type": "object"
+                        },
+                        "futures": {
+                          "type": "object"
+                        }
+                      }
+                    },
+                    "cached": {
+                      "type": "boolean"
+                    },
+                    "timestamp": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "402": {
+            "description": "Payment required (x402)"
+          }
+        },
+        "tags": [
+          "Market Data"
+        ]
+      }
+    },
+    "/api/v1/markets/funding-rates": {
+      "get": {
+        "operationId": "getFundingRates",
+        "summary": "Perpetual funding rates",
+        "description": "Returns an array of perpetual-futures funding entries (`exchange`, `symbol`, `fundingRate`, `nextFundingTime`, `fundingInterval`) live across major CEX perp venues. Use to spot funding-rate arbitrage between venues, monitor extreme rates that signal crowded positioning, or rank perps by funding cost. Filter by `symbol`. ($0.05 USDC on Solana mainnet)\n",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "description": "Filter by symbol",
+            "schema": {
+              "type": "string",
+              "example": "BTCUSDT"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Funding rate data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/FundingRate"
+                      }
+                    },
+                    "cached": {
+                      "type": "boolean"
+                    },
+                    "timestamp": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "402": {
+            "description": "Payment required (x402)"
+          }
+        },
+        "tags": [
+          "Market Data"
+        ]
+      }
+    },
+    "/api/v1/markets/open-interest": {
+      "get": {
+        "operationId": "getOpenInterest",
+        "summary": "Open interest across exchanges",
+        "description": "Returns the latest open-interest snapshot for Binance crypto perpetuals — array of `{symbol, openInterest, openInterestValue (USD)}` plus a `marketsCount` and `timestamp`. Use to detect OI build-up that often precedes price moves and spot liquidation cascades. ($0.05 USDC on Solana mainnet)\n",
+        "responses": {
+          "200": {
+            "description": "Open interest data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/OpenInterest"
+                      }
+                    },
+                    "timestamp": {
+                      "type": "integer"
+                    },
+                    "marketsCount": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "402": {
+            "description": "Payment required (x402)"
+          }
+        },
+        "tags": [
+          "Market Data"
+        ]
+      }
+    },
+    "/api/v1/markets/listings": {
+      "get": {
+        "operationId": "getNewListings",
+        "summary": "New token listings",
+        "description": "Returns the latest \"new listings\" delta — `{data: {newListings: ProcessedTickerData[], totalCount, previousCount}, timestamp, cached}`. Pulls the live spot+perp ticker set from the hybrid market cache, diffs it against a rolling 24h known-symbols set, and returns the tokens that newly appeared. Server caches the result for 1h so concurrent agents see a stable answer; the rolling known-set then advances and the next GET produces the next delta. POST exists for clients with their own ticker source (submit `{ tickers: ProcessedTickerData[] }` to diff against the same known set). ($0.05 USDC on Solana mainnet)\n",
+        "responses": {
+          "200": {
+            "description": "New listings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "newListings": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Ticker"
+                          }
+                        },
+                        "totalCount": {
+                          "type": "integer",
+                          "description": "Total symbols currently tracked (spot + perp)"
+                        },
+                        "previousCount": {
+                          "type": "integer",
+                          "description": "Size of the known-symbols set before this snapshot"
+                        }
+                      }
+                    },
+                    "timestamp": {
+                      "type": "integer",
+                      "description": "Epoch ms when the snapshot was computed"
+                    },
+                    "cached": {
+                      "type": "boolean",
+                      "description": "True if served from the 1h snapshot cache, false on fresh compute"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "402": {
+            "description": "Payment required (x402)"
+          }
+        },
+        "tags": [
+          "Market Data"
+        ]
+      }
+    },
+    "/api/v1/markets/volume-snapshot": {
+      "get": {
+        "operationId": "getVolumeSnapshot",
+        "summary": "Cross-exchange volume snapshot",
+        "description": "Returns an array of `{exchange, volume24h (USD), pairCount}` plus a snapshot `timestamp` for cross-exchange 24-hour volume comparison. Use to rank exchanges by liquidity, detect volume migration between venues, or feed market-share dashboards. Filter by `exchange`. ($0.05 USDC on Solana mainnet)\n",
+        "parameters": [
+          {
+            "name": "exchange",
+            "in": "query",
+            "description": "Filter by a specific exchange",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Volume data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "cached": {
+                      "type": "boolean"
+                    },
+                    "timestamp": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "402": {
+            "description": "Payment required (x402)"
+          }
+        },
+        "tags": [
+          "Market Data"
+        ]
+      }
+    },
+    "/api/v1/markets/swap-volume": {
+      "get": {
+        "operationId": "getSwapVolume",
+        "summary": "DEX swap volume history",
+        "description": "Returns historical daily DEX swap volume — an array of `{date, totalVolume (USD), perChainVolumes}` entries. Use to track on-chain trading activity over time and identify chains gaining DEX share. ($0.05 USDC on Solana mainnet)\n",
+        "responses": {
+          "200": {
+            "description": "Swap volume history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "date": {
+                            "type": "string"
+                          },
+                          "volume": {
+                            "type": "number"
+                          },
+                          "timestamp": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "402": {
+            "description": "Payment required (x402)"
+          }
+        },
+        "tags": [
+          "Market Data"
+        ]
+      }
+    },
+    "/api/v1/markets/ttc-scanner": {
+      "get": {
+        "operationId": "runTTCScanner",
+        "summary": "TTC technical scanner",
+        "description": "Runs a multi-timeframe Gann-fan technical scan for one symbol. Returns `{price, scans (per-timeframe scan results), scoring (bull/bear strength), signal: {direction (LONG|SHORT|NEUTRAL), strength, confidence (HIGH|MEDIUM|LOW), entry, stoploss, takeProfits[]}}`. Use as a one-call signal generator for a specific symbol/timeframe — entry, stop, and up to three TPs derived from the same fan structure. ($0.05 USDC on Solana mainnet)\n",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "BTCUSDT"
+            }
+          },
+          {
+            "name": "timeframe",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "1h",
+              "enum": [
+                "1m",
+                "5m",
+                "15m",
+                "30m",
+                "1h",
+                "2h",
+                "4h",
+                "6h",
+                "12h",
+                "1d",
+                "1w"
+              ]
+            }
+          },
+          {
+            "name": "bars",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1000,
+              "maximum": 1000
+            }
+          },
+          {
+            "name": "swingStrength",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scanner result with signal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "timestamp": {
+                      "type": "integer"
+                    },
+                    "params": {
+                      "type": "object"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "symbol": {
+                          "type": "string"
+                        },
+                        "price": {
+                          "type": "number"
+                        },
+                        "signal": {
+                          "$ref": "#/components/schemas/ScannerSignal"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing symbol"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "402": {
+            "description": "Payment required (x402)"
+          }
+        },
+        "tags": [
+          "Technical Analysis"
+        ]
+      }
+    },
+    "/api/v1/markets/news": {
+      "get": {
+        "operationId": "getCryptoNews",
+        "summary": "Aggregated crypto news",
+        "description": "Returns a market-impact news feed — array of `{title, summary, source, url, publishedAt, sentiment, marketImpact}` entries aggregated from major crypto and macro outlets. Use to detect market-moving headlines or as feature input for sentiment-aware strategies. ($0.05 USDC on Solana mainnet)\n",
+        "responses": {
+          "200": {
+            "description": "News feed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/NewsItem"
+                      }
+                    },
+                    "timestamp": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "402": {
+            "description": "Payment required (x402)"
+          }
+        },
+        "tags": [
+          "Market Intelligence"
+        ]
+      }
+    },
+    "/api/v1/markets/insights": {
+      "get": {
+        "operationId": "getMarketInsights",
+        "summary": "AI-powered market insights",
+        "description": "Vector-similarity ticker search plus an LLM-generated market analysis for the given query.\nReturns:\n  - `insights` — natural-language analysis (`summary`, `analysis`, or `report` depending on `type`).\n  - `tickers` — up to `limit` Binance spot pairs (volume ≥ $1M) ranked by semantic similarity to `query`,\n    each enriched with the live ticker fields plus a one-line `description`.\n($0.05 USDC on Solana mainnet)\n",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "BTC outlook"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "summary",
+              "enum": [
+                "summary",
+                "analysis",
+                "report"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Market insights",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "query": {
+                          "type": "string"
+                        },
+                        "insights": {
+                          "type": "string",
+                          "description": "LLM-generated analysis text"
+                        },
+                        "tickers": {
+                          "type": "array",
+                          "description": "Ranked similar tickers (Binance spot, volume ≥ $1M) with a one-line description",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "timestamp": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "402": {
+            "description": "Payment required (x402)"
+          }
+        },
+        "tags": [
+          "Market Intelligence"
+        ]
+      }
+    },
+    "/api/v1/markets/calendar": {
+      "get": {
+        "operationId": "getEconomicCalendar",
+        "summary": "Crypto & macro economic calendar",
+        "description": "Returns a filtered economic calendar — `{events: [{title, date, country, impact (high|medium|low), source, ...}], fromCache}`. Covers macro releases that move crypto (FOMC, CPI prints, NFP, ECB) plus crypto-specific events. Use to schedule strategy windows around high-impact macro events or pause trading bots ahead of releases. Filter by `impact` and `country`. ($0.05 USDC on Solana mainnet)\n",
+        "parameters": [
+          {
+            "name": "country",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "example": "US"
+            }
+          },
+          {
+            "name": "impact",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Low",
+                "Medium",
+                "High"
+              ]
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "example": "CPI"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2026-03-01"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2026-03-31"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Economic calendar events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "events": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/CalendarEvent"
+                          }
+                        },
+                        "fromCache": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "timestamp": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "402": {
+            "description": "Payment required (x402)"
+          }
+        },
+        "tags": [
+          "Market Intelligence"
+        ]
+      }
+    },
+    "/api/v1/markets/quakes": {
+      "get": {
+        "operationId": "getMarketQuakes",
+        "summary": "Market quake detector",
+        "description": "Returns a GeoJSON `FeatureCollection` of \"market quake\" events — sudden abnormal volume + price spikes detected across exchanges. Each feature carries `{symbol, exchange, magnitude, type (spike|dump), timestamp, geometry}`. Use as a real-time alert stream for unusual market activity. ($0.05 USDC on Solana mainnet)\n",
+        "responses": {
+          "200": {
+            "description": "Market quake events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "timestamp": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "402": {
+            "description": "Payment required (x402)"
+          }
+        },
+        "tags": [
+          "Market Intelligence"
+        ]
+      }
+    },
+    "/api/v1/exchanges": {
+      "get": {
+        "operationId": "getExchangeData",
+        "summary": "Exchange read — positions, balances, orders, bid-ask",
+        "description": "Read-only exchange dispatcher — one endpoint that proxies read calls to any of 34 supported venues. Pass `method` plus the target `exchange`; for account-data methods, also pass `apiKey`/`apiSecret`/`passphrase` as query params.\n\nSupported methods (response shape varies by method):\n  - `getTickers` — array of live ticker objects for the venue\n  - `getBestBidAsk` — best bid/ask for a `symbol`\n  - `getPositions` — open positions for the credentialed account\n  - `getBalance` — account balance summary\n  - `getOrders` — open or historical orders\n  - `getUserTradeHistory` — fills\n\nReturns `{success, data: <method-shaped>, exchange, code}`. Use to query any supported exchange through one unified endpoint instead of integrating each venue's SDK. ($0.05 USDC on Solana mainnet)\n",
+        "parameters": [
+          {
+            "name": "method",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "getTickers",
+                "getBestBidAsk",
+                "getPositions",
+                "getBalance",
+                "getOrders",
+                "getUserTradeHistory"
+              ]
+            }
+          },
+          {
+            "name": "exchange",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "aevo",
+                "apex",
+                "ascendex",
+                "asterdex",
+                "binance",
+                "bingx",
+                "bitget",
+                "bitmart",
+                "bitmex",
+                "bitrue",
+                "blofin",
+                "bulktrade",
+                "bybit",
+                "coinbase",
+                "dydx",
+                "extended",
+                "flash",
+                "grvt",
+                "hyperliquid",
+                "kucoin",
+                "lighter",
+                "mexc",
+                "okx",
+                "orderly",
+                "ostium",
+                "pacifica",
+                "paradex",
+                "phemex",
+                "propr",
+                "reya",
+                "standx",
+                "variational",
+                "vest",
+                "woox"
+              ]
+            }
+          },
+          {
+            "name": "symbol",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "example": "BTCUSDT"
+            }
+          },
+          {
+            "name": "apiKey",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "apiSecret",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "passphrase",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exchange data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "exchange": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "402": {
+            "description": "Payment required (x402)"
+          }
+        },
+        "tags": [
+          "Exchange Infrastructure"
+        ]
+      },
+      "post": {
+        "operationId": "executeExchangeAction",
+        "summary": "Exchange trade — place/cancel orders, set leverage, close positions",
+        "description": "Trading dispatcher — one endpoint that executes order/position actions on any of 34 supported venues. Body fields: `exchangeName`, `method`, `params` (method-specific), `credentials` (`apiKey`/`apiSecret`/`passphrase`).\n\n**IMPORTANT**: Executes REAL trades with REAL money. Always confirm parameters with the user before calling.\n\nSupported methods (`params` shape varies by method):\n  - `placeMarketOrder` — `{symbol, side, quantity, reduceOnly?}`\n  - `placeLimitOrder` — `{symbol, side, quantity, price, timeInForce?, reduceOnly?}`\n  - `placeStopOrder` — `{symbol, side, quantity, stopPrice, ...}`\n  - `cancelOrder` — `{symbol, orderId}`\n  - `cancelAllOrders` — `{symbol?}`\n  - `closeAllPositions` — `{}`\n  - `setLeverage` — `{symbol, leverage}`\n  - `setHedgeMode` — `{enabled}`\n\nReturns `{success, data: <method-shaped result>, exchange, code}`. Use to execute trades on any supported venue without integrating each SDK. ($0.05 USDC on Solana mainnet)\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "exchangeName": {
+                    "type": "string",
+                    "enum": [
+                      "aevo",
+                      "apex",
+                      "ascendex",
+                      "asterdex",
+                      "binance",
+                      "bingx",
+                      "bitget",
+                      "bitmart",
+                      "bitmex",
+                      "bitrue",
+                      "blofin",
+                      "bulktrade",
+                      "bybit",
+                      "coinbase",
+                      "dydx",
+                      "extended",
+                      "flash",
+                      "grvt",
+                      "hyperliquid",
+                      "kucoin",
+                      "lighter",
+                      "mexc",
+                      "okx",
+                      "orderly",
+                      "ostium",
+                      "pacifica",
+                      "paradex",
+                      "phemex",
+                      "propr",
+                      "reya",
+                      "standx",
+                      "variational",
+                      "vest",
+                      "woox"
+                    ]
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "placeMarketOrder",
+                      "placeLimitOrder",
+                      "placeStopOrder",
+                      "cancelOrder",
+                      "cancelAllOrders",
+                      "closeAllPositions",
+                      "setLeverage",
+                      "setHedgeMode",
+                      "getDepositAddress",
+                      "createWithdrawal"
+                    ]
+                  },
+                  "params": {
+                    "description": "Method-specific parameters (symbol, side, quantity, price, leverage, etc.)",
+                    "type": "object"
+                  },
+                  "credentials": {
+                    "description": "Exchange API credentials",
+                    "type": "object",
+                    "properties": {
+                      "apiKey": {
+                        "type": "string"
+                      },
+                      "apiSecret": {
+                        "type": "string"
+                      },
+                      "passphrase": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "exchangeName",
+                  "method",
+                  "params",
+                  "credentials"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Trade result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "exchange": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "402": {
+            "description": "Payment required (x402)"
+          }
+        },
+        "tags": [
+          "Exchange Infrastructure"
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "type": "integer"
+          }
+        }
+      },
+      "Ticker": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "example": "BTCUSDT"
+          },
+          "price": {
+            "type": "number",
+            "example": 67420.5
+          },
+          "volume24h": {
+            "type": "number",
+            "example": 1200000000
+          },
+          "changePercent": {
+            "type": "number",
+            "example": 2.3
+          },
+          "exchange": {
+            "type": "string",
+            "example": "binance"
+          }
+        }
+      },
+      "FundingRate": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "example": "BTCUSDT"
+          },
+          "exchange": {
+            "type": "string",
+            "example": "binance"
+          },
+          "fundingRate": {
+            "type": "number",
+            "example": 0.0001
+          },
+          "nextFunding": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "OpenInterest": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "example": "BTCUSDT"
+          },
+          "openInterest": {
+            "type": "number",
+            "example": 12500000000
+          },
+          "openInterestUsd": {
+            "type": "number",
+            "example": 12500000000
+          },
+          "price": {
+            "type": "number",
+            "example": 67420.5
+          },
+          "volumeUsd": {
+            "type": "number",
+            "example": 800000000
+          },
+          "timestamp": {
+            "type": "integer",
+            "example": 1711670400000
+          }
+        }
+      },
+      "NewsItem": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "time_published": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "impact_score": {
+            "type": "number",
+            "example": 0.78
+          },
+          "sentiment": {
+            "type": "string",
+            "enum": [
+              "Positive",
+              "Negative",
+              "Neutral"
+            ]
+          }
+        }
+      },
+      "CalendarEvent": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "country": {
+            "type": "string",
+            "example": "US"
+          },
+          "event": {
+            "type": "string",
+            "example": "CPI m/m"
+          },
+          "currency": {
+            "type": "string",
+            "example": "USD"
+          },
+          "previous": {
+            "type": "number"
+          },
+          "estimate": {
+            "type": "number"
+          },
+          "actual": {
+            "type": "number"
+          },
+          "impact": {
+            "type": "string",
+            "enum": [
+              "Low",
+              "Medium",
+              "High"
+            ]
+          }
+        }
+      },
+      "ScannerSignal": {
+        "type": "object",
+        "properties": {
+          "direction": {
+            "type": "string",
+            "enum": [
+              "LONG",
+              "SHORT",
+              "NEUTRAL"
+            ]
+          },
+          "strength": {
+            "type": "number",
+            "example": 72
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "HIGH",
+              "MEDIUM",
+              "LOW"
+            ]
+          },
+          "entry": {
+            "type": "number"
+          },
+          "stopLoss": {
+            "type": "number",
+            "nullable": true
+          },
+          "takeProfit1": {
+            "type": "number",
+            "nullable": true
+          },
+          "takeProfit2": {
+            "type": "number",
+            "nullable": true
+          },
+          "takeProfit3": {
+            "type": "number",
+            "nullable": true
+          },
+          "riskRewardRatio": {
+            "type": "number",
+            "nullable": true
+          },
+          "reasoning": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "AuthToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "ttc-auth-token",
+        "description": "Session token from TTC login (24-hour expiry)"
+      },
+      "PublicKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "ttc-public-key",
+        "description": "Solana public key associated with the session token"
+      },
+      "X402Payment": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-x402-payment",
+        "description": "Signed Solana USDC micropayment ($0.05) — alternative to session auth"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Market Data",
+      "description": "Real-time tickers, funding rates, open interest, volume, and listings"
+    },
+    {
+      "name": "Technical Analysis",
+      "description": "TTC scanner multi-market technical analysis"
+    },
+    {
+      "name": "Market Intelligence",
+      "description": "AI insights, news, economic calendar, and market quake detection"
+    },
+    {
+      "name": "Exchange Infrastructure",
+      "description": "Exchange read operations and trade execution"
+    }
+  ],
+  "security": [
+    {
+      "AuthToken": []
+    },
+    {
+      "PublicKey": []
+    }
+  ]
+}
