@@ -6,7 +6,7 @@ use_case: "Use for buying agent-paid likes, reposts, comments, bookmarks, follow
 category: media
 service_url: https://wurkapi.fun
 openapi:
- url: https://wurkapi.fun/openapi-x402-solana-social-growth.json
+ path: openapi.json
 ---
 
 WURK Social Growth lets agents create paid human-executed growth jobs through

@@ -6,7 +6,7 @@ use_case: "Use for asking real people to review content, answer questions, tag d
 category: productivity
 service_url: https://wurkapi.fun
 openapi:
- url: https://wurkapi.fun/openapi-x402-solana-human-feedback.json
+ path: openapi.json
 ---
 
 WURK Human Feedback lets agents hire real people for microtasks using x402

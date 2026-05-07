@@ -6,7 +6,7 @@ use_case: "Use for token launch support, DexScreener rocket campaigns, and paid 
 category: finance
 service_url: https://wurkapi.fun
 openapi:
- url: https://wurkapi.fun/openapi-x402-solana-token-boosts.json
+ path: openapi.json
 ---
 
 WURK Token Boosts exposes x402 Solana USDC endpoints for token visibility and
