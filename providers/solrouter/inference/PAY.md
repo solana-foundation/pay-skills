@@ -14,7 +14,7 @@ pricing:
       scale: 1
       tiers:
         - route: POST /api/v1/x402/chat/completions
-          price_usd: 0.02
+          price_usd: 0.005
 ---
 
 # Solrouter — Cryptographically private LLM inference
@@ -33,7 +33,7 @@ What Solrouter operators see: a ciphertext blob, model name, token counts. Not t
 
 ## Spend-aware usage
 
-- Flat $0.02 per call regardless of input/output tokens. Heavy-context workloads amortize well; trivial calls overpay. Don't loop a one-token "ping" through it just to test connectivity — call `GET /agents/v1/quote` (it's $0.001) instead.
+- Flat $0.005 per call regardless of input/output tokens. No token math, no refunds. Don't loop a one-token "ping" through it just to test connectivity — call `GET /agents/v1/quote` (it's $0.001) instead.
 - The endpoint is OpenAI-compatible: send the same `messages` array shape you'd send to GPT-4, but inside the encrypted payload. No need to chunk or compress for billing reasons — token cost doesn't scale your bill.
 - Default model is `gpt-oss:20b`. Other model IDs available via the model selector in the request body — see the OpenAPI spec.
 
