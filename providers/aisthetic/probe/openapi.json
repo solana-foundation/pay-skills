@@ -1,0 +1,120 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "aisthetic.service — Verifiable Receipts Sandbox",
+    "version": "0.1.0",
+    "description": "Public sandbox of aisthetic.service, a 7-stage verifiable agent commerce gateway. The demo endpoint walks an agent through a 401 → 402 → 200 paid-call flow and returns a portable Ed25519-signed receipt that anyone can verify on https://aisthetic.services without a key.",
+    "contact": {
+      "name": "aisthetic.service",
+      "url": "https://aisthetic.services"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://github.com/den0th/aisthetic-hard-test/blob/main/LICENSE"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://sandbox.aisthetic.services",
+      "description": "Public sandbox gateway (Fly.io eu-central)"
+    }
+  ],
+  "paths": {
+    "/g/aisthetic/probe": {
+      "post": {
+        "summary": "Verifiable receipts probe — returns data + signed receipt",
+        "description": "Routes the call through the full 7-stage gateway pipeline. Without `Authorization`, returns 401. With `Authorization` but no payment proof, returns a JSON 402 challenge. With `Authorization` + `X-AgentTrust-Sandbox-Proof: demo-paid`, returns 200 with a JSON body and an `X-AgentTrust-Receipt-Id` response header pointing to a publicly verifiable Ed25519-signed receipt.",
+        "operationId": "probeReceipts",
+        "security": [
+          { "BearerAuth": [] }
+        ],
+        "parameters": [
+          {
+            "name": "X-AgentTrust-Sandbox-Proof",
+            "in": "header",
+            "required": false,
+            "description": "Sandbox payment proof. The demo endpoint accepts the literal string `demo-paid`.",
+            "schema": { "type": "string", "example": "demo-paid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paid call succeeded. Body is the upstream response. Response includes a verifiable receipt id.",
+            "headers": {
+              "X-AgentTrust-Receipt-Id": {
+                "description": "UUID v4 identifier for the Ed25519-signed receipt. Verify at https://aisthetic.services/r?id={id}",
+                "schema": { "type": "string", "format": "uuid" }
+              },
+              "X-AgentTrust-Request-Id": {
+                "description": "Request correlation id (server-side log lookup).",
+                "schema": { "type": "string" }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "type": "object", "additionalProperties": true }
+              }
+            }
+          },
+          "401": {
+            "description": "Agent identity not resolved. Send `Authorization: Bearer ak_demo_agent` to identify as the sandbox demo agent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "format": "uri" },
+                    "status": { "type": "integer", "example": 401 },
+                    "code": { "type": "string", "example": "unauthorized" },
+                    "detail": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. Body is a machine-readable JSON challenge. To satisfy the sandbox challenge, retry with header `X-AgentTrust-Sandbox-Proof: demo-paid`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string", "example": "payment_required" },
+                    "amount": { "type": "string", "example": "0.010000" },
+                    "currency": { "type": "string", "example": "USDC" },
+                    "paymentMethods": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "protocol": { "type": "string" },
+                          "network": { "type": "string" },
+                          "asset": { "type": "string" },
+                          "payTo": { "type": "string" },
+                          "scheme": { "type": "string" }
+                        }
+                      }
+                    },
+                    "expiresAt": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Policy or risk engine denied the call. Typically engaged after a burst of >100 concurrent requests from the same agent (velocity policy)."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Sandbox demo bearer is the literal string `ak_demo_agent`."
+      }
+    }
+  }
+}
