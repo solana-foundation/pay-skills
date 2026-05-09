@@ -4,9 +4,9 @@ title: "anchor-x402: token price"
 description: "Fetch the current USD price for any major token by symbol (BTC, ETH, SOL, USDC, …) or by chain + contract address (Base, Ethereum, Solana, Polygon, Arbitrum). Returns USD price, 24h change percent, market cap, source, and cache age — for $0.001 USDC per call."
 use_case: "Use for agent-driven trading checks, treasury valuation snapshots, USD denomination of crypto invoices, settlement-time spot checks, or any workflow that needs a cheap, fresh, sourced token price without a CoinGecko API key."
 category: finance
-service_url: https://1c09pdnrx1.execute-api.us-east-1.amazonaws.com
+service_url: https://api.anchor-x402.com
 openapi:
-  url: https://1c09pdnrx1.execute-api.us-east-1.amazonaws.com/openapi.json
+  url: https://api.anchor-x402.com/openapi.json
 ---
 
 `GET /v1/price/token` — pay $0.001 USDC, get a USD spot price back.

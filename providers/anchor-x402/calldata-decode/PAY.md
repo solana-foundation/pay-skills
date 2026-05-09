@@ -4,9 +4,9 @@ title: "anchor-x402: calldata decoder"
 description: "Decode raw EVM calldata into a human-readable function name, canonical signature, and typed parameter values. Resolves the 4-byte selector against openchain.xyz's signature directory, then ABI-decodes the args. Returns ambiguity candidates when a selector collides — for $0.001 USDC per call."
 use_case: "Use when an agent needs to inspect a transaction before signing, render a human-readable confirmation prompt, audit historical calldata, classify mempool activity, debug failed reverts, or label any unknown 4-byte selector pulled from on-chain data."
 category: devtools
-service_url: https://1c09pdnrx1.execute-api.us-east-1.amazonaws.com
+service_url: https://api.anchor-x402.com
 openapi:
-  url: https://1c09pdnrx1.execute-api.us-east-1.amazonaws.com/openapi.json
+  url: https://api.anchor-x402.com/openapi.json
 ---
 
 `POST /v1/decode/calldata` — pay $0.001 USDC, supply

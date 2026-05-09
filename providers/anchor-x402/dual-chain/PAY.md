@@ -4,9 +4,9 @@ title: "anchor-x402"
 description: "Anchor any 32-byte hash to Base mainnet (as EIP-1559 calldata) AND Solana mainnet (via the Memo program) in a single $0.005 USDC call. Returns both tx hashes plus block-explorer URLs as cryptographic proof of when a specific value existed. Pure infrastructure — no opinions about content."
 use_case: "Use for DAO vote receipts, AI decision attestations, contract notarization, scientific data integrity, audit trails, on-chain proof of provenance, generic cross-chain timestamping, hash commitment schemes, or any workflow that needs tamper-evident proof anchored on two independent L1s."
 category: security
-service_url: https://1c09pdnrx1.execute-api.us-east-1.amazonaws.com
+service_url: https://api.anchor-x402.com
 openapi:
-  url: https://1c09pdnrx1.execute-api.us-east-1.amazonaws.com/openapi.json
+  url: https://api.anchor-x402.com/openapi.json
 ---
 
 `anchor-x402` is the simplest primitive in the agentic API economy: a single

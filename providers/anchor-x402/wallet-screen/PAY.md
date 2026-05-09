@@ -4,9 +4,9 @@ title: "anchor-x402: wallet screening"
 description: "Sanctions + AML screening for any EVM or Solana wallet address. Returns sanctions match (boolean), specific OFAC SDN programs flagged (Tornado Cash, Lazarus Group, Hydra Market, Garantex, Blender.io etc.), inferred chain, and a low/medium/high risk verdict — for $0.001 USDC per call."
 use_case: "Use for AML pre-flight checks before any treasury transfer, KYC onboarding, vendor diligence, payroll wallet verification, marketplace counterparty checks, payment processor compliance, or any agent workflow that needs cheap, fast sanctions clearance."
 category: security
-service_url: https://1c09pdnrx1.execute-api.us-east-1.amazonaws.com
+service_url: https://api.anchor-x402.com
 openapi:
-  url: https://1c09pdnrx1.execute-api.us-east-1.amazonaws.com/openapi.json
+  url: https://api.anchor-x402.com/openapi.json
 ---
 
 `GET /v1/screen?wallet=<address>` — pay $0.001 USDC, get a sanctions
