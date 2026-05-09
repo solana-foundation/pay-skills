@@ -1,8 +1,8 @@
 ---
 name: dual-chain
 title: "anchor-x402"
-description: "Anchor any 32-byte hash to Base mainnet (as EIP-1559 calldata) AND Solana mainnet (via the Memo program) in a single $0.005 USDC call. Returns both tx hashes plus block-explorer URLs as cryptographic proof of when a specific value existed. Pure infrastructure — no opinions about content."
-use_case: "Use for DAO vote receipts, AI decision attestations, contract notarization, scientific data integrity, audit trails, on-chain proof of provenance, generic cross-chain timestamping, hash commitment schemes, or any workflow that needs tamper-evident proof anchored on two independent L1s."
+description: "Anchor any 32-byte hash to Base mainnet (EIP-1559 calldata) and Solana mainnet (Memo program) in a single $0.005 USDC call. Returns both tx hashes and block-explorer URLs as cryptographic proof a specific value existed at a known time."
+use_case: "Use for DAO vote receipts, AI decision attestations, contract notarization, audit trails, scientific data integrity, on-chain provenance, cross-chain timestamping, or any workflow needing tamper-evident proof anchored on two independent L1s."
 category: security
 service_url: https://api.anchor-x402.com
 openapi:

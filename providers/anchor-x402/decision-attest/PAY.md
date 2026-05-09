@@ -1,8 +1,8 @@
 ---
 name: decision-attest
 title: "anchor-x402: decision attestation"
-description: "Verify a wallet signature over (input_hash, output_hash, decision) with domain separation, then dual-chain anchor the resulting Merkle root on Base and Solana mainnet. Returns the verified signer plus on-chain proof URLs — $0.01 USDC per call. Two schemes: EVM personal_sign (eip191) or Solana Ed25519."
-use_case: "Use when an AI agent's decision needs a cryptographic, auditable receipt — autonomous trade approvals, AI-assisted contract decisions, automated KYC verdicts, model-output attestation for liability records, multi-agent consensus signing, or any workflow where the agent's recommendation needs to be cryptographically bound to the human-or-agent signer who approved it."
+description: "Verify a wallet signature over (input_hash, output_hash, decision) with domain separation, then dual-chain anchor the Merkle root on Base + Solana mainnet. Returns verified signer plus on-chain proof URLs. Schemes: EVM personal_sign or Solana Ed25519."
+use_case: "Use when an AI agent's decision needs a cryptographic, auditable receipt: autonomous trade approvals, AI-assisted contract decisions, automated KYC verdicts, model-output liability attestation, or multi-agent consensus signing bound to a signer."
 category: security
 service_url: https://api.anchor-x402.com
 openapi:

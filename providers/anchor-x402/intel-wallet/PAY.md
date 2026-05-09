@@ -1,8 +1,8 @@
 ---
 name: intel-wallet
 title: "anchor-x402: wallet intelligence bundle"
-description: "ONE call returns a unified intelligence bundle for any EVM or Solana wallet — native balances on Base + Ethereum mainnet, USDC balances, tx count, has-history flag, reverse ENS / SNS, and sanctions verdict — fetched in parallel for $0.005 USDC. Replaces 8-10 separate RPC + API hits."
-use_case: "Use for agent pre-transaction due diligence, KYC enrichment, vendor onboarding, payment-routing UX, treasury counterparty checks, payroll wallet verification, marketplace listing diligence, or any workflow where an agent needs a one-shot risk + balance picture before deciding to transact."
+description: "One call returns a unified intel bundle for any EVM or Solana wallet: native balances on Base + Ethereum, USDC balances, tx count, has-history flag, reverse ENS/SNS, and sanctions verdict. Fetched in parallel; replaces 8-10 separate RPC + API hits."
+use_case: "Use for agent pre-transaction due diligence, KYC enrichment, vendor onboarding, payment-routing UX, treasury counterparty checks, payroll verification, or any workflow needing a one-shot risk + balance picture before transacting."
 category: data
 service_url: https://api.anchor-x402.com
 openapi:

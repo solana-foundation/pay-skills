@@ -1,8 +1,8 @@
 ---
 name: datetime-parse
 title: "anchor-x402: datetime parser"
-description: "Parse freeform datetime strings ('next Tuesday at 3pm', 'yesterday noon UTC', '2026-05-08T15:30Z', 'in 2 hours', 'march 15 2026') into a fully normalized structured form: ISO 8601, unix epoch, broken-out components, signed relative-seconds delta, human-readable relative phrase, and a confidence label — all for $0.001 USDC per call."
-use_case: "Use whenever an AI agent receives a user-supplied datetime in any natural form and needs reliable structured output for scheduling, reminders, contract effective dates, deadline math, calendar events, or any tool-call argument that demands ISO 8601 — without burning LLM tokens on parsing."
+description: "Parse freeform datetime strings (e.g. 'next Tuesday 3pm', 'in 2 hours', '2026-05-08T15:30Z') into ISO 8601, unix epoch, broken-out components, signed relative-seconds delta, human relative phrase, and a confidence label."
+use_case: "Use when an AI agent gets a user-supplied datetime in natural form and needs structured ISO 8601 output for scheduling, reminders, contract effective dates, deadline math, calendar events, or any tool-call argument demanding ISO 8601."
 category: devtools
 service_url: https://api.anchor-x402.com
 openapi:
