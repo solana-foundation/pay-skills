@@ -1,0 +1,285 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Boundary Guard x402",
+    "version": "0.1.0",
+    "description": "Revenue-safety checks for x402 sellers and agent builders: scan paid APIs before listing, probe unpaid 402 challenges, and attach receipts to risky agent actions."
+  },
+  "servers": [
+    {
+      "url": "https://x402-resource-scanner.vercel.app"
+    }
+  ],
+  "paths": {
+    "/v1/x402/scan?url=https%3A%2F%2Fx402-resource-scanner.vercel.app": {
+      "get": {
+        "summary": "Scan x402 resource readiness",
+        "description": "Scan public x402 and OpenAPI metadata for resource counts, price surfaces, listing gaps, readiness issues, and next steps.",
+        "operationId": "scanX402Resource",
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "description": "Public service URL to scan.",
+            "schema": {
+              "type": "string",
+              "format": "uri",
+              "example": "https://x402-resource-scanner.vercel.app"
+            },
+            "example": "https://x402-resource-scanner.vercel.app"
+          },
+          {
+            "name": "marketplace_url",
+            "in": "query",
+            "required": false,
+            "description": "Optional marketplace listing URL to compare against the live provider metadata.",
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "name": "expected_resources",
+            "in": "query",
+            "required": false,
+            "description": "Optional expected resource count for readiness checks.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Readiness scan result."
+          },
+          "402": {
+            "description": "x402 payment required."
+          }
+        }
+      }
+    },
+    "/v1/x402/health/probe": {
+      "post": {
+        "summary": "Probe x402 paid-path health",
+        "description": "Probe a public paid endpoint without payment, parse its 402 challenge, compare expected payment metadata, and return a health receipt.",
+        "operationId": "probeX402PaidPath",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthProbeRequest"
+              },
+              "examples": {
+                "selfScan": {
+                  "value": {
+                    "target": "https://x402-resource-scanner.vercel.app/v1/x402/scan?url=https%3A%2F%2Fx402-resource-scanner.vercel.app",
+                    "method": "GET",
+                    "expected": {
+                      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                      "asset": "USDC",
+                      "priceUsd": "0.25"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Paid-path health result."
+          },
+          "402": {
+            "description": "x402 payment required."
+          }
+        }
+      }
+    },
+    "/v1/x402/agent-tools/readiness": {
+      "post": {
+        "summary": "Check x402 agent-tool readiness",
+        "description": "Check whether an x402 or agent-facing paid tool is ready for marketplace listing, buyer routing, and paid-path monitoring. Quick tier checks metadata; deep adds paid-path guidance when supplied; report returns launch/report guidance.",
+        "operationId": "checkAgentToolReadiness",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadinessRequest"
+              },
+              "examples": {
+                "quickSelf": {
+                  "value": {
+                    "target": "https://x402-resource-scanner.vercel.app",
+                    "tier": "quick",
+                    "expected_resources": 4
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Agent-tool readiness report."
+          },
+          "400": {
+            "description": "Invalid request or unsafe target."
+          },
+          "402": {
+            "description": "x402 payment required."
+          }
+        }
+      }
+    },
+    "/v1/receipts/check": {
+      "post": {
+        "summary": "Create Boundary Guard receipt",
+        "description": "Create a deterministic receipt from request metadata, policy outcome, result summary, payment evidence, and claim boundaries.",
+        "operationId": "createBoundaryGuardReceipt",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceiptRequest"
+              },
+              "examples": {
+                "basic": {
+                  "value": {
+                    "request": {
+                      "action": "x402_launch_check",
+                      "target": "https://seller.example/v1/paid"
+                    },
+                    "policy": {
+                      "decision": "allow_after_payment_metadata_check"
+                    },
+                    "result": {
+                      "status": "checked",
+                      "summary": "Unpaid 402 challenge was parseable."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Receipt response."
+          },
+          "402": {
+            "description": "x402 payment required."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HealthProbeRequest": {
+        "type": "object",
+        "required": [
+          "target"
+        ],
+        "properties": {
+          "target": {
+            "type": "string",
+            "format": "uri"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "GET",
+              "HEAD",
+              "OPTIONS"
+            ],
+            "default": "GET"
+          },
+          "expected": {
+            "type": "object",
+            "properties": {
+              "network": {
+                "type": "string"
+              },
+              "asset": {
+                "type": "string"
+              },
+              "priceUsd": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "ReceiptRequest": {
+        "type": "object",
+        "required": [
+          "request"
+        ],
+        "properties": {
+          "request": {
+            "type": "object"
+          },
+          "policy": {
+            "type": "object"
+          },
+          "result": {
+            "type": "object"
+          },
+          "payment": {
+            "type": "object"
+          }
+        }
+      },
+      "ReadinessRequest": {
+        "type": "object",
+        "required": [
+          "target"
+        ],
+        "properties": {
+          "target": {
+            "type": "string",
+            "format": "uri"
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "quick",
+              "deep",
+              "report"
+            ],
+            "default": "quick"
+          },
+          "marketplace_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "expected_resources": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "paid_path": {
+            "type": "string",
+            "format": "uri"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "GET",
+              "HEAD",
+              "OPTIONS"
+            ],
+            "default": "GET"
+          },
+          "expected": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  }
+}
