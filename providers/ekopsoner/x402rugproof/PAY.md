@@ -1,12 +1,12 @@
 ---
-name: rugproof
-title: "rugproofx402"
+name: x402rugproof
+title: "x402rugproof"
 description: "Pay-per-call Solana pump.fun bundle / sniper / funder-cluster scoring for AI agents. Returns scorecard with verdict, flags, per-wallet drill-down, funder clusters. Helius-only forensics, no third-party API resale."
 use_case: "Use to pre-screen a Solana pump.fun mint before an agent executes a buy. Returns CLEAN / SKIP / UNKNOWN verdict plus BUNDLE / SNIPER / BUNDLE-FRESH flags so the agent can skip coordinated rug-class supply."
 category: security
-service_url: https://rugproofx402.vercel.app
+service_url: https://x402rugproof.vercel.app
 openapi:
-  url: https://rugproofx402.vercel.app/openapi.json
+  url: https://x402rugproof.vercel.app/openapi.json
 ---
 
 Pre-trade safety check for Solana pump.fun tokens. Given a mint address,
