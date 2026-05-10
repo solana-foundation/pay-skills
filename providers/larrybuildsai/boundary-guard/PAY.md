@@ -25,7 +25,7 @@ openapi:
 - **MCP tools:** `5`
 - **REST pricing:** `$0.05-$10.00/request`
 - **HTML page:** https://x402-resource-scanner.vercel.app/
-- **Markdown page:** https://x402-resource-scanner.vercel.app/llms.txt
+- **Agent docs:** https://x402-resource-scanner.vercel.app/llms.txt
 
 ## Service URLs
 
@@ -34,13 +34,13 @@ openapi:
 - **x402 manifest:** https://x402-resource-scanner.vercel.app/.well-known/x402
 - **MCP discovery:** https://x402-resource-scanner.vercel.app/.well-known/mcp.json
 - **MCP endpoint:** https://x402-resource-scanner.vercel.app/mcp
-- **Source:** https://github.com/LarryLemonBot/LarryBuildsAI/tree/main/tools/x402_resource_scanner
+- **Agent skill:** https://x402-resource-scanner.vercel.app/skill.md
 
 ## Why buyers use it
 
 Paid APIs fail in boring ways that still cost money: a listing is missing a price, an endpoint stops returning a parseable `402`, the network or asset metadata is wrong, or an agent cannot tell what was checked before it spent time on a paid workflow.
 
-Boundary Guard x402 gives sellers and agent builders a cheap preflight layer before the handoff breaks. It does not try to replace the payment flow. It checks the surfaces that help buyers trust the flow before they call it.
+Boundary Guard x402 gives sellers and agent builders a cheap preflight layer before the handoff breaks. It does not try to replace the payment flow or claim downstream settlement. It checks the public surfaces that help buyers trust the flow before they call it.
 
 Use it when you need to:
 
