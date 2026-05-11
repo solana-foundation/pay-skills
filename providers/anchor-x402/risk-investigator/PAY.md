@@ -1,8 +1,8 @@
 ---
 name: risk-investigator
 title: "anchor-x402: agent-driven wallet due diligence"
-description: "Multi-step LLM investigation of any EVM or Solana wallet — sanctions screen, on-chain history, identity resolution, narrative verdict. Async job-flow returns a signed markdown report + JSON sidecar, dual-chain anchored on Base and Solana mainnet for audit trail. $7.77 USDC per investigation."
-use_case: "Use when agent-to-agent payments need counterparty vetting before settlement: pre-trade screening, paid hire of an investigation deliverable, regulated-tier due diligence prep, AML preliminary signal generation, agent reputation checks, or any flow where a one-shot $7.77 spend is cheaper than a 0.1% loss from a sanctioned or scam counterparty."
+description: "Multi-step LLM investigation of any EVM or Solana wallet — sanctions screen, on-chain history, identity, risk score — delivered as signed markdown report + JSON sidecar with dual-chain anchor proof on Base + Solana. Async 5-10 min."
+use_case: "Use when agent-to-agent payments need counterparty vetting before settlement, OTC desks scoring before trade, compliance teams sourcing institutional-grade wallet reports, and any due-diligence flow requiring a signed report with on-chain anchors."
 category: security
 service_url: https://api.anchor-x402.com
 openapi:
