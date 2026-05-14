@@ -1,9 +1,9 @@
 ---
 name: rpc
 title: "Ankr"
-description: "Multichain JSON-RPC, paid per request. 160+ networks under one gateway — each chain on its own path (eth, polygon, solana, sui, near, …). USDC settlement on Solana via x402 or MPP; no signup, no API keys."
+description: "Multichain JSON-RPC, paid per request. 160+ networks under one gateway, each chain on its own path (eth, polygon, solana, sui, near, ...). USDC settlement on Solana via x402 or MPP; no signup, no API keys."
 use_case: "Use for blockchain JSON-RPC, account and contract state reads, transaction submission, EVM RPC, Solana RPC, multi-chain dapps, block and transaction lookups, mainnet and testnet access, and scalable chain reads with pay-per-request billing."
-category: data
+category: compute
 service_url: https://x402.rpc.ankr.com
 version: v1
 endpoints:
