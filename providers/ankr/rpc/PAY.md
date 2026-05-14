@@ -1634,3 +1634,11 @@ response.
   `_fuji`, `_holesky`, etc.). Pricing is the same as mainnet ($0.001/call).
 - Heavy methods like `eth_getLogs` over wide block ranges return the same flat
   per-request cost today; mind your input ranges to keep paid calls fast.
+- Read-only methods (`eth_blockNumber`, `eth_call`, `getSlot`, `eth_getLogs`, …)
+  and transaction-submission methods (`eth_sendRawTransaction`,
+  `sendTransaction`, signed bundle submissions, …) cost the same $0.001 at the
+  gateway, but the downstream risk profile is very different. A paid write call
+  also pays native chain gas and broadcasts an on-chain action; treat the
+  gateway charge as the access price and the chain gas / transaction effect as
+  the real cost. Sign deliberately, and only after confirming the caller has
+  authorization to commit funds on your behalf.
