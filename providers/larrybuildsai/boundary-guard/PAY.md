@@ -30,11 +30,17 @@ openapi:
 ## Service URLs
 
 - **Gateway:** https://x402-resource-scanner.vercel.app
-- **OpenAPI:** https://x402-resource-scanner.vercel.app/openapi.json
-- **x402 manifest:** https://x402-resource-scanner.vercel.app/.well-known/x402
-- **MCP discovery:** https://x402-resource-scanner.vercel.app/.well-known/mcp.json
-- **MCP endpoint:** https://x402-resource-scanner.vercel.app/mcp
-- **Agent skill:** https://x402-resource-scanner.vercel.app/skill.md
+- **Live OpenAPI:** https://x402-resource-scanner.vercel.app/openapi.json
+- **x402 Manifest:** https://x402-resource-scanner.vercel.app/.well-known/x402
+- **MCP Discovery:** https://x402-resource-scanner.vercel.app/.well-known/mcp.json
+- **MCP Endpoint:** https://x402-resource-scanner.vercel.app/mcp
+- **Agent Skill:** https://x402-resource-scanner.vercel.app/skill.md
+
+## Registry Scope
+
+This pay-skills listing uses the co-located `openapi.json` sidecar as the canonical registry surface. It intentionally focuses on paid buyer routes that the registry should inspect and route to.
+
+The live OpenAPI and discovery files are broader product surfaces. They also advertise documentation, discovery, MCP metadata, and additional product routes such as the launch-pack generator. That broader live discovery is intentional and should not be read as drift from this pay-skills sidecar.
 
 ## Why Buyers Use It
 
@@ -67,6 +73,8 @@ Best for sellers preparing a pay.sh, xpay, CDP Bazaar, Agentic.Market, or market
 Sends an unpaid request to a public paid endpoint and checks the conversion-critical part of the flow: does the endpoint return HTTP `402`, can the payment requirements be parsed, and do network, asset, and price match what the seller expected?
 
 This is a seller health check for the unpaid challenge. It does not sign a payment, spend buyer funds, or prove the paid action completed.
+
+The probe is intentionally limited to safe challenge reads by default. Use `target` or `url` in the JSON body, with `method` set to `GET`, `HEAD`, or `OPTIONS`. POST target probes are disabled by default and require a separately scoped opt-in; sellers should not expect POST paid-path probes from this listing.
 
 ### Check Agent-Tool Readiness
 
