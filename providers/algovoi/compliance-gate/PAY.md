@@ -35,7 +35,7 @@ Use it to verify what AlgoVoi screens against, before relying on `/compliance/sc
 
 ### `POST /compliance/screen`
 
-Free in v1, rate-limited. Pre-payment recipient screen. Body:
+**Free and no-auth in v1, rate-limited.** Pre-payment recipient screen. Body:
 
 ```json
 {
@@ -44,6 +44,23 @@ Free in v1, rate-limited. Pre-payment recipient screen. Body:
   "amount_microunits": 10000,
   "asset": "USDC"
 }
+```
+
+**Clear-address example** (expect `verdict: allow`):
+
+```bash
+curl -s -X POST https://api.algovoi.co.uk/compliance/screen \
+  -H 'Content-Type: application/json' \
+  -d '{"recipient_address":"0x7D01d268636c835d9E56164A24A9587D82B8B186","network":"base-mainnet","amount_microunits":10000,"asset":"USDC"}' | jq
+```
+
+**Unsupported-network example** (expect `verdict: flag`, `reasons: ["unsupported_network"]`).
+Use a syntactically valid address; an invalid address (`"x"`) triggers a 422 validation error before the network check fires:
+
+```bash
+curl -s -X POST https://api.algovoi.co.uk/compliance/screen \
+  -H 'Content-Type: application/json' \
+  -d '{"recipient_address":"0x7D01d268636c835d9E56164A24A9587D82B8B186","network":"polygon-mainnet","amount_microunits":10000,"asset":"USDC"}' | jq
 ```
 
 Returns:
@@ -69,6 +86,14 @@ Verdict semantics:
 - `flag` — sanctions hit but blocking is policy-disabled, OR recipient KYB status is `rejected`, OR our screen infrastructure was unavailable, OR the network is unsupported. Human-in-the-loop review recommended.
 
 `reasons` is intentionally generic. **We never reveal which sanctions list (if any) matched.** SAMLA 2018 s.20 makes such disclosure a criminal offence in the UK; tipping-off compliance is bedrock.
+
+## Browser / cross-origin usage
+
+Both endpoints support CORS preflight from the allowed origins (`algovoi.co.uk`, `dashboard.algovoi.co.uk`, `recurr.algovoi.co.uk`). The following request headers are accepted in OPTIONS preflights:
+
+`Authorization`, `Content-Type`, `X-Tenant-Id`, `Idempotency-Key`, `X-PAYMENT`, `X-PAYMENT-REQUIRED`, `X-PAYMENT-RECEIPT`, `PAYMENT-REQUIRED`, `PAYMENT-SIGNATURE`
+
+The x402 payment headers (`X-PAYMENT` etc.) are included now so no config change will be needed if `/compliance/screen` moves to a metered/paid tier in a future version.
 
 ## Spend-aware usage
 
