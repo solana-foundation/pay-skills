@@ -15,8 +15,8 @@ covering 298 countries and regions. Data includes GDP, inflation (CPI/PPI),
 employment, trade balances, interest rates, industrial production, and more.
 
 All endpoints return HTTP 402 Payment Required with x402 and MPP challenges.
-Payment is accepted via USDC on Solana mainnet (MPP Solana) at $0.02 per
-request.
+Payment is accepted via USDC at $0.02 per request — x402 exact on Base
+(eip155:8453), MPP on Solana mainnet and Tempo mainnet.
 
 ## Spend-aware usage
 
