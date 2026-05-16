@@ -16,8 +16,19 @@ Covers smart money intelligence, wallet profiling, token analytics
 and AI-powered research agents. Most endpoints are `POST`
 and accept chain + address/token parameters.
 
-Accepts x402 USDC on Base and Solana mainnet, USDT0 on X Layer, and MPP
-on Tempo.
+Two payment flows are supported:
+
+- **x402** (default): Unauthenticated requests receive a `402` with a
+  `Payment-Required` header listing accepted rails and prices. The
+  agent selects a rail, signs a payment, and replays the request with
+  an `X-Payment` header.
+- **MPP (Tempo)**: The agent sends an `Authorization: Payment …`
+  header. On `402` the server returns a `WWW-Authenticate: Payment …`
+  challenge; the agent completes the Tempo flow and retries.
+
+This is a server-to-server API — CORS is restricted to first-party
+origins, so browser-based agents should proxy requests through a
+backend.
 
 ## Spend-aware usage
 
