@@ -4,10 +4,22 @@ title: "Settle - Receipt-Pinned x402 Sandbox"
 description: "Solana devnet x402 sandbox with receipt-pinned spends. Three demo endpoints (arxiv abstract fetch, JA->EN translation, ELI12 summarization) exercise a full pay -> spend_via_pact -> on-chain receipt -> deliverable round-trip without touching mainnet funds."
 use_case: "Use for testing x402 client integrations on devnet, verifying credential envelopes, exercising spend_via_pact with a funded pact, debugging capability-hash mismatches, and confirming spend signatures and receipt hashes round-trip."
 category: devtools
+network: solana-devnet
 service_url: https://use-settle.vercel.app/api/x402/proxy
 openapi:
   path: openapi.json
 ---
+
+> ## DEVNET SANDBOX — NOT MAINNET
+>
+> Every spend on this provider routes to **`solana-devnet`**. The USDC mint
+> is the devnet faucet token `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`,
+> not real mainnet USDC. Treat this provider as a **client-integration
+> testbed only** — no mainnet value is at stake on any successful call.
+>
+> If your agent runtime auto-discovers and pays providers from the catalog,
+> add `solana-devnet` to your allowed-networks list to opt in, or skip this
+> entry to filter out devnet sandboxes.
 
 Settle is a Solana payment protocol that wraps x402 with a four-hash kernel
 commit (`receipt`, `reason`, `policy_snapshot`, `purpose`) and an on-chain
