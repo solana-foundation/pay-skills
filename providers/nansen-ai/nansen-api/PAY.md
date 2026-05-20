@@ -6,7 +6,7 @@ use_case: "Use for smart money tracking, wallet profiling and PnL analysis, toke
 category: finance
 service_url: https://api.nansen.ai
 openapi:
-  url: https://api.nansen.ai/openapi.json
+  path: openapi.json
 ---
 
 Nansen on-chain analytics data through x402 and MPP payments.
