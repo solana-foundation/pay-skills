@@ -6,7 +6,7 @@ use_case: "Use for blockchain JSON-RPC, querying account or contract state, subm
 category: compute
 service_url: https://x402.quicknode.com
 openapi:
-  url: https://x402.quicknode.com/openapi.json
+  path: openapi.json
 ---
 
 Pay-per-request JSON-RPC access to 140+ blockchain networks. Each chain is its

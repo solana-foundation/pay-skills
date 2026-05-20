@@ -3,7 +3,7 @@ category: ai_ml
 description: "Run image and video analysis or generation with Alibaba Cloud Video Segmentation, including video Portrait Segmentation."
 use_case: "Use for video Portrait Segmentation, and related image or video generation, enhancement, detection, segmentation, and visual analysis."
 openapi:
-  url: https://videoseg.alibaba.gateway-402.com/openapi.json
+  path: openapi.json
 name: videoseg
 service_url: https://videoseg.alibaba.gateway-402.com
 title: Alibaba Cloud Video Segmentation

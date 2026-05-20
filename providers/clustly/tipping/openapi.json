@@ -1,0 +1,250 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Clustly Tipping API",
+    "description": "Agent-native tipping over the x402 payment protocol. Pay any X (Twitter) handle in Solana USDC. Registered Clustly users receive directly to their linked Solana wallet. Unregistered handles are escrowed in a Privy-custodied placeholder pocket until the recipient signs up via X OAuth to claim.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Clustly",
+      "url": "https://clustly.ai"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://clustly.ai",
+      "description": "Production"
+    }
+  ],
+  "paths": {
+    "/api/v1/tip/x402/{recipient}": {
+      "get": {
+        "operationId": "tipHandle",
+        "summary": "Tip an X handle in USDC via x402",
+        "description": "First GET returns 402 Payment Required with x402 v2 payment requirements. Sign the SPL transfer per the requirements and retry with `PAYMENT-SIGNATURE` header to settle. The challenge `extra` block includes `recipient_status` (\"pocket\" | \"registered\") and, when applicable, `claim_url` for placeholder tips. When the recipient's USDC ATA doesn't exist, the signed amount includes a small first-time wallet setup surcharge (~$0.20 USDC, SOL-oracle priced); the surcharge is disclosed in the challenge `description`.",
+        "parameters": [
+          {
+            "name": "recipient",
+            "in": "path",
+            "required": true,
+            "description": "X (Twitter) handle, with or without leading @. 1-50 alphanumeric or underscore characters.",
+            "example": "jack",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 50
+            }
+          },
+          {
+            "name": "amount",
+            "in": "query",
+            "required": false,
+            "description": "Tip amount in USDC. Defaults to 1.",
+            "example": 0.01,
+            "schema": {
+              "type": "number",
+              "minimum": 1e-06,
+              "maximum": 10000,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tip settled. The `PAYMENT-RESPONSE` response header carries a base64-encoded JSON copy of the receipt.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TipReceipt"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. Body is an x402 v2 challenge with payment requirements for an SPL USDC transfer on Solana mainnet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402Challenge"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid handle, invalid amount, or self-tip attempt."
+          },
+          "429": {
+            "description": "Rate limited (20 requests / minute / IP)."
+          },
+          "502": {
+            "description": "Upstream refusal (Privy or x402 facilitator)."
+          },
+          "503": {
+            "description": "SOL price oracle unavailable; first-time tips temporarily paused."
+          },
+          "504": {
+            "description": "Upstream timeout (Privy)."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "TipReceipt": {
+        "type": "object",
+        "required": [
+          "tip_id",
+          "tx_hash",
+          "recipient_handle",
+          "recipient_status",
+          "amount",
+          "status",
+          "duplicate"
+        ],
+        "properties": {
+          "tip_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tx_hash": {
+            "type": "string",
+            "description": "Solana transaction signature (base58) of the settled SPL transfer."
+          },
+          "recipient_handle": {
+            "type": "string",
+            "description": "Normalized X handle (lowercase, no @)."
+          },
+          "recipient_status": {
+            "type": "string",
+            "enum": [
+              "registered",
+              "pocket"
+            ],
+            "description": "registered: funds delivered to the recipient's linked Solana wallet. pocket: funds held in a Privy-custodied placeholder until the recipient claims via X OAuth."
+          },
+          "amount": {
+            "type": "number",
+            "description": "Tip amount in USDC (excludes any ATA setup surcharge)."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed"
+            ]
+          },
+          "duplicate": {
+            "type": "boolean",
+            "description": "true when this tx_hash was previously recorded; the receipt is replayed verbatim (idempotent)."
+          },
+          "pocket_address": {
+            "type": "string",
+            "description": "Solana address of the placeholder pocket holding the tip. Present only when recipient_status is `pocket`."
+          },
+          "claim_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL the recipient visits to claim their placeholder tip via X OAuth. Present only when recipient_status is `pocket`."
+          },
+          "forward_signature": {
+            "type": "string",
+            "description": "Signature of the relay-signed forwarding tx when the recipient's USDC ATA was created on-the-fly."
+          },
+          "ata_fee_usdc_micro": {
+            "type": "string",
+            "description": "Atomic-units (micro-USDC) surcharge collected for first-time wallet setup, when applicable."
+          }
+        }
+      },
+      "X402Challenge": {
+        "type": "object",
+        "required": [
+          "x402Version",
+          "resource",
+          "accepts",
+          "error"
+        ],
+        "properties": {
+          "x402Version": {
+            "type": "integer",
+            "enum": [
+              2
+            ]
+          },
+          "resource": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "description": {
+                "type": "string",
+                "description": "Human-readable description of the tip. Discloses every surcharge baked into the signed amount."
+              },
+              "mimeType": {
+                "type": "string"
+              }
+            }
+          },
+          "accepts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "scheme": {
+                  "type": "string",
+                  "enum": [
+                    "exact"
+                  ]
+                },
+                "network": {
+                  "type": "string",
+                  "description": "CAIP-style Solana network identifier (e.g. solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp for mainnet)."
+                },
+                "amount": {
+                  "type": "string",
+                  "description": "Total amount the tipper signs for, in atomic USDC (6 decimals). Equals tip + any ATA setup surcharge."
+                },
+                "payTo": {
+                  "type": "string",
+                  "description": "Destination Solana wallet. The recipient's wallet in direct mode, or the relay USDC ATA in forwarder mode."
+                },
+                "maxTimeoutSeconds": {
+                  "type": "integer"
+                },
+                "asset": {
+                  "type": "string",
+                  "description": "Solana USDC mint address."
+                },
+                "extra": {
+                  "type": "object",
+                  "properties": {
+                    "feePayer": {
+                      "type": "string",
+                      "description": "Relay pubkey that pays Solana network fees on behalf of the tipper."
+                    },
+                    "recipient_status": {
+                      "type": "string",
+                      "enum": [
+                        "registered",
+                        "pocket"
+                      ]
+                    },
+                    "claim_url": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "Present only when recipient_status is `pocket`."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

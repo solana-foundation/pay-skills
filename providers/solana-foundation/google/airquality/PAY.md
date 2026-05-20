@@ -2,7 +2,7 @@
 category: maps
 description: "Look up current, historical, and forecast air quality for global coordinates. Returns AQI, pollutant concentrations (PM2.5, PM10, O3, NO2, SO2, CO), health recommendations, local indexes, and heatmap tiles for maps."
 openapi:
-  url: https://airquality.google.gateway-402.com/openapi.json
+  path: openapi.json
 name: airquality
 service_url: https://airquality.google.gateway-402.com
 title: Air Quality API

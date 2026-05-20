@@ -2,7 +2,7 @@
 category: ai_ml
 description: "Analyze text with Google NLP: sentiment, emotion, named entities, entity salience, content categories, moderation categories, syntax, and all-in-one annotation. Supports multilingual text analytics for documents, reviews, tickets, and articles."
 openapi:
-  url: https://language.google.gateway-402.com/openapi.json
+  path: openapi.json
 name: language
 service_url: https://language.google.gateway-402.com
 title: Cloud Natural Language API

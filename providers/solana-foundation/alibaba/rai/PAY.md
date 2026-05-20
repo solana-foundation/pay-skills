@@ -3,7 +3,7 @@ category: security
 description: "Run moderation, verification, and risk checks with Alibaba Cloud Responsible AI, including batch content synchronization detection, synchronize detection for a single piece of content, and synchronous Detection of Model Input Content."
 use_case: "Use for batch content synchronization detection, synchronize detection for a single piece of content, synchronous Detection of Model Input Content, and related moderation, compliance, identity verification, fraud screening, and risk analysis."
 openapi:
-  url: https://rai.alibaba.gateway-402.com/openapi.json
+  path: openapi.json
 name: rai
 service_url: https://rai.alibaba.gateway-402.com
 title: Alibaba Cloud Responsible AI

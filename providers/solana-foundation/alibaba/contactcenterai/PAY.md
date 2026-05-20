@@ -3,7 +3,7 @@ category: ai_ml
 description: "Analyze conversations, images, and assistant tasks with Alibaba Cloud Contact Center AI, including real-time Analysis of Audio Files, the Tongyi Xiaomi CCAI - Conversation Analysis AIO application by task type, and image Content Analysis."
 use_case: "Use for real-time Analysis of Audio Files, the Tongyi Xiaomi CCAI - Conversation Analysis AIO application by task type, image Content Analysis, and related conversation analysis, completion workflows, and multimodal assistant automation."
 openapi:
-  url: https://contactcenterai.alibaba.gateway-402.com/openapi.json
+  path: openapi.json
 name: contactcenterai
 service_url: https://contactcenterai.alibaba.gateway-402.com
 title: Alibaba Cloud Contact Center AI

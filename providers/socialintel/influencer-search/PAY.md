@@ -6,7 +6,7 @@ use_case: "Use for Instagram influencer discovery, creator search, niche keyword
 category: data
 service_url: https://api.socialintel.dev
 openapi:
-  url: https://api.socialintel.dev/openapi.json
+  path: openapi.json
 ---
 
 Instagram influencer discovery across 33M+ profiles. Search by keyword,

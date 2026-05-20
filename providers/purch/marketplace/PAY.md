@@ -6,7 +6,7 @@ use_case: "Use for product search, Amazon and Shopify shopping, AI shopping assi
 category: shopping
 service_url: https://api.purch.xyz
 openapi:
-  url: https://api.purch.xyz/openapi.json
+  path: openapi.json
 ---
 
 E-commerce API for AI agents. Search and buy from Amazon and Shopify, or trade

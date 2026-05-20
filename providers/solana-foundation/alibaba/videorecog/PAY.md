@@ -3,7 +3,7 @@ category: ai_ml
 description: "Run image and video analysis or generation with Alibaba Cloud Video Recognition, including shot parsing, video Quality Assessment, and video Thumbnail."
 use_case: "Use for shot parsing, video Quality Assessment, video Thumbnail, and related image or video generation, enhancement, detection, segmentation, and visual analysis."
 openapi:
-  url: https://videorecog.alibaba.gateway-402.com/openapi.json
+  path: openapi.json
 name: videorecog
 service_url: https://videorecog.alibaba.gateway-402.com
 title: Alibaba Cloud Video Recognition

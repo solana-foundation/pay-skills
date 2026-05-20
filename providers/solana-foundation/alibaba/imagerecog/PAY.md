@@ -3,7 +3,7 @@ category: ai_ml
 description: "Run image and video analysis or generation with Alibaba Cloud Image Recognition, including garbage Classification Detection, element Detection, and certificate Photo Quality Review."
 use_case: "Use for garbage Classification Detection, element Detection, certificate Photo Quality Review, and related image or video generation, enhancement, detection, segmentation, and visual analysis."
 openapi:
-  url: https://imagerecog.alibaba.gateway-402.com/openapi.json
+  path: openapi.json
 name: imagerecog
 service_url: https://imagerecog.alibaba.gateway-402.com
 title: Alibaba Cloud Image Recognition

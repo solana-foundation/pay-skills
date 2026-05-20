@@ -3,7 +3,7 @@ category: maps
 description: "Validate, normalize, and geocode postal addresses worldwide. Returns deliverability verdicts, address component fixes, geocoded coordinates, USPS metadata, plus residential, commercial, and PO Box handling across 200+ countries."
 use_case: "Use for checkout and shipping validation, CRM address cleanup, fraud checks, geocoding, postal code validation, deliverability scoring, standardizing user-entered addresses, and confirming residential, business, or PO Box destinations."
 openapi:
-  url: https://addressvalidation.google.gateway-402.com/openapi.json
+  path: openapi.json
 name: addressvalidation
 service_url: https://addressvalidation.google.gateway-402.com
 title: Address Validation API

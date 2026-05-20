@@ -3,7 +3,7 @@ category: ai_ml
 description: "Run image and video analysis or generation with Alibaba Cloud Facebody, including face Information Desensitization, human Pose Keypoints, and face Comparison."
 use_case: "Use for face Information Desensitization, human Pose Keypoints, face Comparison, and related image or video generation, enhancement, detection, segmentation, and visual analysis."
 openapi:
-  url: https://facebody.alibaba.gateway-402.com/openapi.json
+  path: openapi.json
 name: facebody
 service_url: https://facebody.alibaba.gateway-402.com
 title: Alibaba Cloud Facebody

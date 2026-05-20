@@ -6,7 +6,7 @@ use_case: "Use for webpage screenshots, visual regression artifacts, PDF capture
 category: media
 service_url: https://screenshotone.x402.paysponge.com
 openapi:
-  url: https://screenshotone.x402.paysponge.com/openapi.json
+  path: openapi.json
 ---
 
 ScreenshotOne browser-rendered capture endpoints exposed through PaySponge

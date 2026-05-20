@@ -3,7 +3,7 @@ category: search
 description: "Search and retrieve data with Alibaba Cloud Information Query Service, including enhanced Search, general Search, and globalSearch - International Version (To Be Published), for search and discovery workflows."
 use_case: "Use for enhanced Search, general Search, globalSearch - International Version (To Be Published), and related catalog discovery, skill lookup, and search routing."
 openapi:
-  url: https://iqs.alibaba.gateway-402.com/openapi.json
+  path: openapi.json
 name: iqs
 service_url: https://iqs.alibaba.gateway-402.com
 title: Alibaba Cloud Information Query Service

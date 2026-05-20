@@ -1,0 +1,500 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "StablePhone",
+    "description": "Pay-per-call AI phone calls. No API keys, no accounts.",
+    "version": "1.0.0",
+    "x-guidance": "# StablePhone API\n\nAI phone calls and phone numbers via micropayments. USDC on Base. No API keys.\n\n## Make a call\n\nPOST /api/call ($0.54)\n\nBody (JSON):\n{\n  \"phone_number\": \"+14155551234\",\n  \"task\": \"Call this person and ask if they're available for a meeting tomorrow at 2pm.\"\n}\n\nRequired fields:\n- phone_number: E.164 format (e.g. +14155551234)\n- task: Instructions for the AI agent (what to say, how to behave)\n\nOptional fields:\n- from: Outbound caller ID — must be an active StablePhone number (see POST /api/number)\n- first_sentence: Specific opening line\n- voice: Voice preset (see below) or any Bland.ai voice ID\n- max_duration: Max call length in minutes (1-30, default 5)\n- wait_for_greeting: Wait for recipient to speak first (default false)\n- record: Record call audio (default true)\n- model: \"base\" (default, best for most cases) or \"turbo\" (lowest latency)\n- transfer_phone_number: Number to transfer to if caller requests a human\n- voicemail_action: \"hangup\" (default), \"leave_message\", or \"ignore\" (bypasses detection — best for leaving voicemails naturally)\n- voicemail_message: Message to leave on voicemail (required when voicemail_action is \"leave_message\")\n- metadata: Custom key-value data to attach to the call\n\nResponse: { \"success\": true, \"call_id\": \"abc-123-def\", \"message\": \"Call initiated\" }\n\n## Check call status\n\nGET /api/call/{call_id} (SIWX, free) — only the wallet that initiated the call can poll.\n\nResponse includes: status, completed, to, from, call_length, answered_by, summary, transcript, transcripts (array), recording_url, price, error_message, created_at.\n\n## Buy a phone number\n\nPOST /api/number ($20.00)\n\nBody (JSON):\n{\n  \"area_code\": \"415\",\n  \"country_code\": \"US\"\n}\n\nOptional fields:\n- area_code: 3-digit US/CA area code (random if omitted)\n- country_code: \"US\" (default) or \"CA\"\n\nResponse: { \"success\": true, \"phone_number\": \"+14155551234\", \"expires_at\": \"2025-07-14T...\" }\n\nNumbers expire after 30 days. Top up to extend.\n\n## Top up a phone number\n\nPOST /api/number/topup ($15.00)\n\nBody (JSON):\n{\n  \"phone_number\": \"+14155551234\"\n}\n\nExtends the number by 30 days from the current expiry (or from today if already expired). Top-ups stack — call it multiple times to prepay months ahead. Anyone can top up any number.\n\nResponse: { \"success\": true, \"phone_number\": \"+14155551234\", \"expires_at\": \"2025-08-14T...\" }\n\n## List your numbers\n\nGET /api/numbers (SIWX, free) — returns numbers for the authenticated wallet. No query params.\n\nResponse: { \"success\": true, \"numbers\": [{ \"phone_number\": \"+14155551234\", \"expires_at\": \"...\", \"area_code\": \"415\", \"country_code\": \"US\" }] }\n\n## Typical flow\n1. POST /api/call → get 402 Payment Required\n2. Pay with x402-compatible client (USDC on Base)\n3. Receive call_id\n4. Poll GET /api/call/{call_id} until completed=true\n5. Read transcript and summary\n\n## Phone number flow\n1. POST /api/number → buy a number ($20.00, active 30 days)\n2. Use \"from\" field in POST /api/call to call from your number\n3. POST /api/number/topup → extend by 30 days ($15.00)\n4. GET /api/numbers (SIWX) → list your active numbers\n\n## iMessage/FaceTime lookup\n\nPOST /api/lookup ($0.05)\n\nBody (JSON):\n{\n  \"phone_number\": \"+14155551234\"\n}\n\nRequired fields:\n- phone_number: E.164 format (e.g. +14155551234)\n\nResponse (202): { \"token\": \"<jwt>\" }\n\nThe lookup is async (30-90 seconds typical). Use the token to poll for results:\n\nGET /api/lookup/status?token=<jwt> (SIWX, free) — only the wallet that paid can poll.\n\nPoll responses:\n- { \"status\": \"pending\", \"message\": \"...\" } — still processing, poll again in a few seconds\n- { \"status\": \"complete\", \"phone_number\": \"+1...\", \"imessage\": \"available\"|\"unavailable\"|\"unknown\", \"facetime\": \"available\"|\"unavailable\"|\"unknown\"|\"pending\", \"carrier\": {\"carrier\": \"...\", \"number_type\": \"...\"}, \"country\": {\"name\": \"...\", \"iso2\": \"...\", \"flag\": \"...\"}, \"checked_at\": \"2026-02-20\" }\n- { \"status\": \"error\", \"error\": \"...\" } — upstream error\n\nNotes:\n- \"unknown\" means the number exists but iMessage/FaceTime status can't be determined (likely landline/VoIP)\n- Token expires after 60 minutes. If expired, submit a new lookup (re-pay)\n- Same number submitted within ~1 hour reuses the cached result (no extra charge)\n\n## Lookup flow\n1. POST /api/lookup with phone_number → get 402 Payment Required\n2. Pay with x402-compatible client (USDC on Base)\n3. Receive { token } (202)\n4. Poll GET /api/lookup/status?token=<jwt> every 3-5 seconds\n5. When status is \"complete\", read imessage/facetime fields\n\n## Voices\n- nat (default): American female\n- josh: Articulate American male\n- maya: Young American female, soft\n- june: American female\n- paige: Calm, soft-tone female\n- derek: Soft and engaging male\n- florian: German male\n\n## Authentication\n- **Paid endpoints** (call, number, number/topup, lookup): x402 payment (USDC on Base).\n- **Free endpoints** (call status, numbers, lookup status): SIWX required. Use fetch_with_auth / authed_call. Only the owning wallet can access their data.\n\n## Discovery\n- GET /openapi.json — OpenAPI schema\n- GET /llms.txt — this file",
+    "guidance": "# StablePhone API\n\nAI phone calls and phone numbers via micropayments. USDC on Base. No API keys.\n\n## Make a call\n\nPOST /api/call ($0.54)\n\nBody (JSON):\n{\n  \"phone_number\": \"+14155551234\",\n  \"task\": \"Call this person and ask if they're available for a meeting tomorrow at 2pm.\"\n}\n\nRequired fields:\n- phone_number: E.164 format (e.g. +14155551234)\n- task: Instructions for the AI agent (what to say, how to behave)\n\nOptional fields:\n- from: Outbound caller ID — must be an active StablePhone number (see POST /api/number)\n- first_sentence: Specific opening line\n- voice: Voice preset (see below) or any Bland.ai voice ID\n- max_duration: Max call length in minutes (1-30, default 5)\n- wait_for_greeting: Wait for recipient to speak first (default false)\n- record: Record call audio (default true)\n- model: \"base\" (default, best for most cases) or \"turbo\" (lowest latency)\n- transfer_phone_number: Number to transfer to if caller requests a human\n- voicemail_action: \"hangup\" (default), \"leave_message\", or \"ignore\" (bypasses detection — best for leaving voicemails naturally)\n- voicemail_message: Message to leave on voicemail (required when voicemail_action is \"leave_message\")\n- metadata: Custom key-value data to attach to the call\n\nResponse: { \"success\": true, \"call_id\": \"abc-123-def\", \"message\": \"Call initiated\" }\n\n## Check call status\n\nGET /api/call/{call_id} (SIWX, free) — only the wallet that initiated the call can poll.\n\nResponse includes: status, completed, to, from, call_length, answered_by, summary, transcript, transcripts (array), recording_url, price, error_message, created_at.\n\n## Buy a phone number\n\nPOST /api/number ($20.00)\n\nBody (JSON):\n{\n  \"area_code\": \"415\",\n  \"country_code\": \"US\"\n}\n\nOptional fields:\n- area_code: 3-digit US/CA area code (random if omitted)\n- country_code: \"US\" (default) or \"CA\"\n\nResponse: { \"success\": true, \"phone_number\": \"+14155551234\", \"expires_at\": \"2025-07-14T...\" }\n\nNumbers expire after 30 days. Top up to extend.\n\n## Top up a phone number\n\nPOST /api/number/topup ($15.00)\n\nBody (JSON):\n{\n  \"phone_number\": \"+14155551234\"\n}\n\nExtends the number by 30 days from the current expiry (or from today if already expired). Top-ups stack — call it multiple times to prepay months ahead. Anyone can top up any number.\n\nResponse: { \"success\": true, \"phone_number\": \"+14155551234\", \"expires_at\": \"2025-08-14T...\" }\n\n## List your numbers\n\nGET /api/numbers (SIWX, free) — returns numbers for the authenticated wallet. No query params.\n\nResponse: { \"success\": true, \"numbers\": [{ \"phone_number\": \"+14155551234\", \"expires_at\": \"...\", \"area_code\": \"415\", \"country_code\": \"US\" }] }\n\n## Typical flow\n1. POST /api/call → get 402 Payment Required\n2. Pay with x402-compatible client (USDC on Base)\n3. Receive call_id\n4. Poll GET /api/call/{call_id} until completed=true\n5. Read transcript and summary\n\n## Phone number flow\n1. POST /api/number → buy a number ($20.00, active 30 days)\n2. Use \"from\" field in POST /api/call to call from your number\n3. POST /api/number/topup → extend by 30 days ($15.00)\n4. GET /api/numbers (SIWX) → list your active numbers\n\n## iMessage/FaceTime lookup\n\nPOST /api/lookup ($0.05)\n\nBody (JSON):\n{\n  \"phone_number\": \"+14155551234\"\n}\n\nRequired fields:\n- phone_number: E.164 format (e.g. +14155551234)\n\nResponse (202): { \"token\": \"<jwt>\" }\n\nThe lookup is async (30-90 seconds typical). Use the token to poll for results:\n\nGET /api/lookup/status?token=<jwt> (SIWX, free) — only the wallet that paid can poll.\n\nPoll responses:\n- { \"status\": \"pending\", \"message\": \"...\" } — still processing, poll again in a few seconds\n- { \"status\": \"complete\", \"phone_number\": \"+1...\", \"imessage\": \"available\"|\"unavailable\"|\"unknown\", \"facetime\": \"available\"|\"unavailable\"|\"unknown\"|\"pending\", \"carrier\": {\"carrier\": \"...\", \"number_type\": \"...\"}, \"country\": {\"name\": \"...\", \"iso2\": \"...\", \"flag\": \"...\"}, \"checked_at\": \"2026-02-20\" }\n- { \"status\": \"error\", \"error\": \"...\" } — upstream error\n\nNotes:\n- \"unknown\" means the number exists but iMessage/FaceTime status can't be determined (likely landline/VoIP)\n- Token expires after 60 minutes. If expired, submit a new lookup (re-pay)\n- Same number submitted within ~1 hour reuses the cached result (no extra charge)\n\n## Lookup flow\n1. POST /api/lookup with phone_number → get 402 Payment Required\n2. Pay with x402-compatible client (USDC on Base)\n3. Receive { token } (202)\n4. Poll GET /api/lookup/status?token=<jwt> every 3-5 seconds\n5. When status is \"complete\", read imessage/facetime fields\n\n## Voices\n- nat (default): American female\n- josh: Articulate American male\n- maya: Young American female, soft\n- june: American female\n- paige: Calm, soft-tone female\n- derek: Soft and engaging male\n- florian: German male\n\n## Authentication\n- **Paid endpoints** (call, number, number/topup, lookup): x402 payment (USDC on Base).\n- **Free endpoints** (call status, numbers, lookup status): SIWX required. Use fetch_with_auth / authed_call. Only the owning wallet can access their data.\n\n## Discovery\n- GET /openapi.json — OpenAPI schema\n- GET /llms.txt — this file"
+  },
+  "servers": [
+    {
+      "url": "https://stablephone.dev"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Call"
+    },
+    {
+      "name": "Lookup"
+    },
+    {
+      "name": "Number"
+    },
+    {
+      "name": "Numbers"
+    }
+  ],
+  "paths": {
+    "/api/number/topup": {
+      "post": {
+        "operationId": "number_topup",
+        "summary": "Extend a phone number by 30 days from current expiry ($15.00",
+        "tags": [
+          "Number"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "15.00"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "phone_number": {
+                    "type": "string",
+                    "pattern": "^\\+1\\d{10}$",
+                    "description": "Recipient phone number in E.164 format. The schema's pattern constrains to US numbers: `+1` followed by 10 digits (e.g. \"+14155551212\")."
+                  }
+                },
+                "required": [
+                  "phone_number"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "phone_number": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "phone_number",
+                    "expires_at"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/lookup": {
+      "post": {
+        "operationId": "lookup",
+        "summary": "Check if a phone number has iMessage/FaceTime ($0.05 via x402)",
+        "tags": [
+          "Lookup"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.05"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "phone_number": {
+                    "type": "string",
+                    "pattern": "^\\+1\\d{10}$",
+                    "description": "Recipient phone number in E.164 format. The schema's pattern constrains to US numbers: `+1` followed by 10 digits (e.g. \"+14155551212\")."
+                  }
+                },
+                "required": [
+                  "phone_number"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "token"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/number": {
+      "post": {
+        "operationId": "number",
+        "summary": "Buy a phone number ($20.00 via x402)",
+        "tags": [
+          "Number"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "20.00"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "area_code": {
+                    "type": "string",
+                    "pattern": "^\\d{3}$"
+                  },
+                  "country_code": {
+                    "default": "US",
+                    "type": "string",
+                    "enum": [
+                      "US",
+                      "CA"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "phone_number": {
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "phone_number",
+                    "expires_at"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/call": {
+      "post": {
+        "operationId": "call",
+        "summary": "Make an AI phone call ($0.54)",
+        "tags": [
+          "Call"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.54"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "phone_number": {
+                    "type": "string",
+                    "pattern": "^\\+1\\d{10}$",
+                    "description": "Recipient phone number in E.164 format. The schema's pattern constrains to US numbers: `+1` followed by 10 digits (e.g. \"+14155551212\")."
+                  },
+                  "from": {
+                    "type": "string",
+                    "pattern": "^\\+1\\d{10}$"
+                  },
+                  "task": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000,
+                    "description": "Natural-language instruction for the AI caller — what the call should accomplish (e.g. \"Confirm my Tuesday 3pm appointment\"). The agent on the line will speak this objective to the recipient."
+                  },
+                  "first_sentence": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "voice": {
+                    "type": "string"
+                  },
+                  "max_duration": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 30
+                  },
+                  "wait_for_greeting": {
+                    "type": "boolean"
+                  },
+                  "record": {
+                    "type": "boolean"
+                  },
+                  "model": {
+                    "type": "string",
+                    "enum": [
+                      "base",
+                      "turbo"
+                    ]
+                  },
+                  "transfer_phone_number": {
+                    "type": "string",
+                    "pattern": "^\\+[1-9]\\d{1,14}$"
+                  },
+                  "voicemail_action": {
+                    "type": "string",
+                    "enum": [
+                      "hangup",
+                      "leave_message",
+                      "ignore"
+                    ]
+                  },
+                  "voicemail_message": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "phone_number",
+                  "task"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "call_id": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "call_id",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/call/:id": {
+      "get": {
+        "operationId": "call_status",
+        "summary": "Get call status and transcript",
+        "tags": [
+          "Call"
+        ],
+        "security": [
+          {
+            "siwx": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Authentication Required"
+          }
+        }
+      }
+    },
+    "/api/numbers": {
+      "get": {
+        "operationId": "numbers",
+        "summary": "List phone numbers for the authenticated wallet. Requires SIWX.",
+        "tags": [
+          "Numbers"
+        ],
+        "security": [
+          {
+            "siwx": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Authentication Required"
+          }
+        }
+      }
+    },
+    "/api/lookup/status": {
+      "get": {
+        "operationId": "lookup_status",
+        "summary": "Poll lookup status. Requires SIWX - only the wallet that paid",
+        "tags": [
+          "Lookup"
+        ],
+        "security": [
+          {
+            "siwx": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "description": "Lookup token returned by POST /api/lookup. Use it to poll for iMessage/FaceTime status results."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Authentication Required"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "siwx": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "SIGN-IN-WITH-X"
+      }
+    }
+  }
+}

@@ -6,7 +6,7 @@ use_case: "Use for US real-estate search, rental comps, home value estimates, re
 category: data
 service_url: https://rentcast.x402.paysponge.com
 openapi:
-  url: https://rentcast.x402.paysponge.com/openapi.json
+  path: openapi.json
 ---
 
 RentCast real-estate data endpoints exposed through PaySponge with x402

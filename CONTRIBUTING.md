@@ -38,7 +38,7 @@ providers/
 
 Use the two-level layout when you operate the API directly. Use the three-level layout when your gateway proxies another provider's API.
 
-Sidecar files (e.g. `openapi.json`, request schemas) live in the same directory as `PAY.md`. Reference a co-located OpenAPI doc with `openapi: { path: openapi.json }` — the build resolves it relative to `PAY.md` and inlines the parsed document into the published dist, so consumers never need filesystem access.
+Sidecar files (e.g. `openapi.json`, request schemas) live in the same directory as `PAY.md`. The public registry **requires** the OpenAPI document to be committed alongside `PAY.md` — reference it with `openapi: { path: openapi.json }`. Pointing at a remote URL with `openapi: { url: ... }` is no longer accepted: CI fetches it once at PR time, so the spec is effectively a build-time artifact, but committing it gives reviewers a reviewable diff, keeps the published dist deterministic, and prevents downstream consumers from depending on a provider's uptime.
 
 Naming rules:
 
@@ -61,10 +61,7 @@ service_url: https://x402.quicknode.com
 sandbox_service_url: https://sandbox.example.com    # optional
 version: v1                                         # optional
 openapi:
-  url: https://x402.quicknode.com/openapi.json
-# Or, for a co-located spec:
-# openapi:
-#   path: openapi.json
+  path: openapi.json
 # Or, for a tiny inline spec:
 # openapi:
 #   content: |
@@ -91,7 +88,7 @@ reach for it, and any spend-aware patterns.
 | `use_case` | 32–255 chars. Helps agents decide *when* to use the API. |
 | `category` | One of the categories below. |
 | `service_url` | Production URL. `https://` + domain name (no IPs). |
-| One of `openapi:` or `endpoints:` | OpenAPI source (preferred) or inline endpoint list. |
+| One of `openapi:` or `endpoints:` | OpenAPI source (preferred — must be `path:` or `content:`, not `url:`) or inline endpoint list. |
 
 ### Optional frontmatter
 
@@ -131,14 +128,10 @@ Use the narrowest category that matches the user's task:
 
 ### `openapi:` source variants
 
-Exactly one variant per provider:
+Exactly one variant per provider. The public registry requires the spec to be committed in the repo — `openapi.url` is rejected by CI.
 
 ```yaml
-# Absolute URL — fetched at build time.
-openapi:
-  url: https://api.example.com/openapi.json
-
-# Co-located file — read relative to PAY.md.
+# Co-located file — read relative to PAY.md. This is the standard choice.
 openapi:
   path: openapi.json
 
@@ -148,7 +141,15 @@ openapi:
     { "openapi": "3.1.0", "paths": { ... } }
 ```
 
-The build always inlines the parsed document into the published per-provider detail JSON, so downstream consumers can introspect schemas/types without a follow-up HTTP round-trip.
+If your spec lives behind a URL today, fetch it once and commit the snapshot next to `PAY.md`:
+
+```bash
+curl -fsSL https://api.example.com/openapi.json -o providers/<fqn>/openapi.json
+```
+
+Refresh the committed snapshot in a follow-up PR whenever you ship API changes; the diff lets reviewers see what moved.
+
+The build inlines the parsed document into the published per-provider detail JSON, so downstream consumers can introspect schemas/types without a follow-up HTTP round-trip.
 
 ### Inline `endpoints:` (legacy / OpenAPI-less)
 
@@ -294,6 +295,7 @@ Probe behavior:
 Before opening a PR:
 
 - [ ] `pay catalog check providers/<fqn>/PAY.md` is green locally.
+- [ ] OpenAPI spec is committed as a sidecar (`openapi: { path: openapi.json }` or inline `content:`), not referenced by URL.
 - [ ] The `name:` field matches the parent directory name.
 - [ ] `description` is 64–255 chars and summarizes capabilities + result shapes (not use cases).
 - [ ] `use_case` is 32–255 chars and lists concrete agent trigger tasks.

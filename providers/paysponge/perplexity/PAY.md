@@ -6,7 +6,7 @@ use_case: "Use for cited web answers, live research, grounded chat, web search s
 category: ai_ml
 service_url: https://pplx.x402.paysponge.com
 openapi:
-  url: https://pplx.x402.paysponge.com/openapi.json
+  path: openapi.json
 ---
 
 Perplexity search and response API exposed through PaySponge with x402

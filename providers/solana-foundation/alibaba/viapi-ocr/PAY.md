@@ -3,7 +3,7 @@ category: ai_ml
 description: "Extract text and structured document data with Alibaba Cloud OCR (VIAPI), including bank Card Recognition, business License Recognition, and general Recognition, for OCR workflows."
 use_case: "Use for bank Card Recognition, business License Recognition, general Recognition, and related document OCR, structured extraction, and image-to-text parsing."
 openapi:
-  url: https://viapi-ocr.alibaba.gateway-402.com/openapi.json
+  path: openapi.json
 name: viapi-ocr
 service_url: https://viapi-ocr.alibaba.gateway-402.com
 title: Alibaba Cloud OCR (VIAPI)

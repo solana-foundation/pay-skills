@@ -3,7 +3,7 @@ category: ai_ml
 description: "Extract text and structured document data with Alibaba Cloud OCR API, including high-Precision Full-Text Recognition, air Travel Itinerary Recognition, and unified OCR Recognition, for OCR workflows."
 use_case: "Use for high-Precision Full-Text Recognition, air Travel Itinerary Recognition, unified OCR Recognition, and related document OCR, structured extraction, and image-to-text parsing."
 openapi:
-  url: https://ocr-api.alibaba.gateway-402.com/openapi.json
+  path: openapi.json
 name: ocr-api
 service_url: https://ocr-api.alibaba.gateway-402.com
 title: Alibaba Cloud OCR API

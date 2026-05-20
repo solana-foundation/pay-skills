@@ -6,7 +6,7 @@ use_case: "Use for hotel and restaurant discovery, attraction lookup, nearby tra
 category: maps
 service_url: https://tripadvisor.x402.paysponge.com
 openapi:
-  url: https://tripadvisor.x402.paysponge.com/openapi.json
+  path: openapi.json
 ---
 
 Tripadvisor Content API endpoints exposed through PaySponge with x402

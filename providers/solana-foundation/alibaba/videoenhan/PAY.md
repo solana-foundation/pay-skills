@@ -3,7 +3,7 @@ category: ai_ml
 description: "Run image and video analysis or generation with Alibaba Cloud Video Enhancement, including video Rendering Intent, video Aspect Ratio Transformation, and video Portrait Enhancement."
 use_case: "Use for video Rendering Intent, video Aspect Ratio Transformation, video Portrait Enhancement, and related image or video generation, enhancement, detection, segmentation, and visual analysis."
 openapi:
-  url: https://videoenhan.alibaba.gateway-402.com/openapi.json
+  path: openapi.json
 name: videoenhan
 service_url: https://videoenhan.alibaba.gateway-402.com
 title: Alibaba Cloud Video Enhancement

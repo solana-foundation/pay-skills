@@ -3,7 +3,7 @@ category: maps
 description: "Search and inspect Google Places worldwide. Find businesses and points of interest, run nearby or text search, autocomplete addresses, retrieve place details, ratings, reviews, hours, photos, contact info, websites, and location metadata."
 use_case: "Use for restaurant and business search, hotel and POI lookup, local discovery, address autocomplete, nearby search, ratings and review lookup, opening-hours checks, store locators, lead generation, and place metadata enrichment."
 openapi:
-  url: https://places.google.gateway-402.com/openapi.json
+  path: openapi.json
 name: places
 service_url: https://places.google.gateway-402.com
 title: Places API (New)

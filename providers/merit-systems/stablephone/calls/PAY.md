@@ -6,7 +6,7 @@ category: messaging
 use_case: "Use for AI phone calls, outbound voice tasks, call automation, dedicated caller ID numbers, renewing phone number leases, checking iMessage or FaceTime availability, appointment calls, reminders, surveys, support outreach, and phone-based agent workflows."
 service_url: https://stablephone.dev
 openapi:
-  url: https://stablephone.dev/openapi.json
+  path: openapi.json
 ---
 
 AI phone calls via micropayments. Provide a number and task, get back results.

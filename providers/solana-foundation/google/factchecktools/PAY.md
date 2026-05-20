@@ -2,7 +2,7 @@
 category: search
 description: "Search Google ClaimReview fact-check data across 100+ publishers. Returns checked claims, ratings, claimants, publishers, review URLs, claim dates, and pages for politics, health, science, viral images, and misinformation."
 openapi:
-  url: https://factchecktools.google.gateway-402.com/openapi.json
+  path: openapi.json
 name: factchecktools
 service_url: https://factchecktools.google.gateway-402.com
 title: Fact Check Tools API

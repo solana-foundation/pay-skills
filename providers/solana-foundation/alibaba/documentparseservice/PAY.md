@@ -3,7 +3,7 @@ category: ai_ml
 description: "Extract text and structured document data with Alibaba Cloud Document Parse Service, including document Mind Parsing, for OCR workflows."
 use_case: "Use for document Mind Parsing, and related document OCR, structured extraction, and image-to-text parsing."
 openapi:
-  url: https://documentparseservice.alibaba.gateway-402.com/openapi.json
+  path: openapi.json
 name: documentparseservice
 service_url: https://documentparseservice.alibaba.gateway-402.com
 title: Alibaba Cloud Document Parse Service

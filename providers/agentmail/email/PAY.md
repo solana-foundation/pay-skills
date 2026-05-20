@@ -6,7 +6,7 @@ use_case: "Use for giving agents their own email address, sending outbound email
 category: messaging
 service_url: https://x402.api.agentmail.to
 openapi:
-  url: https://x402.api.agentmail.to/openapi.json
+  path: openapi.json
 ---
 
 Agentic email service. Create inboxes, send and receive email for AI agents.

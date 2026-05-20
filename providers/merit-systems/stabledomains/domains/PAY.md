@@ -6,7 +6,7 @@ category: cloud
 use_case: "Use for domain registration, renewing existing names, managing DNS records, buying agent-owned domains, setting A/AAAA/CNAME/MX/TXT records, launching websites, configuring branded email, and handling registrar workflows through micropayments."
 service_url: https://stabledomains.dev
 openapi:
-  url: https://stabledomains.dev/openapi.json
+  path: openapi.json
 ---
 
 Domain registration, renewal, and DNS management via stablecoin micropayments.

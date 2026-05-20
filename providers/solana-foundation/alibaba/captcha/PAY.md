@@ -3,7 +3,7 @@ category: ai_ml
 description: "Run moderation, verification, and risk checks with Alibaba Cloud CAPTCHA, including intelligent Verification Code Authentication."
 use_case: "Use for intelligent Verification Code Authentication, and related moderation, compliance, identity verification, fraud screening, and risk analysis."
 openapi:
-  url: https://captcha.alibaba.gateway-402.com/openapi.json
+  path: openapi.json
 name: captcha
 service_url: https://captcha.alibaba.gateway-402.com
 title: Alibaba Cloud CAPTCHA

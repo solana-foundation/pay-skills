@@ -6,7 +6,7 @@ category: storage
 use_case: "Use for hosting files, sharing generated artifacts, publishing static websites, uploading zip deployments, creating permanent CDN download URLs, serving images or documents, agent-generated deliverables, simple web hosting, and renewing site deployments."
 service_url: https://stableupload.dev
 openapi:
-  url: https://stableupload.dev/openapi.json
+  path: openapi.json
 ---
 
 File hosting and static site deployment via micropayments.

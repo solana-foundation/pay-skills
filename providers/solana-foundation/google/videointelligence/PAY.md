@@ -2,7 +2,7 @@
 category: ai_ml
 description: "Analyze video content asynchronously with Google Video Intelligence. Detect labels, shots, explicit content, speech, on-screen text, logos, object tracks, scene changes, and searchable metadata for uploaded or cloud-hosted videos."
 openapi:
-  url: https://videointelligence.google.gateway-402.com/openapi.json
+  path: openapi.json
 name: videointelligence
 service_url: https://videointelligence.google.gateway-402.com
 title: Cloud Video Intelligence API

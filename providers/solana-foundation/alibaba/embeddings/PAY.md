@@ -3,7 +3,7 @@ category: ai_ml
 description: "Create text embeddings with Alibaba Cloud Model Studio's OpenAI-compatible embeddings API for retrieval and semantic search."
 use_case: "Use for semantic search, retrieval, reranking pipelines, clustering, classification, and vector indexing."
 openapi:
-  url: https://embeddings.alibaba.gateway-402.com/openapi.json
+  path: openapi.json
 name: embeddings
 service_url: https://embeddings.alibaba.gateway-402.com
 title: Alibaba Cloud Model Studio Embeddings

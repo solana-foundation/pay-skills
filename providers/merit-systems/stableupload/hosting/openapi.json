@@ -1,0 +1,1201 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "StableUpload",
+    "description": "Pay-per-upload file hosting. Upload files, get a link.",
+    "version": "1.0.0",
+    "x-guidance": "# StableUpload API\n\nPay-per-upload file and static site hosting. No API keys. Paid endpoints use x402/MPP; owner actions use SIWX wallet auth.\n\n## Choose The Tier\n\nDefault to 6-month tiers for user-visible or reusable links:\n\n- `10mb` $0.02, `100mb` $0.20, `1gb` $2.00\n\nUse 7-day short-term tiers only when the caller explicitly needs a temporary workflow link, intermediate asset, generated output, or downstream handoff URL:\n\n- `short-10mb` $0.005, `short-100mb` $0.02, `short-1gb` $0.10, `short-5gb` $0.50\n\nDo not use `short-*` for anything a user expects to keep. `short-5gb` is for file uploads only, not static sites.\n\n## Upload Instructions\n\nPurchase responses include `uploadMethod`, `uploadUrl`, `uploadUrlExpiresAt`, and `curlExample`.\n\n- `put`: PUT raw bytes to `uploadUrl` with the requested `Content-Type`.\n- `post`: POST multipart form data to `postUrl` with every `postFields` entry plus `file=@path`. S3 enforces `Content-Type` and max size before storing bytes.\n\n`postUrl` and `postFields` appear only for `post`. Use `curlExample` when unsure.\n\n## File Flow\n\n1. `POST /api/upload` (paid): `{ \"filename\": \"photo.png\", \"contentType\": \"image/png\", \"tier\": \"10mb\" }`.\n2. Upload the file using the returned method.\n3. Use `publicUrl` until `expiresAt`.\n\nOptional `policyTtlSeconds` (60-86400) controls upload URL/form TTL. For a downstream service, buy a short-term slot with a longer TTL, pass `{ postUrl, postFields, publicUrl }`, and let the service upload to `postUrl`.\n\n## Site Flow\n\n1. `POST /api/site` (paid): `{ \"filename\": \"site.zip\", \"tier\": \"100mb\" }`.\n2. Upload the zip using the returned method.\n3. `POST /api/site/activate` (SIWX): `{ \"uploadId\": \"...\" }`.\n4. Serve `siteUrl`, usually `https://{uploadId}.s.stableupload.dev/`.\n\nSite purchase responses do not include `publicUrl`. They return an upload target for the source zip; the usable site URL comes only from `POST /api/site/activate`.\n\n`POST /api/site/activate` runs once per uploaded zip. If the site is already active, calling activate again without a newly uploaded zip returns an error instead of reusing old content.\n\nTo update a site, call `PUT /api/site` (SIWX) with `{ \"uploadId\": \"...\" }`, upload the replacement zip to the returned target, then call `POST /api/site/activate` again. Do not skip the replacement zip upload.\n\nFor sites, tier size is the uncompressed extracted total; max 500 files. Renew with `POST /api/site/renew` (paid): `{ \"uploadId\": \"...\", \"tier\": \"100mb\", \"count\": 4 }`. Price is tier price x count. The tier must match the original tier.\n\n## Listing And Metadata\n\n`GET /api/uploads?limit=50` (SIWX) lists newest uploads first. If `nextCursor` is present, pass it as `?cursor=...` to fetch the next page. Items include `kind` (`file` or `site`) and `isSite`; sites also include `siteUrl` after activation, plus `fileCount` and `customHostname` when available.\n\n`GET /api/download/:uploadId` (SIWX) returns metadata only. It does not stream or proxy file bytes. To read file bytes, fetch the returned `publicUrl`; to serve a site, use `siteUrl`.\n\nStatuses are lifecycle hints:\n\n- `pending`: slot exists; upload may not have happened yet. Sites remain pending until `POST /api/site/activate` extracts the zip.\n- `uploaded`: file was verified by cleanup, or a site was activated.\n- `expired`: object/site is no longer usable and may have been deleted.\n\nA successful file POST/PUT can still show `pending` briefly. A successful site zip upload must be followed by `POST /api/site/activate`.\n\n## Custom Domains\n\nDNS-first is fastest: activate the site, call `GET /api/site/domain/preview?hostname=blog.example.com`, create both returned CNAMEs, then `POST /api/site/domain` (SIWX). Poll `GET /api/site/domain/status?uploadId=...` until `ssl` is `active`. Hostnames must be subdomains, not apex domains.\n\n## Notes\n\n- Public URLs work until `expiresAt`.\n- Upload URLs/forms work until `uploadUrlExpiresAt`.\n- `GET /api/uploads` and `GET /api/download/:uploadId` inspect wallet-owned upload metadata.\n",
+    "guidance": "# StableUpload API\n\nPay-per-upload file and static site hosting. No API keys. Paid endpoints use x402/MPP; owner actions use SIWX wallet auth.\n\n## Choose The Tier\n\nDefault to 6-month tiers for user-visible or reusable links:\n\n- `10mb` $0.02, `100mb` $0.20, `1gb` $2.00\n\nUse 7-day short-term tiers only when the caller explicitly needs a temporary workflow link, intermediate asset, generated output, or downstream handoff URL:\n\n- `short-10mb` $0.005, `short-100mb` $0.02, `short-1gb` $0.10, `short-5gb` $0.50\n\nDo not use `short-*` for anything a user expects to keep. `short-5gb` is for file uploads only, not static sites.\n\n## Upload Instructions\n\nPurchase responses include `uploadMethod`, `uploadUrl`, `uploadUrlExpiresAt`, and `curlExample`.\n\n- `put`: PUT raw bytes to `uploadUrl` with the requested `Content-Type`.\n- `post`: POST multipart form data to `postUrl` with every `postFields` entry plus `file=@path`. S3 enforces `Content-Type` and max size before storing bytes.\n\n`postUrl` and `postFields` appear only for `post`. Use `curlExample` when unsure.\n\n## File Flow\n\n1. `POST /api/upload` (paid): `{ \"filename\": \"photo.png\", \"contentType\": \"image/png\", \"tier\": \"10mb\" }`.\n2. Upload the file using the returned method.\n3. Use `publicUrl` until `expiresAt`.\n\nOptional `policyTtlSeconds` (60-86400) controls upload URL/form TTL. For a downstream service, buy a short-term slot with a longer TTL, pass `{ postUrl, postFields, publicUrl }`, and let the service upload to `postUrl`.\n\n## Site Flow\n\n1. `POST /api/site` (paid): `{ \"filename\": \"site.zip\", \"tier\": \"100mb\" }`.\n2. Upload the zip using the returned method.\n3. `POST /api/site/activate` (SIWX): `{ \"uploadId\": \"...\" }`.\n4. Serve `siteUrl`, usually `https://{uploadId}.s.stableupload.dev/`.\n\nSite purchase responses do not include `publicUrl`. They return an upload target for the source zip; the usable site URL comes only from `POST /api/site/activate`.\n\n`POST /api/site/activate` runs once per uploaded zip. If the site is already active, calling activate again without a newly uploaded zip returns an error instead of reusing old content.\n\nTo update a site, call `PUT /api/site` (SIWX) with `{ \"uploadId\": \"...\" }`, upload the replacement zip to the returned target, then call `POST /api/site/activate` again. Do not skip the replacement zip upload.\n\nFor sites, tier size is the uncompressed extracted total; max 500 files. Renew with `POST /api/site/renew` (paid): `{ \"uploadId\": \"...\", \"tier\": \"100mb\", \"count\": 4 }`. Price is tier price x count. The tier must match the original tier.\n\n## Listing And Metadata\n\n`GET /api/uploads?limit=50` (SIWX) lists newest uploads first. If `nextCursor` is present, pass it as `?cursor=...` to fetch the next page. Items include `kind` (`file` or `site`) and `isSite`; sites also include `siteUrl` after activation, plus `fileCount` and `customHostname` when available.\n\n`GET /api/download/:uploadId` (SIWX) returns metadata only. It does not stream or proxy file bytes. To read file bytes, fetch the returned `publicUrl`; to serve a site, use `siteUrl`.\n\nStatuses are lifecycle hints:\n\n- `pending`: slot exists; upload may not have happened yet. Sites remain pending until `POST /api/site/activate` extracts the zip.\n- `uploaded`: file was verified by cleanup, or a site was activated.\n- `expired`: object/site is no longer usable and may have been deleted.\n\nA successful file POST/PUT can still show `pending` briefly. A successful site zip upload must be followed by `POST /api/site/activate`.\n\n## Custom Domains\n\nDNS-first is fastest: activate the site, call `GET /api/site/domain/preview?hostname=blog.example.com`, create both returned CNAMEs, then `POST /api/site/domain` (SIWX). Poll `GET /api/site/domain/status?uploadId=...` until `ssl` is `active`. Hostnames must be subdomains, not apex domains.\n\n## Notes\n\n- Public URLs work until `expiresAt`.\n- Upload URLs/forms work until `uploadUrlExpiresAt`.\n- `GET /api/uploads` and `GET /api/download/:uploadId` inspect wallet-owned upload metadata.\n"
+  },
+  "servers": [
+    {
+      "url": "https://stableupload.dev"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Download"
+    },
+    {
+      "name": "Site"
+    },
+    {
+      "name": "Upload"
+    },
+    {
+      "name": "Uploads"
+    }
+  ],
+  "paths": {
+    "/api/upload": {
+      "post": {
+        "operationId": "upload",
+        "summary": "Buy an upload slot. Agent uploads file via returned URL.",
+        "tags": [
+          "Upload"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "dynamic",
+            "currency": "USD",
+            "min": "0.005",
+            "max": "2.00"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "filename": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512,
+                    "description": "Name of the file to upload"
+                  },
+                  "contentType": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255,
+                    "description": "MIME type of the file (e.g. image/png, video/mp4)"
+                  },
+                  "tier": {
+                    "type": "string",
+                    "enum": [
+                      "10mb",
+                      "100mb",
+                      "1gb",
+                      "short-10mb",
+                      "short-100mb",
+                      "short-1gb",
+                      "short-5gb"
+                    ],
+                    "description": "Upload tier. Default 6-month tiers: 10mb ($0.02), 100mb ($0.20), 1gb ($2.00). Short-term 7-day workflow tiers: short-10mb ($0.005), short-100mb ($0.02), short-1gb ($0.10), short-5gb ($0.50, file uploads only)."
+                  },
+                  "policyTtlSeconds": {
+                    "description": "Optional upload URL/form expiration in seconds, 60-86400. Use longer TTLs only when reserving an output slot for a downstream service.",
+                    "type": "integer",
+                    "minimum": 60,
+                    "maximum": 86400
+                  }
+                },
+                "required": [
+                  "filename",
+                  "contentType",
+                  "tier"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "uploadId": {
+                      "type": "string"
+                    },
+                    "uploadUrl": {
+                      "type": "string"
+                    },
+                    "uploadMethod": {
+                      "type": "string",
+                      "enum": [
+                        "put",
+                        "post"
+                      ]
+                    },
+                    "uploadUrlExpiresAt": {
+                      "type": "string"
+                    },
+                    "postUrl": {
+                      "type": "string"
+                    },
+                    "postFields": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "publicUrl": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "maxSize": {
+                      "type": "number"
+                    },
+                    "txHash": {
+                      "type": "string"
+                    },
+                    "curlExample": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "uploadId",
+                    "uploadUrl",
+                    "uploadMethod",
+                    "uploadUrlExpiresAt",
+                    "publicUrl",
+                    "expiresAt",
+                    "maxSize",
+                    "curlExample"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/site": {
+      "post": {
+        "operationId": "site",
+        "summary": "Buy a site upload slot and activate the zip",
+        "tags": [
+          "Site"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "dynamic",
+            "currency": "USD",
+            "min": "0.005",
+            "max": "2.00"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "filename": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512,
+                    "description": "Name of the zip file to upload"
+                  },
+                  "tier": {
+                    "type": "string",
+                    "enum": [
+                      "10mb",
+                      "100mb",
+                      "1gb",
+                      "short-10mb",
+                      "short-100mb",
+                      "short-1gb"
+                    ],
+                    "description": "Site tier. Default 6-month tiers: 10mb ($0.02), 100mb ($0.20), 1gb ($2.00). Short-term 7-day workflow site tiers: short-10mb ($0.005), short-100mb ($0.02), short-1gb ($0.10). short-5gb is not supported for sites."
+                  },
+                  "policyTtlSeconds": {
+                    "description": "Optional upload URL/form expiration in seconds, 60-86400. Use longer TTLs only when reserving an output slot for a downstream service.",
+                    "type": "integer",
+                    "minimum": 60,
+                    "maximum": 86400
+                  }
+                },
+                "required": [
+                  "filename",
+                  "tier"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "uploadId": {
+                      "type": "string"
+                    },
+                    "uploadUrl": {
+                      "type": "string"
+                    },
+                    "uploadMethod": {
+                      "type": "string",
+                      "enum": [
+                        "put",
+                        "post"
+                      ]
+                    },
+                    "uploadUrlExpiresAt": {
+                      "type": "string"
+                    },
+                    "postUrl": {
+                      "type": "string"
+                    },
+                    "postFields": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "maxSize": {
+                      "type": "number"
+                    },
+                    "txHash": {
+                      "type": "string"
+                    },
+                    "curlExample": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "uploadId",
+                    "uploadUrl",
+                    "uploadMethod",
+                    "uploadUrlExpiresAt",
+                    "expiresAt",
+                    "maxSize",
+                    "curlExample"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      },
+      "put": {
+        "operationId": "site",
+        "summary": "Get a new upload URL for an existing site",
+        "tags": [
+          "Site"
+        ],
+        "security": [
+          {
+            "siwx": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "uploadId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Upload ID of the existing site to update"
+                  }
+                },
+                "required": [
+                  "uploadId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "uploadId": {
+                      "type": "string"
+                    },
+                    "uploadUrl": {
+                      "type": "string"
+                    },
+                    "uploadMethod": {
+                      "type": "string",
+                      "enum": [
+                        "put",
+                        "post"
+                      ]
+                    },
+                    "uploadUrlExpiresAt": {
+                      "type": "string"
+                    },
+                    "postUrl": {
+                      "type": "string"
+                    },
+                    "postFields": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    },
+                    "maxSize": {
+                      "type": "number"
+                    },
+                    "curlExample": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "uploadId",
+                    "uploadUrl",
+                    "uploadMethod",
+                    "uploadUrlExpiresAt",
+                    "expiresAt",
+                    "maxSize",
+                    "curlExample"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Authentication Required"
+          }
+        }
+      }
+    },
+    "/api/uploads": {
+      "get": {
+        "operationId": "uploads",
+        "summary": "List upload metadata for the authenticated wallet, newest first",
+        "tags": [
+          "Uploads"
+        ],
+        "security": [
+          {
+            "siwx": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "description": "Maximum uploads to return, 1-100. Default 50.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "description": "Maximum uploads to return, 1-100. Default 50."
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "description": "Pagination cursor from the previous nextCursor.",
+              "type": "string"
+            },
+            "description": "Pagination cursor from the previous nextCursor."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "uploads": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "file",
+                              "site"
+                            ],
+                            "description": "Upload type. Use siteUrl, not publicUrl, to serve sites."
+                          },
+                          "isSite": {
+                            "type": "boolean"
+                          },
+                          "filename": {
+                            "type": "string"
+                          },
+                          "contentType": {
+                            "type": "string"
+                          },
+                          "tier": {
+                            "type": "string"
+                          },
+                          "maxSize": {
+                            "type": "number"
+                          },
+                          "actualSize": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "publicUrl": {
+                            "type": "string",
+                            "description": "File URL for file uploads. For sites, this points to the source zip; serve activated sites from siteUrl."
+                          },
+                          "siteUrl": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Activated site URL, or null for file uploads/unactivated sites."
+                          },
+                          "fileCount": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "customHostname": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "description": "pending, uploaded, or expired. See guidance for lifecycle."
+                          },
+                          "pricePaid": {
+                            "type": "number"
+                          },
+                          "expiresAt": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "kind",
+                          "isSite",
+                          "filename",
+                          "contentType",
+                          "tier",
+                          "maxSize",
+                          "actualSize",
+                          "publicUrl",
+                          "siteUrl",
+                          "fileCount",
+                          "customHostname",
+                          "status",
+                          "pricePaid",
+                          "expiresAt",
+                          "createdAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "nextCursor": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "uploads"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Authentication Required"
+          }
+        }
+      }
+    },
+    "/api/download/:uploadId": {
+      "get": {
+        "operationId": "download",
+        "summary": "Get upload metadata by ID. Does not return file bytes.",
+        "tags": [
+          "Download"
+        ],
+        "security": [
+          {
+            "siwx": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "upload": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "file",
+                            "site"
+                          ],
+                          "description": "Upload type. Use siteUrl, not publicUrl, to serve sites."
+                        },
+                        "isSite": {
+                          "type": "boolean"
+                        },
+                        "filename": {
+                          "type": "string"
+                        },
+                        "contentType": {
+                          "type": "string"
+                        },
+                        "tier": {
+                          "type": "string"
+                        },
+                        "maxSize": {
+                          "type": "number"
+                        },
+                        "actualSize": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "publicUrl": {
+                          "type": "string",
+                          "description": "File URL for file uploads. For sites, this points to the source zip; serve activated sites from siteUrl."
+                        },
+                        "siteUrl": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Activated site URL, or null for file uploads/unactivated sites."
+                        },
+                        "fileCount": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "customHostname": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "description": "pending, uploaded, or expired. See guidance for lifecycle."
+                        },
+                        "pricePaid": {
+                          "type": "number"
+                        },
+                        "expiresAt": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string"
+                        },
+                        "txHash": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "kind",
+                        "isSite",
+                        "filename",
+                        "contentType",
+                        "tier",
+                        "maxSize",
+                        "actualSize",
+                        "publicUrl",
+                        "siteUrl",
+                        "fileCount",
+                        "customHostname",
+                        "status",
+                        "pricePaid",
+                        "expiresAt",
+                        "createdAt",
+                        "txHash"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "upload"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Authentication Required"
+          }
+        }
+      }
+    },
+    "/api/site/renew": {
+      "post": {
+        "operationId": "site_renew",
+        "summary": "Renew a site for count x the original tier retention window",
+        "tags": [
+          "Site"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "dynamic",
+            "currency": "USD",
+            "min": "0.005",
+            "max": "20.00"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "uploadId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Upload ID to renew"
+                  },
+                  "tier": {
+                    "type": "string",
+                    "enum": [
+                      "10mb",
+                      "100mb",
+                      "1gb",
+                      "short-10mb",
+                      "short-100mb",
+                      "short-1gb"
+                    ],
+                    "description": "Tier of the upload (must match the original tier)"
+                  },
+                  "count": {
+                    "default": 1,
+                    "description": "Number of tier retention periods to extend (default 1)",
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10
+                  }
+                },
+                "required": [
+                  "uploadId",
+                  "tier"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "uploadId": {
+                      "type": "string"
+                    },
+                    "newExpiresAt": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "uploadId",
+                    "newExpiresAt",
+                    "count"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/site/activate": {
+      "post": {
+        "operationId": "site_activate",
+        "summary": "Activate an uploaded zip site",
+        "tags": [
+          "Site"
+        ],
+        "security": [
+          {
+            "siwx": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "uploadId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Upload ID from POST /api/site"
+                  }
+                },
+                "required": [
+                  "uploadId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "siteUrl": {
+                      "type": "string"
+                    },
+                    "fileCount": {
+                      "type": "number"
+                    },
+                    "files": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "siteUrl",
+                    "fileCount",
+                    "files"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Authentication Required"
+          }
+        }
+      }
+    },
+    "/api/site/domain": {
+      "post": {
+        "operationId": "site_domain",
+        "summary": "Connect a custom domain to a site",
+        "tags": [
+          "Site"
+        ],
+        "security": [
+          {
+            "siwx": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "uploadId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Upload identifier returned by POST /api/site (or other upload endpoints). Pass to bind a custom domain to that upload, query its status, or detach the domain."
+                  },
+                  "hostname": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 253,
+                    "pattern": "^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)*[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$",
+                    "description": "Custom hostname (e.g. www.coolsite.com)"
+                  }
+                },
+                "required": [
+                  "uploadId",
+                  "hostname"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "hostname": {
+                      "type": "string"
+                    },
+                    "customHostnameId": {
+                      "type": "string"
+                    },
+                    "dnsRecords": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "name",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "hostname",
+                    "customHostnameId",
+                    "dnsRecords"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Authentication Required"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "site_domain",
+        "summary": "Detach a custom domain from a site.",
+        "tags": [
+          "Site"
+        ],
+        "security": [
+          {
+            "siwx": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "uploadId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Upload identifier returned by POST /api/site (or other upload endpoints). Pass to bind a custom domain to that upload, query its status, or detach the domain."
+                  }
+                },
+                "required": [
+                  "uploadId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "hostname": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "hostname"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Authentication Required"
+          }
+        }
+      }
+    },
+    "/api/site/domain/preview": {
+      "get": {
+        "operationId": "site_domain_preview",
+        "summary": "Preview the DNS records required for a custom domain",
+        "tags": [
+          "Site"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "hostname",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 253,
+              "pattern": "^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)*[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$",
+              "description": "Custom hostname (e.g. www.coolsite.com)"
+            },
+            "required": true,
+            "description": "Custom hostname (e.g. www.coolsite.com)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "hostname": {
+                      "type": "string"
+                    },
+                    "dnsRecords": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "name",
+                          "value"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "hostname",
+                    "dnsRecords"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/site/domain/status": {
+      "get": {
+        "operationId": "site_domain_status",
+        "summary": "Check TLS provisioning status for a custom domain",
+        "tags": [
+          "Site"
+        ],
+        "security": [
+          {
+            "siwx": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "uploadId",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "description": "Upload identifier returned by POST /api/site (or other upload endpoints). Pass to bind a custom domain to that upload, query its status, or detach the domain."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "hostname": {
+                      "type": "string"
+                    },
+                    "ssl": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "hostname",
+                    "ssl"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Authentication Required"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "siwx": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "SIGN-IN-WITH-X"
+      }
+    }
+  }
+}

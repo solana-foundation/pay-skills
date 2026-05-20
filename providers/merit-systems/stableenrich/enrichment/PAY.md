@@ -6,7 +6,7 @@ category: data
 use_case: "Use for contact enrichment, company lookup, prospect search, web search, page scraping, local business discovery, place details, email verification, social profile enrichment, Reddit research, news and shopping search, people search, and property records."
 service_url: https://stableenrich.dev
 openapi:
-  url: https://stableenrich.dev/openapi.json
+  path: openapi.json
 ---
 
 Unified data enrichment gateway covering Apollo, Exa, Firecrawl, Google Maps,

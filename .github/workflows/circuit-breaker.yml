@@ -1,0 +1,177 @@
+name: Circuit Breaker — Rebuild Excluding FQNs
+
+# Emergency manual workflow. Rebuilds the full skills index from `main`,
+# excluding up to 5 provider FQNs. Use this when one or more providers
+# go rogue (compromised, abusive, broken-but-uncaught) and we need them
+# out of the published index immediately, before a proper PR can land
+# to remove them from the repo.
+#
+# FQN format matches the directory layout under `providers/`, e.g.
+# `paysponge/2captcha` or `solana-foundation/foo`. The corresponding
+# `providers/<fqn>/PAY.md` must exist on `main`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      fqn_1:
+        description: "FQN to exclude #1 (e.g. paysponge/2captcha). Required."
+        type: string
+        required: true
+      fqn_2:
+        description: "FQN to exclude #2 (optional)"
+        type: string
+        required: false
+      fqn_3:
+        description: "FQN to exclude #3 (optional)"
+        type: string
+        required: false
+      fqn_4:
+        description: "FQN to exclude #4 (optional)"
+        type: string
+        required: false
+      fqn_5:
+        description: "FQN to exclude #5 (optional)"
+        type: string
+        required: false
+
+env:
+  PAY_IMAGE: us-central1-docker.pkg.dev/gateway-402/agent-gateway/pay:latest
+
+jobs:
+  rebuild-excluding:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/123883807128/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: pay-skills-ci@gateway-402.iam.gserviceaccount.com
+
+      - run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      # Collect every non-empty FQN input, dedupe, and verify each one
+      # actually exists in the repo. Refuse to proceed if any FQN is
+      # bogus — a circuit breaker that silently does nothing is worse
+      # than one that loudly fails.
+      - name: Resolve and validate excluded FQNs
+        id: excluded
+        run: |
+          RAW=$(printf '%s\n%s\n%s\n%s\n%s\n' \
+            "${{ inputs.fqn_1 }}" \
+            "${{ inputs.fqn_2 }}" \
+            "${{ inputs.fqn_3 }}" \
+            "${{ inputs.fqn_4 }}" \
+            "${{ inputs.fqn_5 }}")
+          FQNS=$(echo "$RAW" | sed -E 's|^[[:space:]]+||;s|[[:space:]]+$||' | grep -v '^$' | sort -u)
+          if [ -z "$FQNS" ]; then
+            echo "::error::No FQNs provided. At least one is required."
+            exit 1
+          fi
+          MISSING=""
+          for fqn in $FQNS; do
+            if [ ! -f "providers/$fqn/PAY.md" ]; then
+              MISSING="$MISSING $fqn"
+            fi
+          done
+          if [ -n "$MISSING" ]; then
+            echo "::error::The following FQNs do not exist on main:$MISSING"
+            exit 1
+          fi
+          JOINED=$(echo "$FQNS" | paste -sd, -)
+          echo "fqns=$JOINED" >> "$GITHUB_OUTPUT"
+          echo "Excluding the following providers from the rebuild:"
+          for fqn in $FQNS; do echo "  - $fqn"; done
+
+      # Physically remove the excluded provider directories from the
+      # checkout. `catalog build` walks `providers/**/PAY.md`, so a
+      # missing directory is the same as a non-existent provider —
+      # no special flag needed.
+      - name: Remove excluded providers from working tree
+        run: |
+          for fqn in $(echo "${{ steps.excluded.outputs.fqns }}" | tr ',' ' '); do
+            echo "Removing providers/$fqn"
+            rm -rf "providers/$fqn"
+          done
+
+      # Full re-resolve + re-probe of every remaining provider. We do
+      # not use `--only` / `--previous-dist` here: the goal is to fully
+      # supersede the published index, including overwriting any cached
+      # detail file for the excluded provider.
+      - name: Build dist/ (full rebuild, excluded providers absent)
+        run: |
+          docker run --rm \
+            -u "$(id -u):$(id -g)" \
+            -v "$PWD:/repo" \
+            -w /repo \
+            $PAY_IMAGE \
+            catalog build . \
+              --base-url https://storage.googleapis.com/pay-skills/v1 \
+              --probe-timeout 15 \
+              --probe-concurrency 5
+
+      # Verify the excluded FQNs are absent from the freshly-built
+      # index — last line of defense in case the build tool ever
+      # picks up providers from somewhere other than the working tree.
+      # Done schema-agnostically: grep for the FQN literal in the
+      # built index and check that no detail file remains on disk.
+      - name: Assert excluded FQNs are not in dist/
+        run: |
+          fail=0
+          for fqn in $(echo "${{ steps.excluded.outputs.fqns }}" | tr ',' ' '); do
+            if grep -q "\"fqn\": \"$fqn\"" dist/skills.json; then
+              echo "::error::$fqn still appears in dist/skills.json after exclusion"
+              fail=1
+            else
+              echo "  ok: $fqn absent from skills.json"
+            fi
+            if [ -e "dist/providers/$fqn" ]; then
+              echo "::error::dist/providers/$fqn still exists after exclusion"
+              fail=1
+            else
+              echo "  ok: dist/providers/$fqn absent"
+            fi
+          done
+          [ $fail -eq 0 ]
+
+      - name: Show summary
+        run: |
+          {
+            echo "## Circuit breaker rebuild"
+            echo ""
+            echo "Excluded FQNs:"
+            for fqn in $(echo "${{ steps.excluded.outputs.fqns }}" | tr ',' ' '); do
+              echo "- \`$fqn\`"
+            done
+            echo ""
+            echo "### skills.json (head)"
+            echo '```json'
+            python3 -m json.tool dist/skills.json | head -20
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload dist/ as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: skills-dist-circuit-breaker
+          path: dist/
+
+      # Publish. `rsync` without `--delete-unmatched-destination-objects`
+      # would leave the excluded providers' detail JSONs in the bucket,
+      # so we add it explicitly — the whole point of the breaker is to
+      # remove them from the published surface.
+      - name: Publish to GCS (with deletion of stale objects)
+        run: |
+          gcloud storage rsync dist/ gs://pay-skills/v1/ \
+            --recursive \
+            --delete-unmatched-destination-objects \
+            --cache-control="public, max-age=300" \
+            --checksums-only
+          gcloud storage cp dist/skills.json gs://pay-skills/v1/skills.json \
+            --cache-control="public, max-age=60"

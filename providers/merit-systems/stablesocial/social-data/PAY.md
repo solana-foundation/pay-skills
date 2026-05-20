@@ -6,7 +6,7 @@ category: media
 use_case: "Use for social profile lookup, post retrieval, comment analysis, follower and following lists, TikTok/Instagram/Facebook/Reddit research, engagement metrics, subreddit monitoring, social listening, creator intelligence, and content discovery."
 service_url: https://stablesocial.dev
 openapi:
-  url: https://stablesocial.dev/openapi.json
+  path: openapi.json
 ---
 
 Social media data API covering TikTok, Instagram, Facebook, and Reddit.

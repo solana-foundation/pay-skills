@@ -6,7 +6,7 @@ category: shopping
 use_case: "Use for creating and shipping custom shirts or mugs, turning AI-generated art into physical merchandise, ordering branded swag, fulfillment for user-provided images, gifts, prototypes, creator products, and agent-initiated print-on-demand workflows."
 service_url: https://stablemerch.dev
 openapi:
-  url: https://stablemerch.dev/openapi.json
+  path: openapi.json
 ---
 
 Custom merchandise via micropayments. Shirts (standard and heavyweight) and

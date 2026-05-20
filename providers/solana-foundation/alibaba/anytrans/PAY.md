@@ -3,7 +3,7 @@ category: translation
 description: "Translate and localize content with Alibaba Cloud AnyTrans, including text Translation, batch Text Translation, and batch Web Page Translation, for multilingual workflows."
 use_case: "Use for text Translation, batch Text Translation, batch Web Page Translation, and related translation, localization, and multilingual communication."
 openapi:
-  url: https://anytrans.alibaba.gateway-402.com/openapi.json
+  path: openapi.json
 name: anytrans
 service_url: https://anytrans.alibaba.gateway-402.com
 title: Alibaba Cloud AnyTrans

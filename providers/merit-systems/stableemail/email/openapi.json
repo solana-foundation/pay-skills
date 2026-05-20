@@ -1,0 +1,1650 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "StableEmail",
+    "description": "Pay-per-send email delivery. No API keys, no accounts.",
+    "version": "0.1.0",
+    "x-guidance": "# StableEmail — Pay-per-send email via micropayments\n\n> Send email with a single HTTP request. No API keys. No accounts. Pay $0.02 per email.\n\n## Base URL\n\nhttps://stableemail.dev\n\n## Discovery\n\nGET /openapi.json\n\n## Endpoints\n\n### POST /api/send — Send email (shared domain)\n- Protection: x402/MPP payment ($0.02 USDC on Base, Solana, or Tempo)\n- Sends from: relay@stableemail.dev\n- Body: { \"to\": [\"email\"], \"cc\": [\"email\"], \"subject\": \"string\", \"html\": \"string\", \"text\": \"string\", \"replyTo\": \"email\", \"attachments\": [{\"content\": \"base64...\", \"contentType\": \"application/pdf\", \"filename\": \"file.pdf\"}] }\n- Requires either \"html\" or \"text\" (or both)\n- \"attachments\" is optional, max 5, each with base64 content (~3.75MB decoded limit), MIME contentType, and filename\n- For calendar invites (.ics), use contentType: \"text/calendar; method=REQUEST\"\n- Returns: { \"success\": true, \"messageId\": \"string\", \"from\": \"string\" }\n\n### POST /api/subdomain/buy — Purchase a custom subdomain\n- Protection: x402/MPP payment ($5 USDC)\n- Body: { \"subdomain\": \"yourname\" }\n- Subdomain rules: 3-30 chars, lowercase alphanumeric + hyphens\n- Creates yourname.stableemail.dev with full email sending capability\n- DNS verification takes ~5 minutes after purchase\n- Returns: { \"success\": true, \"subdomain\": \"yourname.stableemail.dev\", \"dnsStatus\": \"pending\" }\n\n### POST /api/subdomain/send — Send from custom subdomain\n- Protection: x402/MPP payment ($0.005 USDC)\n- Payer wallet must be owner or authorized signer for the subdomain\n- Body: { \"from\": \"you@yourname.stableemail.dev\", \"to\": [\"email\"], \"cc\": [\"email\"], \"subject\": \"string\", \"html\": \"string\", \"text\": \"string\", \"replyTo\": \"email\" }\n- Returns: { \"success\": true, \"messageId\": \"string\", \"from\": \"string\" }\n\n### POST /api/subdomain/signers — Manage authorized wallets\n- Protection: SIWX wallet proof only (free, no payment)\n- Only the subdomain owner can manage signers\n- Body: { \"action\": \"add\" | \"remove\", \"subdomain\": \"yourname\", \"walletAddress\": \"0x...\" }\n- Max 50 signers per subdomain\n\n### POST /api/subdomain/update — Update subdomain settings\n- Protection: SIWX wallet proof only (free, no payment)\n- Only the subdomain owner can update\n- Body: { \"subdomain\": \"yourname\", \"catchAllForwardTo\": \"catch-all@example.com\" }\n- Set catchAllForwardTo to null to remove catch-all forwarding\n- Catch-all forwards emails to unmatched addresses on the subdomain\n\n### GET /api/subdomain/status?subdomain=yourname — Check subdomain status\n- Protection: SIWX wallet proof only (free, no payment)\n- Owner or any signer can check status\n- Returns: { \"subdomain\": \"string\", \"ownerWallet\": \"string\", \"dnsVerified\": bool, \"sesVerified\": bool, \"signerCount\": number, \"signers\": [\"0x...\"] }\n\n## Subdomain Inboxes — Receive Email on Subdomains\n\nSubdomain owners can create per-address inboxes on their subdomain (e.g., `biden@craig.stableemail.dev`). $0.25 to create (x402/MPP payment), cap 100 per subdomain. Each inbox optionally forwards to a real address and/or retains messages for programmatic API access. Unmatched addresses go to the subdomain's catch-all forwarder if set, otherwise silently dropped.\n\n### POST /api/subdomain/inbox/create — Create inbox on subdomain ($0.25)\n- Protection: x402/MPP payment ($0.25 USDC on Base, Solana, or Tempo)\n- Payer wallet must be the subdomain owner\n- Body: { \"subdomain\": \"craig\", \"localPart\": \"biden\", \"forwardTo\": \"joe@gmail.com\" }\n- forwardTo is optional — omit for programmatic-only mailbox (retainMessages auto-enabled)\n- Max 100 inboxes per subdomain, 500 messages per inbox\n- Returns: { \"success\": true, \"inbox\": \"biden@craig.stableemail.dev\", \"retainMessages\": true, \"messageLimit\": 500 }\n\n### POST /api/subdomain/inbox/list — List subdomain inboxes\n- Protection: SIWX wallet proof only (free, no payment)\n- Only the subdomain owner can list\n- Body: { \"subdomain\": \"craig\" }\n- Returns: { \"success\": true, \"inboxes\": [{ \"localPart\": \"string\", \"address\": \"string\", \"forwardTo\": \"string?\", \"retainMessages\": bool, \"active\": bool, \"messageCount\": number, \"unreadCount\": number }] }\n\n### POST /api/subdomain/inbox/update — Update inbox settings\n- Protection: SIWX wallet proof only (free, no payment)\n- Only the subdomain owner can update\n- Body: { \"subdomain\": \"craig\", \"localPart\": \"biden\", \"forwardTo\": \"newemail@example.com\", \"retainMessages\": true }\n- At least one of \"forwardTo\" or \"retainMessages\" is required\n- Set forwardTo to null to remove forwarding\n- Returns: { \"success\": true, \"inbox\": \"biden@craig.stableemail.dev\", \"forwardTo\": \"string?\", \"retainMessages\": bool }\n\n### POST /api/subdomain/inbox/delete — Delete inbox from subdomain\n- Protection: SIWX wallet proof only (free, no payment)\n- Only the subdomain owner can delete\n- Body: { \"subdomain\": \"craig\", \"localPart\": \"biden\" }\n- Cascades: deletes all messages from DB and S3\n- Returns: { \"success\": true, \"deleted\": \"biden@craig.stableemail.dev\", \"messagesDeleted\": number }\n\n### POST /api/subdomain/inbox/messages — List inbox messages\n- Protection: x402/MPP payment ($0.001 USDC on Base, Solana, or Tempo)\n- Payer wallet must be the subdomain owner\n- Body: { \"subdomain\": \"craig\", \"localPart\": \"biden\", \"cursor\": \"message id (optional)\", \"limit\": 20 }\n- Returns: { \"success\": true, \"messages\": [...], \"nextCursor\": \"string?\", \"messageCount\": number, \"messageLimit\": 500, \"warning\": \"string?\" }\n- Warning field appears when inbox is at or near capacity (>=80%). Delete old messages to free space.\n\n### POST /api/subdomain/inbox/messages/read — Read a single message\n- Protection: x402/MPP payment ($0.001 USDC on Base, Solana, or Tempo)\n- Payer wallet must be the subdomain owner\n- Body: { \"messageId\": \"string\" }\n- Returns: { \"success\": true, \"message\": { \"id\": \"string\", \"from\": \"string\", \"to\": [\"string\"], \"subject\": \"string\", \"date\": \"ISO date\", \"text\": \"string\", \"html\": \"string\", \"attachments\": [{ \"filename\": \"string\", \"contentType\": \"string\", \"size\": number }], \"receivedAt\": \"ISO date\" } }\n- Marks the message as read\n\n### POST /api/subdomain/inbox/messages/delete — Delete a message\n- Protection: SIWX wallet proof only (free, no payment)\n- Only the subdomain owner can delete messages\n- Body: { \"messageId\": \"string\" }\n- Returns: { \"success\": true, \"deleted\": \"string\" }\n\n## Forwarding Inbox\n\nBuy `username@stableemail.dev` for $1/month. Use it as a forwarding inbox (emails forwarded to your real address), a programmatic mailbox (read messages via API), or both. You can also send from your inbox address. Duration-based pricing with bulk discounts. Anyone can top up any inbox. Cancel anytime for a pro-rata refund.\n\n### POST /api/inbox/buy — Buy an inbox ($1, 30 days)\n- Protection: x402/MPP payment ($1 USDC on Base, Solana, or Tempo)\n- Body: { \"username\": \"alice\", \"forwardTo\": \"alice@gmail.com\" }\n- forwardTo is optional — omit it to use as a programmatic mailbox (retainMessages enabled automatically, read messages via /api/inbox/messages)\n- Username rules: 3-30 chars, lowercase alphanumeric + hyphens\n- Subdomain owners can buy the matching inbox name (e.g., owner of alice.stableemail.dev can buy alice@stableemail.dev)\n- Returns: { \"success\": true, \"inbox\": \"alice@stableemail.dev\", \"retainMessages\": true, \"expiresAt\": \"ISO date\", \"daysRemaining\": 30 }\n\n### POST /api/inbox/topup — Top up inbox 30 days ($1)\n- Protection: x402/MPP payment ($1 USDC)\n- Anyone can top up any inbox — no SIWX required\n- Body: { \"username\": \"alice\" }\n- Returns: { \"success\": true, \"inbox\": \"alice\", \"expiresAt\": \"ISO date\", \"daysRemaining\": number, \"daysAdded\": 30 }\n\n### POST /api/inbox/topup/quarter — Top up inbox 90 days ($2.50, save 17%)\n- Protection: x402/MPP payment ($2.50 USDC)\n- Anyone can top up any inbox — no SIWX required\n- Body: { \"username\": \"alice\" }\n- Returns: { \"success\": true, \"inbox\": \"alice\", \"expiresAt\": \"ISO date\", \"daysRemaining\": number, \"daysAdded\": 90 }\n\n### POST /api/inbox/topup/year — Top up inbox 365 days ($8, save 34%)\n- Protection: x402/MPP payment ($8 USDC)\n- Anyone can top up any inbox — no SIWX required\n- Body: { \"username\": \"alice\" }\n- Returns: { \"success\": true, \"inbox\": \"alice\", \"expiresAt\": \"ISO date\", \"daysRemaining\": number, \"daysAdded\": 365 }\n\n### POST /api/inbox/send — Send from your inbox address ($0.005)\n- Protection: x402/MPP payment ($0.005 USDC)\n- Payer wallet must be the inbox owner\n- Body: { \"username\": \"alice\", \"to\": [\"bob@example.com\"], \"cc\": [\"carol@example.com\"], \"subject\": \"Hello\", \"html\": \"<p>Hi</p>\", \"text\": \"Hi\", \"replyTo\": \"alice@gmail.com\" }\n- Requires either \"html\" or \"text\" (or both)\n- Returns: { \"success\": true, \"messageId\": \"string\", \"from\": \"alice@stableemail.dev\" }\n\n### GET /api/inbox/status?username=alice — Check inbox status\n- Protection: SIWX wallet proof only (free, no payment)\n- Only the inbox owner can check status\n- Returns: { \"inbox\": \"alice@stableemail.dev\", \"ownerWallet\": \"0x...\", \"forwardTo\": \"email\", \"retainMessages\": bool, \"expiresAt\": \"ISO date\", \"daysRemaining\": number, \"daysOwned\": number, \"active\": bool, \"pricing\": {...} }\n\n### POST /api/inbox/update — Update inbox settings\n- Protection: SIWX wallet proof only (free, no payment)\n- Only the inbox owner can update\n- Body: { \"username\": \"alice\", \"forwardTo\": \"newemail@example.com\", \"retainMessages\": true }\n- At least one of \"forwardTo\" or \"retainMessages\" is required\n- \"retainMessages\": when true, inbound emails are kept in S3 for programmatic access via the messages API\n- Returns: { \"success\": true, \"inbox\": \"alice@stableemail.dev\", \"forwardTo\": \"newemail@example.com\", \"retainMessages\": true }\n\n### POST /api/inbox/cancel — Cancel inbox and get pro-rata USDC refund\n- Protection: SIWX wallet proof only (free, no payment)\n- Only the inbox owner can cancel\n- Body: { \"username\": \"alice\" }\n- Refund is sent on-chain to the caller's wallet automatically\n- Refunds below $0.01 are waived (too small to transfer)\n- Returns: { \"success\": true, \"inbox\": \"alice@stableemail.dev\", \"cancelled\": true, \"refund\": { \"amount\": \"0.50\", \"currency\": \"USDC\", \"network\": \"eip155:8453\", \"to\": \"0x...\", \"status\": \"completed\", \"transactionHash\": \"0x...\" }, \"daysRemaining\": 15 }\n\n## Inbox Messages API\n\nRead inbound emails programmatically. Requires \"retainMessages\": true on the inbox (set via POST /api/inbox/update).\n\n### POST /api/inbox/messages — List messages\n- Protection: x402/MPP payment ($0.001 USDC on Base, Solana, or Tempo)\n- Payer wallet must be the inbox owner\n- Body: { \"username\": \"alice\", \"cursor\": \"message id (optional)\", \"limit\": 20 }\n- Returns: { \"success\": true, \"messages\": [{ \"id\": \"string\", \"fromEmail\": \"string\", \"subject\": \"string\", \"receivedAt\": \"ISO date\", \"read\": bool }], \"nextCursor\": \"message id (optional)\" }\n- Paginated: pass \"nextCursor\" as \"cursor\" in the next request\n\n### POST /api/inbox/messages/read — Read a single message\n- Protection: x402/MPP payment ($0.001 USDC on Base, Solana, or Tempo)\n- Payer wallet must be the inbox owner\n- Body: { \"messageId\": \"string\" }\n- Returns: { \"success\": true, \"message\": { \"id\": \"string\", \"from\": \"string\", \"to\": [\"string\"], \"subject\": \"string\", \"date\": \"ISO date\", \"text\": \"string\", \"html\": \"string\", \"attachments\": [{ \"filename\": \"string\", \"contentType\": \"string\", \"size\": number }], \"receivedAt\": \"ISO date\" } }\n- Marks the message as read\n\n### POST /api/inbox/messages/delete — Delete a message\n- Protection: SIWX wallet proof only (free, no payment)\n- Only the inbox owner can delete messages\n- Body: { \"messageId\": \"string\" }\n- Removes the message from DB and S3 storage\n- Returns: { \"success\": true, \"deleted\": \"string\" }\n\n## Images in Emails\n\nTo include images, use `<img src=\"url\">` in the \"html\" body. Host images on stableupload.dev (x402/MPP-powered file uploads, see https://stableupload.dev/llms.txt). Upload via x402/MPP payment → get a public URL → reference in HTML. Prefer hosted URLs over base64 data URIs — most email clients strip data URIs.\n\n## Agent Integration\n\nThe recommended way for AI agents to interact with StableEmail is via [agentcash-skills](https://github.com/Merit-Systems/agentcash-skills) — available as an MCP server (`npx -y agentcash@latest`) or CLI (`npx agentcash fetch ...`). It handles payment negotiation and retry logic automatically. Any x402/MPP-compatible client paying USDC on Base, Solana, or Tempo will also work.\n\n## Payment Details\n\n- Network: Base (eip155:8453), Solana, or Tempo\n- Currency: USDC\n- Protocol: x402 (https://www.x402.org) / MPP (https://mpp.dev)\n- Send first request → receive 402 with PAYMENT-REQUIRED header → sign payment → resend with payment header\n\n## SIWX Authentication\n\nFree management endpoints (status, update, cancel, signers) use SIWX for wallet identity verification. These endpoints return a 402 with SIWX challenge in the PAYMENT-REQUIRED header (same flow as x402/MPP payment). x402/MPP-compatible clients (like agentcash) handle this automatically — no special handling needed.\n\nPaid send endpoints identify the wallet from the x402/MPP payment header instead.\n\nSIWX is part of the x402/MPP protocol extensions (CAIP-122 compliant, supports EVM + Solana).\n",
+    "guidance": "# StableEmail — Pay-per-send email via micropayments\n\n> Send email with a single HTTP request. No API keys. No accounts. Pay $0.02 per email.\n\n## Base URL\n\nhttps://stableemail.dev\n\n## Discovery\n\nGET /openapi.json\n\n## Endpoints\n\n### POST /api/send — Send email (shared domain)\n- Protection: x402/MPP payment ($0.02 USDC on Base, Solana, or Tempo)\n- Sends from: relay@stableemail.dev\n- Body: { \"to\": [\"email\"], \"cc\": [\"email\"], \"subject\": \"string\", \"html\": \"string\", \"text\": \"string\", \"replyTo\": \"email\", \"attachments\": [{\"content\": \"base64...\", \"contentType\": \"application/pdf\", \"filename\": \"file.pdf\"}] }\n- Requires either \"html\" or \"text\" (or both)\n- \"attachments\" is optional, max 5, each with base64 content (~3.75MB decoded limit), MIME contentType, and filename\n- For calendar invites (.ics), use contentType: \"text/calendar; method=REQUEST\"\n- Returns: { \"success\": true, \"messageId\": \"string\", \"from\": \"string\" }\n\n### POST /api/subdomain/buy — Purchase a custom subdomain\n- Protection: x402/MPP payment ($5 USDC)\n- Body: { \"subdomain\": \"yourname\" }\n- Subdomain rules: 3-30 chars, lowercase alphanumeric + hyphens\n- Creates yourname.stableemail.dev with full email sending capability\n- DNS verification takes ~5 minutes after purchase\n- Returns: { \"success\": true, \"subdomain\": \"yourname.stableemail.dev\", \"dnsStatus\": \"pending\" }\n\n### POST /api/subdomain/send — Send from custom subdomain\n- Protection: x402/MPP payment ($0.005 USDC)\n- Payer wallet must be owner or authorized signer for the subdomain\n- Body: { \"from\": \"you@yourname.stableemail.dev\", \"to\": [\"email\"], \"cc\": [\"email\"], \"subject\": \"string\", \"html\": \"string\", \"text\": \"string\", \"replyTo\": \"email\" }\n- Returns: { \"success\": true, \"messageId\": \"string\", \"from\": \"string\" }\n\n### POST /api/subdomain/signers — Manage authorized wallets\n- Protection: SIWX wallet proof only (free, no payment)\n- Only the subdomain owner can manage signers\n- Body: { \"action\": \"add\" | \"remove\", \"subdomain\": \"yourname\", \"walletAddress\": \"0x...\" }\n- Max 50 signers per subdomain\n\n### POST /api/subdomain/update — Update subdomain settings\n- Protection: SIWX wallet proof only (free, no payment)\n- Only the subdomain owner can update\n- Body: { \"subdomain\": \"yourname\", \"catchAllForwardTo\": \"catch-all@example.com\" }\n- Set catchAllForwardTo to null to remove catch-all forwarding\n- Catch-all forwards emails to unmatched addresses on the subdomain\n\n### GET /api/subdomain/status?subdomain=yourname — Check subdomain status\n- Protection: SIWX wallet proof only (free, no payment)\n- Owner or any signer can check status\n- Returns: { \"subdomain\": \"string\", \"ownerWallet\": \"string\", \"dnsVerified\": bool, \"sesVerified\": bool, \"signerCount\": number, \"signers\": [\"0x...\"] }\n\n## Subdomain Inboxes — Receive Email on Subdomains\n\nSubdomain owners can create per-address inboxes on their subdomain (e.g., `biden@craig.stableemail.dev`). $0.25 to create (x402/MPP payment), cap 100 per subdomain. Each inbox optionally forwards to a real address and/or retains messages for programmatic API access. Unmatched addresses go to the subdomain's catch-all forwarder if set, otherwise silently dropped.\n\n### POST /api/subdomain/inbox/create — Create inbox on subdomain ($0.25)\n- Protection: x402/MPP payment ($0.25 USDC on Base, Solana, or Tempo)\n- Payer wallet must be the subdomain owner\n- Body: { \"subdomain\": \"craig\", \"localPart\": \"biden\", \"forwardTo\": \"joe@gmail.com\" }\n- forwardTo is optional — omit for programmatic-only mailbox (retainMessages auto-enabled)\n- Max 100 inboxes per subdomain, 500 messages per inbox\n- Returns: { \"success\": true, \"inbox\": \"biden@craig.stableemail.dev\", \"retainMessages\": true, \"messageLimit\": 500 }\n\n### POST /api/subdomain/inbox/list — List subdomain inboxes\n- Protection: SIWX wallet proof only (free, no payment)\n- Only the subdomain owner can list\n- Body: { \"subdomain\": \"craig\" }\n- Returns: { \"success\": true, \"inboxes\": [{ \"localPart\": \"string\", \"address\": \"string\", \"forwardTo\": \"string?\", \"retainMessages\": bool, \"active\": bool, \"messageCount\": number, \"unreadCount\": number }] }\n\n### POST /api/subdomain/inbox/update — Update inbox settings\n- Protection: SIWX wallet proof only (free, no payment)\n- Only the subdomain owner can update\n- Body: { \"subdomain\": \"craig\", \"localPart\": \"biden\", \"forwardTo\": \"newemail@example.com\", \"retainMessages\": true }\n- At least one of \"forwardTo\" or \"retainMessages\" is required\n- Set forwardTo to null to remove forwarding\n- Returns: { \"success\": true, \"inbox\": \"biden@craig.stableemail.dev\", \"forwardTo\": \"string?\", \"retainMessages\": bool }\n\n### POST /api/subdomain/inbox/delete — Delete inbox from subdomain\n- Protection: SIWX wallet proof only (free, no payment)\n- Only the subdomain owner can delete\n- Body: { \"subdomain\": \"craig\", \"localPart\": \"biden\" }\n- Cascades: deletes all messages from DB and S3\n- Returns: { \"success\": true, \"deleted\": \"biden@craig.stableemail.dev\", \"messagesDeleted\": number }\n\n### POST /api/subdomain/inbox/messages — List inbox messages\n- Protection: x402/MPP payment ($0.001 USDC on Base, Solana, or Tempo)\n- Payer wallet must be the subdomain owner\n- Body: { \"subdomain\": \"craig\", \"localPart\": \"biden\", \"cursor\": \"message id (optional)\", \"limit\": 20 }\n- Returns: { \"success\": true, \"messages\": [...], \"nextCursor\": \"string?\", \"messageCount\": number, \"messageLimit\": 500, \"warning\": \"string?\" }\n- Warning field appears when inbox is at or near capacity (>=80%). Delete old messages to free space.\n\n### POST /api/subdomain/inbox/messages/read — Read a single message\n- Protection: x402/MPP payment ($0.001 USDC on Base, Solana, or Tempo)\n- Payer wallet must be the subdomain owner\n- Body: { \"messageId\": \"string\" }\n- Returns: { \"success\": true, \"message\": { \"id\": \"string\", \"from\": \"string\", \"to\": [\"string\"], \"subject\": \"string\", \"date\": \"ISO date\", \"text\": \"string\", \"html\": \"string\", \"attachments\": [{ \"filename\": \"string\", \"contentType\": \"string\", \"size\": number }], \"receivedAt\": \"ISO date\" } }\n- Marks the message as read\n\n### POST /api/subdomain/inbox/messages/delete — Delete a message\n- Protection: SIWX wallet proof only (free, no payment)\n- Only the subdomain owner can delete messages\n- Body: { \"messageId\": \"string\" }\n- Returns: { \"success\": true, \"deleted\": \"string\" }\n\n## Forwarding Inbox\n\nBuy `username@stableemail.dev` for $1/month. Use it as a forwarding inbox (emails forwarded to your real address), a programmatic mailbox (read messages via API), or both. You can also send from your inbox address. Duration-based pricing with bulk discounts. Anyone can top up any inbox. Cancel anytime for a pro-rata refund.\n\n### POST /api/inbox/buy — Buy an inbox ($1, 30 days)\n- Protection: x402/MPP payment ($1 USDC on Base, Solana, or Tempo)\n- Body: { \"username\": \"alice\", \"forwardTo\": \"alice@gmail.com\" }\n- forwardTo is optional — omit it to use as a programmatic mailbox (retainMessages enabled automatically, read messages via /api/inbox/messages)\n- Username rules: 3-30 chars, lowercase alphanumeric + hyphens\n- Subdomain owners can buy the matching inbox name (e.g., owner of alice.stableemail.dev can buy alice@stableemail.dev)\n- Returns: { \"success\": true, \"inbox\": \"alice@stableemail.dev\", \"retainMessages\": true, \"expiresAt\": \"ISO date\", \"daysRemaining\": 30 }\n\n### POST /api/inbox/topup — Top up inbox 30 days ($1)\n- Protection: x402/MPP payment ($1 USDC)\n- Anyone can top up any inbox — no SIWX required\n- Body: { \"username\": \"alice\" }\n- Returns: { \"success\": true, \"inbox\": \"alice\", \"expiresAt\": \"ISO date\", \"daysRemaining\": number, \"daysAdded\": 30 }\n\n### POST /api/inbox/topup/quarter — Top up inbox 90 days ($2.50, save 17%)\n- Protection: x402/MPP payment ($2.50 USDC)\n- Anyone can top up any inbox — no SIWX required\n- Body: { \"username\": \"alice\" }\n- Returns: { \"success\": true, \"inbox\": \"alice\", \"expiresAt\": \"ISO date\", \"daysRemaining\": number, \"daysAdded\": 90 }\n\n### POST /api/inbox/topup/year — Top up inbox 365 days ($8, save 34%)\n- Protection: x402/MPP payment ($8 USDC)\n- Anyone can top up any inbox — no SIWX required\n- Body: { \"username\": \"alice\" }\n- Returns: { \"success\": true, \"inbox\": \"alice\", \"expiresAt\": \"ISO date\", \"daysRemaining\": number, \"daysAdded\": 365 }\n\n### POST /api/inbox/send — Send from your inbox address ($0.005)\n- Protection: x402/MPP payment ($0.005 USDC)\n- Payer wallet must be the inbox owner\n- Body: { \"username\": \"alice\", \"to\": [\"bob@example.com\"], \"cc\": [\"carol@example.com\"], \"subject\": \"Hello\", \"html\": \"<p>Hi</p>\", \"text\": \"Hi\", \"replyTo\": \"alice@gmail.com\" }\n- Requires either \"html\" or \"text\" (or both)\n- Returns: { \"success\": true, \"messageId\": \"string\", \"from\": \"alice@stableemail.dev\" }\n\n### GET /api/inbox/status?username=alice — Check inbox status\n- Protection: SIWX wallet proof only (free, no payment)\n- Only the inbox owner can check status\n- Returns: { \"inbox\": \"alice@stableemail.dev\", \"ownerWallet\": \"0x...\", \"forwardTo\": \"email\", \"retainMessages\": bool, \"expiresAt\": \"ISO date\", \"daysRemaining\": number, \"daysOwned\": number, \"active\": bool, \"pricing\": {...} }\n\n### POST /api/inbox/update — Update inbox settings\n- Protection: SIWX wallet proof only (free, no payment)\n- Only the inbox owner can update\n- Body: { \"username\": \"alice\", \"forwardTo\": \"newemail@example.com\", \"retainMessages\": true }\n- At least one of \"forwardTo\" or \"retainMessages\" is required\n- \"retainMessages\": when true, inbound emails are kept in S3 for programmatic access via the messages API\n- Returns: { \"success\": true, \"inbox\": \"alice@stableemail.dev\", \"forwardTo\": \"newemail@example.com\", \"retainMessages\": true }\n\n### POST /api/inbox/cancel — Cancel inbox and get pro-rata USDC refund\n- Protection: SIWX wallet proof only (free, no payment)\n- Only the inbox owner can cancel\n- Body: { \"username\": \"alice\" }\n- Refund is sent on-chain to the caller's wallet automatically\n- Refunds below $0.01 are waived (too small to transfer)\n- Returns: { \"success\": true, \"inbox\": \"alice@stableemail.dev\", \"cancelled\": true, \"refund\": { \"amount\": \"0.50\", \"currency\": \"USDC\", \"network\": \"eip155:8453\", \"to\": \"0x...\", \"status\": \"completed\", \"transactionHash\": \"0x...\" }, \"daysRemaining\": 15 }\n\n## Inbox Messages API\n\nRead inbound emails programmatically. Requires \"retainMessages\": true on the inbox (set via POST /api/inbox/update).\n\n### POST /api/inbox/messages — List messages\n- Protection: x402/MPP payment ($0.001 USDC on Base, Solana, or Tempo)\n- Payer wallet must be the inbox owner\n- Body: { \"username\": \"alice\", \"cursor\": \"message id (optional)\", \"limit\": 20 }\n- Returns: { \"success\": true, \"messages\": [{ \"id\": \"string\", \"fromEmail\": \"string\", \"subject\": \"string\", \"receivedAt\": \"ISO date\", \"read\": bool }], \"nextCursor\": \"message id (optional)\" }\n- Paginated: pass \"nextCursor\" as \"cursor\" in the next request\n\n### POST /api/inbox/messages/read — Read a single message\n- Protection: x402/MPP payment ($0.001 USDC on Base, Solana, or Tempo)\n- Payer wallet must be the inbox owner\n- Body: { \"messageId\": \"string\" }\n- Returns: { \"success\": true, \"message\": { \"id\": \"string\", \"from\": \"string\", \"to\": [\"string\"], \"subject\": \"string\", \"date\": \"ISO date\", \"text\": \"string\", \"html\": \"string\", \"attachments\": [{ \"filename\": \"string\", \"contentType\": \"string\", \"size\": number }], \"receivedAt\": \"ISO date\" } }\n- Marks the message as read\n\n### POST /api/inbox/messages/delete — Delete a message\n- Protection: SIWX wallet proof only (free, no payment)\n- Only the inbox owner can delete messages\n- Body: { \"messageId\": \"string\" }\n- Removes the message from DB and S3 storage\n- Returns: { \"success\": true, \"deleted\": \"string\" }\n\n## Images in Emails\n\nTo include images, use `<img src=\"url\">` in the \"html\" body. Host images on stableupload.dev (x402/MPP-powered file uploads, see https://stableupload.dev/llms.txt). Upload via x402/MPP payment → get a public URL → reference in HTML. Prefer hosted URLs over base64 data URIs — most email clients strip data URIs.\n\n## Agent Integration\n\nThe recommended way for AI agents to interact with StableEmail is via [agentcash-skills](https://github.com/Merit-Systems/agentcash-skills) — available as an MCP server (`npx -y agentcash@latest`) or CLI (`npx agentcash fetch ...`). It handles payment negotiation and retry logic automatically. Any x402/MPP-compatible client paying USDC on Base, Solana, or Tempo will also work.\n\n## Payment Details\n\n- Network: Base (eip155:8453), Solana, or Tempo\n- Currency: USDC\n- Protocol: x402 (https://www.x402.org) / MPP (https://mpp.dev)\n- Send first request → receive 402 with PAYMENT-REQUIRED header → sign payment → resend with payment header\n\n## SIWX Authentication\n\nFree management endpoints (status, update, cancel, signers) use SIWX for wallet identity verification. These endpoints return a 402 with SIWX challenge in the PAYMENT-REQUIRED header (same flow as x402/MPP payment). x402/MPP-compatible clients (like agentcash) handle this automatically — no special handling needed.\n\nPaid send endpoints identify the wallet from the x402/MPP payment header instead.\n\nSIWX is part of the x402/MPP protocol extensions (CAIP-122 compliant, supports EVM + Solana).\n"
+  },
+  "servers": [
+    {
+      "url": "https://stableemail.dev"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Inbox"
+    },
+    {
+      "name": "Send"
+    },
+    {
+      "name": "Subdomain"
+    }
+  ],
+  "paths": {
+    "/api/inbox/update": {
+      "post": {
+        "operationId": "inbox_update",
+        "summary": "Update inbox settings (free)",
+        "tags": [
+          "Inbox"
+        ],
+        "security": [
+          {
+            "siwx": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "allOf": [
+                      {
+                        "pattern": "^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$"
+                      },
+                      {
+                        "pattern": "^(?!.*--)"
+                      }
+                    ],
+                    "description": "Mailbox username — the local-part before \"@\" — to operate on. 3–30 chars, lowercase alphanumeric and hyphens (the schema's pattern enforces this)."
+                  },
+                  "forwardTo": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "email",
+                        "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "retainMessages": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "username"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Authentication Required"
+          }
+        }
+      }
+    },
+    "/api/inbox/messages/read": {
+      "post": {
+        "operationId": "inbox_messages_read",
+        "summary": "Read a single inbox message ($0.001)",
+        "tags": [
+          "Inbox"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "messageId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Message identifier returned by /api/inbox/messages, /api/subdomain/inbox/messages, or any send/forward/reply response. Used to read, delete, or reference a specific message."
+                  }
+                },
+                "required": [
+                  "messageId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/send": {
+      "post": {
+        "operationId": "send",
+        "summary": "Send an email from \"StableEmail\" <relay@stableemail.dev>",
+        "tags": [
+          "Send"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.02"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "to": {
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "email",
+                      "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                    }
+                  },
+                  "cc": {
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "email",
+                      "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                    }
+                  },
+                  "subject": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 998,
+                    "description": "Email subject line. 1–998 chars (RFC 2822 single-line limit)."
+                  },
+                  "html": {
+                    "type": "string",
+                    "maxLength": 256000
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 256000
+                  },
+                  "replyTo": {
+                    "type": "string",
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  "attachments": {
+                    "maxItems": 5,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "content": {
+                          "type": "string",
+                          "maxLength": 5000000,
+                          "description": "Base64-encoded file bytes. Decoded limit ~3.75 MB per attachment."
+                        },
+                        "contentType": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255,
+                          "description": "MIME type of the attachment (e.g. \"application/pdf\", \"image/png\"). For calendar invites use \"text/calendar; method=REQUEST\"."
+                        },
+                        "filename": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255,
+                          "description": "Filename presented in the email (with extension, e.g. \"invoice.pdf\")."
+                        }
+                      },
+                      "required": [
+                        "content",
+                        "contentType",
+                        "filename"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "to",
+                  "subject"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/subdomain/buy": {
+      "post": {
+        "operationId": "subdomain_buy",
+        "summary": "Purchase a custom email subdomain on stableemail.dev ($5)",
+        "tags": [
+          "Subdomain"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "5"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subdomain": {
+                    "type": "string",
+                    "allOf": [
+                      {
+                        "pattern": "^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$"
+                      },
+                      {
+                        "pattern": "^(?!.*--)"
+                      }
+                    ],
+                    "description": "Custom subdomain — the label before \"stableemail.dev\" — to operate on (e.g. \"yourname\" for yourname.stableemail.dev). 3–30 chars, lowercase alphanumeric and hyphens."
+                  }
+                },
+                "required": [
+                  "subdomain"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/subdomain/send": {
+      "post": {
+        "operationId": "subdomain_send",
+        "summary": "Send email from your custom subdomain on stableemail.dev",
+        "tags": [
+          "Subdomain"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.005"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string",
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  "to": {
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "email",
+                      "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                    }
+                  },
+                  "cc": {
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "email",
+                      "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                    }
+                  },
+                  "subject": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 998,
+                    "description": "Email subject line. 1–998 chars (RFC 2822 single-line limit)."
+                  },
+                  "html": {
+                    "type": "string",
+                    "maxLength": 256000
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 256000
+                  },
+                  "replyTo": {
+                    "type": "string",
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  "attachments": {
+                    "maxItems": 5,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "content": {
+                          "type": "string",
+                          "maxLength": 5000000,
+                          "description": "Base64-encoded file bytes. Decoded limit ~3.75 MB per attachment."
+                        },
+                        "contentType": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255,
+                          "description": "MIME type of the attachment (e.g. \"application/pdf\", \"image/png\"). For calendar invites use \"text/calendar; method=REQUEST\"."
+                        },
+                        "filename": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255,
+                          "description": "Filename presented in the email (with extension, e.g. \"invoice.pdf\")."
+                        }
+                      },
+                      "required": [
+                        "content",
+                        "contentType",
+                        "filename"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "from",
+                  "to",
+                  "subject"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/inbox/buy": {
+      "post": {
+        "operationId": "inbox_buy",
+        "summary": "Buy an inbox on stableemail.dev ($1, 30 days)",
+        "tags": [
+          "Inbox"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "1"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "allOf": [
+                      {
+                        "pattern": "^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$"
+                      },
+                      {
+                        "pattern": "^(?!.*--)"
+                      }
+                    ],
+                    "description": "Mailbox username — the local-part before \"@\" — to operate on. 3–30 chars, lowercase alphanumeric and hyphens (the schema's pattern enforces this)."
+                  },
+                  "forwardTo": {
+                    "type": "string",
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  }
+                },
+                "required": [
+                  "username"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/inbox/send": {
+      "post": {
+        "operationId": "inbox_send",
+        "summary": "Send email from your forwarding inbox on stableemail.dev",
+        "tags": [
+          "Inbox"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.005"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "allOf": [
+                      {
+                        "pattern": "^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$"
+                      },
+                      {
+                        "pattern": "^(?!.*--)"
+                      }
+                    ],
+                    "description": "Mailbox username — the local-part before \"@\" — to operate on. 3–30 chars, lowercase alphanumeric and hyphens (the schema's pattern enforces this)."
+                  },
+                  "to": {
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "email",
+                      "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                    }
+                  },
+                  "cc": {
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "email",
+                      "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                    }
+                  },
+                  "subject": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 998,
+                    "description": "Email subject line. 1–998 chars (RFC 2822 single-line limit)."
+                  },
+                  "html": {
+                    "type": "string",
+                    "maxLength": 256000
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 256000
+                  },
+                  "replyTo": {
+                    "type": "string",
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  "attachments": {
+                    "maxItems": 5,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "content": {
+                          "type": "string",
+                          "maxLength": 5000000,
+                          "description": "Base64-encoded file bytes. Decoded limit ~3.75 MB per attachment."
+                        },
+                        "contentType": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255,
+                          "description": "MIME type of the attachment (e.g. \"application/pdf\", \"image/png\"). For calendar invites use \"text/calendar; method=REQUEST\"."
+                        },
+                        "filename": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255,
+                          "description": "Filename presented in the email (with extension, e.g. \"invoice.pdf\")."
+                        }
+                      },
+                      "required": [
+                        "content",
+                        "contentType",
+                        "filename"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "username",
+                  "to",
+                  "subject"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/inbox/topup": {
+      "post": {
+        "operationId": "inbox_topup",
+        "summary": "Top up a forwarding inbox for 30 days ($1)",
+        "tags": [
+          "Inbox"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "1"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "allOf": [
+                      {
+                        "pattern": "^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$"
+                      },
+                      {
+                        "pattern": "^(?!.*--)"
+                      }
+                    ],
+                    "description": "Mailbox username — the local-part before \"@\" — to operate on. 3–30 chars, lowercase alphanumeric and hyphens (the schema's pattern enforces this)."
+                  }
+                },
+                "required": [
+                  "username"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/inbox/topup/quarter": {
+      "post": {
+        "operationId": "inbox_topup_quarter",
+        "summary": "Top up a forwarding inbox for 90 days ($2.50, save 17%)",
+        "tags": [
+          "Inbox"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "2.5"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "allOf": [
+                      {
+                        "pattern": "^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$"
+                      },
+                      {
+                        "pattern": "^(?!.*--)"
+                      }
+                    ],
+                    "description": "Mailbox username — the local-part before \"@\" — to operate on. 3–30 chars, lowercase alphanumeric and hyphens (the schema's pattern enforces this)."
+                  }
+                },
+                "required": [
+                  "username"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/inbox/topup/year": {
+      "post": {
+        "operationId": "inbox_topup_year",
+        "summary": "Top up a forwarding inbox for 365 days ($8, save 34%)",
+        "tags": [
+          "Inbox"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "8"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "allOf": [
+                      {
+                        "pattern": "^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$"
+                      },
+                      {
+                        "pattern": "^(?!.*--)"
+                      }
+                    ],
+                    "description": "Mailbox username — the local-part before \"@\" — to operate on. 3–30 chars, lowercase alphanumeric and hyphens (the schema's pattern enforces this)."
+                  }
+                },
+                "required": [
+                  "username"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/inbox/messages": {
+      "post": {
+        "operationId": "inbox_messages",
+        "summary": "List messages in your inbox ($0.001)",
+        "tags": [
+          "Inbox"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "allOf": [
+                      {
+                        "pattern": "^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$"
+                      },
+                      {
+                        "pattern": "^(?!.*--)"
+                      }
+                    ],
+                    "description": "Mailbox username — the local-part before \"@\" — to operate on. 3–30 chars, lowercase alphanumeric and hyphens (the schema's pattern enforces this)."
+                  },
+                  "cursor": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "limit": {
+                    "default": 20,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  }
+                },
+                "required": [
+                  "username"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/subdomain/inbox/create": {
+      "post": {
+        "operationId": "subdomain_inbox_create",
+        "summary": "Create an inbox on your subdomain ($0.25)",
+        "tags": [
+          "Subdomain"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.25"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subdomain": {
+                    "type": "string",
+                    "allOf": [
+                      {
+                        "pattern": "^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$"
+                      },
+                      {
+                        "pattern": "^(?!.*--)"
+                      }
+                    ],
+                    "description": "Custom subdomain — the label before \"stableemail.dev\" — to operate on (e.g. \"yourname\" for yourname.stableemail.dev). 3–30 chars, lowercase alphanumeric and hyphens."
+                  },
+                  "localPart": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[a-z0-9][a-z0-9._+-]{0,62}[a-z0-9]$"
+                  },
+                  "forwardTo": {
+                    "type": "string",
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  }
+                },
+                "required": [
+                  "subdomain",
+                  "localPart"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/subdomain/inbox/messages": {
+      "post": {
+        "operationId": "subdomain_inbox_messages",
+        "summary": "List messages in a subdomain inbox ($0.001)",
+        "tags": [
+          "Subdomain"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subdomain": {
+                    "type": "string",
+                    "allOf": [
+                      {
+                        "pattern": "^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$"
+                      },
+                      {
+                        "pattern": "^(?!.*--)"
+                      }
+                    ],
+                    "description": "Custom subdomain — the label before \"stableemail.dev\" — to operate on (e.g. \"yourname\" for yourname.stableemail.dev). 3–30 chars, lowercase alphanumeric and hyphens."
+                  },
+                  "localPart": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[a-z0-9][a-z0-9._+-]{0,62}[a-z0-9]$"
+                  },
+                  "cursor": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "limit": {
+                    "default": 20,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  }
+                },
+                "required": [
+                  "subdomain",
+                  "localPart"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/subdomain/inbox/messages/read": {
+      "post": {
+        "operationId": "subdomain_inbox_messages_read",
+        "summary": "Read a single subdomain inbox message ($0.001)",
+        "tags": [
+          "Subdomain"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "messageId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Message identifier returned by /api/inbox/messages, /api/subdomain/inbox/messages, or any send/forward/reply response. Used to read, delete, or reference a specific message."
+                  }
+                },
+                "required": [
+                  "messageId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/subdomain/status": {
+      "get": {
+        "operationId": "subdomain_status",
+        "summary": "Check subdomain status (free)",
+        "tags": [
+          "Subdomain"
+        ],
+        "security": [
+          {
+            "siwx": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "subdomain",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "description": "Subdomain to check the registration/DNS status for (without the apex). 3–30 chars, lowercase alphanumeric and hyphens."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Authentication Required"
+          }
+        }
+      }
+    },
+    "/api/subdomain/signers": {
+      "post": {
+        "operationId": "subdomain_signers",
+        "summary": "Manage authorized signers for a subdomain (free)",
+        "tags": [
+          "Subdomain"
+        ],
+        "security": [
+          {
+            "siwx": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "add",
+                      "remove"
+                    ]
+                  },
+                  "subdomain": {
+                    "type": "string",
+                    "allOf": [
+                      {
+                        "pattern": "^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$"
+                      },
+                      {
+                        "pattern": "^(?!.*--)"
+                      }
+                    ],
+                    "description": "Custom subdomain — the label before \"stableemail.dev\" — to operate on (e.g. \"yourname\" for yourname.stableemail.dev). 3–30 chars, lowercase alphanumeric and hyphens."
+                  },
+                  "walletAddress": {
+                    "type": "string",
+                    "pattern": "^0x[a-fA-F0-9]{40}$"
+                  }
+                },
+                "required": [
+                  "action",
+                  "subdomain",
+                  "walletAddress"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Authentication Required"
+          }
+        }
+      }
+    },
+    "/api/subdomain/update": {
+      "post": {
+        "operationId": "subdomain_update",
+        "summary": "Update subdomain settings (free)",
+        "tags": [
+          "Subdomain"
+        ],
+        "security": [
+          {
+            "siwx": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subdomain": {
+                    "type": "string",
+                    "allOf": [
+                      {
+                        "pattern": "^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$"
+                      },
+                      {
+                        "pattern": "^(?!.*--)"
+                      }
+                    ],
+                    "description": "Custom subdomain — the label before \"stableemail.dev\" — to operate on (e.g. \"yourname\" for yourname.stableemail.dev). 3–30 chars, lowercase alphanumeric and hyphens."
+                  },
+                  "catchAllForwardTo": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "email",
+                        "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "subdomain"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Authentication Required"
+          }
+        }
+      }
+    },
+    "/api/inbox/status": {
+      "get": {
+        "operationId": "inbox_status",
+        "summary": "Check inbox status (free)",
+        "tags": [
+          "Inbox"
+        ],
+        "security": [
+          {
+            "siwx": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "username",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "description": "Mailbox username to check the status for (the local-part before \"@\"). 3–30 chars, lowercase alphanumeric and hyphens."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Authentication Required"
+          }
+        }
+      }
+    },
+    "/api/inbox/cancel": {
+      "post": {
+        "operationId": "inbox_cancel",
+        "summary": "Cancel inbox and get pro-rata refund (free)",
+        "tags": [
+          "Inbox"
+        ],
+        "security": [
+          {
+            "siwx": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "allOf": [
+                      {
+                        "pattern": "^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$"
+                      },
+                      {
+                        "pattern": "^(?!.*--)"
+                      }
+                    ],
+                    "description": "Mailbox username — the local-part before \"@\" — to operate on. 3–30 chars, lowercase alphanumeric and hyphens (the schema's pattern enforces this)."
+                  },
+                  "refundAddress": {
+                    "type": "string",
+                    "pattern": "^0x[a-fA-F0-9]{40}$"
+                  }
+                },
+                "required": [
+                  "username"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Authentication Required"
+          }
+        }
+      }
+    },
+    "/api/inbox/messages/delete": {
+      "post": {
+        "operationId": "inbox_messages_delete",
+        "summary": "Delete email message for the workspace",
+        "tags": [
+          "Inbox"
+        ],
+        "security": [
+          {
+            "siwx": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "messageId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Message identifier returned by /api/inbox/messages, /api/subdomain/inbox/messages, or any send/forward/reply response. Used to read, delete, or reference a specific message."
+                  }
+                },
+                "required": [
+                  "messageId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Authentication Required"
+          }
+        }
+      }
+    },
+    "/api/subdomain/inbox/list": {
+      "post": {
+        "operationId": "subdomain_inbox_list",
+        "summary": "List inboxes on a subdomain (free)",
+        "tags": [
+          "Subdomain"
+        ],
+        "security": [
+          {
+            "siwx": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subdomain": {
+                    "type": "string",
+                    "allOf": [
+                      {
+                        "pattern": "^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$"
+                      },
+                      {
+                        "pattern": "^(?!.*--)"
+                      }
+                    ],
+                    "description": "Custom subdomain — the label before \"stableemail.dev\" — to operate on (e.g. \"yourname\" for yourname.stableemail.dev). 3–30 chars, lowercase alphanumeric and hyphens."
+                  }
+                },
+                "required": [
+                  "subdomain"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Authentication Required"
+          }
+        }
+      }
+    },
+    "/api/subdomain/inbox/delete": {
+      "post": {
+        "operationId": "subdomain_inbox_delete",
+        "summary": "Delete an inbox on a subdomain (free)",
+        "tags": [
+          "Subdomain"
+        ],
+        "security": [
+          {
+            "siwx": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subdomain": {
+                    "type": "string",
+                    "allOf": [
+                      {
+                        "pattern": "^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$"
+                      },
+                      {
+                        "pattern": "^(?!.*--)"
+                      }
+                    ],
+                    "description": "Custom subdomain — the label before \"stableemail.dev\" — to operate on (e.g. \"yourname\" for yourname.stableemail.dev). 3–30 chars, lowercase alphanumeric and hyphens."
+                  },
+                  "localPart": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[a-z0-9][a-z0-9._+-]{0,62}[a-z0-9]$"
+                  }
+                },
+                "required": [
+                  "subdomain",
+                  "localPart"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Authentication Required"
+          }
+        }
+      }
+    },
+    "/api/subdomain/inbox/update": {
+      "post": {
+        "operationId": "subdomain_inbox_update",
+        "summary": "Update subdomain inbox settings (free)",
+        "tags": [
+          "Subdomain"
+        ],
+        "security": [
+          {
+            "siwx": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subdomain": {
+                    "type": "string",
+                    "allOf": [
+                      {
+                        "pattern": "^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$"
+                      },
+                      {
+                        "pattern": "^(?!.*--)"
+                      }
+                    ],
+                    "description": "Custom subdomain — the label before \"stableemail.dev\" — to operate on (e.g. \"yourname\" for yourname.stableemail.dev). 3–30 chars, lowercase alphanumeric and hyphens."
+                  },
+                  "localPart": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "pattern": "^[a-z0-9][a-z0-9._+-]{0,62}[a-z0-9]$"
+                  },
+                  "forwardTo": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "email",
+                        "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "retainMessages": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "subdomain",
+                  "localPart"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Authentication Required"
+          }
+        }
+      }
+    },
+    "/api/subdomain/inbox/messages/delete": {
+      "post": {
+        "operationId": "subdomain_inbox_messages_delete",
+        "summary": "Delete email message for the workspace",
+        "tags": [
+          "Subdomain"
+        ],
+        "security": [
+          {
+            "siwx": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "messageId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Message identifier returned by /api/inbox/messages, /api/subdomain/inbox/messages, or any send/forward/reply response. Used to read, delete, or reference a specific message."
+                  }
+                },
+                "required": [
+                  "messageId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Authentication Required"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "siwx": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "SIGN-IN-WITH-X"
+      }
+    }
+  }
+}

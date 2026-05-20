@@ -1,0 +1,2659 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "StableSocial",
+    "description": "Pay-per-request access to social media data from TikTok, Instagram, Facebook, and Reddit. No auth, no subscriptions.",
+    "version": "1.0.0",
+    "x-guidance": "# Social Media API\n\n> Pay-per-request social media data from 4 platforms. $0.06 per request (USDC on Base, Solana, or Tempo).\n\n## How It Works: Async Two-Step Flow\n\nEvery data request follows a two-step pattern: **pay to trigger**, then **poll with wallet auth**.\n\n### Step 1: POST to trigger (paid)\n\nSend a POST request to any data endpoint with a payment header. Each call costs $0.06 in USDC on Base, Solana, or Tempo.\n\nOn success you get back a **202 Accepted** with a signed JWT token:\n\n```json\n{ \"token\": \"eyJhbGciOiJIUzI1NiIs...\" }\n```\n\nThe token is your receipt. It encodes everything needed to retrieve your data. No API keys, no sessions.\n\n### Step 2: GET /api/jobs?token=... (free, SIWX wallet auth required)\n\nPoll this endpoint with your token. No payment required, but **SIWX wallet authentication is required** — the server verifies you are the same wallet that paid in Step 1. Only the paying wallet can poll for results.\n\n**Pending** — data is still being collected, poll again in a few seconds:\n```json\n{ \"status\": \"pending\", \"message\": \"Poll again in a few seconds.\" }\n```\n\n**Finished** — your data is ready:\n```json\n{ \"status\": \"finished\", \"data\": { ... } }\n```\n\n**Failed** — collection failed (you are NOT charged when the trigger itself fails):\n```json\n{ \"status\": \"failed\", \"error\": \"...\" }\n```\n\n### Complete Example\n\n```\n1. POST /api/tiktok/profile  {\"handle\": \"someuser\"}\n   → 202 {\"token\": \"eyJ...\"}\n\n2. GET /api/jobs?token=eyJ...  (with SIWX wallet auth)\n   → 200 {\"status\": \"pending\", \"message\": \"Poll again in a few seconds.\"}\n\n3. GET /api/jobs?token=eyJ...  (a few seconds later, with SIWX wallet auth)\n   → 200 {\"status\": \"finished\", \"data\": {\"username\": \"someuser\", ...}}\n```\n\n### Token Details\n\n- Tokens expire after **30 minutes** (jobs typically finish in 5–60 seconds)\n- Tokens are replayable — you can poll as many times as needed\n- If a token expires, make a new paid POST request\n- Invalid or expired tokens return **401**\n- Polling with the wrong wallet (not the one that paid) returns **403**\n\n## Data Freshness & Dependencies\n\nData is fetched from social platforms on demand. To get complete results for dependent resources, update the base resource first:\n\n**Example — fetching followers:**\n1. `POST /api/tiktok/profile` with `{\"handle\": \"username\"}` → get token, poll until finished\n2. `POST /api/tiktok/followers` with `{\"handle\": \"username\"}` → get token, poll until finished\n\n**Example — fetching post replies:**\n1. `POST /api/tiktok/profile` → trigger profile collection\n2. `POST /api/tiktok/posts` → trigger post collection\n3. `POST /api/tiktok/post-comments` with post ID → get comments\n\n### Pagination\n\nAfter your first job finishes and returns data, use the `cursor` from `page_info` to fetch subsequent pages. Each page requires a new paid POST (which returns a new token to poll).\n\nContinue paginating while `page_info.has_next_page` is `true`.\n\n## Endpoints\n\nAll endpoints are POST requests that accept JSON bodies. All return 202 with a job token. All cost $0.06 per call.\n\n| Endpoint | Auth | Description |\n|---|---|---|\n| **GET /api/jobs?token=...** | **SIWX (free)** | Poll job status and retrieve results. Only the paying wallet can poll. |\n\n### TikTok\n| Endpoint | Price | Description | Depends on |\n|---|---|---|---|\n| POST /api/tiktok/profile | $0.06 | Get user profile | — |\n| POST /api/tiktok/posts | $0.06 |Get user posts | profile |\n| POST /api/tiktok/post-comments | $0.06 |Get video comments | posts |\n| POST /api/tiktok/comment-replies | $0.06 |Get replies to a comment | post-comments |\n| POST /api/tiktok/followers | $0.06 |Get followers | profile |\n| POST /api/tiktok/following | $0.06 |Get following | profile |\n| POST /api/tiktok/search | $0.06 |Search posts by keyword | — |\n| POST /api/tiktok/search-hashtag | $0.06 |Search by hashtag | — |\n| POST /api/tiktok/search-profiles | $0.06 |Search user profiles | — |\n| POST /api/tiktok/search-music | $0.06 |Search posts by music/sound | — |\n\n### Instagram\n| Endpoint | Price | Description | Depends on |\n|---|---|---|---|\n| POST /api/instagram/profile | $0.06 | Get user profile | — |\n| POST /api/instagram/posts | $0.06 |Get user posts | profile |\n| POST /api/instagram/post-comments | $0.06 |Get post comments | posts |\n| POST /api/instagram/comment-replies | $0.06 |Get replies to a comment | post-comments |\n| POST /api/instagram/followers | $0.06 |Get followers | profile |\n| POST /api/instagram/following | $0.06 |Get following | profile |\n| POST /api/instagram/stories | $0.06 |Get user stories | profile |\n| POST /api/instagram/highlights | $0.06 |Get user highlights | profile |\n| POST /api/instagram/search | $0.06 |Search posts by keyword | — |\n| POST /api/instagram/search-tags | $0.06 |Search by tag | — |\n\n### Facebook\n| Endpoint | Price | Description | Depends on |\n|---|---|---|---|\n| POST /api/facebook/profile | $0.06 | Get page/user profile | — |\n| POST /api/facebook/posts | $0.06 |Get page/user posts | profile |\n| POST /api/facebook/post-comments | $0.06 |Get post comments | posts |\n| POST /api/facebook/comment-replies | $0.06 |Get replies to a comment | post-comments |\n| POST /api/facebook/followers | $0.06 |Get followers | profile |\n| POST /api/facebook/following | $0.06 |Get following | profile |\n| POST /api/facebook/search | $0.06 |Search posts by keyword | — |\n| POST /api/facebook/search-people | $0.06 |Search people profiles | — |\n| POST /api/facebook/search-pages | $0.06 |Search page profiles | — |\n| POST /api/facebook/search-groups | $0.06 |Search group profiles | — |\n\n### Reddit\n| Endpoint | Price | Description | Depends on |\n|---|---|---|---|\n| POST /api/reddit/post | $0.06 | Get post details | — |\n| POST /api/reddit/post-comments | $0.06 |Get post comments | post |\n| POST /api/reddit/comment | $0.06 | Get comment details | — |\n| POST /api/reddit/search | $0.06 |Search posts by keyword | — |\n| POST /api/reddit/search-profiles | $0.06 |Search user profiles | — |\n| POST /api/reddit/subreddit | $0.06 |Get subreddit posts | — |\n\n## Key Parameters\n\n- **handle** / **profile_id**: Username or ID of the target account\n- **max_page_size**: Results per page (default varies, max 100)\n- **max_followers**: How many followers to collect (default 500)\n- **max_posts** / **max_activities** / **max_results**: How many items to collect (default 50)\n- **cursor**: Pagination cursor from previous response\n- **order_by**: Sort order (date_desc, date_asc, id_desc)\n\n## Error Handling\n\n- **400** — Bad request (missing/invalid parameters)\n- **401** — Invalid or expired job token (on /api/jobs)\n- **402** — Payment required (payment header missing or invalid)\n- **403** — Wrong wallet (polling with a wallet that didn't pay)\n- **502** — Upstream data collection failed\n\nIf the POST trigger itself fails (bad params, entity not found), you get an immediate error and are NOT charged — payment only settles on 2xx responses.\n\n## Authentication\n\nNo API keys needed. Two mechanisms:\n\n- **Payment:** All POST trigger endpoints require payment (USDC on Base, Solana, or Tempo). Payment header is your authentication.\n- **SIWX (wallet auth):** The polling endpoint (`GET /api/jobs`) requires SIWX authentication to prove wallet ownership. Only the wallet that paid can poll for results.\n\n## OpenAPI Spec\n\nFull schema available at `/openapi.json`\n",
+    "guidance": "# Social Media API\n\n> Pay-per-request social media data from 4 platforms. $0.06 per request (USDC on Base, Solana, or Tempo).\n\n## How It Works: Async Two-Step Flow\n\nEvery data request follows a two-step pattern: **pay to trigger**, then **poll with wallet auth**.\n\n### Step 1: POST to trigger (paid)\n\nSend a POST request to any data endpoint with a payment header. Each call costs $0.06 in USDC on Base, Solana, or Tempo.\n\nOn success you get back a **202 Accepted** with a signed JWT token:\n\n```json\n{ \"token\": \"eyJhbGciOiJIUzI1NiIs...\" }\n```\n\nThe token is your receipt. It encodes everything needed to retrieve your data. No API keys, no sessions.\n\n### Step 2: GET /api/jobs?token=... (free, SIWX wallet auth required)\n\nPoll this endpoint with your token. No payment required, but **SIWX wallet authentication is required** — the server verifies you are the same wallet that paid in Step 1. Only the paying wallet can poll for results.\n\n**Pending** — data is still being collected, poll again in a few seconds:\n```json\n{ \"status\": \"pending\", \"message\": \"Poll again in a few seconds.\" }\n```\n\n**Finished** — your data is ready:\n```json\n{ \"status\": \"finished\", \"data\": { ... } }\n```\n\n**Failed** — collection failed (you are NOT charged when the trigger itself fails):\n```json\n{ \"status\": \"failed\", \"error\": \"...\" }\n```\n\n### Complete Example\n\n```\n1. POST /api/tiktok/profile  {\"handle\": \"someuser\"}\n   → 202 {\"token\": \"eyJ...\"}\n\n2. GET /api/jobs?token=eyJ...  (with SIWX wallet auth)\n   → 200 {\"status\": \"pending\", \"message\": \"Poll again in a few seconds.\"}\n\n3. GET /api/jobs?token=eyJ...  (a few seconds later, with SIWX wallet auth)\n   → 200 {\"status\": \"finished\", \"data\": {\"username\": \"someuser\", ...}}\n```\n\n### Token Details\n\n- Tokens expire after **30 minutes** (jobs typically finish in 5–60 seconds)\n- Tokens are replayable — you can poll as many times as needed\n- If a token expires, make a new paid POST request\n- Invalid or expired tokens return **401**\n- Polling with the wrong wallet (not the one that paid) returns **403**\n\n## Data Freshness & Dependencies\n\nData is fetched from social platforms on demand. To get complete results for dependent resources, update the base resource first:\n\n**Example — fetching followers:**\n1. `POST /api/tiktok/profile` with `{\"handle\": \"username\"}` → get token, poll until finished\n2. `POST /api/tiktok/followers` with `{\"handle\": \"username\"}` → get token, poll until finished\n\n**Example — fetching post replies:**\n1. `POST /api/tiktok/profile` → trigger profile collection\n2. `POST /api/tiktok/posts` → trigger post collection\n3. `POST /api/tiktok/post-comments` with post ID → get comments\n\n### Pagination\n\nAfter your first job finishes and returns data, use the `cursor` from `page_info` to fetch subsequent pages. Each page requires a new paid POST (which returns a new token to poll).\n\nContinue paginating while `page_info.has_next_page` is `true`.\n\n## Endpoints\n\nAll endpoints are POST requests that accept JSON bodies. All return 202 with a job token. All cost $0.06 per call.\n\n| Endpoint | Auth | Description |\n|---|---|---|\n| **GET /api/jobs?token=...** | **SIWX (free)** | Poll job status and retrieve results. Only the paying wallet can poll. |\n\n### TikTok\n| Endpoint | Price | Description | Depends on |\n|---|---|---|---|\n| POST /api/tiktok/profile | $0.06 | Get user profile | — |\n| POST /api/tiktok/posts | $0.06 |Get user posts | profile |\n| POST /api/tiktok/post-comments | $0.06 |Get video comments | posts |\n| POST /api/tiktok/comment-replies | $0.06 |Get replies to a comment | post-comments |\n| POST /api/tiktok/followers | $0.06 |Get followers | profile |\n| POST /api/tiktok/following | $0.06 |Get following | profile |\n| POST /api/tiktok/search | $0.06 |Search posts by keyword | — |\n| POST /api/tiktok/search-hashtag | $0.06 |Search by hashtag | — |\n| POST /api/tiktok/search-profiles | $0.06 |Search user profiles | — |\n| POST /api/tiktok/search-music | $0.06 |Search posts by music/sound | — |\n\n### Instagram\n| Endpoint | Price | Description | Depends on |\n|---|---|---|---|\n| POST /api/instagram/profile | $0.06 | Get user profile | — |\n| POST /api/instagram/posts | $0.06 |Get user posts | profile |\n| POST /api/instagram/post-comments | $0.06 |Get post comments | posts |\n| POST /api/instagram/comment-replies | $0.06 |Get replies to a comment | post-comments |\n| POST /api/instagram/followers | $0.06 |Get followers | profile |\n| POST /api/instagram/following | $0.06 |Get following | profile |\n| POST /api/instagram/stories | $0.06 |Get user stories | profile |\n| POST /api/instagram/highlights | $0.06 |Get user highlights | profile |\n| POST /api/instagram/search | $0.06 |Search posts by keyword | — |\n| POST /api/instagram/search-tags | $0.06 |Search by tag | — |\n\n### Facebook\n| Endpoint | Price | Description | Depends on |\n|---|---|---|---|\n| POST /api/facebook/profile | $0.06 | Get page/user profile | — |\n| POST /api/facebook/posts | $0.06 |Get page/user posts | profile |\n| POST /api/facebook/post-comments | $0.06 |Get post comments | posts |\n| POST /api/facebook/comment-replies | $0.06 |Get replies to a comment | post-comments |\n| POST /api/facebook/followers | $0.06 |Get followers | profile |\n| POST /api/facebook/following | $0.06 |Get following | profile |\n| POST /api/facebook/search | $0.06 |Search posts by keyword | — |\n| POST /api/facebook/search-people | $0.06 |Search people profiles | — |\n| POST /api/facebook/search-pages | $0.06 |Search page profiles | — |\n| POST /api/facebook/search-groups | $0.06 |Search group profiles | — |\n\n### Reddit\n| Endpoint | Price | Description | Depends on |\n|---|---|---|---|\n| POST /api/reddit/post | $0.06 | Get post details | — |\n| POST /api/reddit/post-comments | $0.06 |Get post comments | post |\n| POST /api/reddit/comment | $0.06 | Get comment details | — |\n| POST /api/reddit/search | $0.06 |Search posts by keyword | — |\n| POST /api/reddit/search-profiles | $0.06 |Search user profiles | — |\n| POST /api/reddit/subreddit | $0.06 |Get subreddit posts | — |\n\n## Key Parameters\n\n- **handle** / **profile_id**: Username or ID of the target account\n- **max_page_size**: Results per page (default varies, max 100)\n- **max_followers**: How many followers to collect (default 500)\n- **max_posts** / **max_activities** / **max_results**: How many items to collect (default 50)\n- **cursor**: Pagination cursor from previous response\n- **order_by**: Sort order (date_desc, date_asc, id_desc)\n\n## Error Handling\n\n- **400** — Bad request (missing/invalid parameters)\n- **401** — Invalid or expired job token (on /api/jobs)\n- **402** — Payment required (payment header missing or invalid)\n- **403** — Wrong wallet (polling with a wallet that didn't pay)\n- **502** — Upstream data collection failed\n\nIf the POST trigger itself fails (bad params, entity not found), you get an immediate error and are NOT charged — payment only settles on 2xx responses.\n\n## Authentication\n\nNo API keys needed. Two mechanisms:\n\n- **Payment:** All POST trigger endpoints require payment (USDC on Base, Solana, or Tempo). Payment header is your authentication.\n- **SIWX (wallet auth):** The polling endpoint (`GET /api/jobs`) requires SIWX authentication to prove wallet ownership. Only the wallet that paid can poll for results.\n\n## OpenAPI Spec\n\nFull schema available at `/openapi.json`\n"
+  },
+  "servers": [
+    {
+      "url": "https://stablesocial.dev"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Facebook"
+    },
+    {
+      "name": "Instagram"
+    },
+    {
+      "name": "Jobs"
+    },
+    {
+      "name": "Reddit"
+    },
+    {
+      "name": "Tiktok"
+    }
+  ],
+  "paths": {
+    "/api/instagram/followers": {
+      "post": {
+        "operationId": "instagram_followers",
+        "summary": "Instagram - Get user followers",
+        "tags": [
+          "Instagram"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "handle": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Instagram username"
+                  },
+                  "max_followers": {
+                    "default": 500,
+                    "description": "Maximum number of followers to collect",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "max_page_size": {
+                    "default": 100,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "handle"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/tiktok/profile": {
+      "post": {
+        "operationId": "tiktok_profile",
+        "summary": "TikTok - Get user profile information",
+        "tags": [
+          "Tiktok"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "handle": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "TikTok username (without @)"
+                  }
+                },
+                "required": [
+                  "handle"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/instagram/following": {
+      "post": {
+        "operationId": "instagram_following",
+        "summary": "Instagram - Get accounts user follows",
+        "tags": [
+          "Instagram"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "handle": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Instagram username"
+                  },
+                  "max_page_size": {
+                    "default": 100,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "handle"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/tiktok/posts": {
+      "post": {
+        "operationId": "tiktok_posts",
+        "summary": "TikTok - Get user posts/videos",
+        "tags": [
+          "Tiktok"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "handle": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "TikTok username"
+                  },
+                  "max_posts": {
+                    "default": 50,
+                    "description": "Maximum number of posts to collect",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 300
+                  },
+                  "order_by": {
+                    "description": "Sort order",
+                    "type": "string",
+                    "enum": [
+                      "date_desc",
+                      "date_asc",
+                      "id_desc"
+                    ]
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "handle"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/instagram/stories": {
+      "post": {
+        "operationId": "instagram_stories",
+        "summary": "Instagram - Get user stories",
+        "tags": [
+          "Instagram"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "handle": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Instagram username"
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "handle"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/tiktok/post-comments": {
+      "post": {
+        "operationId": "tiktok_post-comments",
+        "summary": "TikTok - Get comments on a post",
+        "tags": [
+          "Tiktok"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "profile_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "TikTok profile username"
+                  },
+                  "post_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "TikTok post/video ID"
+                  },
+                  "max_comments": {
+                    "default": 50,
+                    "description": "Maximum number of comments",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 300
+                  },
+                  "order_by": {
+                    "description": "Sort order",
+                    "type": "string",
+                    "enum": [
+                      "date_desc",
+                      "date_asc",
+                      "id_desc"
+                    ]
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "profile_id",
+                  "post_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/instagram/highlights": {
+      "post": {
+        "operationId": "instagram_highlights",
+        "summary": "Instagram - Get user highlights",
+        "tags": [
+          "Instagram"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "handle": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Instagram username"
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "handle"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/instagram/search": {
+      "post": {
+        "operationId": "instagram_search",
+        "summary": "Instagram - Search posts by keyword",
+        "tags": [
+          "Instagram"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "keywords": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Search keywords"
+                  },
+                  "max_posts": {
+                    "default": 50,
+                    "description": "Maximum posts to collect",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "keywords"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/instagram/search-tags": {
+      "post": {
+        "operationId": "instagram_search-tags",
+        "summary": "Instagram - Search posts by tag/hashtag",
+        "tags": [
+          "Instagram"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tag": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Instagram tag/hashtag (without #)"
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "tag"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/tiktok/followers": {
+      "post": {
+        "operationId": "tiktok_followers",
+        "summary": "TikTok - Get user followers",
+        "tags": [
+          "Tiktok"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "handle": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "TikTok username"
+                  },
+                  "max_followers": {
+                    "default": 500,
+                    "description": "Maximum number of followers to collect from TikTok",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "max_page_size": {
+                    "default": 100,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "handle"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/facebook/search-people": {
+      "post": {
+        "operationId": "facebook_search-people",
+        "summary": "Facebook - Search for people profiles",
+        "tags": [
+          "Facebook"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "keywords": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Search keywords"
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "keywords"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/facebook/posts": {
+      "post": {
+        "operationId": "facebook_posts",
+        "summary": "Facebook - Get user/page posts",
+        "tags": [
+          "Facebook"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "profile_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Facebook profile ID or username"
+                  },
+                  "max_posts": {
+                    "default": 50,
+                    "description": "Maximum number of posts to collect",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 300
+                  },
+                  "order_by": {
+                    "description": "Sort order",
+                    "type": "string",
+                    "enum": [
+                      "date_desc",
+                      "date_asc",
+                      "id_desc"
+                    ]
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "profile_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/facebook/post-comments": {
+      "post": {
+        "operationId": "facebook_post-comments",
+        "summary": "Facebook - Get comments on a post",
+        "tags": [
+          "Facebook"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "post_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Facebook post ID"
+                  },
+                  "max_comments": {
+                    "default": 50,
+                    "description": "Maximum number of comments",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 300
+                  },
+                  "order_by": {
+                    "description": "Sort order",
+                    "type": "string",
+                    "enum": [
+                      "date_desc",
+                      "date_asc",
+                      "id_desc"
+                    ]
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "post_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/facebook/comment-replies": {
+      "post": {
+        "operationId": "facebook_comment-replies",
+        "summary": "Facebook - Get replies to a comment",
+        "tags": [
+          "Facebook"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "post_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Facebook post ID (needed to trigger reply loading)"
+                  },
+                  "comment_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Facebook comment ID"
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "post_id",
+                  "comment_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/facebook/followers": {
+      "post": {
+        "operationId": "facebook_followers",
+        "summary": "Facebook - Get user/page followers",
+        "tags": [
+          "Facebook"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "profile_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Facebook profile ID or username"
+                  },
+                  "max_followers": {
+                    "default": 500,
+                    "description": "Maximum number of followers to collect",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "max_page_size": {
+                    "default": 100,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "profile_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/facebook/following": {
+      "post": {
+        "operationId": "facebook_following",
+        "summary": "Facebook - Get accounts user/page follows",
+        "tags": [
+          "Facebook"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "profile_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Facebook profile ID or username"
+                  },
+                  "max_page_size": {
+                    "default": 100,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "profile_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/facebook/search": {
+      "post": {
+        "operationId": "facebook_search",
+        "summary": "Facebook - Search posts by keyword",
+        "tags": [
+          "Facebook"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "keywords": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Search keywords"
+                  },
+                  "max_posts": {
+                    "default": 50,
+                    "description": "Maximum posts to collect",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "keywords"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/facebook/search-pages": {
+      "post": {
+        "operationId": "facebook_search-pages",
+        "summary": "Facebook - Search for page profiles",
+        "tags": [
+          "Facebook"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "keywords": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Search keywords"
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "keywords"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/facebook/search-groups": {
+      "post": {
+        "operationId": "facebook_search-groups",
+        "summary": "Facebook - Search for group profiles",
+        "tags": [
+          "Facebook"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "keywords": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Search keywords"
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "keywords"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/reddit/post": {
+      "post": {
+        "operationId": "reddit_post",
+        "summary": "Reddit - Get post details",
+        "tags": [
+          "Reddit"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "post_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Reddit post ID"
+                  }
+                },
+                "required": [
+                  "post_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/reddit/post-comments": {
+      "post": {
+        "operationId": "reddit_post-comments",
+        "summary": "Reddit - Get comments on a post",
+        "tags": [
+          "Reddit"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "post_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Reddit post ID"
+                  },
+                  "max_comments": {
+                    "default": 50,
+                    "description": "Maximum number of comments",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 300
+                  },
+                  "order_by": {
+                    "description": "Sort order",
+                    "type": "string",
+                    "enum": [
+                      "date_desc",
+                      "date_asc",
+                      "id_desc"
+                    ]
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "post_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/reddit/comment": {
+      "post": {
+        "operationId": "reddit_comment",
+        "summary": "Reddit - Get comment details",
+        "tags": [
+          "Reddit"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "comment_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Reddit comment ID"
+                  }
+                },
+                "required": [
+                  "comment_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/reddit/search": {
+      "post": {
+        "operationId": "reddit_search",
+        "summary": "Reddit - Search posts by keyword",
+        "tags": [
+          "Reddit"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "keywords": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Search keywords"
+                  },
+                  "max_posts": {
+                    "default": 50,
+                    "description": "Maximum posts to collect",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "keywords"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/reddit/search-profiles": {
+      "post": {
+        "operationId": "reddit_search-profiles",
+        "summary": "Reddit - Search user profiles by keyword",
+        "tags": [
+          "Reddit"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "keywords": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Search keywords"
+                  },
+                  "max_profiles": {
+                    "default": 50,
+                    "description": "Maximum profiles to collect",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "keywords"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/reddit/subreddit": {
+      "post": {
+        "operationId": "reddit_subreddit",
+        "summary": "Reddit - Get subreddit posts",
+        "tags": [
+          "Reddit"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Subreddit name (without r/)"
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/jobs": {
+      "get": {
+        "operationId": "jobs",
+        "summary": "Poll job status and retrieve results",
+        "tags": [
+          "Jobs"
+        ],
+        "security": [
+          {
+            "siwx": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Signed JWT job token from a 202 response"
+            },
+            "required": true,
+            "description": "Signed JWT job token from a 202 response"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Authentication Required"
+          }
+        }
+      }
+    },
+    "/api/tiktok/comment-replies": {
+      "post": {
+        "operationId": "tiktok_comment-replies",
+        "summary": "TikTok - Get replies to a comment",
+        "tags": [
+          "Tiktok"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "profile_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "TikTok profile username"
+                  },
+                  "post_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "TikTok post/video ID"
+                  },
+                  "comment_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "TikTok comment ID"
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "profile_id",
+                  "post_id",
+                  "comment_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/tiktok/following": {
+      "post": {
+        "operationId": "tiktok_following",
+        "summary": "TikTok - Get accounts user follows",
+        "tags": [
+          "Tiktok"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "handle": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "TikTok username"
+                  },
+                  "max_page_size": {
+                    "default": 100,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "handle"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/tiktok/search": {
+      "post": {
+        "operationId": "tiktok_search",
+        "summary": "TikTok - Search posts by keyword",
+        "tags": [
+          "Tiktok"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "keywords": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Search keywords"
+                  },
+                  "sort_type": {
+                    "description": "Sort type",
+                    "type": "string",
+                    "enum": [
+                      "relevance",
+                      "like_count",
+                      "date_posted"
+                    ]
+                  },
+                  "date_posted": {
+                    "description": "Date filter",
+                    "type": "string",
+                    "enum": [
+                      "all",
+                      "past_day",
+                      "past_week",
+                      "past_month",
+                      "past_half_year"
+                    ]
+                  },
+                  "max_posts": {
+                    "default": 50,
+                    "description": "Maximum posts to collect",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "keywords"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/tiktok/search-hashtag": {
+      "post": {
+        "operationId": "tiktok_search-hashtag",
+        "summary": "TikTok - Search posts by hashtag",
+        "tags": [
+          "Tiktok"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "hashtag": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Hashtag to search (without #)"
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "hashtag"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/tiktok/search-profiles": {
+      "post": {
+        "operationId": "tiktok_search-profiles",
+        "summary": "TikTok - Search user profiles by keyword",
+        "tags": [
+          "Tiktok"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "keywords": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Search keywords"
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "keywords"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/tiktok/search-music": {
+      "post": {
+        "operationId": "tiktok_search-music",
+        "summary": "TikTok - Search posts by music/sound",
+        "tags": [
+          "Tiktok"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "music_title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Music/sound title"
+                  },
+                  "music_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Music/sound ID"
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "music_title",
+                  "music_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/instagram/profile": {
+      "post": {
+        "operationId": "instagram_profile",
+        "summary": "Instagram - Get user profile information",
+        "tags": [
+          "Instagram"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "handle": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Instagram username (without @)"
+                  }
+                },
+                "required": [
+                  "handle"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/instagram/posts": {
+      "post": {
+        "operationId": "instagram_posts",
+        "summary": "Instagram - Get user posts",
+        "tags": [
+          "Instagram"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "handle": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Instagram username"
+                  },
+                  "max_posts": {
+                    "default": 50,
+                    "description": "Maximum number of posts to collect",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 300
+                  },
+                  "order_by": {
+                    "description": "Sort order",
+                    "type": "string",
+                    "enum": [
+                      "date_desc",
+                      "date_asc",
+                      "id_desc"
+                    ]
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "handle"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/instagram/post-comments": {
+      "post": {
+        "operationId": "instagram_post-comments",
+        "summary": "Instagram - Get comments on a post",
+        "tags": [
+          "Instagram"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "post_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Instagram post ID or shortcode"
+                  },
+                  "max_comments": {
+                    "default": 50,
+                    "description": "Maximum number of comments",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 300
+                  },
+                  "order_by": {
+                    "description": "Sort order",
+                    "type": "string",
+                    "enum": [
+                      "date_desc",
+                      "date_asc",
+                      "id_desc"
+                    ]
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "post_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/instagram/comment-replies": {
+      "post": {
+        "operationId": "instagram_comment-replies",
+        "summary": "Instagram - Get replies to a comment",
+        "tags": [
+          "Instagram"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "post_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Instagram post ID (needed to trigger reply loading)"
+                  },
+                  "comment_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Instagram comment ID"
+                  },
+                  "max_page_size": {
+                    "default": 50,
+                    "description": "Results per page",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "cursor": {
+                    "description": "Pagination cursor",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "post_id",
+                  "comment_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/facebook/profile": {
+      "post": {
+        "operationId": "facebook_profile",
+        "summary": "Facebook - Get user/page profile information",
+        "tags": [
+          "Facebook"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.060000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20c000000000000000000000b9537d11c60e8b50"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "profile_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Facebook profile ID or username"
+                  }
+                },
+                "required": [
+                  "profile_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "siwx": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "SIGN-IN-WITH-X"
+      }
+    }
+  }
+}

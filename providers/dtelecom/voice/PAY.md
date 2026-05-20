@@ -6,7 +6,7 @@ use_case: "Use for realtime AI voice conversations, WebRTC calling, speech-to-te
 category: ai_ml
 service_url: https://x402.dtelecom.org
 openapi:
-  url: https://x402.dtelecom.org/openapi.json
+  path: openapi.json
 ---
 
 Pay-per-use communication APIs for AI agents. WebRTC for real-time voice,

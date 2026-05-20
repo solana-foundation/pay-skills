@@ -6,7 +6,7 @@ category: finance
 use_case: "Use for crypto prices, market charts, DeFi analytics, TVL and yield research, DEX pool data, wallet token balances, Ethereum transfers, contract metadata, gas estimates, bridge volume, stablecoin supply, treasury holdings, and blockchain monitoring."
 service_url: https://stablecrypto.dev
 openapi:
-  url: https://stablecrypto.dev/openapi.json
+  path: openapi.json
 ---
 
 Unified crypto market data gateway aggregating four data sources: CoinGecko for market prices and on-chain DEX pool data, DefiLlama for DeFi protocol analytics and TVL tracking, Alchemy for Ethereum token balances and transaction simulation, and Etherscan for on-chain account and contract data. All endpoints are POST and priced at $0.01 per request.

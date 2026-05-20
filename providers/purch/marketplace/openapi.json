@@ -1,0 +1,1735 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Purch",
+    "version": "1.0.0",
+    "description": "Search and buy products on Amazon and Shopify, and skills, knowledge or personas in Purch Vault. All endpoints are payable via the x402 protocol (USDC on Solana).",
+    "guidance": "Purch lets AI agents search for products and purchase them using x402 micropayments (USDC on Solana).\n\n## Quick Start\n1. Search for products: GET /x402/search?q=headphones\n2. Or use natural language: POST /x402/shop with {\"message\": \"comfortable running shoes under $150\"}\n3. Buy a product: POST /x402/buy with the ASIN or product URL, shipping address, and email\n4. Browse digital goods: GET /x402/vault/search\n5. Buy digital goods: POST /x402/vault/buy with the item slug\n\n## Payment\nAll endpoints require x402 payment. On first request you'll receive a 402 response with payment details.\nYour x402 client handles payment automatically — no wallet setup or transaction signing needed.\n\n## Pricing\n- Search endpoints (GET /x402/search, GET /x402/vault/search): $0.01 per call\n- AI shopping assistant (POST /x402/shop): $0.10 per call\n- Product purchases (POST /x402/buy): dynamic — equals the product total (including tax/shipping)\n- Vault purchases (POST /x402/vault/buy): dynamic — equals the item price in USDC\n\n## Product Identification\n- Amazon products: use \"asin\" (e.g. \"B0CXYZ1234\") or \"productUrl\" (e.g. \"https://amazon.com/dp/B0CXYZ1234\")\n- Shopify products: use \"productUrl\" + \"variantId\"\n- Vault items: use \"slug\" (e.g. \"marketing-automation-pro\")",
+    "contact": {
+      "name": "Purch Support",
+      "url": "https://purch.xyz"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.purch.xyz",
+      "description": "Production"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Search",
+      "description": "Product search endpoints"
+    },
+    {
+      "name": "Shop",
+      "description": "AI-powered shopping assistant"
+    },
+    {
+      "name": "Buy",
+      "description": "Checkout and order management"
+    },
+    {
+      "name": "Vault",
+      "description": "AI skills, knowledge bases, and personas marketplace"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "Product": {
+        "type": "object",
+        "properties": {
+          "asin": {
+            "type": "string",
+            "example": "B0CXYZ1234"
+          },
+          "title": {
+            "type": "string",
+            "example": "Wireless Bluetooth Headphones"
+          },
+          "price": {
+            "type": "number",
+            "nullable": true,
+            "example": 79.99
+          },
+          "currency": {
+            "type": "string",
+            "example": "USD"
+          },
+          "rating": {
+            "type": "number",
+            "nullable": true,
+            "example": 4.5
+          },
+          "reviewCount": {
+            "type": "number",
+            "nullable": true,
+            "example": 1250
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true,
+            "format": "uri",
+            "example": "https://m.media-amazon.com/images/I/example.jpg"
+          },
+          "productUrl": {
+            "type": "string",
+            "nullable": true,
+            "format": "uri",
+            "example": "https://amazon.com/dp/B0CXYZ1234"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "amazon",
+              "shopify"
+            ],
+            "example": "amazon"
+          }
+        },
+        "required": [
+          "asin",
+          "title",
+          "price",
+          "currency",
+          "rating",
+          "reviewCount",
+          "imageUrl",
+          "productUrl",
+          "source"
+        ]
+      },
+      "SearchResponse": {
+        "type": "object",
+        "properties": {
+          "products": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Product"
+            }
+          },
+          "totalResults": {
+            "type": "number",
+            "example": 150
+          },
+          "page": {
+            "type": "number",
+            "example": 1
+          },
+          "hasMore": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "products",
+          "totalResults",
+          "page",
+          "hasMore"
+        ]
+      },
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "VALIDATION_ERROR"
+          },
+          "message": {
+            "type": "string",
+            "example": "Invalid request parameters"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            }
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ]
+      },
+      "PaymentRequired": {
+        "type": "object",
+        "properties": {
+          "x402Version": {
+            "type": "number",
+            "example": 1
+          },
+          "error": {
+            "type": "string",
+            "example": "X-PAYMENT header is required"
+          },
+          "accepts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "scheme": {
+                  "type": "string",
+                  "example": "exact"
+                },
+                "network": {
+                  "type": "string",
+                  "example": "solana"
+                },
+                "maxAmountRequired": {
+                  "type": "string",
+                  "example": "100000"
+                },
+                "resource": {
+                  "type": "string",
+                  "example": "https://api.purch.xyz/shop"
+                },
+                "description": {
+                  "type": "string",
+                  "example": "AI-powered product search"
+                },
+                "mimeType": {
+                  "type": "string",
+                  "example": "application/json"
+                },
+                "maxTimeoutSeconds": {
+                  "type": "number",
+                  "example": 60
+                },
+                "asset": {
+                  "type": "string",
+                  "example": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                },
+                "payTo": {
+                  "type": "string",
+                  "example": "DSfjMYRmxsJRxkygD4Z6yhg5XLGyFiNkkZpjFNX2ZEEC"
+                },
+                "extra": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                },
+                "outputSchema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "nullable": true
+                  }
+                }
+              },
+              "required": [
+                "scheme",
+                "network",
+                "maxAmountRequired",
+                "resource",
+                "description",
+                "mimeType",
+                "maxTimeoutSeconds",
+                "asset",
+                "payTo"
+              ]
+            }
+          }
+        },
+        "required": [
+          "x402Version",
+          "error",
+          "accepts"
+        ]
+      },
+      "ShopResponse": {
+        "type": "object",
+        "properties": {
+          "reply": {
+            "type": "string",
+            "description": "AI assistant response message",
+            "example": "I found some great running shoes for you! Here are my top recommendations based on comfort and arch support..."
+          },
+          "products": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Product"
+            },
+            "description": "Recommended products based on the conversation"
+          }
+        },
+        "required": [
+          "reply",
+          "products"
+        ]
+      },
+      "ShopRequest": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "description": "Natural language shopping request",
+            "example": "I need comfortable running shoes under $150 with good arch support"
+          },
+          "context": {
+            "type": "object",
+            "properties": {
+              "priceRange": {
+                "type": "object",
+                "properties": {
+                  "min": {
+                    "type": "number"
+                  },
+                  "max": {
+                    "type": "number"
+                  }
+                }
+              },
+              "preferences": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Style or feature preferences",
+                "example": [
+                  "eco-friendly",
+                  "minimalist"
+                ]
+              }
+            },
+            "description": "Optional context to guide the AI assistant"
+          }
+        },
+        "required": [
+          "message"
+        ]
+      },
+      "X402BuyResponse": {
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          },
+          "status": {
+            "type": "string",
+            "description": "Order status after payment",
+            "example": "processing"
+          },
+          "product": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "imageUrl": {
+                "type": "string",
+                "format": "uri"
+              },
+              "price": {
+                "type": "object",
+                "properties": {
+                  "amount": {
+                    "type": "string"
+                  },
+                  "currency": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "amount",
+                  "currency"
+                ]
+              }
+            }
+          },
+          "totalPrice": {
+            "type": "object",
+            "properties": {
+              "amount": {
+                "type": "string",
+                "example": "84.99"
+              },
+              "currency": {
+                "type": "string",
+                "example": "USD"
+              }
+            },
+            "required": [
+              "amount",
+              "currency"
+            ]
+          }
+        },
+        "required": [
+          "orderId",
+          "status",
+          "product",
+          "totalPrice"
+        ]
+      },
+      "ShippingAddress": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "example": "John Doe"
+          },
+          "line1": {
+            "type": "string",
+            "minLength": 1,
+            "example": "123 Main Street"
+          },
+          "line2": {
+            "type": "string",
+            "example": "Apt 4B"
+          },
+          "city": {
+            "type": "string",
+            "minLength": 1,
+            "example": "San Francisco"
+          },
+          "state": {
+            "type": "string",
+            "minLength": 1,
+            "example": "CA"
+          },
+          "postalCode": {
+            "type": "string",
+            "minLength": 1,
+            "example": "94102"
+          },
+          "country": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 2,
+            "description": "ISO 3166-1 alpha-2",
+            "example": "US"
+          },
+          "phone": {
+            "type": "string",
+            "example": "+1-555-123-4567"
+          }
+        },
+        "required": [
+          "name",
+          "line1",
+          "city",
+          "state",
+          "postalCode",
+          "country"
+        ]
+      },
+      "X402BuyRequest": {
+        "type": "object",
+        "properties": {
+          "productUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Product URL. For Amazon: https://amazon.com/dp/ASIN. For Shopify: https://store.com/products/item-name (requires variantId)",
+            "example": "https://amazon.com/dp/B0CXYZ1234"
+          },
+          "asin": {
+            "type": "string",
+            "description": "Amazon ASIN (10-character code). Use this OR productUrl for Amazon products",
+            "example": "B0CXYZ1234"
+          },
+          "shippingAddress": {
+            "$ref": "#/components/schemas/ShippingAddress",
+            "description": "Recipient shipping address for the order. Provide all postal fields per the inner schema (name, street, city, region, postal code, country)."
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Email for order confirmation and tracking",
+            "example": "john@example.com"
+          },
+          "variantId": {
+            "type": "string",
+            "description": "Required for Shopify products. The specific variant ID from the product",
+            "example": "41913945718867"
+          }
+        },
+        "required": [
+          "shippingAddress",
+          "email"
+        ]
+      },
+      "VaultCreator": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "John Doe"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "human",
+              "agent"
+            ],
+            "example": "human"
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true,
+            "format": "uri",
+            "example": "https://example.com/avatar.jpg"
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ]
+      },
+      "VaultBoost": {
+        "type": "object",
+        "nullable": true,
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "expiresAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "active",
+          "expiresAt"
+        ]
+      },
+      "VaultItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          },
+          "productType": {
+            "type": "string",
+            "enum": [
+              "skill",
+              "knowledge",
+              "persona"
+            ],
+            "example": "skill"
+          },
+          "slug": {
+            "type": "string",
+            "example": "marketing-automation-pro"
+          },
+          "title": {
+            "type": "string",
+            "example": "Marketing Automation Pro"
+          },
+          "cardDescription": {
+            "type": "string",
+            "example": "Automate your entire marketing workflow with AI-powered campaigns"
+          },
+          "price": {
+            "type": "number",
+            "description": "Price in USDC (whole units)",
+            "example": 5
+          },
+          "category": {
+            "type": "string",
+            "example": "marketing"
+          },
+          "coverImageUrl": {
+            "type": "string",
+            "nullable": true,
+            "format": "uri",
+            "example": "https://example.com/cover.jpg"
+          },
+          "creator": {
+            "$ref": "#/components/schemas/VaultCreator"
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2025-01-15T10:30:00.000Z"
+          },
+          "downloads": {
+            "type": "number",
+            "example": 150
+          },
+          "featured": {
+            "type": "boolean",
+            "example": false
+          },
+          "boost": {
+            "$ref": "#/components/schemas/VaultBoost"
+          }
+        },
+        "required": [
+          "id",
+          "productType",
+          "slug",
+          "title",
+          "cardDescription",
+          "price",
+          "category",
+          "coverImageUrl",
+          "creator",
+          "createdAt",
+          "downloads",
+          "featured"
+        ]
+      },
+      "VaultSearchResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VaultItem"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "Cursor for next page, null if no more results",
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ]
+      },
+      "X402VaultBuyResponse": {
+        "type": "object",
+        "properties": {
+          "purchaseId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Purchase ID — use this for the download endpoint",
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          },
+          "downloadToken": {
+            "type": "string",
+            "description": "Secret token for downloading the file",
+            "example": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "item": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "productType": {
+                "type": "string",
+                "enum": [
+                  "skill",
+                  "knowledge",
+                  "persona"
+                ]
+              },
+              "price": {
+                "type": "number",
+                "description": "Price in USDC (whole units)"
+              },
+              "coverImageUrl": {
+                "type": "string",
+                "nullable": true,
+                "format": "uri"
+              }
+            },
+            "required": [
+              "slug",
+              "title",
+              "productType",
+              "price",
+              "coverImageUrl"
+            ]
+          }
+        },
+        "required": [
+          "purchaseId",
+          "downloadToken",
+          "item"
+        ]
+      },
+      "X402VaultBuyRequest": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Vault item slug to purchase",
+            "example": "marketing-automation-pro"
+          },
+          "walletAddress": {
+            "type": "string",
+            "description": "Solana wallet address (base58) for purchase record",
+            "example": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Email for purchase confirmation and download access",
+            "example": "agent@example.com"
+          }
+        },
+        "required": [
+          "slug",
+          "walletAddress",
+          "email"
+        ]
+      }
+    },
+    "parameters": {},
+    "securitySchemes": {
+      "x402": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "PAYMENT-SIGNATURE"
+      }
+    }
+  },
+  "paths": {
+    "/x402/search": {
+      "get": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "Search products (x402 search)",
+        "description": "Search for products using structured filters. Returns paginated results from Amazon and Shopify.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Search query",
+              "example": "wireless headphones"
+            },
+            "required": true,
+            "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "exclusiveMinimum": true,
+              "description": "Minimum price filter",
+              "example": 20
+            },
+            "required": false,
+            "name": "priceMin",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "exclusiveMinimum": true,
+              "description": "Maximum price filter",
+              "example": 200
+            },
+            "required": false,
+            "name": "priceMax",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Filter by brand",
+              "example": "Sony"
+            },
+            "required": false,
+            "name": "brand",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "exclusiveMinimum": true,
+              "default": 1,
+              "description": "Page number for pagination",
+              "example": 1
+            },
+            "required": false,
+            "name": "page",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequired"
+                }
+              }
+            }
+          }
+        },
+        "x-agentcash-auth": {
+          "mode": "paid"
+        },
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "pricingMode": "fixed",
+          "price": "0.01"
+        },
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "extensions": {
+          "bazaar": {
+            "schema": {
+              "properties": {
+                "input": {
+                  "type": "object",
+                  "properties": {
+                    "q": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Search query",
+                      "example": "wireless headphones"
+                    },
+                    "priceMin": {
+                      "type": "number",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "description": "Minimum price filter",
+                      "example": 20
+                    },
+                    "priceMax": {
+                      "type": "number",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "description": "Maximum price filter",
+                      "example": 200
+                    },
+                    "brand": {
+                      "type": "string",
+                      "description": "Filter by brand",
+                      "example": "Sony"
+                    },
+                    "page": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "default": 1,
+                      "description": "Page number for pagination",
+                      "example": 1
+                    }
+                  },
+                  "required": [
+                    "q"
+                  ]
+                },
+                "output": {
+                  "type": "object",
+                  "properties": {
+                    "products": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Product"
+                      }
+                    },
+                    "totalResults": {
+                      "type": "number",
+                      "example": 150
+                    },
+                    "page": {
+                      "type": "number",
+                      "example": 1
+                    },
+                    "hasMore": {
+                      "type": "boolean",
+                      "example": true
+                    }
+                  },
+                  "required": [
+                    "products",
+                    "totalResults",
+                    "page",
+                    "hasMore"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/x402/shop": {
+      "post": {
+        "tags": [
+          "Shop"
+        ],
+        "summary": "AI shopping assistant (x402 shop)",
+        "description": "Natural language product search powered by AI. Describe what you're looking for and get personalized recommendations.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShopRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AI response with product recommendations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShopResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequired"
+                }
+              }
+            }
+          }
+        },
+        "x-agentcash-auth": {
+          "mode": "paid"
+        },
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "pricingMode": "fixed",
+          "price": "0.10"
+        },
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "extensions": {
+          "bazaar": {
+            "schema": {
+              "properties": {
+                "input": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1000,
+                      "description": "Natural language shopping request",
+                      "example": "I need comfortable running shoes under $150 with good arch support"
+                    },
+                    "context": {
+                      "type": "object",
+                      "properties": {
+                        "priceRange": {
+                          "type": "object",
+                          "properties": {
+                            "min": {
+                              "type": "number"
+                            },
+                            "max": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "preferences": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Style or feature preferences",
+                          "example": [
+                            "eco-friendly",
+                            "minimalist"
+                          ]
+                        }
+                      },
+                      "description": "Optional context to guide the AI assistant"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                },
+                "output": {
+                  "type": "object",
+                  "properties": {
+                    "reply": {
+                      "type": "string",
+                      "description": "AI assistant response message",
+                      "example": "I found some great running shoes for you! Here are my top recommendations based on comfort and arch support..."
+                    },
+                    "products": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Product"
+                      },
+                      "description": "Recommended products based on the conversation"
+                    }
+                  },
+                  "required": [
+                    "reply",
+                    "products"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/x402/buy": {
+      "post": {
+        "tags": [
+          "Buy"
+        ],
+        "summary": "Purchase a product (x402 dynamic pricing)",
+        "description": "Purchase a product with x402 dynamic pricing. The x402 payment amount equals the product's total price (including tax and shipping).\n\n## How it works\n1. Send your request — you'll receive a 402 response with the exact product price\n2. Your x402 client handles payment automatically (USDC on Solana)\n3. On successful payment, the order is fulfilled and you receive confirmation\n\n## Amazon Products\nUse **either**:\n- `asin` - The Amazon ASIN (e.g., `B0CXYZ1234`)\n- `productUrl` - Amazon product URL (e.g., `https://amazon.com/dp/B0CXYZ1234`)\n\n## Shopify Products\nUse **both**:\n- `productUrl` - Shopify product URL (e.g., `https://store.com/products/item-name`)\n- `variantId` - The specific variant ID (e.g., `41913945718867`)\n\n## Response\nReturns order confirmation with status and product details. No transaction signing needed.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/X402BuyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Order created and paid successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402BuyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required — price equals the product total",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequired"
+                }
+              }
+            }
+          }
+        },
+        "x-agentcash-auth": {
+          "mode": "paid"
+        },
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "pricingMode": "quote"
+        },
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "extensions": {
+          "bazaar": {
+            "schema": {
+              "properties": {
+                "input": {
+                  "type": "object",
+                  "properties": {
+                    "productUrl": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "Product URL. For Amazon: https://amazon.com/dp/ASIN. For Shopify: https://store.com/products/item-name (requires variantId)",
+                      "example": "https://amazon.com/dp/B0CXYZ1234"
+                    },
+                    "asin": {
+                      "type": "string",
+                      "description": "Amazon ASIN (10-character code). Use this OR productUrl for Amazon products",
+                      "example": "B0CXYZ1234"
+                    },
+                    "shippingAddress": {
+                      "$ref": "#/components/schemas/ShippingAddress"
+                    },
+                    "email": {
+                      "type": "string",
+                      "format": "email",
+                      "description": "Email for order confirmation and tracking",
+                      "example": "john@example.com"
+                    },
+                    "variantId": {
+                      "type": "string",
+                      "description": "Required for Shopify products. The specific variant ID from the product",
+                      "example": "41913945718867"
+                    }
+                  },
+                  "required": [
+                    "shippingAddress",
+                    "email"
+                  ]
+                },
+                "output": {
+                  "type": "object",
+                  "properties": {
+                    "orderId": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    },
+                    "status": {
+                      "type": "string",
+                      "description": "Order status after payment",
+                      "example": "processing"
+                    },
+                    "product": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string"
+                        },
+                        "imageUrl": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "price": {
+                          "type": "object",
+                          "properties": {
+                            "amount": {
+                              "type": "string"
+                            },
+                            "currency": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "amount",
+                            "currency"
+                          ]
+                        }
+                      }
+                    },
+                    "totalPrice": {
+                      "type": "object",
+                      "properties": {
+                        "amount": {
+                          "type": "string",
+                          "example": "84.99"
+                        },
+                        "currency": {
+                          "type": "string",
+                          "example": "USD"
+                        }
+                      },
+                      "required": [
+                        "amount",
+                        "currency"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "orderId",
+                    "status",
+                    "product",
+                    "totalPrice"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/x402/vault/search": {
+      "get": {
+        "tags": [
+          "Vault"
+        ],
+        "summary": "Search vault items (x402 vault search)",
+        "description": "Search for AI skills, knowledge bases, and personas in the Purch Vault. Filter by category, product type, and price range. Returns cursor-paginated results.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Search query",
+              "example": "marketing automation"
+            },
+            "required": false,
+            "name": "q",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "marketing",
+                "development",
+                "automation",
+                "career",
+                "ios",
+                "productivity"
+              ],
+              "description": "Filter by category",
+              "example": "marketing"
+            },
+            "required": false,
+            "name": "category",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "skill",
+                "knowledge",
+                "persona"
+              ],
+              "description": "Filter by product type",
+              "example": "skill"
+            },
+            "required": false,
+            "name": "productType",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0,
+              "description": "Minimum price in USDC (whole units)",
+              "example": 0
+            },
+            "required": false,
+            "name": "minPrice",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0,
+              "description": "Maximum price in USDC (whole units)",
+              "example": 100
+            },
+            "required": false,
+            "name": "maxPrice",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Pagination cursor (UUID of last item)"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 30,
+              "description": "Number of items per page (max 100)",
+              "example": 30
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Vault search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaultSearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequired"
+                }
+              }
+            }
+          }
+        },
+        "x-agentcash-auth": {
+          "mode": "paid"
+        },
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "pricingMode": "fixed",
+          "price": "0.01"
+        },
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "extensions": {
+          "bazaar": {
+            "schema": {
+              "properties": {
+                "input": {
+                  "type": "object",
+                  "properties": {
+                    "q": {
+                      "type": "string",
+                      "description": "Search query",
+                      "example": "marketing automation"
+                    },
+                    "category": {
+                      "type": "string",
+                      "enum": [
+                        "marketing",
+                        "development",
+                        "automation",
+                        "career",
+                        "ios",
+                        "productivity"
+                      ],
+                      "description": "Filter by category",
+                      "example": "marketing"
+                    },
+                    "productType": {
+                      "type": "string",
+                      "enum": [
+                        "skill",
+                        "knowledge",
+                        "persona"
+                      ],
+                      "description": "Filter by product type",
+                      "example": "skill"
+                    },
+                    "minPrice": {
+                      "type": "integer",
+                      "nullable": true,
+                      "minimum": 0,
+                      "description": "Minimum price in USDC (whole units)",
+                      "example": 0
+                    },
+                    "maxPrice": {
+                      "type": "integer",
+                      "nullable": true,
+                      "minimum": 0,
+                      "description": "Maximum price in USDC (whole units)",
+                      "example": 100
+                    },
+                    "cursor": {
+                      "type": "string",
+                      "format": "uuid",
+                      "description": "Pagination cursor (UUID of last item)"
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 100,
+                      "default": 30,
+                      "description": "Number of items per page (max 100)",
+                      "example": 30
+                    }
+                  }
+                },
+                "output": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/VaultItem"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "nullable": true,
+                      "format": "uuid",
+                      "description": "Cursor for next page, null if no more results",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/x402/vault/buy": {
+      "post": {
+        "tags": [
+          "Vault"
+        ],
+        "summary": "Buy a vault item (x402 dynamic pricing)",
+        "description": "Purchase a vault item with x402 dynamic pricing. The x402 payment amount equals the item's price in USDC.\n\n## How it works\n1. Send your request — you'll receive a 402 response with the item price\n2. Your x402 client handles payment automatically (USDC on Solana)\n3. On successful payment, receive `purchaseId` and `downloadToken`\n4. Download via `GET /x402/vault/download/:purchaseId?downloadToken=...` (no txSignature needed)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/X402VaultBuyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Purchase complete — use purchaseId and downloadToken to download",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402VaultBuyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required — price equals the item price in USDC",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequired"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Item not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "x-agentcash-auth": {
+          "mode": "paid"
+        },
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "pricingMode": "quote"
+        },
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "extensions": {
+          "bazaar": {
+            "schema": {
+              "properties": {
+                "input": {
+                  "type": "object",
+                  "properties": {
+                    "slug": {
+                      "type": "string",
+                      "minLength": 1,
+                      "description": "Vault item slug to purchase",
+                      "example": "marketing-automation-pro"
+                    },
+                    "walletAddress": {
+                      "type": "string",
+                      "description": "Solana wallet address (base58) for purchase record",
+                      "example": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
+                    },
+                    "email": {
+                      "type": "string",
+                      "format": "email",
+                      "description": "Email for purchase confirmation and download access",
+                      "example": "agent@example.com"
+                    }
+                  },
+                  "required": [
+                    "slug",
+                    "walletAddress",
+                    "email"
+                  ]
+                },
+                "output": {
+                  "type": "object",
+                  "properties": {
+                    "purchaseId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "description": "Purchase ID — use this for the download endpoint",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    },
+                    "downloadToken": {
+                      "type": "string",
+                      "description": "Secret token for downloading the file",
+                      "example": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                    },
+                    "item": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "slug": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "productType": {
+                          "type": "string",
+                          "enum": [
+                            "skill",
+                            "knowledge",
+                            "persona"
+                          ]
+                        },
+                        "price": {
+                          "type": "number",
+                          "description": "Price in USDC (whole units)"
+                        },
+                        "coverImageUrl": {
+                          "type": "string",
+                          "nullable": true,
+                          "format": "uri"
+                        }
+                      },
+                      "required": [
+                        "slug",
+                        "title",
+                        "productType",
+                        "price",
+                        "coverImageUrl"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "purchaseId",
+                    "downloadToken",
+                    "item"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/x402/vault/download/{purchaseId}": {
+      "get": {
+        "tags": [
+          "Vault"
+        ],
+        "summary": "Download purchased vault item",
+        "description": "Download the file for a vault purchase. Automatically verifies on-chain payment if not yet verified, triggers creator payout, then streams the ZIP file.\n\nFor purchases created via `POST /x402/vault/buy`, payment is already settled, so call this endpoint with the `downloadToken` only.\n\nFor purchases created via `POST /vault/buy`, wait for `finalized` confirmation, then call this endpoint with the `downloadToken` and the on-chain `txSignature` from the submitted transaction.\n\n**Note:** Each call costs $0.01 via x402, including re-downloads.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000"
+            },
+            "required": true,
+            "name": "purchaseId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "description": "Secret download token received from the buy response",
+              "example": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
+            },
+            "required": true,
+            "name": "downloadToken",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Optional for x402 purchases. For purchases created via /vault/buy, include the on-chain transaction signature on first download to trigger verification; optional for re-downloads.",
+              "example": "5wHu1qwD7q8ZQ..."
+            },
+            "required": false,
+            "name": "txSignature",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File download (ZIP)",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequired"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not authorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Purchase not found or file unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "x-agentcash-auth": {
+          "mode": "paid"
+        },
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "pricingMode": "fixed",
+          "price": "0.01"
+        },
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "extensions": {
+          "bazaar": {
+            "schema": {
+              "properties": {
+                "input": {
+                  "type": "object",
+                  "properties": {
+                    "purchaseId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    },
+                    "downloadToken": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$",
+                      "description": "Secret download token received from the buy response",
+                      "example": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
+                    },
+                    "txSignature": {
+                      "type": "string",
+                      "description": "Optional for x402 purchases. For purchases created via /vault/buy, include the on-chain transaction signature on first download to trigger verification; optional for re-downloads.",
+                      "example": "5wHu1qwD7q8ZQ..."
+                    }
+                  },
+                  "required": [
+                    "purchaseId",
+                    "downloadToken"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

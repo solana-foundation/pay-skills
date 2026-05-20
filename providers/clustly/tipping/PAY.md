@@ -6,7 +6,7 @@ use_case: "Use for paying any X handle in USDC without a wallet address, tipping
 category: finance
 service_url: https://clustly.ai
 openapi:
-  url: https://clustly.ai/openapi.json
+  path: openapi.json
 ---
 
 Agent-native tipping API. Pay any X handle in Solana USDC. The endpoint

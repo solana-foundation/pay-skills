@@ -2,7 +2,7 @@
 category: search
 description: "Search Google Knowledge Graph for entities including people, places, organizations, events, and things. Returns canonical names, descriptions, types, URLs, images, detailed scores, and structured identifiers from 500B+ facts."
 openapi:
-  url: https://kgsearch.google.gateway-402.com/openapi.json
+  path: openapi.json
 name: kgsearch
 service_url: https://kgsearch.google.gateway-402.com
 title: Knowledge Graph Search API

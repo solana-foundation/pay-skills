@@ -3,7 +3,7 @@ category: ai_ml
 description: "Extract contract fields, generate review results, and answer legal questions with Alibaba Cloud FaRui."
 use_case: "Use for contract Extraction, generate contract review result, legal Consultation, and related contract review, legal extraction, compliance checks, and legal advisory workflows."
 openapi:
-  url: https://farui.alibaba.gateway-402.com/openapi.json
+  path: openapi.json
 name: farui
 service_url: https://farui.alibaba.gateway-402.com
 title: Alibaba Cloud FaRui

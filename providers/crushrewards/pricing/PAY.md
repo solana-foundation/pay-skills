@@ -6,7 +6,7 @@ use_case: "Use for comparing prices across major US and Canadian retailers, moni
 category: shopping
 service_url: https://api.crushrewards.dev
 openapi:
-  url: https://api.crushrewards.dev/openapi.json
+  path: openapi.json
 ---
 
 Real-time competitive pricing intelligence across Amazon, Walmart, Best Buy,

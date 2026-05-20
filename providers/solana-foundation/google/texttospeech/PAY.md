@@ -2,7 +2,7 @@
 category: ai_ml
 description: "Generate natural-sounding speech from text or SSML in 50+ languages and 380+ voices. Supports pitch, speed, effects profiles, MP3/WAV/OGG output, long-form synthesis, and Neural2/Studio voice models for production audio."
 openapi:
-  url: https://texttospeech.google.gateway-402.com/openapi.json
+  path: openapi.json
 name: texttospeech
 service_url: https://texttospeech.google.gateway-402.com
 title: Cloud Text-to-Speech API

@@ -3,7 +3,7 @@ category: security
 description: "Run moderation, verification, and risk checks with Alibaba Cloud SAF, including multi-Scenario Risk Identification and Detection, decision Engine for Malaysian Cluster, and decision Engine Singapore Cluster."
 use_case: "Use for multi-Scenario Risk Identification and Detection, decision Engine for Malaysian Cluster, decision Engine Singapore Cluster, and related moderation, compliance, identity verification, fraud screening, and risk analysis."
 openapi:
-  url: https://saf.alibaba.gateway-402.com/openapi.json
+  path: openapi.json
 name: saf
 service_url: https://saf.alibaba.gateway-402.com
 title: Alibaba Cloud SAF

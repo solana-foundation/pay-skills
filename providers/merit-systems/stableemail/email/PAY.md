@@ -6,7 +6,7 @@ category: messaging
 use_case: "Use for sending outbound emails, creating receiving inboxes, reading inbound messages, managing custom email subdomains, agent email workflows, forwarding inboxes, reply handling, verification messages, customer outreach, and per-message email delivery."
 service_url: https://stableemail.dev
 openapi:
-  url: https://stableemail.dev/openapi.json
+  path: openapi.json
 ---
 
 Pay-per-send email and per-request inbox APIs. Send from `relay@stableemail.dev`,

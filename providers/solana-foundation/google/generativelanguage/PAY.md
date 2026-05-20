@@ -3,7 +3,7 @@ category: ai_ml
 description: "Use Google Gemini models for text generation, multimodal image/audio/video understanding, chat, embeddings, code generation, JSON output, function calling, cached context, file search, grounding with Google Search, and fine-tuned models."
 use_case: "Use for AI chat, text generation, summarization, code help, image and video understanding, embeddings, semantic retrieval, tool calling, structured JSON output, grounded answers, batch generation, cached prompts, and tuned model workflows."
 openapi:
-  url: https://generativelanguage.google.gateway-402.com/openapi.json
+  path: openapi.json
 name: generativelanguage
 service_url: https://generativelanguage.google.gateway-402.com
 title: Generative Language API (Gemini)

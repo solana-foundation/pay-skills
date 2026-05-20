@@ -3,7 +3,7 @@ category: security
 description: "Run moderation, verification, and risk checks with Alibaba Cloud Image Audit, including image Content Moderation and text Content Moderation."
 use_case: "Use for image Content Moderation, text Content Moderation, and related moderation, compliance, identity verification, fraud screening, and risk analysis."
 openapi:
-  url: https://imageaudit.alibaba.gateway-402.com/openapi.json
+  path: openapi.json
 name: imageaudit
 service_url: https://imageaudit.alibaba.gateway-402.com
 title: Alibaba Cloud Image Audit
