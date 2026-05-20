@@ -43,7 +43,7 @@ endpoints:
   - method: POST
     path: /search
     resource: search
-    description: "Search the Japanese corporate registry by trade name and location, filterable by prefecture and city"
+    description: "Search the Japanese corporate registry by trade name and location, filterable by prefecture and city. Dynamic price: a base per-request fee plus a per-result fee capped at limit=50."
     pricing:
       dimensions:
         - direction: usage
@@ -51,6 +51,11 @@ endpoints:
           scale: 1
           tiers:
             - price_usd: 0.005
+        - direction: output
+          unit: results
+          scale: 1
+          tiers:
+            - price_usd: 0.0002
   - method: POST
     path: /batch
     resource: batch
@@ -75,6 +80,7 @@ and invoice reconciliation.
 - Use `POST /verify` ($0.003) for the name-matching / 名寄せ case: it returns
   ranked candidates with a confidence score and handles 株式会社 / (株) / ㈱
   spelling variation. A dissolved corporation is never reported as verified.
-- Use `POST /search` ($0.005 base + per-result fee) to discover companies by
-  name or location; cap `limit` to the smallest useful number.
+- Use `POST /search` (base $0.005 + $0.0002 per result, capped at limit=50)
+  to discover companies by name or location; cap `limit` to the smallest
+  useful number to keep cost down.
 - Use `POST /batch` ($0.002/item) for bulk number lookups, up to 50 per call.
