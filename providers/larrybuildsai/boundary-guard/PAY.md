@@ -1,8 +1,8 @@
 ---
 name: boundary-guard
-title: "Boundary Guard x402"
-description: "Revenue-safety checks for x402 sellers and agent builders: scan paid APIs before listing, probe unpaid 402 challenges, and attach receipts to risky agent actions."
-use_case: "Use before listing or routing to a paid x402 API, after deploys that may break payment metadata, or when an agent needs a receipt around a risky write, send, publish, or pay workflow."
+title: "GateCheck by LarryBuildsAI"
+description: "Paid preflight checks for x402 and MCP sellers: scan public metadata, probe unpaid 402 challenges, score agent-tool readiness, generate launch packs, and attach bounded receipts."
+use_case: "Use before listing or routing to a paid x402/MCP tool, after deploys that may break payment metadata, or when an agent needs a receipt around a risky write, send, publish, or pay workflow."
 category: devtools
 service_url: https://x402-resource-scanner.vercel.app
 version: "0.1.0"
@@ -10,9 +10,9 @@ openapi:
  path: openapi.json
 ---
 
-# Boundary Guard x402
+# GateCheck by LarryBuildsAI
 
-> Revenue-safety checks for x402 sellers and agent builders. Scan a paid API before listing it, probe the unpaid 402 challenge before buyers hit it, and attach receipts to agent actions that need a clean audit trail.
+> Paid preflight checks for x402 and MCP sellers. Scan public metadata before listing, probe the unpaid `402` challenge before buyers hit it, generate marketplace-safe launch artifacts, and attach receipts to agent actions that need a clean audit trail.
 
 ## Agent Summary
 
@@ -21,9 +21,9 @@ openapi:
 - **Operator:** `larrybuildsai`
 - **Origin:** `larrybuildsai`
 - **Version:** `0.1.0`
-- **REST endpoints:** `4`
-- **MCP tools:** `5`
-- **REST pricing:** `$0.05–$10.00/request`
+- **REST endpoints:** `5`
+- **MCP tools:** `6`
+- **REST pricing:** `$0.05-$49.00/request`
 - **HTML page:** https://x402-resource-scanner.vercel.app/
 - **Agent docs:** https://x402-resource-scanner.vercel.app/llms.txt
 
@@ -46,7 +46,7 @@ The live OpenAPI and discovery files are broader product surfaces. They also adv
 
 Paid APIs fail in boring ways that still cost money: a listing is missing a price, an endpoint stops returning a parseable `402`, the network or asset metadata is wrong, or an agent cannot tell what was checked before it spent time on a paid workflow.
 
-Boundary Guard x402 gives sellers and agent builders a cheap preflight layer before the handoff breaks. It does not try to replace the payment flow or claim downstream settlement. It checks the public surfaces that help buyers trust the flow before they call it.
+GateCheck by LarryBuildsAI gives sellers and agent builders a cheap preflight layer before the handoff breaks. It does not try to replace the payment flow or claim downstream settlement. It checks the public surfaces that help buyers trust the flow before they call it.
 
 Use it when you need to:
 
@@ -98,6 +98,30 @@ Example body:
 }
 ```
 
+### Generate a Launch Pack
+
+`POST /v1/x402/launch-pack` — **$9/request**
+
+Generates marketplace-safe listing copy, buyer FAQ, launch checklist, approval packet, and claim boundaries for x402/MCP sellers from readiness evidence.
+
+Best for sellers who have a live paid endpoint or MCP tool and need buyer-facing copy plus a review checklist before submitting to pay.sh, xpay, CDP Bazaar, Glama, Agentic.Market, or another marketplace.
+
+Example body:
+
+```json
+{
+  "target": "https://seller.example",
+  "paid_path": "https://seller.example/v1/paid",
+  "method": "GET",
+  "expected_resources": 3,
+  "expected": {
+    "network": "base",
+    "asset": "USDC",
+    "priceUsd": "0.25"
+  }
+}
+```
+
 ### Create an Action Receipt
 
 `POST /v1/receipts/check` — **$0.05/request**
@@ -110,7 +134,7 @@ Send hashes, IDs, safe summaries, and policy labels. Do not send secrets, bearer
 
 ## MCP Tools
 
-Boundary Guard also exposes a Streamable HTTP MCP endpoint at `/mcp`.
+GateCheck also exposes a Streamable HTTP MCP endpoint at `/mcp`. Boundary Guard remains the legacy receipt layer and preserved registry slug.
 
 ### Boundary Guard Check
 
@@ -135,6 +159,12 @@ Probe a public x402 endpoint without payment, parse the 402 challenge, compare e
 Suggested xpay price: **$1.00/call** (quick) / **$5.00/call** (deep) / **$10.00/call** (report)
 
 Check whether an x402 or agent-facing tool is ready for agent routing, marketplace listing, and paid-path monitoring.
+
+### Generate x402 Launch Pack
+
+Suggested xpay price: **$9.00/call**
+
+Generate marketplace-safe listing copy, buyer FAQ, launch checklist, approval packet, and claim boundaries for x402/MCP sellers from readiness evidence.
 
 ### Generate Trust Receipt
 
