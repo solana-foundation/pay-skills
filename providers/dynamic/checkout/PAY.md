@@ -32,7 +32,15 @@ Store as env vars (`DYNAMIC_AUTH_TOKEN`, `DYNAMIC_ENVIRONMENT_ID`) — never har
 - Chains: Ethereum, Base, Polygon, Arbitrum, Optimism, Avalanche, BNB Chain, Solana, Sui, Tron
 
 **Settlement:** Any source → USDC/USDT on any supported chain, delivered to a
-destination address. Optimizes for cheapest route by default.
+destination address. Strategy options: `cheapest`, `fastest`, `preferred_order`.
+
+**Supported chains:** EVM (all major networks), Solana (`101`), Bitcoin (`1`), Sui (`501`).
+
+**Native token addresses:**
+- EVM: `0x0000000000000000000000000000000000000000` or `0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee`
+- Solana: `11111111111111111111111111111111` (System Program) or `So11111111111111111111111111111111111111112` (wSOL)
+- Bitcoin: `11111111111111111111111111111111` or `bitcoin`
+- Sui: `0x2::sui::SUI`
 
 ## Payment flow
 
@@ -52,7 +60,12 @@ destination address. Optimizes for cheapest route by default.
 7. Sign and broadcast on-chain (see Signing section below).
 8. `POST /sdk/{environmentId}/transactions/{transactionId}/broadcast` — Record the txHash.
 9. `GET /sdk/{environmentId}/transactions/{transactionId}` — Poll until
-   `settlementState === "completed"`.
+   `settlementState === "completed"`. Settlement progresses: `none` → `routing`
+   → `bridging` → `swapping` → `settling` → `completed`. Same-chain same-token
+   payments jump directly to `completed`.
+
+Manage existing checkout configs with `GET`, `PATCH`, `DELETE` on
+`/environments/{environmentId}/checkouts/{checkoutId}`.
 
 ## Signing and broadcasting
 

@@ -121,10 +121,10 @@
                 "enum": [
                   "cheapest",
                   "fastest",
-                  "preferred"
+                  "preferred_order"
                 ],
                 "example": "cheapest",
-                "description": "Route optimization strategy."
+                "description": "Route optimization. cheapest: lowest total cost. fastest: fewest steps. preferred_order: first available in settlement order."
               },
               "settlements": {
                 "type": "array",
@@ -149,6 +149,11 @@
                 "minItems": 1
               }
             }
+          },
+          "enableOrchestration": {
+            "type": "boolean",
+            "description": "Optional. Default true. When false, skips cross-chain settlement orchestration.",
+            "default": true
           }
         },
         "example": {
@@ -219,6 +224,27 @@
             "type": "integer",
             "description": "Session TTL in seconds. Default: 3600 (1 hour).",
             "example": 3600
+          },
+          "destinationAddresses": {
+            "type": "array",
+            "description": "Optional. Override the checkout destination for this transaction only.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "chainName": {
+                  "type": "string",
+                  "enum": [
+                    "EVM",
+                    "SOL",
+                    "BTC",
+                    "SUI"
+                  ]
+                },
+                "address": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       },
@@ -429,7 +455,7 @@
             "properties": {
               "signingPayload": {
                 "type": "object",
-                "description": "The payload to sign and broadcast. Contains one of evmTransaction (EVM chains) or serializedTransaction (Solana/Sui).",
+                "description": "Signing payload. Contains evmTransaction (EVM), serializedTransaction (SOL/SUI), or psbt (BTC).",
                 "properties": {
                   "chainName": {
                     "type": "string"
@@ -446,6 +472,10 @@
                   "serializedTransaction": {
                     "type": "string",
                     "description": "Base64-encoded serialized transaction for Solana or Sui."
+                  },
+                  "psbt": {
+                    "type": "string",
+                    "description": "Base64-encoded unsigned PSBT for Bitcoin transactions."
                   }
                 }
               }
@@ -490,12 +520,15 @@
           "settlementState": {
             "type": "string",
             "enum": [
-              "pending",
-              "in_progress",
+              "none",
+              "routing",
+              "bridging",
+              "swapping",
+              "settling",
               "completed",
               "failed"
             ],
-            "description": "Cross-chain settlement status. Poll until `completed`."
+            "description": "Settlement progression: none \u2192 routing \u2192 bridging \u2192 swapping \u2192 settling \u2192 completed. Same-chain same-token payments jump directly to completed."
           },
           "riskState": {
             "type": "string",
@@ -704,6 +737,9 @@
           },
           "422": {
             "description": "Invalid source wallet or chain."
+          },
+          "403": {
+            "description": "Source blocked by sanctions screening \u2014 cancel and retry with a different source wallet."
           }
         }
       }
@@ -1387,6 +1423,155 @@
           },
           "422": {
             "description": "Invalid address or chain."
+          }
+        }
+      }
+    },
+    "/environments/{environmentId}/checkouts/{checkoutId}": {
+      "get": {
+        "operationId": "getCheckout",
+        "summary": "Get a checkout configuration",
+        "tags": [
+          "Checkout"
+        ],
+        "security": [
+          {
+            "bearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "checkoutId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Checkout configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutCreateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or missing API token."
+          },
+          "404": {
+            "description": "Checkout not found."
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateCheckout",
+        "summary": "Update a checkout configuration",
+        "tags": [
+          "Checkout"
+        ],
+        "security": [
+          {
+            "bearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "checkoutId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated checkout.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutCreateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or missing API token."
+          },
+          "404": {
+            "description": "Checkout not found."
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteCheckout",
+        "summary": "Delete a checkout configuration",
+        "tags": [
+          "Checkout"
+        ],
+        "security": [
+          {
+            "bearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "checkoutId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Checkout deleted."
+          },
+          "401": {
+            "description": "Invalid or missing API token."
+          },
+          "404": {
+            "description": "Checkout not found."
           }
         }
       }
