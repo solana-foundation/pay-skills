@@ -1,0 +1,218 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SuVerse GovHub",
+    "description": "Universal gateway for US government APIs. Currently supports FMCSA carrier lookup. More government services (USCIS, SAM.gov, SEC, Census, FDA, USPS) being added — single endpoint, unified format, pay-per-call.",
+    "version": "0.1.0"
+  },
+  "servers": [
+    { "url": "https://api.suverse.io" }
+  ],
+  "x-pricing-table": {
+    "currency": "USDC",
+    "network": "solana",
+    "items": [
+      {
+        "service": "fmcsa.carrier_lookup",
+        "price_usd": 0.005,
+        "unit": "request",
+        "description": "FMCSA QCMobile carrier lookup by USDOT number"
+      }
+    ]
+  },
+  "paths": {
+    "/v1/gov": {
+      "post": {
+        "operationId": "callGovernmentService",
+        "summary": "Call a government API service",
+        "description": "Dispatch a paid call to one of the gateway's supported government services. The `service` field selects the upstream (e.g. `fmcsa.carrier_lookup`) and `params` carries the service-specific arguments. Each call requires a valid `X-PAYMENT` header carrying a Solana stablecoin payment proof per the x402 protocol; missing or invalid payments return HTTP 402.",
+        "tags": ["gov"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/GovRequest" },
+              "examples": {
+                "fmcsa_carrier_lookup": {
+                  "summary": "FMCSA carrier lookup by USDOT",
+                  "value": {
+                    "service": "fmcsa.carrier_lookup",
+                    "params": { "usdot": "80321" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Unified gateway response. The `data` object's shape is unified across providers; for `fmcsa.carrier_lookup` it returns the carrier record.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GovResponse" },
+                "examples": {
+                  "fmcsa_carrier_lookup": {
+                    "value": {
+                      "service": "fmcsa.carrier_lookup",
+                      "data": {
+                        "usdot": 80321,
+                        "legal_name": "FEDEX FREIGHT INC",
+                        "dba_name": null,
+                        "operating_status": "ACTIVE",
+                        "safety_rating": "S",
+                        "fleet_size": { "power_units": 14523, "drivers": 17854 },
+                        "address": {
+                          "street": "1715 AARON BRENNER DRIVE STE 600",
+                          "city": "MEMPHIS",
+                          "state": "TN",
+                          "zip": "38120"
+                        },
+                        "phone": "9018184484",
+                        "mc_number": "188288",
+                        "raw_source": "FMCSA"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — missing `service`, malformed `params`, or invalid argument values.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. Body is an x402 v1 challenge. Pay with a Solana stablecoin transfer to `payTo` for at least `maxAmountRequired` micro-USDC, then resubmit with the payment proof in the `X-PAYMENT` header.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/X402Challenge" }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown `service` identifier.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream government API error or transport failure.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "GovRequest": {
+        "type": "object",
+        "required": ["service", "params"],
+        "properties": {
+          "service": {
+            "type": "string",
+            "description": "Service identifier. The set is open and extensible; currently only `fmcsa.carrier_lookup` is live. More services (uscis.*, sam.*, sec.*, census.*, fda.*, usps.*) will be added under this same enum without breaking the request shape.",
+            "enum": ["fmcsa.carrier_lookup"]
+          },
+          "params": {
+            "type": "object",
+            "description": "Service-specific parameters. Each service documents its required keys; for `fmcsa.carrier_lookup`, only `usdot` is required.",
+            "additionalProperties": true,
+            "examples": [{ "usdot": "80321" }]
+          }
+        }
+      },
+      "GovResponse": {
+        "type": "object",
+        "required": ["service", "data"],
+        "properties": {
+          "service": { "type": "string", "description": "Echo of the requested service id." },
+          "data": {
+            "description": "Unified response payload. For `fmcsa.carrier_lookup` this conforms to `Carrier`.",
+            "oneOf": [{ "$ref": "#/components/schemas/Carrier" }]
+          }
+        }
+      },
+      "Carrier": {
+        "type": "object",
+        "description": "Normalized FMCSA carrier record.",
+        "required": ["usdot", "legal_name", "operating_status", "raw_source"],
+        "properties": {
+          "usdot": { "type": "integer", "description": "USDOT number." },
+          "legal_name": { "type": "string", "description": "Legal name of record." },
+          "dba_name": { "type": ["string", "null"], "description": "Doing-business-as name, if any." },
+          "operating_status": {
+            "type": "string",
+            "description": "Normalized status: `ACTIVE`, `NOT AUTHORIZED`, or other raw FMCSA status code.",
+            "examples": ["ACTIVE", "NOT AUTHORIZED", "UNKNOWN"]
+          },
+          "safety_rating": { "type": ["string", "null"], "description": "FMCSA safety rating code if assigned (`S`, `C`, `U`, etc.)." },
+          "fleet_size": {
+            "type": "object",
+            "properties": {
+              "power_units": { "type": "integer", "minimum": 0 },
+              "drivers": { "type": "integer", "minimum": 0 }
+            },
+            "required": ["power_units", "drivers"]
+          },
+          "address": {
+            "type": "object",
+            "properties": {
+              "street": { "type": ["string", "null"] },
+              "city": { "type": ["string", "null"] },
+              "state": { "type": ["string", "null"] },
+              "zip": { "type": ["string", "null"] }
+            }
+          },
+          "phone": { "type": ["string", "null"] },
+          "mc_number": { "type": ["string", "null"], "description": "Motor Carrier (MC) docket number if assigned." },
+          "raw_source": { "type": "string", "const": "FMCSA" }
+        }
+      },
+      "X402Challenge": {
+        "type": "object",
+        "description": "x402 v1 payment-required challenge body. See https://x402.org for the protocol.",
+        "required": ["x402Version", "accepts"],
+        "properties": {
+          "x402Version": { "type": "integer", "const": 1 },
+          "accepts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["scheme", "network", "maxAmountRequired", "resource", "payTo", "asset"],
+              "properties": {
+                "scheme": { "type": "string", "examples": ["exact"] },
+                "network": { "type": "string", "examples": ["solana", "solana-devnet"] },
+                "maxAmountRequired": { "type": "string", "description": "Amount in atomic units of the asset (micro-USDC for USDC)." },
+                "resource": { "type": "string", "format": "uri" },
+                "description": { "type": "string" },
+                "mimeType": { "type": "string" },
+                "payTo": { "type": "string", "description": "Recipient Solana address." },
+                "maxTimeoutSeconds": { "type": "integer" },
+                "asset": { "type": "string", "examples": ["USDC"] },
+                "extra": { "type": "object", "additionalProperties": true }
+              }
+            }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": { "type": "string" }
+        }
+      }
+    }
+  }
+}
