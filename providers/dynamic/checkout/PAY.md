@@ -95,6 +95,10 @@ Manage checkout configs: `GET`, `PATCH`, `DELETE` on `/environments/{environment
 
 ## Signing and broadcasting
 
+Any Dynamic SDK can handle signing — Node, React, React Native, Flutter, Swift, Kotlin,
+Python, Rust, Unity, and more. See [docs.dynamic.xyz](https://docs.dynamic.xyz) for your
+platform. The examples below use the Node SDK for server-side agents.
+
 **EVM (Base, Ethereum, Polygon, Arbitrum…):**
 ```typescript
 import { DynamicEvmWalletClient } from '@dynamic-labs-wallet/node-evm';
@@ -102,7 +106,7 @@ const client = new DynamicEvmWalletClient({ environmentId });
 await client.authenticateApiToken(apiToken);
 const walletClient = await client.getWalletClient({ accountAddress, chainId: 8453, rpcUrl });
 
-// If evmApproval is present, send approval first and wait for confirmation
+// If evmApproval is present, send it first and wait for confirmation
 if (payload.evmApproval) {
   const ah = await walletClient.writeContract({
     address: payload.evmApproval.tokenAddress,
@@ -111,7 +115,7 @@ if (payload.evmApproval) {
     args: [payload.evmApproval.spenderAddress, BigInt(payload.evmApproval.amount)],
   });
   await viemPublic.waitForTransactionReceipt({ hash: ah });
-  // Re-prepare after approval wait — quote may have expired during approval confirmation
+  // Re-prepare to get a fresh signing payload after the approval wait
 }
 
 const txHash = await walletClient.sendTransaction({
@@ -121,10 +125,10 @@ const txHash = await walletClient.sendTransaction({
   gas: BigInt(payload.evmTransaction.gasLimit),
   chainId: 8453,
 });
-// viem receipt.status is 'success'/'reverted' (not '0x1')
+// Note: viem receipt.status is 'success'/'reverted' (string, not '0x1')
 ```
 
-**Solana — signTransaction() returns only the signature, not the full tx:**
+**Solana:**
 ```typescript
 import { DynamicSvmWalletClient, decodeBase58, addSignatureToTransaction } from '@dynamic-labs-wallet/node-svm';
 import { VersionedTransaction, Connection, PublicKey } from '@solana/web3.js';
@@ -132,29 +136,25 @@ import { VersionedTransaction, Connection, PublicKey } from '@solana/web3.js';
 const client = new DynamicSvmWalletClient({ environmentId });
 await client.authenticateApiToken(apiToken);
 
-// 1. Decode base64 → VersionedTransaction
+// Decode the base64 payload into a VersionedTransaction
 const vtx = VersionedTransaction.deserialize(Buffer.from(payload.serializedTransaction, 'base64'));
 
-// 2. Sign — returns base58 signature (88 chars, 64 bytes), NOT the full signed tx
+// Sign — returns the Ed25519 signature as a base58 string
 const sigBase58 = await client.signTransaction({ senderAddress, transaction: vtx });
 
-// 3. Decode and reattach signature
-const sigBytes = decodeBase58(sigBase58);
+// Attach the signature to the transaction and broadcast
 const signedVtx = addSignatureToTransaction({
-  transaction: vtx, signature: sigBytes, signerPublicKey: new PublicKey(senderAddress),
+  transaction: vtx,
+  signature: decodeBase58(sigBase58),
+  signerPublicKey: new PublicKey(senderAddress),
 });
-
-// 4. Broadcast — skipPreflight avoids false oracle simulation failures
 const sig = await connection.sendRawTransaction(signedVtx.serialize(), { skipPreflight: true });
 await connection.confirmTransaction(sig, 'confirmed');
 ```
 
-Do NOT pass `signTransaction()` output to the SDK's `sendTransaction()` helper — it calls
-`Buffer.from(base58str)` as UTF-8, producing garbled bytes and a deserialization error.
-
 **ERC-20 approval timing:** Pre-approve `maxUint256` for the spender before calling
-`prepare`, then re-prepare after. If you wait for approval confirmation after prepare,
-the quote may expire before you can sign the main tx.
+`prepare`, then re-prepare after confirmation — the quote can expire during the approval
+confirmation wait.
 
 ## Webhooks
 
