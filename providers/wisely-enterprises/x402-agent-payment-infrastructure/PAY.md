@@ -3,7 +3,7 @@ name: x402-agent-payment-infrastructure
 title: "Wisely x402 Agent-Payment Infrastructure"
 description: "Hosted x402 endpoints and MCP payment infrastructure for autonomous agents, including paid tool discovery, Solana and Base-compatible payment challenges, receipts, and spend-aware usage patterns."
 use_case: "Use when an agent needs to discover paid AI/API tools, receive an HTTP 402 challenge, pay with Solana USDC, Solana USDT, or Base USDC, retry the call, and keep a receipt trail."
-category: devtools
+category: finance
 service_url: https://payments.wiselyenterprisesllc.com
 openapi:
   path: openapi.json
