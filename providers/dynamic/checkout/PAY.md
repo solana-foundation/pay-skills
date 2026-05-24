@@ -22,6 +22,8 @@ manual bridging, no token pre-selection.
 - Admin endpoints (`/environments/{environmentId}/...`) → `Authorization: Bearer dyn_<token>`
 - SDK endpoints (`/sdk/{environmentId}/...`) → `x-dynamic-checkout-session-token: <token>` only.
   Sending Bearer on SDK endpoints returns 401.
+  **Exception:** `POST /sdk/{environmentId}/checkouts/{checkoutId}/transactions` (step 2) is
+  intentionally unauthenticated — it issues the session token. All subsequent SDK calls require it.
 
 API keys: https://app.dynamic.xyz/dashboard/developer/api. Store as env vars — never hardcode.
 
