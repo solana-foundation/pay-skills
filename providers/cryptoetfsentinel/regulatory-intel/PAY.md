@@ -17,6 +17,7 @@ The catalogue covers the full pipeline lifecycle: registration filings (S-1 / S-
 ## Spend-aware usage
 
 - Start with `/v1/agent/snapshot` ($0.05) for a one-call regulatory pipeline overview — issuers under review, recent filings, fee leaderboard, AUM totals.
+- Use `/v1/agent/filings/recent` ($0.20) for the real-time delay-free filings feed when you need to poll for newly filed forms; the free `/v1/filings` mirror lags by 24 hours.
 - Use `/v1/agent/issuers` ($1.00) for the full curated catalogue when you need every active issuer (~105 entries). Cache the result — the issuer list changes slowly.
 - For per-issuer drilldowns, pair the catalogue with cheap per-CIK routes: `/v1/profiles/issuer?cik=...` ($0.03), `/v1/xbrl/issuer?cik=...` ($0.05), `/v1/issuers/comment-letters?cik=...` ($0.05).
 - Predictive signals (`/v1/pipeline/risk-scores`, `outcome-signals`, `launch-monitor`, `velocity`, `cohort-state`) are $0.50 each — the most expensive routes, each replaces ~hours of manual pipeline reading. Pick the one matching your task; don't fetch all five.
