@@ -4,7 +4,7 @@ title: "IDLE Protocol — Distributed Residential Compute Network"
 description: "Turn idle PCs, wallets, agents, and data into revenue streams. 14 task types — scraping, monitoring, price extraction, DNS, SSL, and agent routing — all paid per-request with USDC on Solana."
 use_case: "Use for web scraping from residential IPs, API health monitoring, DNS resolution, SSL verification, price extraction, content change detection, natural language data queries, and AI agent task routing."
 category: compute
-service_url: https://idle-gateway-production.up.railway.app
+service_url: https://gateway.earnidle.com
 version: v3
 endpoints:
   - method: POST
@@ -177,7 +177,7 @@ Every paid endpoint uses the x402 protocol. Hit any endpoint without payment and
 
 ```bash
 pay skills update
-pay curl https://idle-gateway-production.up.railway.app/v1/compute/fetch \
+pay curl https://gateway.earnidle.com/v1/compute/fetch \
   -d '{"url":"https://example.com"}'
 ```
 
@@ -193,7 +193,6 @@ All prices in USDC on Solana mainnet.
 
 ## Spend-aware usage
 
-- For monitoring a single URL (status, latency, SSL, DNS), use `v1/compute/monitor` — it bundles all checks into one call instead of four separate paid requests.
 - Prefer `v1/compute/fetch` over `v1/compute/scrape` when you only need status codes or headers. Fetch is $0.02 vs scrape at $0.05.
 - Use `v1/compute/extract` with a CSS selector instead of scraping full HTML when you need one element from a page.
 - For price monitoring, call `v1/compute/changes` with `previous_hash` to detect changes before pulling fresh data with `v1/compute/price`.
