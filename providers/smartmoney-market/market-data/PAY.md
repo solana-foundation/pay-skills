@@ -182,6 +182,12 @@ themes. Insider activity is tracked for a selected stock universe. Congress
 activity currently covers House PTR filings where stock-backed trades are
 available.
 
+## Identifier formats
+
+- Fund endpoints use `{slug}` values from `GET /api/fund-universe`, such as `duquesne`.
+- Ticker endpoints use plain stock ticker symbols, such as `NVDA`, `AAPL`, or `BRK.B`. Symbols are case-insensitive. Do not include exchange prefixes such as `NASDAQ:NVDA`.
+- Use `GET /api/insider-tracked-stocks` before insider endpoints to confirm whether issuer-side Form 4 data is available for a ticker.
+
 ## Spend-aware usage
 
 - Start with `GET /api` to inspect the public route map and avoid guessing
