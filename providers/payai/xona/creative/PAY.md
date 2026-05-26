@@ -9,7 +9,7 @@ openapi:
   path: openapi.json
 ---
 
-Xona is the creative resource layer for the agent economy, routed through the [PayAI facilitator](https://facilitator.payai.network/). Pricing is per-call and declared in each operation's `x-payment-info` block (`$0.03–$0.15` for most image/audio routes, dynamic for high-end video). The 28 endpoints group into four surfaces:
+Xona is the creative resource layer for the agent economy, routed through the [PayAI facilitator](https://facilitator.payai.network/). Pricing is per-call, declared in each operation's `x-payment-info` block: image models `$0.03–$0.15` (one dynamic), video `$0.50–$0.80`, audio `$0.01–$1.50` (ElevenLabs music is the `$1.50` high end), social-AI `$0.05–$0.50`, and Solana token analytics `$0.001–$0.20`. The 28 endpoints group into four surfaces:
 
 - **Image generation** — `/image/flux-2-{flex,pro,max}`, `/image/nano-banana{,-2,-pro}`, `/image/gpt-image-2`, `/image/grok-imagine`, `/image-model/qwen-image`, `/image-model/seedream-4.5`, plus opinionated routes (`/image/creative-director`, `/image/designer`).
 - **Video generation** — `/video/seedance-generation`, `/video/short-generation` (dynamic pricing).
@@ -25,6 +25,7 @@ This is a server-to-server API. The 402 responses do not expose `Access-Control-
 
 ## Spend-aware usage
 
+- Mind the high-cost routes. `/audio/elevenlabs-music` is `$1.50`, `/video/seedance-generation` `$0.80`, `/video/short-generation` and `/ai/x-news` `$0.50` each — confirm the task needs them before calling. For quick voiceovers prefer `/audio/x-text-to-speech` (`$0.01`) over music generation.
 - Match the model to the brief. Use the cheapest image model that meets the prompt (`flux-2-flex` or a `nano-banana` variant for routine generations) and reserve `flux-2-max` or `creative-director` for higher-fidelity work.
 - For multi-image campaigns, generate a single key visual with the highest-quality model and use `image2image`-style variants from a cheaper model for follow-ups rather than re-paying for the premium model each time.
 - Cache token-analytics responses across a workflow. `/token/solana-market` and `/token/solana-discovery` change slowly enough that a single call usually answers a multi-step task — avoid re-querying every step.
