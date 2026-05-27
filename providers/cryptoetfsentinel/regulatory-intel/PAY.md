@@ -21,4 +21,13 @@ The catalogue covers the full pipeline lifecycle: registration filings (S-1 / S-
 - Use `/v1/agent/issuers` ($1.00) for the full curated catalogue when you need every active issuer (~105 entries). Cache the result — the issuer list changes slowly.
 - For per-issuer drilldowns, pair the catalogue with cheap per-CIK routes: `/v1/profiles/issuer?cik=...` ($0.03), `/v1/xbrl/issuer?cik=...` ($0.05), `/v1/issuers/comment-letters?cik=...` ($0.05).
 - Predictive signals (`/v1/pipeline/risk-scores`, `outcome-signals`, `launch-monitor`, `velocity`, `cohort-state`) are $0.50 each — each replaces ~hours of manual pipeline reading. Pick the one matching your task; don't fetch all five.
-- Free tier (no key, no payment) exists at `/v1/issuers` (top-10 by AUM only), `/v1/filings` (24-hour delay), and `/v1/stats` — use these for exploration before paying.
+
+## Free routes (no key, no payment)
+
+Use these for exploration before paying. They return `200` directly (no x402 challenge); a malformed parameter returns `422` for input validation, not `402`.
+
+- `GET /v1/filings` — paginated filings list (24-hour delay vs paid `/v1/agent/filings/recent`).
+- `GET /v1/filings/search` — full-text search across the same delayed corpus.
+- `GET /v1/filings/{accession}` — single filing by SEC accession number (24-hour delay).
+- `GET /v1/issuers` — top-10 issuers by AUM only. Paid `/v1/agent/issuers` ($1.00) returns the full ~105-issuer catalogue.
+- `GET /v1/stats`, `GET /v1/currencies`, `GET /v1/form-types` — metadata endpoints.
