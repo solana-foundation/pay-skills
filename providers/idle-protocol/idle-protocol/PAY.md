@@ -1,7 +1,7 @@
 ---
 name: idle-protocol
 title: "IDLE Protocol — Distributed Residential Compute Network"
-description: "Turn idle PCs, wallets, agents, and data into revenue streams. 14 task types — scraping, monitoring, price extraction, DNS, SSL, and agent routing — all paid per-request with USDC on Solana."
+description: "Web scraping, monitoring, and data extraction from residential IPs. 14 endpoints — fetch, scrape, DNS, SSL, price extraction, change detection, and agent routing — all paid per-request with USDC on Solana."
 use_case: "Use for web scraping from residential IPs, API health monitoring, DNS resolution, SSL verification, price extraction, content change detection, natural language data queries, and AI agent task routing."
 category: compute
 service_url: https://gateway.earnidle.com
