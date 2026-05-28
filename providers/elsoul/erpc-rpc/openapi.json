@@ -1,0 +1,234 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ERPC x402 Solana RPC",
+    "version": "1.0.0",
+    "description": "Stablecoin-gated Solana JSON-RPC proxy. Paid endpoint POST /v1/solana-mainnet charges per JSON-RPC method via the x402 protocol on Solana mainnet, settled in USDC through the Coinbase CDP facilitator."
+  },
+  "servers": [
+    { "url": "https://x402.erpc.global" }
+  ],
+  "paths": {
+    "/v1/solana-mainnet": {
+      "post": {
+        "operationId": "solanaJsonRpc",
+        "summary": "Solana JSON-RPC (paid)",
+        "description": "Pay-per-request Solana JSON-RPC proxy. Accepts single or batch JSON-RPC 2.0 bodies. The first call returns 402 with an x402 payment challenge whose amount is the sum of per-method weights times the base token price. The same body retried with X-Payment is settled in USDC on Solana mainnet and proxied to the upstream Solana RPC.",
+        "x-pay-pricing": {
+          "model": "per_method_weight",
+          "base_token_price_usd": 0.0001,
+          "currency": "USDC",
+          "network": "solana"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  { "$ref": "#/components/schemas/JsonRpcRequest" },
+                  {
+                    "type": "array",
+                    "items": { "$ref": "#/components/schemas/JsonRpcRequest" },
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                ]
+              },
+              "examples": {
+                "getBalance": {
+                  "summary": "Single getBalance (1 weight, $0.0001)",
+                  "value": {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "getBalance",
+                    "params": ["11111111111111111111111111111111"]
+                  }
+                },
+                "batch": {
+                  "summary": "Batch (summed weight)",
+                  "value": [
+                    { "jsonrpc": "2.0", "id": 1, "method": "getSlot" },
+                    { "jsonrpc": "2.0", "id": 2, "method": "getBlockHeight" }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Upstream JSON-RPC response. Includes X-Payment-Response header from the facilitator.",
+            "headers": {
+              "X-Payment-Response": {
+                "schema": { "type": "string" },
+                "description": "Base64-encoded x402 settlement receipt"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/JsonRpcResponse" }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required. Returned before payment with x402 challenge headers.",
+            "headers": {
+              "X-Payment-Required": {
+                "schema": { "type": "string" },
+                "description": "x402 challenge (base64) describing accepted scheme/network/asset/amount/recipient"
+              },
+              "Payment-Required": {
+                "schema": { "type": "string" },
+                "description": "Human-readable challenge mirror"
+              },
+              "X-Rpc-Weight": {
+                "schema": { "type": "integer" },
+                "description": "Summed weight of the JSON-RPC body"
+              },
+              "X-Rpc-Price-Usd": {
+                "schema": { "type": "string" },
+                "description": "Computed price in USD for this request"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PaymentRequiredBody" }
+              }
+            }
+          },
+          "413": {
+            "description": "Batch size exceeds MAX_BATCH_SIZE (100)."
+          },
+          "400": {
+            "description": "Invalid JSON-RPC body."
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "summary": "Public health probe (free)",
+        "responses": {
+          "200": {
+            "description": "Health status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" },
+                    "version": { "type": "string" },
+                    "network": { "type": "string" },
+                    "region": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pricing": {
+      "get": {
+        "operationId": "pricing",
+        "summary": "Public weight + USD price table (free)",
+        "responses": {
+          "200": {
+            "description": "Per-method weight and price",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token_price_usd": { "type": "number" },
+                    "default_weight": { "type": "integer" },
+                    "max_batch_size": { "type": "integer" },
+                    "methods": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "method": { "type": "string" },
+                          "weight": { "type": "integer" },
+                          "price_usd": { "type": "number" },
+                          "price": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/.well-known/x402": {
+      "get": {
+        "operationId": "wellKnownX402",
+        "summary": "x402 scheme and network metadata (free)",
+        "responses": {
+          "200": {
+            "description": "x402 capabilities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "scheme": { "type": "string" },
+                    "network": { "type": "string" },
+                    "asset": { "type": "string" },
+                    "recipient": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "JsonRpcRequest": {
+        "type": "object",
+        "required": ["jsonrpc", "method"],
+        "properties": {
+          "jsonrpc": { "type": "string", "enum": ["2.0"] },
+          "id": { "oneOf": [{ "type": "string" }, { "type": "integer" }] },
+          "method": { "type": "string" },
+          "params": {}
+        }
+      },
+      "JsonRpcResponse": {
+        "type": "object",
+        "properties": {
+          "jsonrpc": { "type": "string", "enum": ["2.0"] },
+          "id": { "oneOf": [{ "type": "string" }, { "type": "integer" }, { "type": "null" }] },
+          "result": {},
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "integer" },
+              "message": { "type": "string" },
+              "data": {}
+            }
+          }
+        }
+      },
+      "PaymentRequiredBody": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string", "enum": ["payment_required"] },
+          "message": { "type": "string" },
+          "price_usd": { "type": "string" },
+          "weight": { "type": "integer" },
+          "network": { "type": "string" },
+          "asset": { "type": "string" }
+        }
+      }
+    }
+  }
+}
