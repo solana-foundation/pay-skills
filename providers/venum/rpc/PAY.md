@@ -5,7 +5,7 @@ description: "Cost-efficient Solana mainnet JSON-RPC at $0.0001 per call in USDC
 use_case: "Use for Solana JSON-RPC calls (getAccountInfo, getBalance, getProgramAccounts, getTransaction, sendTransaction), pay-as-you-go reads without API key management, and short-burst dApp backends paying micro-cents per call."
 category: compute
 service_url: https://pay.rpc.venum.dev
-version: "1"
+version: v1
 openapi:
   path: openapi.json
 ---
