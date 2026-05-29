@@ -6,17 +6,19 @@
     "description": "Stablecoin-gated Solana JSON-RPC proxy. Paid endpoint POST /v1/solana-mainnet charges per JSON-RPC method via the x402 protocol on Solana mainnet, settled in USDC through the Coinbase CDP facilitator."
   },
   "servers": [
-    { "url": "https://x402.erpc.global" }
+    {
+      "url": "https://x402.erpc.global"
+    }
   ],
   "paths": {
     "/v1/solana-mainnet": {
       "post": {
         "operationId": "solanaJsonRpc",
         "summary": "Solana JSON-RPC (paid)",
-        "description": "Pay-per-request Solana JSON-RPC proxy. Accepts single or batch JSON-RPC 2.0 bodies. The first call returns 402 with an x402 payment challenge whose amount is the sum of per-method weights times the base token price. The same body retried with X-Payment is settled in USDC on Solana mainnet and proxied to the upstream Solana RPC.",
+        "description": "Pay-per-request Solana JSON-RPC proxy. Accepts single or batch JSON-RPC 2.0 bodies. Pricing follows the canonical ERPC token model: standard JSON-RPC methods cost a flat 42 tokens, getProgramAccounts 4200, getTokenLargestAccounts 2400, and getMultipleAccounts 420 × the number of pubkeys in params[0] (min 1). Unknown methods default to 42 tokens. The first call returns 402 with an x402 payment challenge whose amount is the summed token weight times the base token price (1 token = $0.000001, i.e. $1 per 1,000,000 tokens). The same body retried with X-Payment is settled in USDC on Solana mainnet and proxied to the upstream Solana RPC.",
         "x-pay-pricing": {
           "model": "per_method_weight",
-          "base_token_price_usd": 0.0001,
+          "base_token_price_usd": 1e-06,
           "currency": "USDC",
           "network": "solana"
         },
@@ -26,10 +28,14 @@
             "application/json": {
               "schema": {
                 "oneOf": [
-                  { "$ref": "#/components/schemas/JsonRpcRequest" },
+                  {
+                    "$ref": "#/components/schemas/JsonRpcRequest"
+                  },
                   {
                     "type": "array",
-                    "items": { "$ref": "#/components/schemas/JsonRpcRequest" },
+                    "items": {
+                      "$ref": "#/components/schemas/JsonRpcRequest"
+                    },
                     "minItems": 1,
                     "maxItems": 100
                   }
@@ -37,20 +43,44 @@
               },
               "examples": {
                 "getBalance": {
-                  "summary": "Single getBalance (1 weight, $0.0001)",
+                  "summary": "Single getBalance (42 tokens, $0.000042)",
                   "value": {
                     "jsonrpc": "2.0",
                     "id": 1,
                     "method": "getBalance",
-                    "params": ["11111111111111111111111111111111"]
+                    "params": [
+                      "11111111111111111111111111111111"
+                    ]
                   }
                 },
                 "batch": {
-                  "summary": "Batch (summed weight)",
+                  "summary": "Batch (summed tokens: getSlot 42 + getBlockHeight 42 = 84, $0.000084)",
                   "value": [
-                    { "jsonrpc": "2.0", "id": 1, "method": "getSlot" },
-                    { "jsonrpc": "2.0", "id": 2, "method": "getBlockHeight" }
+                    {
+                      "jsonrpc": "2.0",
+                      "id": 1,
+                      "method": "getSlot"
+                    },
+                    {
+                      "jsonrpc": "2.0",
+                      "id": 2,
+                      "method": "getBlockHeight"
+                    }
                   ]
+                },
+                "getMultipleAccounts": {
+                  "summary": "getMultipleAccounts (420 × pubkey count; 2 pubkeys = 840 tokens, $0.00084)",
+                  "value": {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "getMultipleAccounts",
+                    "params": [
+                      [
+                        "vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg",
+                        "4fYNw3dojWmQ4dXtSGE9epjRGy9pFSx62YypT7avPYvA"
+                      ]
+                    ]
+                  }
                 }
               }
             }
@@ -61,47 +91,61 @@
             "description": "Upstream JSON-RPC response. Includes X-Payment-Response header from the facilitator.",
             "headers": {
               "X-Payment-Response": {
-                "schema": { "type": "string" },
+                "schema": {
+                  "type": "string"
+                },
                 "description": "Base64-encoded x402 settlement receipt"
               }
             },
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/JsonRpcResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/JsonRpcResponse"
+                }
               }
             }
+          },
+          "400": {
+            "description": "Invalid JSON-RPC body."
           },
           "402": {
             "description": "Payment Required. Returned before payment with x402 challenge headers.",
             "headers": {
               "X-Payment-Required": {
-                "schema": { "type": "string" },
+                "schema": {
+                  "type": "string"
+                },
                 "description": "x402 challenge (base64) describing accepted scheme/network/asset/amount/recipient"
               },
               "Payment-Required": {
-                "schema": { "type": "string" },
+                "schema": {
+                  "type": "string"
+                },
                 "description": "Human-readable challenge mirror"
               },
               "X-Rpc-Weight": {
-                "schema": { "type": "integer" },
-                "description": "Summed weight of the JSON-RPC body"
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Summed token weight of the JSON-RPC body (standard methods 42 each; see x-pay-pricing)"
               },
               "X-Rpc-Price-Usd": {
-                "schema": { "type": "string" },
+                "schema": {
+                  "type": "string"
+                },
                 "description": "Computed price in USD for this request"
               }
             },
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/PaymentRequiredBody" }
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequiredBody"
+                }
               }
             }
           },
           "413": {
             "description": "Batch size exceeds MAX_BATCH_SIZE (100)."
-          },
-          "400": {
-            "description": "Invalid JSON-RPC body."
           }
         }
       }
@@ -118,10 +162,18 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "status": { "type": "string" },
-                    "version": { "type": "string" },
-                    "network": { "type": "string" },
-                    "region": { "type": "string" }
+                    "status": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "network": {
+                      "type": "string"
+                    },
+                    "region": {
+                      "type": "string"
+                    }
                   }
                 }
               }
@@ -142,18 +194,43 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "token_price_usd": { "type": "number" },
-                    "default_weight": { "type": "integer" },
-                    "max_batch_size": { "type": "integer" },
+                    "token_price_usd": {
+                      "type": "number"
+                    },
+                    "default_weight": {
+                      "type": "integer"
+                    },
+                    "max_batch_size": {
+                      "type": "integer"
+                    },
                     "methods": {
                       "type": "array",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "method": { "type": "string" },
-                          "weight": { "type": "integer" },
-                          "price_usd": { "type": "number" },
-                          "price": { "type": "string" }
+                          "method": {
+                            "type": "string"
+                          },
+                          "weight": {
+                            "type": "integer"
+                          },
+                          "price_usd": {
+                            "type": "number"
+                          },
+                          "price": {
+                            "type": "string"
+                          },
+                          "dynamic": {
+                            "type": "boolean",
+                            "description": "True when the weight scales with request params (e.g. getMultipleAccounts)"
+                          },
+                          "perPubkeyWeight": {
+                            "type": "integer",
+                            "description": "Token weight charged per pubkey for dynamic methods"
+                          },
+                          "note": {
+                            "type": "string"
+                          }
                         }
                       }
                     }
@@ -177,10 +254,18 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "scheme": { "type": "string" },
-                    "network": { "type": "string" },
-                    "asset": { "type": "string" },
-                    "recipient": { "type": "string" }
+                    "scheme": {
+                      "type": "string"
+                    },
+                    "network": {
+                      "type": "string"
+                    },
+                    "asset": {
+                      "type": "string"
+                    },
+                    "recipient": {
+                      "type": "string"
+                    }
                   }
                 }
               }
@@ -194,25 +279,65 @@
     "schemas": {
       "JsonRpcRequest": {
         "type": "object",
-        "required": ["jsonrpc", "method"],
+        "required": [
+          "jsonrpc",
+          "method"
+        ],
         "properties": {
-          "jsonrpc": { "type": "string", "enum": ["2.0"] },
-          "id": { "oneOf": [{ "type": "string" }, { "type": "integer" }] },
-          "method": { "type": "string" },
+          "jsonrpc": {
+            "type": "string",
+            "enum": [
+              "2.0"
+            ]
+          },
+          "id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
+          },
+          "method": {
+            "type": "string"
+          },
           "params": {}
         }
       },
       "JsonRpcResponse": {
         "type": "object",
         "properties": {
-          "jsonrpc": { "type": "string", "enum": ["2.0"] },
-          "id": { "oneOf": [{ "type": "string" }, { "type": "integer" }, { "type": "null" }] },
+          "jsonrpc": {
+            "type": "string",
+            "enum": [
+              "2.0"
+            ]
+          },
+          "id": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "result": {},
           "error": {
             "type": "object",
             "properties": {
-              "code": { "type": "integer" },
-              "message": { "type": "string" },
+              "code": {
+                "type": "integer"
+              },
+              "message": {
+                "type": "string"
+              },
               "data": {}
             }
           }
@@ -221,12 +346,28 @@
       "PaymentRequiredBody": {
         "type": "object",
         "properties": {
-          "error": { "type": "string", "enum": ["payment_required"] },
-          "message": { "type": "string" },
-          "price_usd": { "type": "string" },
-          "weight": { "type": "integer" },
-          "network": { "type": "string" },
-          "asset": { "type": "string" }
+          "error": {
+            "type": "string",
+            "enum": [
+              "payment_required"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "price_usd": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "integer",
+            "description": "Summed token weight (standard methods 42 each)"
+          },
+          "network": {
+            "type": "string"
+          },
+          "asset": {
+            "type": "string"
+          }
         }
       }
     }
