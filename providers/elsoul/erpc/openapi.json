@@ -24,6 +24,17 @@
           "currency": "USDC",
           "network": "solana"
         },
+        "parameters": [
+          {
+            "name": "X-Payment",
+            "in": "header",
+            "required": false,
+            "description": "x402 payment payload (base64-encoded). Omitted on the first call, which returns 402 with an x402 challenge. On the retry the client re-sends the same JSON-RPC body with this header carrying the signed Solana USDC payment for the challenged amount; the worker verifies and settles it before proxying upstream. The legacy header name Payment-Signature is also accepted as a fallback. Each settled payment signature is single-use within the settlement TTL — replaying it returns 409 duplicate_payment.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -96,7 +107,13 @@
                 "schema": {
                   "type": "string"
                 },
-                "description": "Base64-encoded x402 settlement receipt"
+                "description": "Base64-encoded x402 settlement receipt for the X-Payment submitted on this request. Also mirrored as the Payment-Response header."
+              },
+              "Payment-Response": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Human-readable mirror of X-Payment-Response."
               }
             },
             "content": {
@@ -111,7 +128,7 @@
             "description": "Invalid JSON-RPC body."
           },
           "402": {
-            "description": "Payment Required. Returned (a) before payment with x402 challenge headers, and (b) when a submitted payment is invalid/rejected by the facilitator. The error.code is payment_required, payment_invalid, price_mismatch, or payment_amount_too_low (amount below the 1000-atomic / $0.001 facilitator minimum). Facilitator verify/settle errors are surfaced here as a descriptive 402 rather than an HTTP 500.",
+            "description": "Payment Required. Returned (a) before payment with x402 challenge headers, and (b) when a submitted payment is invalid/rejected by the facilitator. The error.code is payment_required, payment_invalid, price_mismatch, or payment_amount_too_low (amount below the 1000-atomic / $0.001 facilitator minimum). Facilitator verify/settle errors are surfaced here as a descriptive 402 rather than an HTTP 500. A replayed (already-used) payment signature is rejected separately as 409 duplicate_payment, not 402.",
             "headers": {
               "X-Payment-Required": {
                 "schema": {
@@ -142,6 +159,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PaymentRequiredBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Duplicate payment. The payment signature has already been used within the settlement TTL (replay / double-spend protection enforced by the SettlementCache). error.code is duplicate_payment; the client must obtain a fresh payment before retrying.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicatePaymentBody"
                 }
               }
             }
@@ -413,6 +440,29 @@
                 "type": "number"
               },
               "price": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "DuplicatePaymentBody": {
+        "type": "object",
+        "description": "Returned at HTTP 409 when a payment signature is replayed within the settlement TTL.",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "duplicate_payment"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
                 "type": "string"
               }
             }

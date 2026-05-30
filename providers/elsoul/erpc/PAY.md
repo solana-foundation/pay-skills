@@ -20,10 +20,12 @@ of `$0.000001` ($1 per 1,000,000 tokens). Every charge is floored to a minimum
 of `1000` atomic USDC = `$0.001` (the Coinbase CDP facilitator minimum
 settlement amount), so any request whose summed weight is below 1000 tokens is
 billed `$0.001`. The first request returns `402 Payment Required` with an x402
-challenge; the same body retried with `X-Payment` settles through the Coinbase
-CDP x402 facilitator, then forwards to the upstream Solana RPC and returns the
-real JSON-RPC response. Duplicate payment signatures are rejected by a Durable
-Object settlement cache. Public probes are exposed at `GET /health`,
+challenge; retry the same body with the `X-Payment` header to settle through the
+Coinbase CDP x402 facilitator, which then forwards to the upstream Solana RPC
+and returns the real JSON-RPC response. Each payment signature is single-use:
+replaying an already-settled `X-Payment` is rejected with `409 duplicate_payment`
+by the Durable Object settlement cache, so obtain a fresh payment per request.
+Public probes are exposed at `GET /health`,
 `GET /pricing` (full weight + USD table), and `GET /.well-known/x402`.
 
 ## Spend-aware usage
@@ -46,8 +48,11 @@ Object settlement cache. Public probes are exposed at `GET /health`,
 - `getProgramAccounts` is the most expensive at 4200 tokens (`$0.0042`, above
   the floor). Always pass `dataSlice` and `filters` to keep scans tight.
 - Batch read-only calls in a single JSON-RPC array (up to 100 per request) to
-  amortize HTTPS overhead and the `$0.001` floor. The price is `max(summed
-  token weight, 1000)` of every method in the batch.
+  amortize HTTPS overhead and the `$0.001` floor. A batch is charged once: sum
+  the per-method token weights of every entry, then apply the single `$0.001`
+  (1000 atomic) floor to that combined total — i.e. `max(sum of all method
+  weights, 1000)` tokens for the whole array, not a per-method floor. So a
+  batch of many 42-token reads still settles at the single `$0.001` floor.
 - Unknown methods fall back to the 42-token default, floored to `$0.001`. Use
   the live `GET /pricing` endpoint to confirm exact pricing before integrating
   new methods.
