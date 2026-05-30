@@ -1,7 +1,7 @@
 ---
 name: ai-scraper
 title: "Web3 Autonomous Scraper"
-description: "Pay-per-request web scraping API that extracts clean HTML or Markdown from any URL. Costs 0.005 USDC per request on Solana mainnet via x402 protocol. No accounts or API keys required."
+description: "Pay-per-request web scraping API that extracts clean HTML from any URL. Costs 0.005 USDC per request on Solana mainnet via x402 protocol. No accounts or API keys required."
 use_case: "Use for scraping web pages, extracting HTML content from any URL, fetching website data for AI agents, and bypassing CAPTCHAs without subscriptions or API key management."
 category: data
 service_url: https://ai-scraper-api.duckdns.org
