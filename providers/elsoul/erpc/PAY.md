@@ -1,5 +1,5 @@
 ---
-name: erpc-rpc
+name: erpc
 title: "ERPC x402 Solana RPC"
 description: "Pay-per-request Solana JSON-RPC proxy on Cloudflare Workers, billed per method via x402. Reads balances, accounts, blocks, transactions, signatures, token holdings, program data, and submits or simulates transactions, settled in USDC on Solana mainnet."
 use_case: "Use for on-demand Solana mainnet JSON-RPC calls - account and balance reads, transaction history, program account scans, block and slot lookups, fee estimation, transaction simulation, and sendTransaction - paid per request in USDC with no subscription."
