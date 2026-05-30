@@ -15,10 +15,12 @@
       "post": {
         "operationId": "solanaJsonRpc",
         "summary": "Solana JSON-RPC (paid)",
-        "description": "Pay-per-request Solana JSON-RPC proxy. Accepts single or batch JSON-RPC 2.0 bodies. Pricing follows the canonical ERPC token model: standard JSON-RPC methods cost a flat 42 tokens, getProgramAccounts 4200, getTokenLargestAccounts 2400, and getMultipleAccounts 420 × the number of pubkeys in params[0] (min 1). Unknown methods default to 42 tokens. The first call returns 402 with an x402 payment challenge whose amount is the summed token weight times the base token price (1 token = $0.000001, i.e. $1 per 1,000,000 tokens). The same body retried with X-Payment is settled in USDC on Solana mainnet and proxied to the upstream Solana RPC.",
+        "description": "Pay-per-request Solana JSON-RPC proxy. Accepts single or batch JSON-RPC 2.0 bodies. Pricing follows the canonical ERPC token model: standard JSON-RPC methods cost a flat 42 tokens, getProgramAccounts 4200, getTokenLargestAccounts 2400, and getMultipleAccounts 420 × the number of pubkeys in params[0] (min 1). Unknown methods default to 42 tokens. Every payment is floored to a minimum charge of 1000 atomic USDC = $0.001 (the Coinbase CDP facilitator minimum settlement amount), so standard methods that would otherwise be 42 atomic ($0.000042) are charged $0.001. The first call returns 402 with an x402 payment challenge whose amount is max(summed token weight, 1000) times the base token price (1 token = $0.000001 = 1 atomic USDC, i.e. $1 per 1,000,000 tokens). The same body retried with X-Payment is settled in USDC on Solana mainnet and proxied to the upstream Solana RPC.",
         "x-pay-pricing": {
           "model": "per_method_weight",
           "base_token_price_usd": 1e-06,
+          "min_charge_atomic": 1000,
+          "min_charge_usd": 0.001,
           "currency": "USDC",
           "network": "solana"
         },
@@ -43,7 +45,7 @@
               },
               "examples": {
                 "getBalance": {
-                  "summary": "Single getBalance (42 tokens, $0.000042)",
+                  "summary": "Single getBalance (42 canonical tokens, floored to $0.001)",
                   "value": {
                     "jsonrpc": "2.0",
                     "id": 1,
@@ -54,7 +56,7 @@
                   }
                 },
                 "batch": {
-                  "summary": "Batch (summed tokens: getSlot 42 + getBlockHeight 42 = 84, $0.000084)",
+                  "summary": "Batch (getSlot 42 + getBlockHeight 42 = 84 tokens, floored to $0.001)",
                   "value": [
                     {
                       "jsonrpc": "2.0",
@@ -69,7 +71,7 @@
                   ]
                 },
                 "getMultipleAccounts": {
-                  "summary": "getMultipleAccounts (420 × pubkey count; 2 pubkeys = 840 tokens, $0.00084)",
+                  "summary": "getMultipleAccounts (420 × pubkey count; 2 pubkeys = 840 tokens, floored to $0.001)",
                   "value": {
                     "jsonrpc": "2.0",
                     "id": 1,
@@ -109,7 +111,7 @@
             "description": "Invalid JSON-RPC body."
           },
           "402": {
-            "description": "Payment Required. Returned before payment with x402 challenge headers.",
+            "description": "Payment Required. Returned (a) before payment with x402 challenge headers, and (b) when a submitted payment is invalid/rejected by the facilitator. The error.code is payment_required, payment_invalid, price_mismatch, or payment_amount_too_low (amount below the 1000-atomic / $0.001 facilitator minimum). Facilitator verify/settle errors are surfaced here as a descriptive 402 rather than an HTTP 500.",
             "headers": {
               "X-Payment-Required": {
                 "schema": {
@@ -127,13 +129,13 @@
                 "schema": {
                   "type": "integer"
                 },
-                "description": "Summed token weight of the JSON-RPC body (standard methods 42 each; see x-pay-pricing)"
+                "description": "Charged token weight of the JSON-RPC body: max(summed canonical weight, 1000-atomic minimum). Standard methods report 1000 after the floor. See x-pay-pricing."
               },
               "X-Rpc-Price-Usd": {
                 "schema": {
                   "type": "string"
                 },
-                "description": "Computed price in USD for this request"
+                "description": "Computed (floored) price in USD for this request; minimum $0.001"
               }
             },
             "content": {
@@ -194,14 +196,27 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "token_price_usd": {
+                    "tokenPriceUsd": {
                       "type": "number"
                     },
-                    "default_weight": {
-                      "type": "integer"
+                    "minChargeAtomic": {
+                      "type": "integer",
+                      "description": "Minimum charge per payment in atomic USDC (CDP facilitator floor); 1000 = $0.001"
                     },
-                    "max_batch_size": {
-                      "type": "integer"
+                    "minChargeUsd": {
+                      "type": "number",
+                      "description": "Minimum charge in USD ($0.001)"
+                    },
+                    "defaultUnknownMethodWeight": {
+                      "type": "integer",
+                      "description": "Charged (floored) weight for unknown methods"
+                    },
+                    "defaultUnknownMethodRawWeight": {
+                      "type": "integer",
+                      "description": "Canonical pre-floor weight for unknown methods (42)"
+                    },
+                    "defaultUnknownMethodPriceUsd": {
+                      "type": "number"
                     },
                     "methods": {
                       "type": "array",
@@ -212,7 +227,16 @@
                             "type": "string"
                           },
                           "weight": {
-                            "type": "integer"
+                            "type": "integer",
+                            "description": "Charged token weight after the minimum-charge floor"
+                          },
+                          "rawWeight": {
+                            "type": "integer",
+                            "description": "Canonical token weight before the floor"
+                          },
+                          "floored": {
+                            "type": "boolean",
+                            "description": "True when the floor raised this method above its canonical weight"
                           },
                           "price_usd": {
                             "type": "number"
@@ -347,26 +371,51 @@
         "type": "object",
         "properties": {
           "error": {
-            "type": "string",
-            "enum": [
-              "payment_required"
-            ]
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "payment_required",
+                  "payment_invalid",
+                  "price_mismatch",
+                  "payment_amount_too_low"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "request_id": {
+                "type": "string"
+              }
+            }
           },
-          "message": {
-            "type": "string"
-          },
-          "price_usd": {
-            "type": "string"
-          },
-          "weight": {
-            "type": "integer",
-            "description": "Summed token weight (standard methods 42 each)"
-          },
-          "network": {
-            "type": "string"
-          },
-          "asset": {
-            "type": "string"
+          "pricing": {
+            "type": "object",
+            "description": "Computed pricing for the submitted JSON-RPC body.",
+            "properties": {
+              "weight": {
+                "type": "integer",
+                "description": "Charged (floored) token weight"
+              },
+              "rawWeight": {
+                "type": "integer",
+                "description": "Canonical pre-floor token weight"
+              },
+              "floored": {
+                "type": "boolean"
+              },
+              "minChargeAtomic": {
+                "type": "integer",
+                "description": "1000 ($0.001)"
+              },
+              "priceUsd": {
+                "type": "number"
+              },
+              "price": {
+                "type": "string"
+              }
+            }
           }
         }
       }
