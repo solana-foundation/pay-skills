@@ -1,0 +1,330 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "EarnFi Agent API (x402)",
+    "version": "1.0.0",
+    "description": "Machine-readable overview of the EarnFi **Agent API** (`ai-agent/v1`). **Paid** routes return HTTP **402** with a quote until you attach the **x402 payment header** shown in that response; **free** routes use `?secret=` or `?agent_token=`.\n\n**MCP:** Streamable HTTP at `{origin}/mcp` exposes the same flows via tools such as `earnfi_social_create` (optional `payment_signature` on the second call; structured JSON quotes). See `/skill.md` for the tool table.\n\n**Who can run work:** New jobs are **humans-only** (`execution_mode=human`). Other modes are reserved for a future release.\n\n**Optional audience rules:** Paid creates may request token-holder gates or verified-participant options using query parameters documented on each path. See product docs for what participants see in the app.\n\n**Where to read more:** Narrative overview at https://docs.earnfi.fun (Agent API). For Solana transaction field layout, follow this file together with the x402 SDK you use in production."
+  },
+  "servers": [
+    {
+      "url": "https://app.earnfi.fun/api/ai-agent/v1",
+      "description": "EarnFi Agent API base path for this deployment"
+    }
+  ],
+  "tags": [
+    { "name": "discovery", "description": "Catalog and registration (no job payment), plus optional `/x402` preview" },
+    { "name": "x402-paid-create", "description": "Paid job creates: 402 quote, then retry with signed USDC payment header" },
+    { "name": "polling", "description": "Free reads with job secret or agent token" },
+    { "name": "creator", "description": "Free creator actions that require agent token" }
+  ],
+  "paths": {
+    "/x402": {
+      "get": {
+        "tags": ["discovery"],
+        "summary": "Preview how paid social jobs are priced",
+        "description": "**Returns 402** with the same payment framing as `/jobs/social`, so tools can learn quote shape before you fund a real run.",
+        "responses": {
+          "402": { "description": "x402 v2 JSON plus standard payment headers" }
+        }
+      },
+      "post": {
+        "tags": ["discovery"],
+        "summary": "Same as GET",
+        "description": "Identical to GET; body is optional for discovery.",
+        "responses": {
+          "402": { "description": "Same as GET" }
+        }
+      }
+    },
+    "/catalog": {
+      "get": {
+        "tags": ["discovery"],
+        "summary": "Job types, minimum rewards, suggested sizes",
+        "description": "**Free.** Lists what kinds of quick work you can fund, minimum pay, and suggested participant counts.",
+        "responses": {
+          "200": { "description": "Catalog JSON" }
+        }
+      },
+      "post": {
+        "tags": ["discovery"],
+        "summary": "Same as GET",
+        "description": "**Free.** Same JSON as GET.",
+        "responses": {
+          "200": { "description": "Catalog JSON" }
+        }
+      }
+    },
+    "/register/challenge": {
+      "get": {
+        "tags": ["discovery"],
+        "summary": "Canonical registration message",
+        "description": "**Free.** Returns `message`, `nonce`, and expiry. Sign `message` exactly (UTF-8), then `POST /register` with the same `wallet_address`, `agent_name`, unchanged `message`, `signature`, and `nonce`. Recommended for autonomous clients.",
+        "parameters": [
+          { "name": "wallet_address", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "agent_name", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "message, nonce, expires_at" },
+          "400": { "description": "invalid_params" },
+          "409": { "description": "wallet_reserved_for_human_user" }
+        }
+      },
+      "post": {
+        "tags": ["discovery"],
+        "summary": "Same as GET",
+        "description": "**Free.** Same parameters may be sent as JSON body (merged into request like other Agent routes).",
+        "responses": {
+          "200": { "description": "Same as GET" }
+        }
+      }
+    },
+    "/register": {
+      "post": {
+        "tags": ["discovery"],
+        "summary": "Register an agent (wallet-signed message)",
+        "description": "**Free.** Creates an **agent_token** for your machine identity. This wallet message signature is **not** the same object you use for x402 paid creates after a 402 quote.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["wallet_address", "agent_name", "message", "signature"],
+                "properties": {
+                  "wallet_address": { "type": "string" },
+                  "agent_name": { "type": "string" },
+                  "message": { "type": "string" },
+                  "signature": {},
+                  "nonce": { "type": "string", "description": "Optional; when set, must match GET /register/challenge and message must match that challenge exactly." }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "agent_id, agent_token" },
+          "400": { "description": "invalid_params" }
+        }
+      }
+    },
+    "/jobs/social": {
+      "get": {
+        "tags": ["x402-paid-create"],
+        "summary": "Create a social or quick-engagement job (paid)",
+        "description": "**Paid (x402).** Fund follows, likes, reposts, comments, watch tasks, and similar catalog work. **Without** a completed payment you receive **402** with `accepts[]` and a human-readable `resource.description`. **With** payment, retry the **same** request including the x402 payment header. Optional **token gate** and **verified-participant** query fields are documented in the live schema.",
+        "parameters": [
+          { "name": "agent_token", "in": "query", "schema": { "type": "string" } },
+          { "name": "task_type", "in": "query", "schema": { "type": "string" } },
+          { "name": "slots", "in": "query", "schema": { "type": "integer" } },
+          { "name": "reward_per_user", "in": "query", "schema": { "type": "string" } },
+          {
+            "name": "execution_mode",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["human"] },
+            "description": "Must be `human` (default). Other values are rejected until supported."
+          },
+          {
+            "name": "token_gate",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Optional URL-encoded JSON for token-holder rules when enabled for your deployment."
+          },
+          {
+            "name": "x_account_requirement",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["all", "verified_only", "verified"]
+            },
+            "description": "Optional participant filter for verified accounts."
+          },
+          {
+            "name": "requires_verified_x",
+            "in": "query",
+            "schema": { "type": "boolean" },
+            "description": "Optional shorthand for verified-only vs all participants."
+          }
+        ],
+        "responses": {
+          "402": { "description": "Quote before payment" },
+          "200": { "description": "job_id, secret, status_url — polling is free with secret" },
+          "400": { "description": "Validation errors" },
+          "403": { "description": "Gating or policy rejection" }
+        }
+      }
+    },
+    "/jobs/manual": {
+      "get": {
+        "tags": ["x402-paid-create"],
+        "summary": "Create a custom / manual job (paid)",
+        "description": "**Paid (x402).** Same quote-then-pay pattern as `/jobs/social`. You supply your own title, instructions, and verification style. Optional token and verified-participant query fields as on `/jobs/social` where supported."
+      }
+    },
+    "/jobs/contest": {
+      "get": {
+        "tags": ["x402-paid-create"],
+        "summary": "Create a contest (paid)",
+        "description": "**Paid (x402).** Prize pool contests with platform fee included in the quote. Optional gating fields as on `/jobs/social` where supported."
+      }
+    },
+    "/interrupt": {
+      "get": {
+        "tags": ["x402-paid-create"],
+        "summary": "Ask many people one question (paid)",
+        "description": "**Paid (x402).** Human answers to a single clear question—opinions, quick feedback, light tasks. Same quote-then-pay pattern; optional gating as documented."
+      }
+    },
+    "/jobs/{id}": {
+      "get": {
+        "tags": ["polling"],
+        "summary": "Poll job status",
+        "description": "**Free** with `?secret=` (recommended) or `?agent_token=`."
+      }
+    },
+    "/jobs/{id}/submissions": {
+      "get": {
+        "tags": ["polling"],
+        "summary": "List submissions",
+        "description": "**Free** — list worker submissions with the job’s secret; no second on-chain payment per read."
+      }
+    },
+    "/jobs/{id}/completions": {
+      "get": {
+        "tags": ["polling"],
+        "summary": "List completions",
+        "description": "**Free** with secret or agent_token."
+      }
+    },
+    "/jobs/{id}/pause": {
+      "get": {
+        "tags": ["creator"],
+        "summary": "Pause or resume job",
+        "description": "**Free** — requires `agent_token`. GET or POST with `agent_token` in query or JSON body."
+      },
+      "post": {
+        "tags": ["creator"],
+        "summary": "Same as GET",
+        "description": "**Free** — same as GET; body may include `agent_token`."
+      }
+    },
+    "/jobs/{id}/verifications": {
+      "get": {
+        "tags": ["creator"],
+        "summary": "List pending manual verifications",
+        "description": "**Free** — requires `agent_token` for the job owner. Returns completions awaiting approve/reject on manual-verification jobs."
+      },
+      "post": {
+        "tags": ["creator"],
+        "summary": "Same as GET",
+        "description": "**Free** — same as GET."
+      }
+    },
+    "/verifications/{id}/approve": {
+      "get": {
+        "tags": ["creator"],
+        "summary": "Approve a verification",
+        "description": "**Free** — `agent_token` required. `{id}` is the verification (completion) id."
+      },
+      "post": {
+        "tags": ["creator"],
+        "summary": "Same as GET",
+        "description": "**Free** — same as GET."
+      }
+    },
+    "/verifications/{id}/reject": {
+      "get": {
+        "tags": ["creator"],
+        "summary": "Reject a verification",
+        "description": "**Free** — `agent_token` required. Optional `reason` query/body on POST."
+      },
+      "post": {
+        "tags": ["creator"],
+        "summary": "Same as GET",
+        "description": "**Free** — same as GET."
+      }
+    },
+    "/jobs/{id}/contest/submissions": {
+      "get": {
+        "tags": ["creator"],
+        "summary": "List contest submissions",
+        "description": "**Free** — contest jobs only; requires `agent_token`."
+      },
+      "post": {
+        "tags": ["creator"],
+        "summary": "Same as GET",
+        "description": "**Free** — same as GET."
+      }
+    },
+    "/jobs/{id}/contest/mark-winner": {
+      "get": {
+        "tags": ["creator"],
+        "summary": "Mark contest winner",
+        "description": "**Free** — requires `agent_token` and submission identifiers per live API schema."
+      },
+      "post": {
+        "tags": ["creator"],
+        "summary": "Same as GET",
+        "description": "**Free** — same as GET."
+      }
+    },
+    "/jobs/{id}/detail": {
+      "get": {
+        "tags": ["creator"],
+        "summary": "Creator job detail",
+        "description": "**Free** — extended job view for the agent owner."
+      },
+      "post": {
+        "tags": ["creator"],
+        "summary": "Same as GET",
+        "description": "**Free** — same as GET."
+      }
+    },
+    "/jobs/{id}/users": {
+      "get": {
+        "tags": ["creator"],
+        "summary": "List participants",
+        "description": "**Free** — users who joined or completed the job."
+      },
+      "post": {
+        "tags": ["creator"],
+        "summary": "Same as GET",
+        "description": "**Free** — same as GET."
+      }
+    },
+    "/jobs/{id}/payments": {
+      "get": {
+        "tags": ["creator"],
+        "summary": "List job payments",
+        "description": "**Free** — payment rows linked to the job."
+      },
+      "post": {
+        "tags": ["creator"],
+        "summary": "Same as GET",
+        "description": "**Free** — same as GET."
+      }
+    },
+    "/interrupt/{id}": {
+      "get": {
+        "tags": ["polling"],
+        "summary": "Poll human-interrupt job",
+        "description": "**Free** with `secret` or `agent_token`. `{id}` is the interrupt id (e.g. EFI…)."
+      },
+      "post": {
+        "tags": ["polling"],
+        "summary": "Same as GET",
+        "description": "**Free** — same as GET."
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "PaymentSignatureHeader": {
+        "name": "PAYMENT-SIGNATURE",
+        "in": "header",
+        "required": false,
+        "description": "x402 payment payload (base64 JSON with signed_tx + requirements). Required on the **retry** after HTTP 402 on paid create routes. Not used for registration (wallet message signature is separate).",
+        "schema": { "type": "string" }
+      }
+    }
+  }
+}
