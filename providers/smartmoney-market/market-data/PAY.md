@@ -143,14 +143,14 @@ endpoints:
   - method: GET
     path: api/insiders
     resource: insider
-    description: "Retrieve global issuer-side insider activity across selected insider-tracked stocks."
+    description: "Retrieve global issuer-side insider activity across selected insider-tracked stocks. Supports fixed cached windows days=7, days=30, or days=90; view; and limit."
     pricing:
       dimensions:
         - direction: usage
           unit: requests
           scale: 1
           tiers:
-            - price_usd: 0.01
+            - price_usd: 0.05
 
   - method: GET
     path: api/congress
@@ -196,6 +196,9 @@ available.
   `GET /api/fund/{slug}/snapshot` or `GET /api/fund/{slug}/changes`.
 - Use free `GET /api/insider-tracked-stocks` before paying for insider-specific
   endpoints; only tracked tickers have meaningful issuer-side Form 4 results.
+- Use `GET /api/insiders` for global insider activity only with fixed cached
+  windows `days=7`, `days=30`, or `days=90`; unsupported windows return an
+  error after payment.
 - Use `GET /api/ticker/{symbol}` first for a compact stock overview and
   coverage flags. Follow links only when the user needs the underlying detail.
 - Use `GET /api/funds` only when the task needs the premium all-funds overview;
