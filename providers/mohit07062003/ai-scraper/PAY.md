@@ -11,7 +11,7 @@ openapi:
 
 Pay-per-request web scraping API designed exclusively for autonomous AI agents. Each request costs exactly 0.005 USDC paid on Solana mainnet via the x402 protocol — no subscriptions, no API keys, no human intervention required.
 
-The API implements the HTTP 402 Payment Required standard. On the first request, it returns a `WWW-Authenticate` x402 challenge. The agent pays on-chain and retries with the transaction signature in the `Payment-Payload` header.
+The API implements the HTTP 402 Payment Required standard. On the first request, it returns a `PAYMENT-REQUIRED` x402 challenge (with `WWW-Authenticate` kept for backward compatibility). The agent pays on-chain and retries with the payment proof in the `X-PAYMENT` header.
 
 ## Spend-aware usage
 
