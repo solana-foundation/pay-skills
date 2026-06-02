@@ -1,0 +1,42 @@
+---
+name: verifik
+title: "Verifik AI"
+description: "x402 KYC, KYB, and identity APIs with Latin America document checks, sanctions/PEP screening, OCR, and structured citizen/business verification records."
+use_case: "Use for cedula/CURP/RUC validation, KYC/KYB checks, sanctions and watchlist screening, OCR on ID documents, and agent workflows that need verified identity or registry data."
+category: identity
+service_url: https://verifik.x402.paysponge.com
+openapi:
+  path: openapi.json
+---
+
+Verifik identity and compliance APIs exposed through PaySponge with x402
+payments.
+
+The published spec includes 122 routes across Latin America and global
+sources: national ID and registry lookups (for example `/v2/co/cedula`,
+`/v2/mx/curp`, `/v2/cl/cedula`), sanctions and watchlist checks (OFAC, FBI,
+Interpol, Europol, DEA, ONU), OCR on identity documents, communication
+validation, and KYB-style business verification. Agents that need parameter
+schemas, country codes, or document-type enums should inspect the OpenAPI
+document directly.
+
+Without a valid Verifik user Bearer JWT, routes respond with HTTP 402 until
+on-chain payment is submitted. Retry with `x-payment-tx` (or
+`Authorization: L402 <txHash>`) after payment. A normal Verifik client JWT in
+`Authorization: Bearer` skips on-chain payment for the same routes. Optional
+`GET/POST /api/proxy` with header `x-target-url` can target any documented
+`/v2` or `/v3` path when a direct operation is inconvenient; prefer documented
+paths when possible.
+
+## Spend-aware usage
+
+- Prefer country-specific `/v2/{country}/...` routes when the jurisdiction is
+  known instead of the generic `/api/proxy` entry point.
+- Use the narrowest endpoint for the task (single document lookup rather than
+  broad or exploratory calls).
+- Pass required query parameters and document types on the first request to
+  avoid repeat paid 402 cycles.
+- Reuse document numbers and country codes across follow-up calls in the same
+  workflow.
+- Call sanctions or watchlist endpoints only when screening is required, not
+  as a default prelude to every identity lookup.
