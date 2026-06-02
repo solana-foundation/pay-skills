@@ -20,7 +20,9 @@ lookups (for example `/v2/co/cedula`, `/v2/mx/curp`, `/v2/cl/cedula`,
 `/v2/usa/ssn`), sanctions and watchlist checks (OFAC, FBI, Interpol, Europol,
 DEA, ONU), OCR on identity documents, communication validation, and KYB-style
 business verification. OpenAPI operation tags mark region scope (`LATAM`,
-`Global`, `USA`) so agents can filter discovery accurately. Agents that need
+`Global`, `USA`) so agents can filter discovery accurately — including Spain
+and Canada registry routes and cross-region OCR, communication, and scheduling
+utilities tagged `Global`. Agents that need
 parameter schemas, country codes, or document-type enums should inspect the
 OpenAPI document directly.
 
