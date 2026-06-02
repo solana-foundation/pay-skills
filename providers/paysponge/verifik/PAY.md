@@ -12,26 +12,28 @@ openapi:
 Verifik identity and compliance APIs exposed through PaySponge with x402
 payments.
 
-The published spec includes 122 routes across Latin America and global
-sources: national ID and registry lookups (for example `/v2/co/cedula`,
-`/v2/mx/curp`, `/v2/cl/cedula`), sanctions and watchlist checks (OFAC, FBI,
-Interpol, Europol, DEA, ONU), OCR on identity documents, communication
-validation, and KYB-style business verification. Agents that need parameter
-schemas, country codes, or document-type enums should inspect the OpenAPI
-document directly.
+The published spec includes 122 routes across Latin America, the United
+States, Europe, Canada, and global compliance sources: national ID and registry
+lookups (for example `/v2/co/cedula`, `/v2/mx/curp`, `/v2/cl/cedula`,
+`/v2/usa/ssn`), sanctions and watchlist checks (OFAC, FBI, Interpol, Europol,
+DEA, ONU), OCR on identity documents, communication validation, and KYB-style
+business verification. OpenAPI operation tags mark region scope (`LATAM`,
+`Global`, `USA`) so agents can filter discovery accurately. Agents that need
+parameter schemas, country codes, or document-type enums should inspect the
+OpenAPI document directly.
 
 Without a valid Verifik user Bearer JWT, routes respond with HTTP 402 until
 on-chain payment is submitted. Retry with `x-payment-tx` (or
 `Authorization: L402 <txHash>`) after payment. A normal Verifik client JWT in
-`Authorization: Bearer` skips on-chain payment for the same routes. Optional
-`GET/POST /api/proxy` with header `x-target-url` can target any documented
-`/v2` or `/v3` path when a direct operation is inconvenient; prefer documented
-paths when possible.
+`Authorization: Bearer` skips on-chain payment for the same routes. Use the
+documented `/v2` and `/v3` operations in the OpenAPI spec; per-operation
+`x-payment-info` and runtime 402 responses define the exact price for each call.
 
 ## Spend-aware usage
 
 - Prefer country-specific `/v2/{country}/...` routes when the jurisdiction is
-  known instead of the generic `/api/proxy` entry point.
+  known (for example `/v2/co/cedula` for Colombia, `/v2/dea` for global
+  sanctions).
 - Use the narrowest endpoint for the task (single document lookup rather than
   broad or exploratory calls).
 - Pass required query parameters and document types on the first request to
