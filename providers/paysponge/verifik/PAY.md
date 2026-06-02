@@ -10,7 +10,9 @@ openapi:
 ---
 
 Verifik identity and compliance APIs exposed through PaySponge with x402
-payments.
+payments. The upstream Smart Agent proxy is deployed at
+https://ai.verifik.co; this registry entry documents the x402 gateway at
+`service_url`, which exposes the same capabilities on `/v2` and `/v3` paths.
 
 The published spec includes 122 routes across Latin America, the United
 States, Europe, Canada, and global compliance sources: national ID and registry
