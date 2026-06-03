@@ -1,0 +1,196 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Terminal News API",
+    "version": "0.1.2",
+    "description": "Real-time crypto news and market data from Terminal — a curated feed of the most relevant crypto intelligence.",
+    "contact": {
+      "url": "https://t.me/terminalsupport_bot"
+    },
+    "x-guidance": "This API provides real-time crypto news and market data. All endpoints require payment via x402 on Base mainnet (eip155:8453) in USDC.\n\nKey endpoints:\n- GET /api/posts — Fetch latest crypto news or search by keyword. Supports ?q=<query> for full-text search (returns up to 100 matches) and ?offset=<n> for pagination (50 per page).\n- GET /api/market-metrics — Global crypto market data: BTC/ETH dominance, total market cap, 24h volume. Cached 5 minutes.\n- GET /api/derivatives — BTC/ETH/SOL perpetual futures data: funding rates, long/short ratios, 24h liquidations. Cached 60 seconds.\n\nAll endpoints are monetized and require payment before each request. Use ?q=bitcoin, ?q=ethereum, etc. to filter news by topic."
+  },
+  "servers": [
+    { "url": "https://terminalverse.com" }
+  ],
+  "paths": {
+    "/api/posts": {
+      "get": {
+        "operationId": "getPosts",
+        "summary": "Get crypto news posts",
+        "description": "Returns paginated crypto news posts. Use ?q= for full-text search (up to 100 results) or ?offset= for pagination (50 per page).",
+        "parameters": [
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Pagination offset. Ignored when q is provided.",
+            "schema": { "type": "integer", "default": 0, "minimum": 0 }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Full-text search query. Returns up to 100 matching posts.",
+            "schema": { "type": "string" }
+          }
+        ],
+        "x-payment-info": {
+          "protocols": [{ "x402": {} }],
+          "price": { "mode": "fixed", "currency": "USD", "amount": "0.001" }
+        },
+        "responses": {
+          "200": {
+            "description": "Array of news posts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/Post" }
+                }
+              }
+            }
+          },
+          "402": { "description": "Payment Required" },
+          "500": { "description": "Internal Server Error" }
+        }
+      }
+    },
+    "/api/market-metrics": {
+      "get": {
+        "operationId": "getMarketMetrics",
+        "summary": "Get global crypto market metrics",
+        "description": "Returns BTC/ETH dominance percentages, total market cap, and 24h trading volume. Cached for 5 minutes.",
+        "x-payment-info": {
+          "protocols": [{ "x402": {} }],
+          "price": { "mode": "fixed", "currency": "USD", "amount": "0.001" }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "properties": {} }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Global market metrics",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MarketMetrics" }
+              }
+            }
+          },
+          "402": { "description": "Payment Required" },
+          "503": { "description": "Service Unavailable" }
+        }
+      }
+    },
+    "/api/derivatives": {
+      "get": {
+        "operationId": "getDerivatives",
+        "summary": "Get BTC/ETH/SOL derivatives data",
+        "description": "Returns funding rates, long/short ratios, and 24h liquidation totals for BTC, ETH, and SOL perpetual futures. Cached for 60 seconds.",
+        "x-payment-info": {
+          "protocols": [{ "x402": {} }],
+          "price": { "mode": "fixed", "currency": "USD", "amount": "0.001" }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "type": "object", "properties": {} }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Derivatives data",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DerivativesData" }
+              }
+            }
+          },
+          "402": { "description": "Payment Required" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Post": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "source_name": { "type": "string" },
+          "category": { "type": "string", "nullable": true },
+          "text": { "type": "string", "nullable": true },
+          "link_url": { "type": "string", "nullable": true },
+          "has_media": { "type": "boolean" },
+          "media_type": { "type": "string", "nullable": true },
+          "tg_post_link": { "type": "string", "nullable": true }
+        }
+      },
+      "MarketMetrics": {
+        "type": "object",
+        "properties": {
+          "btc_dominance": { "type": "number" },
+          "eth_dominance": { "type": "number" },
+          "total_market_cap": { "type": "number" },
+          "total_volume_24h": { "type": "number" }
+        }
+      },
+      "DerivativesData": {
+        "type": "object",
+        "properties": {
+          "funding": {
+            "type": "object",
+            "properties": {
+              "BTC": { "type": "number", "nullable": true },
+              "ETH": { "type": "number", "nullable": true },
+              "SOL": { "type": "number", "nullable": true }
+            }
+          },
+          "longShort": {
+            "type": "object",
+            "properties": {
+              "BTC": { "type": "number", "nullable": true },
+              "ETH": { "type": "number", "nullable": true },
+              "SOL": { "type": "number", "nullable": true }
+            }
+          },
+          "liquidations": {
+            "type": "object",
+            "properties": {
+              "BTC": {
+                "type": "object",
+                "nullable": true,
+                "properties": {
+                  "longs": { "type": "number" },
+                  "shorts": { "type": "number" }
+                }
+              },
+              "ETH": {
+                "type": "object",
+                "nullable": true,
+                "properties": {
+                  "longs": { "type": "number" },
+                  "shorts": { "type": "number" }
+                }
+              },
+              "SOL": {
+                "type": "object",
+                "nullable": true,
+                "properties": {
+                  "longs": { "type": "number" },
+                  "shorts": { "type": "number" }
+                }
+              }
+            }
+          },
+          "timestamp": { "type": "number" }
+        }
+      }
+    }
+  }
+}
