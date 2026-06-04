@@ -1,0 +1,472 @@
+{
+    "info": {
+        "description": "Multi-agent social-media simulation. Seed it with a prompt, an article URL, or raw article text; get a 25-agent simulation across Twitter, Reddit, and Polymarket over 10 rounds plus a synthesized markdown report.",
+        "title": "MiroShark",
+        "version": "2",
+        "x-guidance": "POST /run and pay $1 USDC via x402 on EITHER Base (eip155:8453) or Solana (solana mainnet) \u2014 see x-payment-info.accepts for the exact networks, USDC asset, and payTo per chain. Provide exactly one seed: {\"prompt\": \"<scenario or question, 4-4000 chars>\"}, OR {\"url\": \"<article URL>\"}, OR {\"article\": \"<raw text>\"}. Optionally set \"deep_research\": true for a live-web context sweep first (adds web calls that count toward run cost), and pin the central market with \"prediction_market\" (string or object). You get back a run_id plus wait_url (HTML) and status_url (JSON, pollable, no auth); when status==completed, share_url points at the report. Not sure what to run? POST /suggest (free) with {\"prompt\": \"<vague topic>\"} to get launchable ideas first."
+    },
+    "openapi": "3.1.0",
+    "paths": {
+        "/": {
+            "get": {
+                "operationId": "root_index",
+                "responses": {
+                    "200": {
+                        "description": "JSON service index pointing at /openapi.json and the endpoints."
+                    }
+                },
+                "security": [],
+                "summary": "Get the service index and endpoint map",
+                "tags": [
+                    "Ops"
+                ]
+            }
+        },
+        "/health": {
+            "get": {
+                "operationId": "health",
+                "responses": {
+                    "200": {
+                        "description": "Service is up."
+                    }
+                },
+                "security": [],
+                "summary": "Check service liveness (no dependencies)",
+                "tags": [
+                    "Ops"
+                ]
+            }
+        },
+        "/metrics": {
+            "get": {
+                "operationId": "metrics",
+                "responses": {
+                    "200": {
+                        "description": "Metrics JSON."
+                    }
+                },
+                "security": [],
+                "summary": "Get run stats and cost rollup",
+                "tags": [
+                    "Ops"
+                ]
+            }
+        },
+        "/ready": {
+            "get": {
+                "operationId": "ready",
+                "responses": {
+                    "200": {
+                        "description": "Ready."
+                    },
+                    "503": {
+                        "description": "Not ready."
+                    }
+                },
+                "security": [],
+                "summary": "Check readiness: DB and Neo4j reachable",
+                "tags": [
+                    "Ops"
+                ]
+            }
+        },
+        "/report/{run_id}": {
+            "get": {
+                "operationId": "run_report",
+                "parameters": [
+                    {
+                        "description": "Run id returned by POST /run, e.g. run_abc123def456.",
+                        "in": "path",
+                        "name": "run_id",
+                        "required": true,
+                        "schema": {
+                            "example": "run_abc123def456",
+                            "pattern": "^run_[0-9a-f]{12}$",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "json \u2192 JSON with report_markdown; md/text \u2192 raw text/markdown; omitted \u2192 302 redirect to the share page.",
+                        "in": "query",
+                        "name": "format",
+                        "required": false,
+                        "schema": {
+                            "enum": [
+                                "json",
+                                "md",
+                                "markdown",
+                                "text"
+                            ],
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Report content \u2014 JSON when format=json, text/markdown when format=md/text."
+                    },
+                    "302": {
+                        "description": "Redirect to /share/<sim_id> (done) or /wait/<run_id> (in progress) when no format is given."
+                    },
+                    "409": {
+                        "description": "Run not completed yet (when format=json|md)."
+                    }
+                },
+                "security": [],
+                "summary": "Read a run's report as JSON or markdown",
+                "tags": [
+                    "Simulation"
+                ]
+            }
+        },
+        "/run": {
+            "post": {
+                "operationId": "run",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "required": [
+                                            "prompt"
+                                        ]
+                                    },
+                                    {
+                                        "required": [
+                                            "url"
+                                        ]
+                                    },
+                                    {
+                                        "required": [
+                                            "article"
+                                        ]
+                                    }
+                                ],
+                                "properties": {
+                                    "affiliate": {
+                                        "description": "Optional affiliate referrer wallet (EVM 0x address). Earns 50% of the run's net profit ($1 price minus MiroShark's LLM cost for the run), settled off-chain to this address.",
+                                        "pattern": "^0x[0-9a-fA-F]{40}$",
+                                        "type": "string"
+                                    },
+                                    "article": {
+                                        "description": "Alternative to 'prompt'. Raw article/document text to build the simulation from. Provide exactly one of prompt, url, or article.",
+                                        "maxLength": 200000,
+                                        "minLength": 4,
+                                        "type": "string"
+                                    },
+                                    "deep_research": {
+                                        "default": false,
+                                        "description": "Optional. When true, MiroShark first runs a multi-query live-web research sweep to build a richer, current context document before the simulation. Adds several web-search LLM calls whose cost counts toward this run's spend (and the affiliate net-profit split). Default false.",
+                                        "type": "boolean"
+                                    },
+                                    "prediction_market": {
+                                        "description": "Optional. Pin the central Polymarket question instead of auto-designing it. A bare YES/NO question string, or an object with a required 'question' (4-300 chars) plus optional 'outcome_a', 'outcome_b', and 'initial_probability' (0-1, the opening YES price).",
+                                        "oneOf": [
+                                            {
+                                                "maxLength": 300,
+                                                "minLength": 4,
+                                                "type": "string"
+                                            },
+                                            {
+                                                "properties": {
+                                                    "initial_probability": {
+                                                        "exclusiveMaximum": 1,
+                                                        "exclusiveMinimum": 0,
+                                                        "type": "number"
+                                                    },
+                                                    "outcome_a": {
+                                                        "type": "string"
+                                                    },
+                                                    "outcome_b": {
+                                                        "type": "string"
+                                                    },
+                                                    "question": {
+                                                        "maxLength": 300,
+                                                        "minLength": 4,
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "question"
+                                                ],
+                                                "type": "object"
+                                            }
+                                        ]
+                                    },
+                                    "prompt": {
+                                        "description": "Scenario, question, or briefing to simulate. The pipeline extracts entities, builds a knowledge graph, generates 25+ agent personas, runs 10 rounds of Twitter / Reddit / Polymarket activity, and synthesizes a markdown report. Provide exactly one of prompt, url, or article.",
+                                        "maxLength": 4000,
+                                        "minLength": 4,
+                                        "type": "string"
+                                    },
+                                    "url": {
+                                        "description": "Alternative to 'prompt'. An article/news URL \u2014 MiroShark fetches the page and builds the simulation from its content. Provide exactly one of prompt, url, or article.",
+                                        "format": "uri",
+                                        "maxLength": 2048,
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "202": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "properties": {
+                                                "payer": {
+                                                    "type": "string"
+                                                },
+                                                "run_id": {
+                                                    "type": "string"
+                                                },
+                                                "stages": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "status_url": {
+                                                    "format": "uri",
+                                                    "type": "string"
+                                                },
+                                                "wait_url": {
+                                                    "format": "uri",
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "success": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "data"
+                                    ],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Payment accepted; run queued."
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 retry with a signed X-PAYMENT header."
+                    }
+                },
+                "summary": "Run a multi-agent social-media simulation (x402-paid)",
+                "tags": [
+                    "Simulation",
+                    "Research"
+                ],
+                "x-payment-info": {
+                    "accepts": [
+                        {
+                            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                            "maxAmountRequired": "1000000",
+                            "network": "eip155:8453",
+                            "payTo": "0x67976cebb5266b50a08c0dcb676e03baf305e3a2",
+                            "scheme": "exact"
+                        },
+                        {
+                            "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                            "maxAmountRequired": "1000000",
+                            "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                            "payTo": "7SdBWQZZM46E1ZmsFhbNN1UD4UquyYsvNGNoas6UCHip",
+                            "scheme": "exact"
+                        }
+                    ],
+                    "price": {
+                        "amount": "1.000000",
+                        "currency": "USD",
+                        "mode": "fixed"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/status/{run_id}": {
+            "get": {
+                "operationId": "run_status",
+                "parameters": [
+                    {
+                        "description": "Run id returned by POST /run, e.g. run_abc123def456.",
+                        "in": "path",
+                        "name": "run_id",
+                        "required": true,
+                        "schema": {
+                            "example": "run_abc123def456",
+                            "pattern": "^run_[0-9a-f]{12}$",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Run status JSON."
+                    }
+                },
+                "security": [],
+                "summary": "Get run status as JSON (run_id is the token)",
+                "tags": [
+                    "Simulation"
+                ]
+            }
+        },
+        "/suggest": {
+            "post": {
+                "operationId": "suggest_ideas",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "no_cache": {
+                                        "default": false,
+                                        "description": "Force a fresh LLM call instead of returning a cached result.",
+                                        "type": "boolean"
+                                    },
+                                    "prompt": {
+                                        "description": "A vague topic or seed idea to expand into launchable simulations.",
+                                        "maxLength": 400,
+                                        "minLength": 6,
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "prompt"
+                                ],
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "properties": {
+                                                "cached": {
+                                                    "type": "boolean"
+                                                },
+                                                "ideas": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "angle": {
+                                                                "type": "string"
+                                                            },
+                                                            "pitch": {
+                                                                "type": "string"
+                                                            },
+                                                            "prompt": {
+                                                                "description": "Submit this verbatim as the /run 'prompt'.",
+                                                                "type": "string"
+                                                            },
+                                                            "title": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "model": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "success": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "data"
+                                    ],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Up to 5 ideas, each with a ready-to-run 'prompt'. Empty list (never an error) if the model is briefly unavailable."
+                    },
+                    "429": {
+                        "description": "Rate limited (per-IP). Retry shortly."
+                    }
+                },
+                "security": [],
+                "summary": "Generate launchable simulation ideas from a topic",
+                "tags": [
+                    "Simulation",
+                    "Research"
+                ]
+            }
+        },
+        "/wait/{run_id}": {
+            "get": {
+                "operationId": "run_wait",
+                "parameters": [
+                    {
+                        "description": "Run id returned by POST /run, e.g. run_abc123def456.",
+                        "in": "path",
+                        "name": "run_id",
+                        "required": true,
+                        "schema": {
+                            "example": "run_abc123def456",
+                            "pattern": "^run_[0-9a-f]{12}$",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "HTML status page."
+                    }
+                },
+                "security": [],
+                "summary": "Fetch an auto-refreshing run-status page",
+                "tags": [
+                    "Simulation"
+                ]
+            }
+        }
+    },
+    "servers": [
+        {
+            "url": "https://x402.miroshark.xyz"
+        }
+    ],
+    "tags": [
+        {
+            "description": "Multi-agent social-media simulation: submit a prompt, run a 25-agent world across Twitter / Reddit / Polymarket, then read the report.",
+            "name": "Simulation"
+        },
+        {
+            "description": "Predictive social research \u2014 belief drift, narrative formation, and prediction-market trajectories over a simulated population.",
+            "name": "Research"
+        },
+        {
+            "description": "Operational probes (liveness, readiness, metrics) \u2014 free, unauthenticated.",
+            "name": "Ops"
+        }
+    ]
+}
