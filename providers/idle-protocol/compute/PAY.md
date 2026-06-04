@@ -1,5 +1,5 @@
 ---
-name: idle-protocol
+name: compute
 title: "IDLE Protocol"
 description: "Distributed residential compute network on Solana. Access residential IPs for web scraping, DNS/SSL checks, latency measurement, price extraction, content verification, change detection, data queries, and AI agent task routing via x402 micropayments."
 use_case: "Use for web scraping from residential IPs, API health monitoring, DNS resolution, SSL verification, response time measurement, price extraction, stock checks, content verification, change detection, data queries, and AI agent task routing."
