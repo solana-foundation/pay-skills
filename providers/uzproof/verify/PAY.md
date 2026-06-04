@@ -2,7 +2,7 @@
 name: verify
 title: "UZPROOF"
 description: "Verify a Solana wallet performed a specific on-chain action (swap, hold, stake, LP, mint, NFT) across 15 protocols. Returns a verdict plus a 23-signal anti-sybil score. Gasless x402+MPP, $0.05 USDC per call on mainnet."
-use_case: "Use for verifying a Solana wallet performed a specific DeFi action (swap, hold, stake, LP, mint), gating quests by real on-chain usage, anti-sybil scoring before paying token rewards. Call from pay claude with only USDC — no SOL needed."
+use_case: "Use when you must confirm a Solana wallet really performed a specific DeFi action (swap, hold, stake, LP, mint) before paying out — reward gating, airdrop anti-sybil, quest verification, or trust-scoring a wallet ahead of access or settlement."
 category: identity
 service_url: https://uzproof.com
 openapi:
