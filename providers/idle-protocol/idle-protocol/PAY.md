@@ -26,3 +26,5 @@ mainnet. The free `/health` endpoint checks gateway status without payment.
   instead of scraping and parsing HTML.
 - Use `v1/compute/dns` ($0.001) and `v1/compute/ssl` ($0.001) for lightweight
   domain checks before committing to a full fetch or scrape.
+- Use `v1/compute/verify` ($0.003) to confirm content exists before paying for
+  a full scrape — avoids wasted calls on pages behind auth walls.
