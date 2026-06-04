@@ -1,7 +1,7 @@
 ---
 name: verify
 title: "UZPROOF"
-description: "First gasless x402+MPP verification provider on Solana. Pay-per-call on-chain verification across 15 protocols (Jupiter, Marinade, Sanctum, Orca, Raydium, Drift, Drift Vaults, Kamino, MarginFi, Meteora, Jito, Tensor, Magic Eden, Metaplex, SPL Token). Returns anti-sybil verdict with 23 fraud signals."
+description: "Verify a Solana wallet performed a specific on-chain action (swap, hold, stake, LP, mint, NFT) across 15 protocols. Returns a verdict plus a 23-signal anti-sybil score. Gasless x402+MPP, $0.05 USDC per call on mainnet."
 use_case: "Use for verifying a Solana wallet performed a specific DeFi action (swap, hold, stake, LP, mint), gating quests by real on-chain usage, anti-sybil scoring before paying token rewards. Call from pay claude with only USDC — no SOL needed."
 category: identity
 service_url: https://uzproof.com
@@ -31,8 +31,8 @@ stay reliable, low-value spam stays uneconomic.
 - **Trust scoring** — get a multi-signal reputation score on a wallet
   before granting access to a feature.
 - **Cross-protocol identity** — confirm a wallet is a real user across
-  Jupiter, Marinade, Drift, Kamino, Orca, Raydium, MarginFi, Jito, Tensor,
-  Magic Eden, Sanctum, Metaplex, and SPL programs.
+  Jupiter, Marinade, Sanctum, Orca, Raydium, Drift, Drift Vaults, Kamino,
+  MarginFi, Meteora, Jito, Tensor, Magic Eden, Metaplex, and SPL Token.
 
 ## Spend-aware usage
 
