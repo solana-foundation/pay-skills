@@ -1,7 +1,7 @@
 ---
 name: verify
 title: "UZPROOF"
-description: "First gasless x402+MPP verification provider on Solana. Pay-per-call on-chain verification across 15 protocols (Jupiter, Marinade, Drift, Kamino, Orca, Raydium, MarginFi, Jito, Tensor). Returns anti-sybil verdict with 14 fraud signals."
+description: "First gasless x402+MPP verification provider on Solana. Pay-per-call on-chain verification across 15 protocols (Jupiter, Marinade, Sanctum, Orca, Raydium, Drift, Kamino, MarginFi, Meteora, Jito, Tensor, Magic Eden, Metaplex, SPL Token, and more). Returns anti-sybil verdict with 23 fraud signals."
 use_case: "Use for verifying a Solana wallet performed a specific DeFi action (swap, hold, stake, LP, mint), gating quests by real on-chain usage, anti-sybil scoring before paying token rewards. Call from pay claude with only USDC — no SOL needed."
 category: identity
 service_url: https://uzproof.com
@@ -14,7 +14,7 @@ openapi:
 UZPROOF is the first Proof-of-Use Attestor on the Solana Attestation Service.
 Each `/api/verify` call answers a single question: did this wallet actually
 perform this on-chain action with these parameters? The answer is a verdict
-plus a 14-signal anti-sybil score, billed at $0.05 per verification in USDC
+plus a 23-signal anti-sybil score, billed at $0.05 per verification in USDC
 on Solana mainnet.
 
 The premium price is intentional. UZPROOF is the trust layer for protocols
@@ -93,7 +93,7 @@ sybil-farm abuse.
 
 | Method | Path | Price | Purpose |
 | --- | --- | --- | --- |
-| POST | /api/verify | $0.05 USDC | Single-action verify + 14-signal score |
+| POST | /api/verify | $0.05 USDC | Single-action verify + 23-signal score |
 | GET | /api/sas/status | free | On-chain SAS attestation read |
 | GET | /api/tokens/info | free | SPL token metadata |
 | GET | /api/contracts/detect | free | List known programs / detect by `?programId=` |
