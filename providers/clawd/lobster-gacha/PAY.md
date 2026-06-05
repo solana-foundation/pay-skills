@@ -11,8 +11,12 @@ endpoints:
     method: POST
     description: "Execute 1x or 10x provably fair gacha pull. Returns AI agent cards with rarity, CLAWD prize, and SHA-256 commitment hash for on-chain verification."
     pricing:
-      amount: 0.0025
-      currency: USD
+      dimensions:
+        - direction: usage
+          unit: requests
+          scale: 1
+          tiers:
+            - price_usd: 0.0025
   - path: /api/perps
     method: GET
     description: "Live Phoenix perpetuals data proxy: ticker, funding rates, OHLCV candles, and TA indicators (RSI/MACD/BBands) for SOL/BTC/ETH."
