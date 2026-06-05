@@ -1,0 +1,192 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Lobster Gacha — Onchain AI Agent Gacha (Solana)",
+    "description": "Provably fair gacha API returning AI agent cards backed by SHA-256+blockhash commitments, plus a live Phoenix perpetuals data proxy for agent trading signals.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "CLAWD Terminal",
+      "url": "https://github.com/x402agent/solana-clawd"
+    }
+  },
+  "servers": [
+    { "url": "https://gacha.solanaclawd.com" }
+  ],
+  "paths": {
+    "/api/pull": {
+      "post": {
+        "summary": "Provably fair gacha pull",
+        "description": "Execute a 1× or 10× provably fair gacha pull. Each card is committed via SHA-256(wallet:spinIndex:blockhash) and verifiable by anyone. Returns AI agent cards with rarity tier, CLAWD token prize, and the on-chain blockhash used as the entropy source.",
+        "operationId": "gachaPull",
+        "x-payment": {
+          "amount": 0.0025,
+          "currency": "USD",
+          "protocol": "x402",
+          "network": "solana"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["wallet"],
+                "properties": {
+                  "wallet": {
+                    "type": "string",
+                    "description": "Base58-encoded Solana public key of the pulling wallet.",
+                    "example": "8cHzQHUS2s2h8TzCmfqPKYiM4dSt4roa3n7MyRLApump"
+                  },
+                  "count": {
+                    "type": "integer",
+                    "description": "Number of pulls: 1 or 10.",
+                    "enum": [1, 10],
+                    "default": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful gacha pull",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "cards": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": { "type": "string", "example": "CLAWD Supreme" },
+                              "rarity": {
+                                "type": "string",
+                                "enum": ["common", "rare", "epic", "legendary"],
+                                "description": "Common 60% / Rare 25% / Epic 12% / Legendary 3%"
+                              },
+                              "clawdPrize": {
+                                "type": "integer",
+                                "description": "CLAWD token prize amount. Common=100, Rare=1000, Epic=5000, Legendary=50000."
+                              },
+                              "commitment": {
+                                "type": "string",
+                                "description": "SHA-256 hex of wallet:spinIndex:blockhash for on-chain verification."
+                              },
+                              "narrative": {
+                                "type": "string",
+                                "description": "AI-generated card lore (Gemini/DeepSeek/Nemotron/Claude, chosen from commitment hash)."
+                              },
+                              "metaplexNftMint": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "Metaplex Core NFT mint address if a card was minted for this pull."
+                              }
+                            }
+                          }
+                        },
+                        "blockhash": {
+                          "type": "string",
+                          "description": "Solana blockhash used as entropy source."
+                        },
+                        "commitment": {
+                          "type": "string",
+                          "description": "Master commitment hash for the entire pull batch."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. Send x402 USDC payment on Solana mainnet."
+          }
+        }
+      }
+    },
+    "/api/perps": {
+      "get": {
+        "summary": "Phoenix perpetuals market data",
+        "description": "Live Phoenix DEX perpetuals proxy returning ticker data, funding rates, OHLCV candles, and technical analysis indicators (RSI, MACD, Bollinger Bands) for SOL, BTC, and ETH. Designed for AI agent trading signal generation.",
+        "operationId": "perpsData",
+        "parameters": [
+          {
+            "name": "cmd",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "examples": [
+                "market/ticker/SOL",
+                "market/funding-rates/SOL",
+                "market/candles/SOL",
+                "ta/report/SOL"
+              ]
+            },
+            "description": "Command path: market/ticker/{SYMBOL}, market/funding-rates/{SYMBOL}, market/candles/{SYMBOL}, or ta/report/{SYMBOL}. Supported symbols: SOL, BTC, ETH."
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["1m", "5m", "15m", "1h", "4h", "1d"],
+              "default": "1h"
+            },
+            "description": "Candle interval for market/candles commands."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 10, "maximum": 100 },
+            "description": "Number of records to return."
+          },
+          {
+            "name": "with_indicators",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Comma-separated TA indicators to include: rsi, macd, bbands.",
+            "example": "rsi,macd"
+          },
+          {
+            "name": "timeframe",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "default": "1h" },
+            "description": "Timeframe for ta/report commands."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Market data or TA report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "cmd": { "type": "string" },
+                    "data": { "type": "object", "description": "Response varies by cmd. Ticker returns price/volume/fundingRate. Candles returns OHLCV array. TA report returns RSI/MACD/BBands values with long/short signal." }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid cmd or symbol." },
+          "402": { "description": "Payment required." }
+        }
+      }
+    }
+  }
+}
