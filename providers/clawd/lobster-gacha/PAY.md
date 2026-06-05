@@ -12,8 +12,12 @@ endpoints:
     description: "Execute 1x or 10x provably fair gacha pull returning agent cards with rarity, CLAWD prize, and SHA-256 commitment hash."
     resource: gacha
     pricing:
-      amount: 0.0025
-      currency: USD
+      dimensions:
+        - direction: usage
+          unit: requests
+          scale: 1
+          tiers:
+            - price_usd: 0.0025
   - path: /api/perps
     method: GET
     description: "Live Phoenix perpetuals data: ticker, funding rates, candles, and TA indicators for SOL, BTC, and ETH."

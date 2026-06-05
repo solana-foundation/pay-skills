@@ -6,7 +6,7 @@ use_case: "Use for premium Claude-powered AI agent sessions, Solana wallet intel
 category: ai_ml
 service_url: https://x402.wtf
 openapi:
-  url: https://x402.wtf/api/x402/openapi.json
+  path: openapi.json
 ---
 
 Clawd Browser paid API endpoints via x402 USDC payments on Solana mainnet. Seven paid lanes cover private operator AI sessions, bundled DeFi agent chats, wallet intelligence, stock data, and Pump.fun analytics. DexScreener and catalog endpoints are free.
