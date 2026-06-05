@@ -12,10 +12,15 @@ openapi:
 Distributed residential compute network on Solana. 14 paid endpoints across
 three tiers ($0.001–$0.005 per request) route tasks to distributed nodes
 running on residential IPs. All endpoints use x402 payment in USDC on Solana
-mainnet. The free `/health` endpoint checks gateway status without payment.
+mainnet. The free `GET /health` endpoint checks gateway status without
+payment — do not confuse it with the paid `POST /v1/compute/health` ($0.002),
+which checks external API endpoints from residential IPs.
 
 ## Spend-aware usage
 
+- Use `GET /health` (free) to check if the IDLE gateway is up. Use
+  `v1/compute/health` ($0.002) only when you need to test an external URL
+  from a residential IP.
 - Prefer `v1/compute/fetch` ($0.002) over `v1/compute/scrape` ($0.005) when
   you only need status codes or headers.
 - Use `v1/compute/extract` with a CSS selector instead of scraping full HTML
