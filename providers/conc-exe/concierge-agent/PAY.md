@@ -5,7 +5,7 @@ description: "Pay-per-call market intelligence for AI agents — Concierge chat,
 use_case: "Use for autonomous agent market research, DeFi desk queries, airdrop hunting, exchange listing rumors, momentum scans, trading plan generation, wallet snapshots, and macro intelligence without API keys or subscriptions."
 category: finance
 service_url: https://conc-exe.xyz
-version: v1
+version: "4.0.0"
 openapi:
   path: openapi.json
 ---
