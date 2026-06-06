@@ -754,30 +754,19 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["ok", "service", "version", "x402", "ts"],
+                  "required": ["ok", "ts"],
                   "properties": {
                     "ok": {
                       "type": "boolean"
                     },
-                    "service": {
-                      "type": "string"
-                    },
-                    "version": {
-                      "type": "string"
-                    },
-                    "x402": {
-                      "type": "boolean"
-                    },
                     "ts": {
-                      "type": "integer"
+                      "type": "integer",
+                      "description": "Unix timestamp in milliseconds"
                     }
                   }
                 },
                 "example": {
                   "ok": true,
-                  "service": "idle-gateway-upstream",
-                  "version": "v3",
-                  "x402": true,
                   "ts": 1717459200000
                 }
               }
@@ -1033,7 +1022,10 @@
                 "id": { "type": "string" },
                 "object": { "type": "string" },
                 "created": { "type": "integer" },
-                "owned_by": { "type": "string" }
+                "owned_by": { "type": "string" },
+                "permission": { "type": "array", "items": {} },
+                "root": { "type": "string" },
+                "parent": { "type": ["string", "null"] }
               }
             }
           }
@@ -1094,298 +1086,268 @@
       },
       "FetchResponse": {
         "type": "object",
-        "required": ["status_code", "body"],
+        "required": ["status", "result"],
         "properties": {
-          "status_code": {
-            "type": "integer"
-          },
-          "headers": {
-            "type": "object"
-          },
-          "body": {
-            "type": "string"
+          "status": { "type": "string", "enum": ["completed", "failed"] },
+          "result": {
+            "type": "object",
+            "required": ["success"],
+            "properties": {
+              "success": { "type": "boolean" },
+              "status": { "type": "integer", "description": "HTTP status code of the fetched URL" },
+              "body": { "type": "string", "description": "Response body text" },
+              "latency_ms": { "type": "number" }
+            }
           }
         }
       },
       "HealthResponse": {
         "type": "object",
-        "required": ["status_code", "healthy", "latency_ms"],
+        "required": ["status", "result"],
         "properties": {
-          "status_code": {
-            "type": "integer"
-          },
-          "latency_ms": {
-            "type": "number"
-          },
-          "body_preview": {
-            "type": "string"
-          },
-          "healthy": {
-            "type": "boolean"
+          "status": { "type": "string", "enum": ["completed", "failed"] },
+          "result": {
+            "type": "object",
+            "required": ["success", "healthy"],
+            "properties": {
+              "success": { "type": "boolean" },
+              "healthy": { "type": "boolean" },
+              "status": { "type": "integer", "description": "HTTP status code" },
+              "status_ok": { "type": "boolean" },
+              "body_ok": { "type": "boolean" },
+              "latency_ms": { "type": "number" },
+              "body_preview": { "type": "string" },
+              "error": { "type": "string", "description": "Error message if health check failed" }
+            }
           }
         }
       },
       "DnsResponse": {
         "type": "object",
-        "required": ["records"],
+        "required": ["status", "result"],
         "properties": {
-          "records": {
+          "status": { "type": "string", "enum": ["completed", "failed"] },
+          "result": {
             "type": "object",
+            "required": ["success", "records"],
             "properties": {
-              "A": {
+              "success": { "type": "boolean" },
+              "hostname": { "type": "string" },
+              "type": { "type": "string", "description": "Record type queried (e.g. A)" },
+              "records": {
                 "type": "array",
-                "items": {
-                  "type": "string"
-                }
+                "items": { "type": "string" },
+                "description": "Resolved DNS records"
               },
-              "AAAA": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "MX": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "TXT": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "NS": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              }
+              "latency_ms": { "type": "number" }
             }
           }
         }
       },
       "SslResponse": {
         "type": "object",
-        "required": ["valid", "issuer", "expires", "days_remaining"],
+        "required": ["status", "result"],
         "properties": {
-          "valid": {
-            "type": "boolean"
-          },
-          "issuer": {
-            "type": "string"
-          },
-          "expires": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "days_remaining": {
-            "type": "integer"
+          "status": { "type": "string", "enum": ["completed", "failed"] },
+          "result": {
+            "type": "object",
+            "required": ["success", "valid"],
+            "properties": {
+              "success": { "type": "boolean" },
+              "hostname": { "type": "string" },
+              "valid": { "type": "boolean" },
+              "issuer": { "type": "string" },
+              "subject": { "type": "string" },
+              "expires_at": { "type": "string", "description": "Certificate expiry date" },
+              "days_until_expiry": { "type": "integer" },
+              "expired": { "type": "boolean" },
+              "latency_ms": { "type": "number" }
+            }
           }
         }
       },
       "LatencyResponse": {
         "type": "object",
-        "required": ["avg_ms", "samples", "p50_ms", "p95_ms"],
+        "required": ["status", "result"],
         "properties": {
-          "p50_ms": {
-            "type": "number"
-          },
-          "p95_ms": {
-            "type": "number"
-          },
-          "avg_ms": {
-            "type": "number"
-          },
-          "samples": {
-            "type": "integer"
+          "status": { "type": "string", "enum": ["completed", "failed"] },
+          "result": {
+            "type": "object",
+            "required": ["success", "avg_ms", "iterations"],
+            "properties": {
+              "success": { "type": "boolean" },
+              "url": { "type": "string" },
+              "status": { "type": "integer", "description": "HTTP status code" },
+              "p50_ms": { "type": "number" },
+              "min_ms": { "type": "number" },
+              "max_ms": { "type": "number" },
+              "avg_ms": { "type": "number" },
+              "iterations": { "type": "integer", "description": "Number of measurement iterations" }
+            }
           }
         }
       },
       "ScrapeResponse": {
         "type": "object",
-        "required": ["title", "text"],
+        "required": ["status", "result"],
         "properties": {
-          "title": {
-            "type": "string"
-          },
-          "text": {
-            "type": "string"
-          },
-          "html": {
-            "type": "string"
+          "status": { "type": "string", "enum": ["completed", "failed"] },
+          "result": {
+            "type": "object",
+            "required": ["success"],
+            "properties": {
+              "success": { "type": "boolean" },
+              "status": { "type": "integer", "description": "HTTP status code" },
+              "title": { "type": "string" },
+              "text": { "type": "string", "description": "Extracted text content" },
+              "html": { "type": "string", "description": "Raw HTML" },
+              "latency_ms": { "type": "number" }
+            }
           }
         }
       },
       "ExtractResponse": {
         "type": "object",
-        "required": ["elements"],
+        "required": ["status", "result"],
         "properties": {
-          "elements": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "tag": {
-                  "type": "string"
-                },
-                "text": {
-                  "type": "string"
-                },
-                "html": {
-                  "type": "string"
-                },
-                "attributes": {
-                  "type": "object"
-                }
-              }
+          "status": { "type": "string", "enum": ["completed", "failed"] },
+          "result": {
+            "type": "object",
+            "required": ["success"],
+            "properties": {
+              "success": { "type": "boolean" },
+              "extracted": { "type": "object", "description": "Extracted elements keyed by selector match" },
+              "latency_ms": { "type": "number" }
             }
           }
         }
       },
       "LinksResponse": {
         "type": "object",
-        "required": ["links"],
+        "required": ["status", "result"],
         "properties": {
-          "links": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "href": {
-                  "type": "string"
-                },
-                "text": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string"
+          "status": { "type": "string", "enum": ["completed", "failed"] },
+          "result": {
+            "type": "object",
+            "required": ["success", "links"],
+            "properties": {
+              "success": { "type": "boolean" },
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "href": { "type": "string" },
+                    "text": { "type": "string" },
+                    "type": { "type": "string", "description": "Link type: internal, external, mailto, etc." }
+                  }
                 }
-              }
+              },
+              "total": { "type": "integer", "description": "Total number of links found" },
+              "latency_ms": { "type": "number" }
             }
           }
         }
       },
       "PriceResponse": {
         "type": "object",
-        "required": ["price", "currency"],
+        "required": ["status", "result"],
         "properties": {
-          "price": {
-            "type": "number"
-          },
-          "currency": {
-            "type": "string"
-          },
-          "confidence": {
-            "type": "number"
+          "status": { "type": "string", "enum": ["completed", "failed"] },
+          "result": {
+            "type": "object",
+            "required": ["success"],
+            "properties": {
+              "success": { "type": "boolean" },
+              "price": { "type": ["number", "null"], "description": "Detected price, null if not found" },
+              "currency": { "type": ["string", "null"], "description": "Currency code, null if not detected" },
+              "raw": { "type": ["string", "null"], "description": "Raw price text from the page" },
+              "latency_ms": { "type": "number" }
+            }
           }
         }
       },
       "AvailabilityResponse": {
         "type": "object",
-        "required": ["in_stock"],
+        "required": ["status", "result"],
         "properties": {
-          "in_stock": {
-            "type": "boolean"
-          },
-          "quantity": {
-            "type": "integer"
-          },
-          "variants": {
-            "type": "array",
-            "items": {
-              "type": "string"
+          "status": { "type": "string", "enum": ["completed", "failed"] },
+          "result": {
+            "type": "object",
+            "required": ["success"],
+            "properties": {
+              "success": { "type": "boolean" },
+              "in_stock": { "type": ["boolean", "null"], "description": "Whether product is in stock, null if indeterminate" },
+              "latency_ms": { "type": "number" }
             }
           }
         }
       },
       "VerifyResponse": {
         "type": "object",
-        "required": ["verified"],
+        "required": ["status", "result"],
         "properties": {
-          "verified": {
-            "type": "boolean"
-          },
-          "matches": {
-            "type": "array",
-            "items": {
-              "type": "string"
+          "status": { "type": "string", "enum": ["completed", "failed"] },
+          "result": {
+            "type": "object",
+            "required": ["success", "found"],
+            "properties": {
+              "success": { "type": "boolean" },
+              "found": { "type": "boolean", "description": "Whether the content was found on the page" },
+              "matched_text": { "type": "string", "description": "The matched text on the page" },
+              "status": { "type": "integer", "description": "HTTP status code" },
+              "latency_ms": { "type": "number" }
             }
           }
         }
       },
       "ChangesResponse": {
         "type": "object",
-        "required": ["changed", "hash"],
+        "required": ["status", "result"],
         "properties": {
-          "changed": {
-            "type": "boolean"
-          },
-          "hash": {
-            "type": "string"
-          },
-          "diff_preview": {
-            "type": "string"
+          "status": { "type": "string", "enum": ["completed", "failed"] },
+          "result": {
+            "type": "object",
+            "required": ["success", "hash"],
+            "properties": {
+              "success": { "type": "boolean" },
+              "hash": { "type": "string", "description": "SHA-256 hash of current content" },
+              "changed": { "type": ["boolean", "null"], "description": "Whether content changed since previous_hash, null on first check" },
+              "content_length": { "type": "integer" },
+              "content_preview": { "type": "string", "description": "Preview of current content" },
+              "latency_ms": { "type": "number" }
+            }
           }
         }
       },
       "QueryResponse": {
         "type": "object",
-        "required": ["success", "answer", "source", "freshness"],
+        "required": ["status", "result"],
         "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "answer": {
-            "type": "string",
-            "description": "Human-readable answer to the query."
-          },
-          "data": {
+          "status": { "type": "string", "enum": ["completed", "failed"] },
+          "result": {
             "type": "object",
-            "description": "Structured data (e.g. { usd: 170.5, usd_24h_change: -2.1 })."
-          },
-          "source": {
-            "type": "string",
-            "description": "Data source (e.g. coingecko, idle-network)."
-          },
-          "freshness": {
-            "type": "string",
-            "enum": ["live", "cached"],
-            "description": "Whether the data was fetched live or from cache."
-          },
-          "latency_ms": {
-            "type": "number",
-            "description": "Time to resolve the query in milliseconds."
+            "required": ["success"],
+            "properties": {
+              "success": { "type": "boolean" },
+              "note": { "type": "string", "description": "Processing note or answer" },
+              "query": { "type": "string", "description": "The original query echoed back" }
+            }
           }
         }
       },
       "TaskResponse": {
         "type": "object",
-        "required": [
-          "result",
-          "status"
-        ],
+        "required": ["status", "result"],
         "properties": {
-          "task_id": {
-            "type": "string",
-            "description": "Correlation ID for logging. This is not a polling handle — results are returned synchronously in the same response."
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "completed",
-              "failed"
-            ],
-            "description": "Task status. Results are returned synchronously."
-          },
+          "status": { "type": "string", "enum": ["completed", "failed"] },
           "result": {
-            "type": "string",
-            "description": "The task result."
-          },
-          "agent_id": {
-            "type": "string",
-            "description": "ID of the agent that processed the task."
+            "type": "object",
+            "properties": {
+              "status": { "type": "integer", "description": "HTTP status code from the upstream task" },
+              "data": { "type": "string", "description": "Task result data" },
+              "error": { "type": "string", "description": "Error message if task failed" }
+            }
           }
         }
       }
