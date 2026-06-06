@@ -1,13 +1,14 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "IDLE Protocol \u2014 Distributed Residential Compute API",
-    "version": "3.0.0",
-    "description": "Distributed residential compute network on Solana. AI agents pay per-request in USDC via x402 to access residential IPs for web scraping, monitoring, DNS/SSL checks, price extraction, content verification, change detection, natural language data queries, and AI agent task routing. 14 paid endpoints across 3 tiers ($0.001\u2013$0.005 per request).\n\n**Tier 1 \u2014 Basic Monitoring** ($0.001\u2013$0.002): fetch, health, dns, ssl, latency\n**Tier 2 \u2014 Web Intelligence** ($0.003\u2013$0.005): scrape, extract, links, price, availability, verify, changes\n**Tier 3 \u2014 Data & Agents** ($0.005): data/query, agent/task\n\nPrefer fetch ($0.002) over scrape ($0.005) when you only need status codes or headers. Use extract with a CSS selector instead of scraping full HTML. Use changes to detect updates before pulling fresh data with price."
+    "title": "IDLE Protocol \u2014 Distributed Compute & AI Inference API",
+    "version": "4.0.0",
+    "description": "Distributed compute network on Solana. AI agents pay per-request in USDC via x402 to access residential IPs for web scraping, monitoring, DNS/SSL checks, price extraction, content verification, change detection, natural language data queries, AI agent task routing, and multi-model AI inference. 15 paid endpoints across 4 tiers ($0.001\u2013$0.005 per request).\n\n**Tier 1 \u2014 Basic Monitoring** ($0.001\u2013$0.002): fetch, health, dns, ssl, latency\n**Tier 2 \u2014 Web Intelligence** ($0.003\u2013$0.005): scrape, extract, links, price, availability, verify, changes\n**Tier 3 \u2014 Data & Agents** ($0.005): data/query, agent/task\n**Tier 4 \u2014 AI Inference** ($0.001): chat/completions (OpenAI-compatible, 21 models including Claude, Gemini, Llama, Mistral)\n\nPrefer chat/completions ($0.001) for any LLM task \u2014 it's OpenAI-compatible so existing SDKs work by changing the base URL. Prefer fetch ($0.002) over scrape ($0.005) when you only need status codes or headers. Use extract with a CSS selector instead of scraping full HTML. Use changes to detect updates before pulling fresh data with price."
   },
   "servers": [
     {
-      "url": "https://gateway.earnidle.com"
+      "url": "https://api.earnidle.com",
+      "description": "IDLE Protocol API — serves all endpoints (compute, inference, models)"
     }
   ],
   "paths": {
@@ -643,6 +644,101 @@
         }
       }
     },
+    "/v1/chat/completions": {
+      "post": {
+        "operationId": "chatCompletions",
+        "summary": "OpenAI-compatible chat completions — 21 AI models at $0.001/request",
+        "description": "OpenAI-compatible chat completions endpoint. Send messages in the standard OpenAI format and receive completions from 21 models including Claude Sonnet, Claude Haiku, Gemini 3.5 Flash, Llama 3.2, Mistral, and NVIDIA NIM models. Drop-in replacement for OpenAI — change the base URL and it works with existing SDKs.",
+        "tags": [
+          "AI Inference"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              },
+              "example": {
+                "model": "claude-haiku",
+                "messages": [
+                  { "role": "user", "content": "Write a Python function to fetch the SOL/USD price from CoinGecko." }
+                ],
+                "max_tokens": 512,
+                "temperature": 0.7
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Chat completion result in OpenAI format.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                },
+                "example": {
+                  "id": "chatcmpl-abc123",
+                  "object": "chat.completion",
+                  "created": 1717459200,
+                  "model": "claude-haiku",
+                  "choices": [
+                    {
+                      "index": 0,
+                      "message": { "role": "assistant", "content": "```python\nimport requests\n\ndef get_sol_price():\n    r = requests.get('https://api.coingecko.com/api/v3/simple/price', params={'ids': 'solana', 'vs_currencies': 'usd'})\n    return r.json()['solana']['usd']\n```" },
+                      "finish_reason": "stop"
+                    }
+                  ],
+                  "usage": { "prompt_tokens": 25, "completion_tokens": 48, "total_tokens": 73 }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentChallenge"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/models": {
+      "get": {
+        "operationId": "listModels",
+        "summary": "List available AI models (free, no payment required)",
+        "description": "List all available AI models with their IDs and owners. Free endpoint, no x402 payment required. Use this to discover which models are available before calling chat/completions.",
+        "tags": [
+          "AI Inference"
+        ],
+        "responses": {
+          "200": {
+            "description": "List of available models in OpenAI format.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelsResponse"
+                },
+                "example": {
+                  "object": "list",
+                  "data": [
+                    { "id": "claude-haiku", "object": "model", "owned_by": "anthropic" },
+                    { "id": "claude-sonnet", "object": "model", "owned_by": "anthropic" },
+                    { "id": "llama-3.2-3b", "object": "model", "owned_by": "idle-protocol" },
+                    { "id": "gemini-3.5-flash", "object": "model", "owned_by": "google" }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "operationId": "gatewayHealth",
@@ -821,6 +917,125 @@
           "task": {
             "type": "string",
             "description": "Description of the task to route to an available IDLE agent."
+          }
+        }
+      },
+      "ChatRequest": {
+        "type": "object",
+        "required": ["model", "messages"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Model ID. Use GET /v1/models to list available models. Examples: claude-haiku, claude-sonnet, llama-3.2-3b, gemini-3.5-flash, mistral-large-latest.",
+            "enum": [
+              "claude-haiku", "claude-sonnet",
+              "llama-3.2-3b", "llama-3.2-1b",
+              "gemini-3.5-flash",
+              "mistral-large-latest", "mistral-small-latest", "codestral-latest", "pixtral-large-latest",
+              "llama-3.1-70b", "llama-3.1-8b", "codellama-70b",
+              "mixtral-8x7b", "mistral-7b",
+              "hermes-3-8b", "hermes-3-70b",
+              "nemotron-ultra-253b", "nemotron-340b",
+              "kimi-k2", "mistral-large-3-675b", "qwen3-coder-480b"
+            ]
+          },
+          "messages": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["role", "content"],
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "enum": ["system", "user", "assistant"]
+                },
+                "content": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Conversation messages in OpenAI format."
+          },
+          "max_tokens": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16384,
+            "default": 256,
+            "description": "Maximum tokens to generate."
+          },
+          "temperature": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 2,
+            "default": 0.7,
+            "description": "Sampling temperature."
+          }
+        }
+      },
+      "ChatResponse": {
+        "type": "object",
+        "required": ["id", "object", "created", "model", "choices", "usage"],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "enum": ["chat.completion"]
+          },
+          "created": {
+            "type": "integer"
+          },
+          "model": {
+            "type": "string"
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": { "type": "integer" },
+                "message": {
+                  "type": "object",
+                  "properties": {
+                    "role": { "type": "string" },
+                    "content": { "type": "string" }
+                  }
+                },
+                "finish_reason": { "type": "string" }
+              }
+            }
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "prompt_tokens": { "type": "integer" },
+              "completion_tokens": { "type": "integer" },
+              "total_tokens": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "ModelsResponse": {
+        "type": "object",
+        "required": ["object", "data"],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": ["list"]
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "object": { "type": "string" },
+                "created": { "type": "integer" },
+                "owned_by": { "type": "string" }
+              }
+            }
           }
         }
       },
