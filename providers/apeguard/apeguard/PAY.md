@@ -4,7 +4,7 @@ title: "ApeGuard — Solana Token Risk Scanner"
 description: "Real-time Solana memecoin risk intelligence. Scan any token for rug pull risks, whale activity, and buy signals. 7-factor analysis with verdict scoring."
 use_case: "Use for Solana token due diligence, rug pull detection, whale tracking, and buy/sell signal generation before trading memecoins."
 category: finance
-service_url: http://168.110.195.192:3100
+service_url: https://api.pura2.ninja
 version: v1
 openapi:
   path: openapi.json
