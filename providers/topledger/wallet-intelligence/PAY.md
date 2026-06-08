@@ -21,11 +21,11 @@ staking, LP, yield, governance, rewards, perps, or DEX PnL.
 
 ## Spend-aware usage
 
-- Call `api/wallets/{wallet}/analyze` first when the user needs an overall
+- Call `/api/wallets/{wallet}/analyze` first when the user needs an overall
   wallet portfolio summary.
 - Use category endpoints for follow-up questions instead of repeating the broad
   analysis call.
 - Reuse the same wallet address across calls and avoid polling unless the user
   asks for fresh data.
-- Use `api/wallets/{wallet}/holdings` when the task is only about token
+- Use `/api/wallets/{wallet}/holdings` when the task is only about token
   balances, not DeFi positions.
