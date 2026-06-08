@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Gnosis Pay Card via x402",
+    "title": "Gnosis Pay Safe Top-Up via x402",
     "version": "0.1.0",
-    "description": "Bridge USDC from Solana or Base to a Gnosis Pay Safe, or onboard to a Gnosis Pay virtual card — all via x402 payments.",
+    "description": "Bridge USDC from Solana or Base to a Gnosis Pay Safe in ~1–3 minutes via x402 + Relay.link.",
     "contact": { "email": "info@hfsp.xyz" }
   },
   "servers": [{ "url": "https://card.hfsp.cloud" }],
@@ -11,7 +11,7 @@
     "/api/card/topup/quote": {
       "get": {
         "summary": "Get bridge quote",
-        "description": "Returns fee breakdown, estimated arrival time, and payTo address. No payment required.",
+        "description": "Returns fee breakdown, estimated arrival time, and payTo address. No payment required — call this first to get the exact amount and destination before paying.",
         "parameters": [
           {
             "name": "amount",
@@ -24,8 +24,8 @@
             "name": "safeAddress",
             "in": "query",
             "required": true,
-            "description": "Gnosis Pay Safe address (0x...)",
-            "schema": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" }
+            "description": "Gnosis Pay Safe address",
+            "schema": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$", "example": "0xabc123..." }
           },
           {
             "name": "currency",
@@ -65,11 +65,12 @@
                     },
                     "payment": {
                       "type": "object",
+                      "description": "Where to send payment before calling POST /api/card/topup",
                       "properties": {
                         "payTo": { "type": "string" },
                         "asset": { "type": "string" },
                         "network": { "type": "string", "example": "solana-mainnet" },
-                        "amount": { "type": "string" }
+                        "amount": { "type": "string", "example": "50.000000" }
                       }
                     }
                   }
@@ -84,21 +85,21 @@
     },
     "/api/card/topup": {
       "post": {
-        "summary": "Top up Gnosis Pay Safe",
-        "description": "Submit Solana tx signature in X-Payment header. Bridges USDC to Gnosis Chain Safe via Relay.link.",
+        "summary": "Submit payment and top up Safe",
+        "description": "Submit Solana tx signature (or Base tx hash) in X-Payment header. Service verifies payment on-chain, then bridges USDC to the Gnosis Pay Safe via Relay.link.",
         "parameters": [
           {
             "name": "X-Payment",
             "in": "header",
             "required": true,
-            "description": "Solana tx signature (base58) or Base tx hash (0x...) for the USDC transfer",
+            "description": "Solana tx signature (base58) or Base tx hash (0x...) for the USDC transfer to payTo address",
             "schema": { "type": "string" }
           },
           {
             "name": "X-Payment-Chain",
             "in": "header",
             "required": false,
-            "description": "Source chain (solana or base) — auto-detected from signature format if omitted",
+            "description": "Source chain — auto-detected from signature format if omitted",
             "schema": { "type": "string", "enum": ["solana", "base"] }
           }
         ],
@@ -140,7 +141,7 @@
               }
             }
           },
-          "402": { "description": "Payment invalid, insufficient, or already used" },
+          "402": { "description": "Payment invalid, insufficient amount, or payTo address mismatch" },
           "409": { "description": "Payment signature already used" },
           "502": { "description": "Bridge submission failed" }
         }
@@ -149,6 +150,7 @@
     "/api/card/topup/{orderId}": {
       "get": {
         "summary": "Poll bridge order status",
+        "description": "Poll until status is 'fulfilled'. Typically resolves in 1–3 minutes.",
         "parameters": [
           {
             "name": "orderId",
@@ -176,133 +178,6 @@
               }
             }
           }
-        }
-      }
-    },
-    "/api/card/onboard/nonce": {
-      "get": {
-        "summary": "Get SIWE nonce (onboarding step 1)",
-        "parameters": [
-          {
-            "name": "wallet",
-            "in": "query",
-            "required": true,
-            "schema": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Nonce for SIWE message construction",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "ok": { "type": "boolean" },
-                    "nonce": { "type": "string" }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/card/onboard/session": {
-      "post": {
-        "summary": "Verify SIWE signature + create session (onboarding step 2)",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["walletAddress", "siweMessage", "signature"],
-                "properties": {
-                  "walletAddress": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
-                  "siweMessage": { "type": "string" },
-                  "signature": { "type": "string" }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Session created — use sessionId in POST /api/card/onboard",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "ok": { "type": "boolean" },
-                    "sessionId": { "type": "string", "format": "uuid" },
-                    "status": { "type": "string" }
-                  }
-                }
-              }
-            }
-          },
-          "401": { "description": "SIWE verification failed" }
-        }
-      }
-    },
-    "/api/card/onboard": {
-      "post": {
-        "summary": "Pay onboarding fee via x402 (onboarding step 3)",
-        "description": "Submit payment for Gnosis Pay onboarding. Unlocks KYC, Safe deployment, and card issuance.",
-        "parameters": [
-          {
-            "name": "X-Payment",
-            "in": "header",
-            "required": true,
-            "description": "Solana tx signature for the onboarding fee (USDC)",
-            "schema": { "type": "string" }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["sessionId"],
-                "properties": {
-                  "sessionId": { "type": "string", "format": "uuid" }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Onboarding activated — follow nextSteps",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "ok": { "type": "boolean" },
-                    "sessionId": { "type": "string" },
-                    "status": { "type": "string" },
-                    "nextSteps": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "step": { "type": "integer" },
-                          "action": { "type": "string" },
-                          "endpoint": { "type": "string" }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "402": { "description": "Payment invalid or insufficient" },
-          "409": { "description": "Payment already used" }
         }
       }
     },
