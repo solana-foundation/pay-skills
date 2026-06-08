@@ -11,7 +11,7 @@ openapi:
 
 x402-audit runs automated security checks on any public GitHub repo that implements the x402 payment protocol. It combines static code analysis with live dynamic probing against the deployed endpoint.
 
-Payment is $0.99 USDC on Solana mainnet per audit. The service auto-detects whether the submitted tx hash is a Base or Solana transaction — both chains are accepted.
+Payment is $0.99 USDC (Solana mainnet or Base mainnet) per audit. The service auto-detects the chain from the submitted tx hash — both are accepted.
 
 ## What it checks
 
