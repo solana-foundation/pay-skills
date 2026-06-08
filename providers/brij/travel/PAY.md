@@ -1,7 +1,7 @@
 ---
 name: travel
 title: "BRIJ Flight API"
-description: "Live flight search and escrow-backed booking on Solana. Search real-time availability across global airlines, lock in fares via on-chain USDC escrow, submit passenger details to complete the booking, and request refunds — all gated by x402 per-call payments."
+description: "Live flight search and escrow-backed booking on Solana. Search real-time availability across global airlines, lock in fares via on-chain USDC escrow, submit passenger details to complete the booking, and request refunds — gated by x402 per-call payments."
 use_case: "Use for live flight search, airfare availability checks, booking a flight via on-chain USDC escrow, submitting passenger booking details, checking booking order status, or requesting a flight refund on behalf of a user."
 category: shopping
 service_url: https://travel.brij.fi
@@ -29,5 +29,8 @@ capture, the full USDC amount is refunded automatically.
   an intent when the user is ready to book; don't create exploratory intents.
 - `GET /air/intents/{id}` is free — poll it instead of re-calling paid endpoints
   to track booking status.
+- Once the intent reaches `booked` status, retrieve the airline PNR via
+  `GET /air/orders/{order_id}`; the `order_id` is returned in the
+  `POST /air/intents/{id}/book` response as `booking.order_id`.
 - Refund requests go to `POST /air/intents/{id}/refund-requests` and are
   reviewed manually; they don't re-trigger a search.
