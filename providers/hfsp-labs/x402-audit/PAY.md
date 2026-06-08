@@ -4,7 +4,7 @@ title: "x402 Security Auditor"
 description: "Pay $0.99 USDC to run a static + dynamic security audit on any public x402 GitHub repo. Checks CORS misconfiguration, payment-bypass patterns, exposed secrets, live auth-bypass, and info-leak probes."
 use_case: "Use to audit any public GitHub repository that implements x402 payments before integrating it into an agent workflow. Returns severity-rated findings (CRITICAL → INFO), fix guidance, and an overall security verdict."
 category: security
-service_url: https://audit.hfsp.xyz
+service_url: https://audit.hfsp.cloud
 openapi:
   path: openapi.json
 ---
