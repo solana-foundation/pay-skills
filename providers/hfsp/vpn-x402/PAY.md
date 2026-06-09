@@ -25,7 +25,7 @@ server verifies on-chain via Helius and provisions immediately.
 | `POST /api/vpn/week`  | $2.99 USDC | WireGuard tunnel — 7 days |
 | `POST /api/vpn/month` | $7.99 USDC | WireGuard tunnel — 30 days |
 | `POST /api/vps/hour`  | $0.25 USDC | Ephemeral Ubuntu VPS — 1 hour |
-| `POST /api/vps/day`   | $0.79 USDC | Ephemeral Ubuntu VPS — 24 hours |
+| `POST /api/vps/day`   | $0.99 USDC | Ephemeral Ubuntu VPS — 24 hours |
 | `POST /api/vps/week`  | $3.99 USDC | Ephemeral Ubuntu VPS — 7 days |
 
 ## VPN flow
