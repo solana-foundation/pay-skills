@@ -31,8 +31,9 @@ server verifies on-chain via Helius and provisions immediately.
 ## VPN flow
 
 Generate an X25519 WireGuard keypair client-side. Send the public key in the
-request body. The server provisions a WireGuard node, returns its public key and
-IP. Assemble the `.conf` locally — private key never leaves the client.
+request body. The server provisions a WireGuard node, returns its public key,
+IP, port, and your assigned tunnel IP. Assemble the `.conf` locally — your
+private key never leaves the client.
 
 ```
 POST /api/vpn/week
@@ -41,7 +42,30 @@ POST /api/vpn/week
 → 402  { pay: { amount: 2990000, mint: "EPjFWdd5...", payTo: "GdAWRcvr..." } }
 → (send 2.99 USDC on Solana mainnet)
 → POST /api/vpn/week  X-Solana-Tx: <signature>
-→ 200  { ip: "1.2.3.4", serverWgPubKey: "<base64>", expiresAt: "..." }
+→ 200  {
+    data: {
+      ip: "1.2.3.4",           ← server public IP
+      serverWgPubKey: "<b64>", ← server WireGuard public key
+      wgPort: 51820,           ← WireGuard UDP port
+      clientTunnelIp: "10.8.0.2" ← your tunnel IP inside the VPN
+    },
+    expiresAt: "..."
+  }
+```
+
+Assemble the WireGuard config from the response fields:
+
+```ini
+[Interface]
+PrivateKey = <your X25519 private key>
+Address = 10.8.0.2/32        # clientTunnelIp from response
+DNS = 1.1.1.1
+
+[Peer]
+PublicKey = <serverWgPubKey>  # from response
+Endpoint = 1.2.3.4:51820     # ip:wgPort from response
+AllowedIPs = 0.0.0.0/0, ::/0
+PersistentKeepalive = 25
 ```
 
 ## VPS flow
@@ -57,7 +81,24 @@ POST /api/vps/hour
 → (send 0.25 USDC on Solana mainnet)
 → POST /api/vps/hour  X-Solana-Tx: <signature>
 → 200  { ip: "5.6.7.8", wireguardClientConf: "<base64>", expiresAt: "..." }
-→ ssh -i key.pem root@5.6.7.8  (server ready in ~60s)
+→ ssh -i ~/.ssh/id_ed25519 root@5.6.7.8  (server ready in ~60s)
+```
+
+`wireguardClientConf` is a base64-encoded config **template** for optional
+WireGuard VPN access to the VPS. The server public key and endpoint are
+pre-filled; you supply your own WireGuard keypair and register it as a peer
+via SSH:
+
+```bash
+# 1. Generate your WireGuard keypair
+wg genkey | tee wg-vps.key | wg pubkey > wg-vps.pub
+
+# 2. Register your public key on the VPS via SSH
+ssh root@5.6.7.8 "wg set wg0 peer $(cat wg-vps.pub) allowed-ips 10.9.0.2/32"
+
+# 3. Fill in the template (replace PrivateKey placeholder)
+base64 -d <<< "<wireguardClientConf>" | sed "s|<your-client-wireguard-private-key>|$(cat wg-vps.key)|" > wg-vps.conf
+wg-quick up ./wg-vps.conf
 ```
 
 ## Regions
