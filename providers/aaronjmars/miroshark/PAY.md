@@ -23,12 +23,13 @@ Payment is x402, $1.00 USDC, settled through the Coinbase CDP facilitator. The
 whichever chain its wallet holds.
 
 `POST /run` returns `202` immediately with a `run_id` plus `wait_url` (HTML)
-and `status_url` (JSON, pollable, no auth). Poll until `status == completed` —
-the status payload then carries `share_url`, and
-`GET /report/{run_id}?format=json|md` serves the report itself. Optional
-knobs: `deep_research: true` (live-web context sweep, adds cost),
-`prediction_market` (pin the central market), and `affiliate` (an EVM `0x` or
-Solana base58 wallet, 50/50 net-profit share).
+and `status_url` (JSON, pollable, no auth). Poll until `status` is terminal:
+`completed`, `failed`, `budget_exceeded`, or `cancelled` — don't keep polling
+a non-`completed` terminal run; surface its `error` instead. On `completed`
+the status payload carries `share_url`, and `GET /report/{run_id}?format=json|md`
+serves the report itself. Optional knobs: `deep_research: true` (live-web
+context sweep, adds cost), `prediction_market` (pin the central market), and
+`affiliate` (an EVM `0x` or Solana base58 wallet, 50/50 net-profit share).
 
 ## Spend-aware usage
 
