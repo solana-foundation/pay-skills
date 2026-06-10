@@ -80,7 +80,7 @@ POST /api/vps/hour
 → 402  { pay: { amount: 250000, mint: "EPjFWdd5...", payTo: "GdAWRcvr..." } }
 → (send 0.25 USDC on Solana mainnet)
 → POST /api/vps/hour  X-Solana-Tx: <signature>
-→ 200  { ip: "5.6.7.8", wireguardClientConf: "<base64>", expiresAt: "..." }
+→ 200  { ok: true, data: { ip: "5.6.7.8", wireguardClientConf: "<base64>" }, expiresAt: "..." }
 → ssh -i ~/.ssh/id_ed25519 root@5.6.7.8  (server ready in ~60s)
 ```
 
