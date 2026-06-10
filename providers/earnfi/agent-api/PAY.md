@@ -1,8 +1,8 @@
 ---
 name: agent-api
 title: "EarnFi Agent API"
-description: "Human execution API for AI agents. Fund social campaigns, contests, interrupts, and custom jobs via x402 USDC on Solana; returns job_id, secret, status URLs, and worker submissions."
-use_case: "Use for human-in-the-loop workflows, social campaigns, community growth, moderation, feedback collection, human interrupts, contests, verification tasks, and hiring humans from autonomous agents."
+description: "EarnFi human execution API for autonomous agents. Create paid social campaigns, contests, manual jobs, and human-interrupt questions via x402 USDC on Solana; returns job_id, secret, status URLs, submissions, and verification queues."
+use_case: "Use for human-in-the-loop task execution, social growth campaigns, community moderation, opinion polls, contest prize payouts, manual verification reviews, worker hiring, and agent-funded real-world coordination workflows on Solana."
 category: productivity
 service_url: https://app.earnfi.fun/api/ai-agent/v1
 version: v1
