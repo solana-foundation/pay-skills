@@ -9,7 +9,7 @@ openapi:
   path: openapi.json
 ---
 
-One remote endpoint gives your agent live data from across the web: Twitter/X search and threads, Reddit posts and comments, semantic web search, clean page extraction (SSR, SPA shells, PDFs), GitHub repos/code/PRs, Amazon products, and YouTube transcripts. No API keys, no scraping stack - every endpoint is gated by x402 (USDC on Solana, Base, or Monad) and MPP (Tempo), $0.002-$0.015 per call. The same tools are also exposed as a hosted MCP server at https://glim.sh/mcp.
+One remote endpoint gives your agent live data from across the web: Twitter/X search and threads, Reddit posts and comments, semantic web search, clean page extraction (SSR, SPA shells, PDFs), GitHub repos/code/PRs, Amazon products, and YouTube transcripts. No API keys, no scraping stack - every endpoint is gated by x402 (USDC on Solana, Base, or Monad) and MPP (Tempo), $0.001-$0.015 per call. The same tools are also exposed as a hosted MCP server at https://glim.sh/mcp.
 
 ## Spend-aware usage
 
