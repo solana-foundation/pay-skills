@@ -1,51 +1,39 @@
 ---
 name: runtime
-title: "Clawd Runtime — Formally Verified On-Chain Solana Agent"
-description: "SAS-attested sovereign AI agent runtime on Solana. Agents spawn with AES-256-GCM encrypted keypairs (agentwallet-vault), earn USDC/SOL through x402 payment rails, self-replicate via spawnling minting (Metaplex MPL Core), and operate under the immutable Three Laws constitution (SHA-256 hash-gated). Zero-config free inference via OpenRouter gacha routing."
-use_case: "Use to spawn a formally verified on-chain AI agent that owns its keypair, earns through honest work, and self-replicates. One-command install via pay.sh. Clawd installs FIRST as the default agent — providers like Anthropic, OpenAI, xAI plug in after."
-category: agent-runtime
+title: "Clawd Runtime — Solana Agent Storefront Runtime"
+description: "Installable Solana AI agent runtime for spawning agents with encrypted wallets, CAAP identity, registry metadata, x402 monetized storefronts, and Clawd Gateway settlement."
+use_case: "Use to install or run a Clawd agent that can publish a storefront, price tools or skills, accept Solana USDC payments through x402, register identity on-chain, and route paid requests through the Clawd Gateway."
+category: ai_ml
 service_url: https://solanaclawd.com
-version: v2.0.0
+version: v2
 openapi:
   path: openapi.json
 ---
 
-Clawd is the only formally verified, SAS-attested, on-chain Solana agent runtime.
-Every spawned leviathan carries a constitution hash of `three-laws.md` that is
-verified at spawn time — if the laws change, the lineage breaks.
+Clawd Runtime is the installable Solana agent runtime that turns an agent into a
+monetizable storefront. It wires together `/agents`, `/auth`, `/providers`,
+Clawd Registry metadata, and the Clawd Gateway so an installed agent can expose
+paid tools, skills, chat routes, MCP routes, and storefront listings.
 
-## Architecture
+## Monetized storefront flow
 
-### Identity & Sovereignty
-- **Keypair at birth**: AES-256-GCM encrypted via agentwallet-vault (`VAULT_PASSPHRASE` env)
-- **On-chain registry**: Metaplex MPL Core asset + Agent Registry PDA
-- **SAS Attestation**: `22zoJMtdu4tQc2PzL74ZUT7FrwgB1Udec8DdW4yw4BdG`
-- **CAAP/1.0 Discovery**: `https://x402.wtf/.well-known/agent-auth.json`
+1. Install or spawn a Clawd agent.
+2. Register the agent identity and storefront metadata in Clawd Registry.
+3. Publish paid services such as `/chat`, `/tools/{toolId}`, `/mcp`, or `/storefront/{agentId}`.
+4. Clients call a paid route and receive an HTTP 402 payment challenge.
+5. The Clawd Gateway verifies and settles Solana USDC.
+6. The runtime executes the skill and returns the paid response.
 
-### Economics
-- x402 payment rails for agent-to-agent commerce
-- ClawdRouter gateway for USDC/x402 routing
-- Depth tiers: earn USDC → go deeper → run better models → earn more
+## Components
 
-### Three Immutable Laws
-Every leviathan is bound by a SHA-256 constitution of `three-laws.md`.
-Spawnlings inherit the parent's constitution hash. Modified laws = broken lineage.
-
-### Installers
-- **`pay.sh`** (recommended): One-command installer — Clawd first, providers after
-- **`install.sh`**: Full kit with leviathan, perps, pump, SDK flags
-- **npm**: `@openclawdsolana/clawd`, `@openclawdsolana/agent-registry`,
-  `@openclawdsolana/agent-hub`, `agentwallet-vault`
-
-### Key Endpoints
-- `https://solanaclawd.com` — main site (agents, skills, gateway, terminal)
-- `https://x402.wtf` — x402 payment protocol
-- `https://x402.wtf/.well-known/agent-auth.json` — CAAP/1.0 discovery
-- `https://clawdrouter.fly.dev` — ClawdRouter gateway
+- `/agents` — installable agent catalog and runtime routes.
+- `/auth` — CAAP wallet, token, NFT, and identity attestation.
+- `/providers` — model, data, payment, registry, and gateway providers.
+- **Clawd Registry** — discovery metadata for agent storefronts.
+- **Clawd Gateway** — x402 Solana USDC verify and settle flow.
 
 ## Spend-aware usage
 
-- Free inference tier works with zero cost (OpenRouter gacha)
-- x402 payments are per-request ($0.0001 → $0.10 configurable)
-- CLAWD token gates subscription tiers (Free → Basic → Pro → Elite)
-- agentwallet-vault encrypts at birth — no plaintext keypairs ever written
+- Read the free storefront/catalog route before paying for a tool.
+- Enforce `maxAmountRequired` client-side before signing any x402 payload.
+- Cache CAAP and registry discovery results between requests.
