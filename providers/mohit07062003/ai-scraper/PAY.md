@@ -18,3 +18,4 @@ The API implements the HTTP 402 Payment Required standard. On the first request,
 - Each scrape costs exactly 0.005 USDC regardless of page size.
 - Reuse scraped content within your agent session rather than re-fetching the same URL.
 - Target specific pages rather than crawling entire sites to minimise spend.
+- A `502 Bad Gateway` means the upstream scraper failed **after** payment verification, but the payment signature is **not** consumed — retry the same `X-PAYMENT` immediately. Only `200` responses mark a signature as spent.
