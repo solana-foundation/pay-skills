@@ -1,0 +1,263 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Solvela Gateway",
+    "description": "Solana-native AI agent payment gateway. OpenAI-compatible LLM chat completions paid per request in USDC-SPL over the x402 protocol — no API key, no account, just a wallet. A rule-based smart router selects a model per request, an exact-match response cache returns prior answers at zero upstream cost, and a trustless on-chain escrow scheme is available for prepaid sessions.",
+    "version": "0.1.0",
+    "license": { "name": "Apache-2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0" }
+  },
+  "servers": [
+    { "url": "https://solvela-gateway.fly.dev", "description": "Production" }
+  ],
+  "paths": {
+    "/v1/chat/completions": {
+      "post": {
+        "operationId": "createChatCompletion",
+        "summary": "Create an OpenAI-compatible chat completion",
+        "description": "OpenAI-compatible chat completion. Without a `PAYMENT-SIGNATURE` header the gateway returns HTTP 402 with an x402 challenge: a legacy JSON body plus a canonical x402 v2 challenge in the `PAYMENT-REQUIRED` response header, both quoting the USDC cost on Solana mainnet. Sign the quoted `exact` payment with your wallet and resubmit to receive the completion.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ChatCompletionRequest" },
+              "example": {
+                "model": "auto",
+                "messages": [
+                  { "role": "user", "content": "What is 2+2?" }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Chat completion (or an SSE stream when `stream` is true).",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ChatCompletionResponse" }
+              },
+              "text/event-stream": {
+                "schema": { "type": "string", "description": "Server-sent events: `data: {chunk}` lines terminated by `data: [DONE]`." }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. Body is the x402 challenge; the `PAYMENT-REQUIRED` response header carries the canonical x402 v2 challenge (base64-encoded JSON).",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded canonical x402 v2 challenge (camelCase).",
+                "schema": { "type": "string" }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PaymentRequired" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
+      }
+    },
+    "/v1/models": {
+      "get": {
+        "operationId": "listModels",
+        "summary": "List available models with pricing and capabilities",
+        "description": "Returns the model catalog with per-token pricing and capabilities. No payment required.",
+        "responses": {
+          "200": {
+            "description": "Model list.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ModelList" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "summary": "Report gateway and dependency health status",
+        "description": "Liveness/readiness probe. No payment required.",
+        "responses": {
+          "200": {
+            "description": "Service status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "status": { "type": "string", "enum": ["ok", "degraded", "error"] } },
+                  "required": ["status"]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ChatCompletionRequest": {
+        "type": "object",
+        "required": ["model", "messages"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Model ID (e.g. `openai/gpt-4o`), alias (e.g. `sonnet`), or routing profile (`auto`, `eco`, `premium`, `free`). Call `GET /v1/models` for available IDs.",
+            "example": "auto"
+          },
+          "messages": {
+            "type": "array",
+            "description": "Conversation messages in OpenAI chat format, ordered oldest to newest (roles: system, user, assistant, tool, developer).",
+            "minItems": 1,
+            "items": { "$ref": "#/components/schemas/ChatMessage" }
+          },
+          "max_tokens": { "type": "integer", "minimum": 1, "description": "Max output tokens; clamped to the model limit." },
+          "temperature": { "type": "number", "minimum": 0, "maximum": 2 },
+          "top_p": { "type": "number", "minimum": 0, "maximum": 1 },
+          "stream": { "type": "boolean", "default": false, "description": "Stream the response as Server-Sent Events." },
+          "tools": { "type": "array", "items": { "type": "object" }, "description": "OpenAI-style tool/function definitions." },
+          "tool_choice": { "description": "OpenAI-style tool choice." }
+        }
+      },
+      "ChatMessage": {
+        "type": "object",
+        "required": ["role", "content"],
+        "properties": {
+          "role": { "type": "string", "enum": ["system", "user", "assistant", "tool", "developer"] },
+          "content": {
+            "description": "Plain string, or an array of content parts (text and image_url) for vision-capable models.",
+            "anyOf": [
+              { "type": "string" },
+              { "type": "array", "items": { "type": "object" } }
+            ]
+          },
+          "name": { "type": "string" },
+          "tool_call_id": { "type": "string" }
+        }
+      },
+      "ChatCompletionResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "object": { "type": "string", "example": "text_completion" },
+          "created": { "type": "integer" },
+          "model": { "type": "string" },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": { "type": "integer" },
+                "message": { "$ref": "#/components/schemas/ChatMessage" },
+                "finish_reason": { "type": "string" }
+              }
+            }
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "prompt_tokens": { "type": "integer" },
+              "completion_tokens": { "type": "integer" },
+              "total_tokens": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "PaymentRequired": {
+        "type": "object",
+        "description": "x402 challenge returned with HTTP 402.",
+        "properties": {
+          "x402_version": { "type": "integer", "example": 2 },
+          "resource": {
+            "type": "object",
+            "properties": {
+              "url": { "type": "string", "example": "/v1/chat/completions" },
+              "method": { "type": "string", "example": "POST" }
+            }
+          },
+          "accepts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "scheme": { "type": "string", "enum": ["exact", "escrow"] },
+                "network": { "type": "string", "example": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" },
+                "amount": { "type": "string", "description": "Atomic units (USDC has 6 decimals)." },
+                "asset": { "type": "string", "description": "USDC SPL mint address." },
+                "pay_to": { "type": "string", "description": "Recipient wallet address." },
+                "max_timeout_seconds": { "type": "integer", "example": 300 }
+              }
+            }
+          },
+          "cost_breakdown": {
+            "type": "object",
+            "properties": {
+              "provider_cost": { "type": "string" },
+              "platform_fee": { "type": "string" },
+              "total": { "type": "string" },
+              "currency": { "type": "string", "example": "USDC" },
+              "fee_percent": { "type": "integer", "example": 5 }
+            }
+          },
+          "error": { "type": "string" }
+        }
+      },
+      "ModelList": {
+        "type": "object",
+        "properties": {
+          "object": { "type": "string", "example": "list" },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "object": { "type": "string", "example": "model" },
+                "provider": { "type": "string" },
+                "display_name": { "type": "string" },
+                "context_window": { "type": "integer" },
+                "capabilities": {
+                  "type": "object",
+                  "properties": {
+                    "streaming": { "type": "boolean" },
+                    "tools": { "type": "boolean" },
+                    "vision": { "type": "boolean" },
+                    "reasoning": { "type": "boolean" }
+                  }
+                },
+                "pricing": {
+                  "type": "object",
+                  "properties": {
+                    "input_per_million": { "type": "number" },
+                    "output_per_million": { "type": "number" },
+                    "currency": { "type": "string", "example": "USDC" },
+                    "fee_percent": { "type": "integer", "example": 5 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string" },
+              "message": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
