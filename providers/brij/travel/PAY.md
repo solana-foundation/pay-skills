@@ -1,7 +1,7 @@
 ---
 name: travel
 title: "BRIJ Flight API"
-description: "Live flight search and escrow-backed booking on Solana. Search real-time availability across global airlines, lock in fares via on-chain USDC escrow, submit passenger details to complete the booking, and request refunds — gated by x402 per-call payments."
+description: "Live flight search and escrow-backed booking on Solana. Search real-time availability across global airlines, lock in fares via on-chain USDC escrow, submit passenger details to complete the booking, and request refunds, gated by x402 per-call payments."
 use_case: "Use for live flight search, airfare availability checks, booking a flight via on-chain USDC escrow, submitting passenger booking details, checking booking order status, or requesting a flight refund on behalf of a user."
 category: shopping
 service_url: https://travel.brij.fi
