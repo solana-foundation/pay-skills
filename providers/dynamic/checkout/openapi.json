@@ -1,0 +1,1815 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Dynamic Checkout API",
+    "description": "Cross-chain payment routing for AI agents. Accepts any token on any supported chain and settles to a target token on a destination chain via automatic swap and bridge. Backs the dynamic-agent-payments CLI for autonomous x402 and MPP paywall resolution.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Dynamic",
+      "url": "https://dynamic.xyz",
+      "email": "hello@dynamic.xyz"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://app.dynamicauth.com/api/v0",
+      "description": "Production"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Dynamic API token with `dyn_` prefix from https://app.dynamic.xyz/dashboard/developer/api. Required for Admin endpoints."
+      },
+      "sessionToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-dynamic-checkout-session-token",
+        "description": "Session token returned by createTransaction. Required for SDK transaction endpoints."
+      }
+    },
+    "schemas": {
+      "Settlement": {
+        "type": "object",
+        "required": [
+          "chainName",
+          "chainId",
+          "tokenAddress",
+          "symbol",
+          "tokenDecimals"
+        ],
+        "properties": {
+          "chainName": {
+            "type": "string",
+            "example": "EVM",
+            "description": "Target chain family: EVM or SOL."
+          },
+          "chainId": {
+            "type": "string",
+            "example": "8453",
+            "description": "Chain ID for EVM chains (e.g. 8453 = Base, 1 = Ethereum, 137 = Polygon)."
+          },
+          "tokenAddress": {
+            "type": "string",
+            "example": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            "description": "ERC-20 or SPL token mint address on the settlement chain."
+          },
+          "symbol": {
+            "type": "string",
+            "example": "USDC"
+          },
+          "tokenDecimals": {
+            "type": "integer",
+            "example": 6
+          },
+          "isNative": {
+            "type": "boolean",
+            "description": "Whether the token is the native token for the chain (e.g. ETH, SOL).",
+            "default": false
+          }
+        }
+      },
+      "Destination": {
+        "type": "object",
+        "required": [
+          "chainName",
+          "type",
+          "identifier"
+        ],
+        "properties": {
+          "chainName": {
+            "type": "string",
+            "example": "EVM"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "address"
+            ],
+            "example": "address"
+          },
+          "identifier": {
+            "type": "string",
+            "example": "0xYourAgentWalletAddress",
+            "description": "Destination wallet address to receive settled funds."
+          }
+        }
+      },
+      "CheckoutCreateRequest": {
+        "type": "object",
+        "required": [
+          "mode",
+          "settlementConfig",
+          "destinationConfig"
+        ],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "payment",
+              "deposit"
+            ],
+            "example": "deposit",
+            "description": "payment: receiver fixes the amount (invoices, e-commerce). deposit: sender chooses the amount (top-ups, on-ramps)."
+          },
+          "settlementConfig": {
+            "type": "object",
+            "required": [
+              "strategy",
+              "settlements"
+            ],
+            "properties": {
+              "strategy": {
+                "type": "string",
+                "enum": [
+                  "cheapest",
+                  "fastest",
+                  "preferred_order"
+                ],
+                "example": "cheapest",
+                "description": "Route optimization. cheapest: lowest total cost. fastest: fewest steps. preferred_order: first available in settlement order."
+              },
+              "settlements": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Settlement"
+                },
+                "minItems": 1
+              }
+            }
+          },
+          "destinationConfig": {
+            "type": "object",
+            "required": [
+              "destinations"
+            ],
+            "properties": {
+              "destinations": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Destination"
+                },
+                "minItems": 1
+              }
+            }
+          },
+          "depositConfig": {
+            "type": "object",
+            "description": "Optional. Deposit mode only. Configures minimum amount and preset options shown to the sender.",
+            "properties": {
+              "minimum": {
+                "type": "string",
+                "description": "Minimum deposit amount allowed (USD string).",
+                "example": "1.00"
+              },
+              "presets": {
+                "type": "array",
+                "description": "Preset deposit amounts shown to the user (USD strings).",
+                "items": {
+                  "type": "string"
+                },
+                "example": ["5.00", "10.00", "25.00"]
+              }
+            }
+          },
+          "enableOrchestration": {
+            "type": "boolean",
+            "description": "Optional. Default true. When false, skips cross-chain settlement orchestration.",
+            "default": true
+          }
+        },
+        "example": {
+          "mode": "deposit",
+          "settlementConfig": {
+            "strategy": "cheapest",
+            "settlements": [
+              {
+                "chainName": "EVM",
+                "chainId": "8453",
+                "tokenAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                "symbol": "USDC",
+                "tokenDecimals": 6
+              }
+            ]
+          },
+          "destinationConfig": {
+            "destinations": [
+              {
+                "chainName": "EVM",
+                "type": "address",
+                "identifier": "0xYourAgentWalletAddress"
+              }
+            ]
+          }
+        }
+      },
+      "CheckoutCreateResponse": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Checkout ID. Cache this and reuse it across all transactions to the same destination."
+          }
+        }
+      },
+      "CheckoutUpdateRequest": {
+        "type": "object",
+        "description": "All fields are optional — only send what you want to change.",
+        "properties": {
+          "settlementConfig": {
+            "type": "object",
+            "properties": {
+              "strategy": {
+                "type": "string",
+                "enum": [
+                  "cheapest",
+                  "fastest",
+                  "preferred_order"
+                ]
+              },
+              "settlements": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Settlement"
+                },
+                "minItems": 1
+              }
+            }
+          },
+          "destinationConfig": {
+            "type": "object",
+            "properties": {
+              "destinations": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Destination"
+                },
+                "minItems": 1
+              }
+            }
+          },
+          "depositConfig": {
+            "type": "object",
+            "properties": {
+              "minimum": {
+                "type": "string",
+                "example": "1.00"
+              },
+              "presets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "enableOrchestration": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CheckoutConfig": {
+        "type": "object",
+        "required": [
+          "id",
+          "mode",
+          "settlementConfig",
+          "enableOrchestration",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Checkout ID."
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "payment",
+              "deposit"
+            ],
+            "description": "payment: receiver fixes the amount. deposit: sender chooses the amount."
+          },
+          "settlementConfig": {
+            "type": "object",
+            "properties": {
+              "strategy": {
+                "type": "string",
+                "enum": [
+                  "cheapest",
+                  "fastest",
+                  "preferred_order"
+                ]
+              },
+              "settlements": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Settlement"
+                }
+              }
+            }
+          },
+          "destinationConfig": {
+            "type": "object",
+            "properties": {
+              "destinations": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Destination"
+                }
+              }
+            }
+          },
+          "depositConfig": {
+            "type": "object",
+            "properties": {
+              "minimum": {
+                "type": "string"
+              },
+              "presets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "enableOrchestration": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether Dynamic handles quote optimization, fee collection, and fund settlement automatically."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp of when the checkout was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp of when the checkout was last updated."
+          }
+        }
+      },
+      "TransactionCreateRequest": {
+        "type": "object",
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "properties": {
+          "amount": {
+            "type": "string",
+            "example": "1.00",
+            "description": "Payment amount in the specified currency (USD string, e.g. \"1.00\")."
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "USD"
+            ],
+            "example": "USD"
+          },
+          "memo": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Optional arbitrary metadata attached to the transaction for tracking.",
+            "example": {
+              "purpose": "x402 payment for price-feed API"
+            }
+          },
+          "expiresIn": {
+            "type": "integer",
+            "description": "Session TTL in seconds. Default: 3600 (1 hour).",
+            "example": 3600
+          },
+          "destinationAddresses": {
+            "type": "array",
+            "description": "Optional. Override the checkout destination for this transaction only.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "chainName": {
+                  "type": "string",
+                  "enum": [
+                    "EVM",
+                    "SOL",
+                    "BTC",
+                    "SUI"
+                  ]
+                },
+                "address": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "TransactionCreateResponse": {
+        "type": "object",
+        "required": [
+          "transaction",
+          "sessionToken"
+        ],
+        "properties": {
+          "transaction": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Transaction ID used in all subsequent steps."
+              }
+            }
+          },
+          "sessionToken": {
+            "type": "string",
+            "description": "Pass this as `x-dynamic-checkout-session-token` header on all SDK transaction endpoints."
+          }
+        }
+      },
+      "AttachSourceRequest": {
+        "type": "object",
+        "required": [
+          "sourceType",
+          "fromAddress",
+          "fromChainId",
+          "fromChainName"
+        ],
+        "properties": {
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "wallet",
+              "exchange"
+            ],
+            "example": "wallet"
+          },
+          "fromAddress": {
+            "type": "string",
+            "example": "0xAgentWalletAddress",
+            "description": "The agent's source wallet address."
+          },
+          "fromChainId": {
+            "type": "string",
+            "example": "1",
+            "description": "Chain ID of the source chain (e.g. \"1\" for Ethereum mainnet)."
+          },
+          "fromChainName": {
+            "type": "string",
+            "enum": [
+              "EVM",
+              "SOL",
+              "BTC",
+              "SUI"
+            ],
+            "example": "EVM"
+          }
+        }
+      },
+      "QuoteRequest": {
+        "type": "object",
+        "required": [
+          "fromTokenAddress"
+        ],
+        "properties": {
+          "fromTokenAddress": {
+            "type": "string",
+            "example": "0x0000000000000000000000000000000000000000",
+            "description": "Token address on the source chain to swap from. Use 0x000...000 for native tokens (ETH, MATIC)."
+          },
+          "slippage": {
+            "type": "number",
+            "example": 0.5,
+            "description": "Slippage tolerance in percent. Defaults to provider setting."
+          }
+        }
+      },
+      "QuoteFees": {
+        "type": "object",
+        "properties": {
+          "totalFeeUsd": {
+            "type": "string",
+            "example": "0.42",
+            "description": "Total fees in USD including gas, bridge, and swap fees."
+          },
+          "gasEstimate": {
+            "type": "object",
+            "properties": {
+              "usdValue": {
+                "type": "string"
+              },
+              "nativeValue": {
+                "type": "string"
+              },
+              "nativeSymbol": {
+                "type": "string",
+                "example": "ETH"
+              }
+            }
+          }
+        }
+      },
+      "QuoteResponse": {
+        "type": "object",
+        "properties": {
+          "quote": {
+            "type": "object",
+            "properties": {
+              "fromAmount": {
+                "type": "string",
+                "description": "Amount of source token to spend (including fees)."
+              },
+              "toAmount": {
+                "type": "string",
+                "description": "Amount of settlement token received at the destination."
+              },
+              "estimatedTimeSec": {
+                "type": "integer",
+                "description": "Estimated seconds to complete the cross-chain settlement."
+              },
+              "fees": {
+                "$ref": "#/components/schemas/QuoteFees"
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When this quote expires. Call prepare before this time."
+              },
+              "version": {
+                "type": "integer",
+                "description": "Quote version. Pass to prepare to confirm the quote used."
+              }
+            }
+          }
+        }
+      },
+      "PrepareRequest": {
+        "type": "object",
+        "properties": {
+          "assertBalanceForGasCost": {
+            "type": "boolean",
+            "default": true,
+            "description": "Reject if the wallet lacks sufficient native token for gas."
+          },
+          "assertBalanceForTransferAmount": {
+            "type": "boolean",
+            "default": true,
+            "description": "Reject if the wallet lacks sufficient token balance for the swap."
+          }
+        }
+      },
+      "EvmTransaction": {
+        "type": "object",
+        "required": [
+          "to",
+          "data",
+          "value"
+        ],
+        "properties": {
+          "to": {
+            "type": "string"
+          },
+          "data": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "gasLimit": {
+            "type": "string"
+          },
+          "maxFeePerGas": {
+            "type": "string"
+          },
+          "maxPriorityFeePerGas": {
+            "type": "string"
+          },
+          "chainId": {
+            "type": "integer"
+          }
+        }
+      },
+      "EvmApproval": {
+        "type": "object",
+        "description": "ERC-20 approval required before the main swap transaction.",
+        "properties": {
+          "tokenAddress": {
+            "type": "string"
+          },
+          "spenderAddress": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          }
+        }
+      },
+      "PrepareResponse": {
+        "type": "object",
+        "properties": {
+          "quote": {
+            "type": "object",
+            "properties": {
+              "signingPayload": {
+                "type": "object",
+                "description": "Signing payload. Contains evmTransaction (EVM), serializedTransaction (SOL/SUI), or psbt (BTC).",
+                "properties": {
+                  "chainName": {
+                    "type": "string"
+                  },
+                  "chainId": {
+                    "type": "string"
+                  },
+                  "evmTransaction": {
+                    "$ref": "#/components/schemas/EvmTransaction"
+                  },
+                  "evmApproval": {
+                    "$ref": "#/components/schemas/EvmApproval"
+                  },
+                  "serializedTransaction": {
+                    "type": "string",
+                    "description": "Base64-encoded serialized transaction for Solana or Sui."
+                  },
+                  "psbt": {
+                    "type": "string",
+                    "description": "Base64-encoded unsigned PSBT for Bitcoin transactions."
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "BroadcastRequest": {
+        "type": "object",
+        "required": [
+          "txHash"
+        ],
+        "properties": {
+          "txHash": {
+            "type": "string",
+            "example": "0xabc123...",
+            "description": "Transaction hash from the broadcast. For Solana: base58-encoded signature."
+          }
+        }
+      },
+      "TransactionStatus": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "executionState": {
+            "type": "string",
+            "enum": [
+              "initiated",
+              "source_attached",
+              "risk_check",
+              "quoted",
+              "signing",
+              "broadcasted",
+              "source_confirmed",
+              "cancelled",
+              "expired",
+              "failed"
+            ],
+            "description": "Current execution phase of the transaction."
+          },
+          "settlementState": {
+            "type": "string",
+            "enum": [
+              "none",
+              "routing",
+              "bridging",
+              "swapping",
+              "settling",
+              "completed",
+              "failed"
+            ],
+            "description": "Settlement progression: none \u2192 routing \u2192 bridging \u2192 swapping \u2192 settling \u2192 completed. Same-chain same-token payments jump directly to completed."
+          },
+          "riskState": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "not_required",
+              "cleared",
+              "blocked"
+            ],
+            "description": "Risk screening status. Must be `cleared` or `not_required` before fetching a quote. Starts as `unknown`, transitions to `cleared`, `not_required`, or `blocked`."
+          },
+          "txHash": {
+            "type": "string",
+            "description": "On-chain transaction hash once broadcast."
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "memo": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "TokenBalance": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "example": "ETH"
+          },
+          "balance": {
+            "type": "string",
+            "example": "0.05"
+          },
+          "tokenAddress": {
+            "type": "string",
+            "example": "0x0000000000000000000000000000000000000000"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/environments/{environmentId}/checkouts": {
+      "post": {
+        "operationId": "createCheckout",
+        "summary": "Create a reusable checkout configuration",
+        "description": "Defines a destination chain, token, and wallet address for cross-chain settlement. The returned checkout ID is reusable \u2014 cache it and pass it to createTransaction for every payment. One checkout config per destination address + token.",
+        "tags": [
+          "Checkout"
+        ],
+        "security": [
+          {
+            "bearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "description": "Dynamic environment ID from your dashboard.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "your-environment-id"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Checkout created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutConfig"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body."
+          },
+          "401": {
+            "description": "Invalid or missing API token."
+          },
+          "403": {
+            "description": "Insufficient permissions for this environment."
+          },
+          "422": {
+            "description": "Invalid checkout configuration."
+          }
+        }
+      }
+    },
+    "/sdk/{environmentId}/checkouts/{checkoutId}/transactions": {
+      "post": {
+        "operationId": "createTransaction",
+        "summary": "Open a payment transaction for a USD amount",
+        "description": "Creates a transaction under an existing checkout config. Returns a transactionId and sessionToken. The sessionToken is required as `x-dynamic-checkout-session-token` for all subsequent steps.",
+        "tags": [
+          "Transaction"
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "checkoutId",
+            "in": "path",
+            "required": true,
+            "description": "Checkout ID returned by createCheckout.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransactionCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Transaction created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionCreateResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Checkout not found."
+          },
+          "422": {
+            "description": "Invalid amount or currency."
+          }
+        },
+        "security": []
+      }
+    },
+    "/sdk/{environmentId}/transactions/{transactionId}/source": {
+      "post": {
+        "operationId": "attachSource",
+        "summary": "Attach the agent's source wallet to a transaction",
+        "description": "Links the agent's wallet (address, chain family, chain ID) as the payment source. Must be called before requesting a quote.",
+        "tags": [
+          "Transaction"
+        ],
+        "security": [
+          {
+            "sessionToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "transactionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachSourceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Source attached."
+          },
+          "401": {
+            "description": "Invalid session token."
+          },
+          "422": {
+            "description": "Invalid source wallet or chain."
+          },
+          "403": {
+            "description": "Source blocked by sanctions screening \u2014 cancel and retry with a different source wallet."
+          }
+        }
+      }
+    },
+    "/sdk/{environmentId}/transactions/{transactionId}": {
+      "get": {
+        "operationId": "getTransaction",
+        "summary": "Get the status of a payment transaction",
+        "description": "Returns executionState, settlementState, and riskState. Poll after attachSource until riskState is `cleared` or `not_required`. Poll after broadcast until settlementState is `completed`.",
+        "tags": [
+          "Transaction"
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "transactionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transaction state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or missing session token."
+          },
+          "404": {
+            "description": "Transaction not found."
+          }
+        },
+        "security": [
+          {
+            "sessionToken": []
+          }
+        ]
+      }
+    },
+    "/sdk/{environmentId}/transactions/{transactionId}/quote": {
+      "post": {
+        "operationId": "getQuote",
+        "summary": "Get a swap quote for a source token",
+        "description": "Returns fromAmount, toAmount, estimated time, fees, and expiry. Quotes expire quickly \u2014 call prepare before expiresAt. Retry on 422 (quote expired) up to 3 times.",
+        "tags": [
+          "Transaction"
+        ],
+        "security": [
+          {
+            "sessionToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "transactionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Quote returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuoteResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid session token."
+          },
+          "422": {
+            "description": "Quote expired or risk check not yet cleared."
+          }
+        }
+      }
+    },
+    "/sdk/{environmentId}/transactions/{transactionId}/prepare": {
+      "post": {
+        "operationId": "prepareSigning",
+        "summary": "Lock quote and get signing payload",
+        "description": "Locks the current quote and returns the signing payload (EVM transaction or serialized Solana transaction). Call only when ready to sign immediately \u2014 this starts an expiry clock. If signing fails, call cancel to release the locked state.",
+        "tags": [
+          "Transaction"
+        ],
+        "security": [
+          {
+            "sessionToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "transactionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrepareRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signing payload ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrepareResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid session token."
+          },
+          "422": {
+            "description": "Quote expired \u2014 re-quote and retry."
+          }
+        }
+      }
+    },
+    "/sdk/{environmentId}/transactions/{transactionId}/broadcast": {
+      "post": {
+        "operationId": "recordBroadcast",
+        "summary": "Record the on-chain transaction hash",
+        "description": "After signing and broadcasting the transaction, record the tx hash so Dynamic can track cross-chain settlement. For Solana: pass the base58-encoded transaction signature.",
+        "tags": [
+          "Transaction"
+        ],
+        "security": [
+          {
+            "sessionToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "transactionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BroadcastRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Broadcast recorded. Poll getTransaction until settlementState = completed."
+          },
+          "401": {
+            "description": "Invalid session token."
+          },
+          "422": {
+            "description": "Transaction not in expected state for broadcast."
+          }
+        }
+      }
+    },
+    "/sdk/{environmentId}/transactions/{transactionId}/cancel": {
+      "post": {
+        "operationId": "cancelTransaction",
+        "summary": "Cancel a pending payment transaction",
+        "description": "Valid in states: initiated, source_attached, quoted, signing. Call this if anything fails after prepare to release the locked quote. Best-effort \u2014 may fail if the transaction has already advanced.",
+        "tags": [
+          "Transaction"
+        ],
+        "security": [
+          {
+            "sessionToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "transactionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transaction cancelled."
+          },
+          "401": {
+            "description": "Invalid session token."
+          },
+          "422": {
+            "description": "Transaction cannot be cancelled in its current state."
+          }
+        }
+      }
+    },
+    "/sdk/{environmentId}/evm/simulateTransaction": {
+      "post": {
+        "operationId": "simulateEvmTransaction",
+        "summary": "Simulate an EVM transaction before signing",
+        "description": "Dry-run an EVM transaction against the current chain state. Use this after prepare to verify the transaction will succeed before committing gas. Returns success/failure and any revert reason.",
+        "tags": [
+          "Simulation"
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "chainId",
+                  "transaction"
+                ],
+                "properties": {
+                  "chainId": {
+                    "type": "string",
+                    "example": "8453",
+                    "description": "EVM chain ID."
+                  },
+                  "transaction": {
+                    "type": "object",
+                    "properties": {
+                      "from": {
+                        "type": "string"
+                      },
+                      "to": {
+                        "type": "string"
+                      },
+                      "data": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "gasLimit": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Simulation result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "gasUsed": {
+                      "type": "string"
+                    },
+                    "revertReason": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid transaction."
+          },
+          "401": {
+            "description": "Invalid or missing session token."
+          },
+          "422": {
+            "description": "Simulation failed."
+          }
+        },
+        "security": [
+          {
+            "sessionToken": []
+          }
+        ]
+      }
+    },
+    "/sdk/{environmentId}/solana/simulateTransaction": {
+      "post": {
+        "operationId": "simulateSolanaTransaction",
+        "summary": "Simulate a Solana transaction before signing",
+        "description": "Dry-run a base64-encoded Solana transaction against the current cluster state. Use after prepare to verify the transaction will succeed before signing and broadcasting.",
+        "tags": [
+          "Simulation"
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "transaction"
+                ],
+                "properties": {
+                  "transaction": {
+                    "type": "string",
+                    "description": "Base64-encoded serialized Solana transaction (from the prepare signingPayload)."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Simulation result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "logs": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid transaction."
+          },
+          "401": {
+            "description": "Invalid or missing session token."
+          }
+        },
+        "security": [
+          {
+            "sessionToken": []
+          }
+        ]
+      }
+    },
+    "/sdk/{environmentId}/solana/sponsorTransaction": {
+      "post": {
+        "operationId": "sponsorSolanaTransaction",
+        "summary": "Sponsor a Solana transaction (gasless for user)",
+        "description": "Replaces the fee payer of a Solana transaction with a sponsored account via the Grid API by Squads, so the user does not need SOL for gas. Only available for environments with SVM gas sponsorship enabled.",
+        "tags": [
+          "Simulation"
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "transaction"
+                ],
+                "properties": {
+                  "transaction": {
+                    "type": "string",
+                    "description": "Base64-encoded unsigned Solana transaction to sponsor."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sponsored transaction with fee payer replaced.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "transaction": {
+                      "type": "string",
+                      "description": "Base64-encoded sponsored transaction ready to sign."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid transaction or gas sponsorship not enabled."
+          },
+          "401": {
+            "description": "Invalid or missing session token."
+          }
+        },
+        "security": [
+          {
+            "sessionToken": []
+          }
+        ]
+      }
+    },
+    "/sdk/{environmentId}/chains/{chainName}/transactions/{address}": {
+      "get": {
+        "operationId": "getWalletTransactions",
+        "summary": "Get transaction history for a wallet address",
+        "description": "Fetches confirmed transactions for a wallet address on a given chain. Useful for verifying a broadcast landed on-chain and for displaying payment history.",
+        "tags": [
+          "Wallet"
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chainName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "EVM",
+                "SOL"
+              ]
+            }
+          },
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "description": "Wallet address to fetch history for.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "networkId",
+            "in": "query",
+            "required": true,
+            "description": "Chain/network ID (e.g. 8453 for Base, 101 for Solana mainnet).",
+            "schema": {
+              "type": "string"
+            },
+            "example": 8453
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transaction list.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "transactions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "hash": {
+                            "type": "string"
+                          },
+                          "blockNumber": {
+                            "type": "string"
+                          },
+                          "timestamp": {
+                            "type": "string"
+                          },
+                          "from": {
+                            "type": "string"
+                          },
+                          "to": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or missing session token."
+          },
+          "404": {
+            "description": "Address not found."
+          }
+        },
+        "security": [
+          {
+            "sessionToken": []
+          }
+        ]
+      }
+    },
+    "/sdk/{environmentId}/chains/{chainName}/balances": {
+      "get": {
+        "operationId": "getBalances",
+        "summary": "Get token balances for a wallet address on a chain",
+        "description": "Returns all token balances for a wallet on the given chain family. Use networkId to filter to a specific chain and avoid fetching all chains.",
+        "tags": [
+          "Wallet"
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chainName",
+            "in": "path",
+            "required": true,
+            "description": "Chain family: EVM or SOL.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "EVM",
+                "SOL"
+              ]
+            },
+            "example": "EVM"
+          },
+          {
+            "name": "accountAddress",
+            "in": "query",
+            "required": true,
+            "description": "Wallet address to query balances for.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "0xYourAgentWalletAddress"
+          },
+          {
+            "name": "networkId",
+            "in": "query",
+            "required": false,
+            "description": "Filter to a specific chain by network/chain ID (e.g. \"8453\" for Base). Omit to return balances across all supported chains for this chain family.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "8453"
+          },
+          {
+            "name": "includeNative",
+            "in": "query",
+            "required": false,
+            "description": "Include native token balance (ETH, SOL, etc.) in the response. Defaults to false \u2014 native balances are omitted unless this is true.",
+            "schema": {
+              "type": "boolean"
+            },
+            "example": true
+          },
+          {
+            "name": "filterSpamTokens",
+            "in": "query",
+            "required": false,
+            "description": "Filter out spam/dust tokens. Defaults to true.",
+            "schema": {
+              "type": "boolean"
+            },
+            "example": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Token balances.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TokenBalance"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or missing session token."
+          },
+          "422": {
+            "description": "Invalid address or chain."
+          }
+        },
+        "security": [
+          {
+            "sessionToken": []
+          }
+        ]
+      }
+    },
+    "/environments/{environmentId}/checkouts/{checkoutId}": {
+      "get": {
+        "operationId": "getCheckout",
+        "summary": "Get a checkout configuration",
+        "tags": [
+          "Checkout"
+        ],
+        "security": [
+          {
+            "bearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "checkoutId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Checkout configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutConfig"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or missing API token."
+          },
+          "403": {
+            "description": "Insufficient permissions for this environment."
+          },
+          "404": {
+            "description": "Checkout not found."
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateCheckout",
+        "summary": "Update a checkout configuration",
+        "tags": [
+          "Checkout"
+        ],
+        "security": [
+          {
+            "bearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "checkoutId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated checkout.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutConfig"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body."
+          },
+          "401": {
+            "description": "Invalid or missing API token."
+          },
+          "403": {
+            "description": "Insufficient permissions for this environment."
+          },
+          "404": {
+            "description": "Checkout not found."
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteCheckout",
+        "summary": "Delete a checkout configuration",
+        "tags": [
+          "Checkout"
+        ],
+        "security": [
+          {
+            "bearerToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "environmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "checkoutId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Checkout deleted. Returns the deleted checkout object.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutConfig"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or missing API token."
+          },
+          "403": {
+            "description": "Insufficient permissions for this environment."
+          },
+          "404": {
+            "description": "Checkout not found."
+          }
+        }
+      }
+    }
+  }
+}
