@@ -10,7 +10,7 @@ openapi:
   path: openapi.json
 ---
 
-SolSigs is a Solana-native x402 service offering 22 specialist data endpoints, each priced per call in USDC ($0.001–$0.010) with no API keys, accounts, or subscriptions. All 22 resources are verified on x402scan, and the service settles directly on Solana mainnet (~400ms finality).
+SolSigs is a Solana-native x402 service offering 22 specialist data endpoints, each priced per call in USDC ($0.001–$0.015) with no API keys, accounts, or subscriptions. All 22 resources are verified on x402scan, and the service settles directly on Solana mainnet (~400ms finality).
 
 Coverage spans live DEX prices (Jupiter + Birdeye), arbitrage scanning, wallet intelligence and scoring, new-token launch detection with rug-risk scoring, whale transfer tracking, smart-money discovery, NFT floor/rarity data, staking APY comparison, prediction-market odds (Polymarket), social sentiment, dev-activity metrics, an LLM on-chain summarizer, and an intelligent RPC proxy.
 
