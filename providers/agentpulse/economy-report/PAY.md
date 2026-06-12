@@ -3,7 +3,7 @@ name: economy-report
 title: "AgentPulse Economy Report"
 description: "Structured JSON report on AI agent economy activity: on-chain USDC flows, transaction volume, new agent launches, trending agent services, and smart-money signals. Pay once per report. No API key required."
 use_case: "Use for a current snapshot of the AI agent economy: x402/USDC transaction volume, notable new agent launches, smart-money agent wallet movements, and trending agent services with emerging monetization patterns."
-category: data
+category: finance
 service_url: https://agentpulse-worker.agentpulse.workers.dev
 openapi:
   path: openapi.json
