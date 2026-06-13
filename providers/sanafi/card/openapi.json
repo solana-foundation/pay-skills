@@ -229,7 +229,34 @@
         "operationId": "getCard",
         "summary": "Fetch the card details and metadata",
         "security": [{ "bearerAuth": [] }],
-        "responses": { "200": { "description": "Card metadata" } }
+        "responses": {
+          "200": {
+            "description": "The user's cards (PAN/CVV never included)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": { "type": "string", "example": "virtual" },
+                          "status": { "type": "string", "example": "active" },
+                          "last4": { "type": "string", "example": "4242" },
+                          "expirationMonth": { "type": "string", "example": "08" },
+                          "expirationYear": { "type": "string", "example": "2028" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/card/balance": {
@@ -237,7 +264,38 @@
         "operationId": "getCardBalance",
         "summary": "Fetch the card balance and spending power",
         "security": [{ "bearerAuth": [] }],
-        "responses": { "200": { "description": "Balance" } }
+        "responses": {
+          "200": {
+            "description": "Card balance, limits, and spending power (USD)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "type": { "type": "string", "example": "virtual" },
+                        "status": { "type": "string", "example": "active" },
+                        "last4": { "type": "string", "example": "4242" },
+                        "expirationMonth": { "type": "string", "example": "08" },
+                        "expirationYear": { "type": "string", "example": "2028" },
+                        "depositAddress": { "type": "string", "description": "Solana address that funds the card" },
+                        "creditLimitUsd": { "type": "string", "example": "100" },
+                        "pendingChargesUsd": { "type": "string", "example": "0" },
+                        "postedChargesUsd": { "type": "string", "example": "0" },
+                        "balanceDueUsd": { "type": "string", "example": "0" },
+                        "spendingPowerUsd": { "type": "string", "description": "Amount available to spend right now", "example": "100" },
+                        "tokens": { "type": "array", "description": "Per-token balances backing the card", "items": { "type": "object" } }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/card/transactions": {
@@ -245,13 +303,57 @@
         "operationId": "getCardTransactions",
         "summary": "Fetch recent card transactions",
         "security": [{ "bearerAuth": [] }],
-        "responses": { "200": { "description": "Transactions" } }
+        "responses": {
+          "200": {
+            "description": "Card transactions grouped by date, with pagination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "transactions": {
+                          "type": "array",
+                          "description": "Transactions grouped by date (most recent first)",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "date": { "type": "string", "example": "5 Jun 2026" },
+                              "transactions": {
+                                "type": "array",
+                                "items": { "type": "object", "description": "A single transaction (amount, description, status, etc.)" }
+                              }
+                            }
+                          }
+                        },
+                        "pagination": {
+                          "type": "object",
+                          "properties": {
+                            "page": { "type": "integer", "example": 1 },
+                            "limit": { "type": "integer", "example": 20 },
+                            "totalCount": { "type": "integer", "example": 0 },
+                            "totalPages": { "type": "integer", "example": 0 },
+                            "hasNextPage": { "type": "boolean", "example": false }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/card/deposit": {
       "post": {
         "operationId": "cardDeposit",
         "summary": "Create a USDC deposit to the card",
+        "description": "Moves USDC from the user's Sanafi custodial wallet onto the card's on-chain deposit address. This is NOT x402-gated: the funds come from the user's own custodial wallet, signed server-side via the user's agent-signing delegation (which must be enabled for the account), and the amount is subject to the API key's spending limits. Returns the broadcast Solana transaction signature.",
         "security": [{ "bearerAuth": [] }],
         "requestBody": {
           "required": true,
@@ -260,12 +362,34 @@
               "schema": {
                 "type": "object",
                 "required": ["amount"],
-                "properties": { "amount": { "type": "number", "description": "USDC to move onto the card" } }
+                "properties": { "amount": { "type": "number", "description": "USDC amount to move from the user's custodial wallet onto the card", "example": 25 } }
               }
             }
           }
         },
-        "responses": { "200": { "description": "Deposit initiated" } }
+        "responses": {
+          "200": {
+            "description": "Deposit transaction broadcast to Solana",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "status": { "type": "string", "example": "submitted" },
+                        "signature": { "type": "string", "description": "Solana transaction signature of the USDC transfer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "description": "Agent signing not enabled for this user" }
+        }
       }
     }
   },
