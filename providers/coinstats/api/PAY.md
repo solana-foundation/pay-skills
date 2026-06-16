@@ -1,8 +1,8 @@
 ---
 name: api
 title: "CoinStats"
-description: "Pay-per-request crypto market data, wallet balances, DeFi positions, news, insights, and portfolio analytics — 33 endpoints across 20,000+ coins and 70+ blockchains"
-use_case: "Use when an agent needs live cryptocurrency prices, wallet balances, DeFi protocol positions, portfolio tracking, crypto news, or market sentiment indicators"
+description: "Pay-per-request crypto market data, wallet balances, and portfolio analytics across 20,000+ coins and 70+ blockchains: live prices, charts, market cap, exchange tickers, transaction history, DeFi positions, crypto news, and Fear & Greed via 33 endpoints"
+use_case: "Use when an agent needs live or historical crypto prices, market cap and exchange tickers, multi-chain wallet balances, transaction history, DeFi positions, portfolio tracking, crypto news by sentiment, or indicators like Fear & Greed and BTC dominance"
 category: finance
 service_url: https://x402.coinstats.app
 openapi:
