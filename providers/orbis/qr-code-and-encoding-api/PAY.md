@@ -1,8 +1,8 @@
 ---
-name: qr-code-and-encoding-api
+name: qr-code-and-encoding
 title: "QR Code and Encoding API"
-description: "Generate QR codes as PNG, SVG, or base64. Encode and decode Base64, hash with MD5 and SHA, generate UUIDs, and URL-encode text."
-use_case: "Use for qr code and encoding api tasks, automation, and AI agent workflows."
+description: "Generate QR codes as PNG, SVG, or base64 data URLs. Encode and decode Base64, hash with MD5 and SHA-256, generate UUIDs, and URL-encode or decode text."
+use_case: "Use for generating QR codes in multiple formats, Base64 encoding and decoding, hashing text for checksums, generating UUIDs, and URL-safe string encoding in developer or agent workflows."
 category: compute
 service_url: https://orbisapi.com/proxy/qr-encoding
 openapi:
@@ -13,11 +13,7 @@ openapi:
 
 **QR Code and Encoding API** is available on [Orbis](https://orbisapi.com) — an x402 pay-per-call API marketplace on Base and Solana.
 
-No API key or signup required. Send an x402 payment header with USDC on Solana or Base and your request goes straight through.
-
-## Pricing
-
-**$0.001 USDC per call** — accepted on Solana (USDC) and Base (USDC).
+No API key or signup required. Pay $0.001 USDC per call on Solana or Base.
 
 ## Quick start
 
