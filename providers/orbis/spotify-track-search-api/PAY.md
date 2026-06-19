@@ -1,8 +1,8 @@
 ---
-name: spotify-track-search-api
+name: spotify-track-search
 title: "Spotify Track Search API"
-description: "Spotify track search returning name, artist, album, duration, popularity, preview URL, audio features, and recommendations."
-use_case: "Use for spotify track search api tasks, automation, and AI agent workflows."
+description: "Spotify track search returning name, artist, album, duration, popularity, preview URL, audio features including tempo, energy and danceability, and track recommendations."
+use_case: "Use for searching Spotify tracks by keyword, retrieving audio features for mood or playlist analysis, getting new releases, and building music discovery or recommendation agents."
 category: data
 service_url: https://orbisapi.com/proxy/spotify-track-search-api-a8c110
 openapi:
@@ -13,11 +13,7 @@ openapi:
 
 **Spotify Track Search API** is available on [Orbis](https://orbisapi.com) — an x402 pay-per-call API marketplace on Base and Solana.
 
-No API key or signup required. Send an x402 payment header with USDC on Solana or Base and your request goes straight through.
-
-## Pricing
-
-**$0.001 USDC per call** — accepted on Solana (USDC) and Base (USDC).
+No API key or signup required. Pay $0.001 USDC per call on Solana or Base.
 
 ## Quick start
 
