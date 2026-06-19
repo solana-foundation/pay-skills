@@ -1,8 +1,8 @@
 ---
-name: text-utilities-api
+name: text-utilities
 title: "Text Utilities API"
-description: "Text processing API: analyze stats, run sentiment analysis, extract emails and URLs, pull keywords, generate summaries, and strip HTML."
-use_case: "Use for text utilities api tasks, automation, and AI agent workflows."
+description: "Text processing API covering word count, reading time, sentiment analysis, email and URL extraction, keyword ranking, summarization, and HTML stripping."
+use_case: "Use for analyzing text stats, running sentiment checks, extracting emails and URLs from documents, generating summaries, pulling top keywords, and cleaning HTML in content pipelines."
 category: compute
 service_url: https://orbisapi.com/proxy/text-utilities-api-c4a528
 openapi:
@@ -13,11 +13,7 @@ openapi:
 
 **Text Utilities API** is available on [Orbis](https://orbisapi.com) — an x402 pay-per-call API marketplace on Base and Solana.
 
-No API key or signup required. Send an x402 payment header with USDC on Solana or Base and your request goes straight through.
-
-## Pricing
-
-**$0.001 USDC per call** — accepted on Solana (USDC) and Base (USDC).
+No API key or signup required. Pay $0.001 USDC per call on Solana or Base.
 
 ## Quick start
 
