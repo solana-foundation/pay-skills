@@ -1,8 +1,8 @@
 ---
-name: personal-finance-api
+name: personal-finance
 title: "Personal Finance API"
-description: "Personal finance calculations and budgeting tools for agent and automation workflows."
-use_case: "Use for personal finance api tasks, automation, and AI agent workflows."
+description: "Personal finance calculations and budgeting tools including savings projections, debt payoff schedules, and spending analysis for automation workflows."
+use_case: "Use for calculating savings goals, generating debt payoff plans, projecting investment growth, and building personal budgeting or financial coaching agents."
 category: finance
 service_url: https://orbisapi.com/proxy/personal-finance-api-0fefd3
 openapi:
@@ -13,11 +13,7 @@ openapi:
 
 **Personal Finance API** is available on [Orbis](https://orbisapi.com) — an x402 pay-per-call API marketplace on Base and Solana.
 
-No API key or signup required. Send an x402 payment header with USDC on Solana or Base and your request goes straight through.
-
-## Pricing
-
-**$0.001 USDC per call** — accepted on Solana (USDC) and Base (USDC).
+No API key or signup required. Pay $0.001 USDC per call on Solana or Base.
 
 ## Quick start
 
