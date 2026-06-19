@@ -1,8 +1,8 @@
 ---
-name: crypto-project-analyzer-api
+name: crypto-project-analyzer
 title: "Crypto Project Analyzer API"
-description: "Deep tokenomics analysis for major crypto projects. Returns scores, red flags, distribution, vesting, and investment caution levels."
-use_case: "Use for crypto project analyzer api tasks, automation, and AI agent workflows."
+description: "Deep tokenomics analysis for 10 major crypto projects. Returns scores, red flags, distribution breakdown, vesting summary, and investment caution levels."
+use_case: "Use for tokenomics analysis of BTC, ETH, SOL, AAVE, LINK and others, comparing project scores, filtering by risk, and building crypto due diligence or investment research agents."
 category: analytics
 service_url: https://orbisapi.com/proxy/crypto-project-analyzer-api-18894f
 openapi:
@@ -13,11 +13,7 @@ openapi:
 
 **Crypto Project Analyzer API** is available on [Orbis](https://orbisapi.com) — an x402 pay-per-call API marketplace on Base and Solana.
 
-No API key or signup required. Send an x402 payment header with USDC on Solana or Base and your request goes straight through.
-
-## Pricing
-
-**$0.001 USDC per call** — accepted on Solana (USDC) and Base (USDC).
+No API key or signup required. Pay $0.001 USDC per call on Solana or Base.
 
 ## Quick start
 
