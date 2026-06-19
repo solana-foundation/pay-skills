@@ -1,8 +1,8 @@
 ---
-name: refinance-calculator-api-v2
+name: refinance-calculator-v2
 title: "Refinance Calculator API v2"
-description: "Refinance savings calculator for loan comparison, break-even analysis, and payoff timelines."
-use_case: "Use for refinance calculator api v2 tasks, automation, and AI agent workflows."
+description: "Mortgage and loan refinance savings calculator with break-even analysis, interest comparison, and payoff timeline projections."
+use_case: "Use for evaluating whether to refinance a mortgage, comparing old and new loan total costs, finding the break-even month, and building real estate finance decision tools."
 category: finance
 service_url: https://orbisapi.com/proxy/refinance-calculator-api-b3d6c7
 openapi:
@@ -13,11 +13,7 @@ openapi:
 
 **Refinance Calculator API v2** is available on [Orbis](https://orbisapi.com) — an x402 pay-per-call API marketplace on Base and Solana.
 
-No API key or signup required. Send an x402 payment header with USDC on Solana or Base and your request goes straight through.
-
-## Pricing
-
-**$0.001 USDC per call** — accepted on Solana (USDC) and Base (USDC).
+No API key or signup required. Pay $0.001 USDC per call on Solana or Base.
 
 ## Quick start
 
