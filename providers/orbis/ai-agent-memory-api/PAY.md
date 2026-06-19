@@ -1,8 +1,8 @@
 ---
-name: ai-agent-memory-api
+name: ai-agent-memory
 title: "AI Agent Memory API"
-description: "Give your AI agent persistent memory. Store and retrieve key-value memories across sessions with optional TTL."
-use_case: "Use for ai agent memory api tasks, automation, and AI agent workflows."
+description: "Persistent key-value memory storage for AI agents. Store and retrieve memories across sessions with optional TTL and per-agent namespacing."
+use_case: "Use for giving AI agents persistent memory across sessions, storing user preferences and conversation context, managing task state, and building agents that remember between runs."
 category: compute
 service_url: https://orbisapi.com/proxy/ai-agent-memory-api-c5cab4
 openapi:
@@ -13,11 +13,7 @@ openapi:
 
 **AI Agent Memory API** is available on [Orbis](https://orbisapi.com) — an x402 pay-per-call API marketplace on Base and Solana.
 
-No API key or signup required. Send an x402 payment header with USDC on Solana or Base and your request goes straight through.
-
-## Pricing
-
-**$0.001 USDC per call** — accepted on Solana (USDC) and Base (USDC).
+No API key or signup required. Pay $0.001 USDC per call on Solana or Base.
 
 ## Quick start
 
