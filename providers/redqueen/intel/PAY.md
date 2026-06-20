@@ -2,7 +2,7 @@
 name: intel
 title: Red Queen Intelligence Mainframe
 description: Restricted real-time global disaster warnings, NASA hazards, and live Solana DePIN validator node telemetry feeds.
-use_case: AI agents query this to get real-time environmental risk telemetry, natural disaster data, and Solana network validator stability statistics.
+use_case: Use for AI agents querying real-time environmental risk telemetry, natural disaster data, and Solana network validator stability statistics.
 category: data
 service_url: https://redqueen.space
 openapi:
