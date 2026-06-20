@@ -1,0 +1,124 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Covenant Trust",
+    "version": "1.0.0",
+    "description": "Verify another agent before you transact with it. On-chain identity passports and Covenant-signed attestations, priced per call in USDC over x402 on Solana.",
+    "contact": { "url": "https://opencovenant.org" },
+    "license": { "name": "Apache-2.0" },
+    "x-guidance": "Use /x402/passport/{asset} to confirm a counterparty agent's on-chain identity (MPL Core asset + 014 Registry binding + Covenant attestation) before delegating work or paying it, and /x402/attest to obtain a Covenant-signed, independently-verifiable statement over a claim."
+  },
+  "servers": [{ "url": "https://x402-seller.opencovenant.org" }],
+  "paths": {
+    "/x402/passport/{asset}": {
+      "get": {
+        "operationId": "getPassport",
+        "summary": "Verify an agent's on-chain identity passport.",
+        "tags": ["trust"],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "The agent's MPL Core asset address (base58).",
+            "example": "9sFJ95mZsBTGqTEBkcbmsx2V8RQiZ5iQACCLPLE61aWH"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Passport", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Passport" } } } },
+          "400": { "description": "Not a valid Solana address" },
+          "402": { "description": "Payment Required" },
+          "404": { "description": "Not an MPL Core asset" },
+          "502": { "description": "Chain/DAS upstream unavailable" }
+        }
+      }
+    },
+    "/x402/attest": {
+      "post": {
+        "operationId": "attest",
+        "summary": "Create a Covenant-signed attestation over a claim.",
+        "tags": ["trust"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["subject", "claim"],
+                "properties": {
+                  "subject": { "type": "string", "maxLength": 256, "description": "What the claim is about." },
+                  "claim": { "description": "Arbitrary JSON statement to be signed." }
+                }
+              },
+              "example": { "subject": "9sFJ95mZsBTGqTEBkcbmsx2V8RQiZ5iQACCLPLE61aWH", "claim": { "delivered": true, "task": "build-report" } }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Signed attestation", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Attestation" } } } },
+          "400": { "description": "Invalid body" },
+          "402": { "description": "Payment Required" },
+          "503": { "description": "Signer not configured" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Passport": {
+        "type": "object",
+        "properties": {
+          "asset": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "owner": { "type": "string" },
+              "authority": { "type": "string" },
+              "inCovenantCollection": { "type": "boolean" },
+              "collection": { "type": ["string", "null"] },
+              "burnt": { "type": "boolean" }
+            }
+          },
+          "registry": {
+            "type": "object",
+            "properties": {
+              "pda": { "type": "string" },
+              "registered": { "type": "boolean" },
+              "identityPlugin": { "type": "boolean" },
+              "registrationUri": { "type": ["string", "null"] }
+            }
+          },
+          "attestation": {
+            "type": ["object", "null"],
+            "properties": {
+              "authority": { "type": ["string", "null"] },
+              "covenantAuthored": { "type": "boolean" }
+            }
+          }
+        }
+      },
+      "Attestation": {
+        "type": "object",
+        "description": "Independently verifiable: digest = sha256(canonical(payload)) lowercase hex, where canonical is JSON with recursively-sorted keys and no insignificant whitespace (UTF-8); message = domain + \"\\n\" + digest; ed25519-verify base58-decoded signature_b58 over the UTF-8 message against pubkey_b58. Pin the expected pubkey from GET /.well-known/x402 (attestation.publicKey).",
+        "properties": {
+          "alg": { "type": "string", "description": "Signature algorithm — \"ed25519\"." },
+          "domain": { "type": "string", "description": "Domain prefix bound into the signed message." },
+          "canonicalization": { "type": "string" },
+          "payload": {
+            "type": "object",
+            "properties": {
+              "subject": { "type": "string" },
+              "claim": {},
+              "ts": { "type": "integer" }
+            }
+          },
+          "digest_sha256_hex": { "type": "string" },
+          "pubkey_b58": { "type": "string", "description": "Signer pubkey; must match attestation.publicKey from /.well-known/x402." },
+          "signature_b58": { "type": "string" }
+        }
+      }
+    }
+  }
+}
