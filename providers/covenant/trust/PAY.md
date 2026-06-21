@@ -2,7 +2,7 @@
 name: trust
 title: "Covenant Trust"
 description: "Verify an AI agent before you transact: confirm its on-chain identity passport (MPL Core asset + 014 Registry + Covenant attestation) and obtain Covenant-signed attestations — priced per call in USDC over x402 on Solana."
-use_case: "Use before delegating to or paying another agent: verify its on-chain identity and Covenant registration/attestation, or issue a Covenant-signed attestation over a claim about its work."
+use_case: "Use when delegating to or paying another agent: verify its on-chain identity and Covenant registration/attestation, or issue a Covenant-signed attestation over a claim about its work."
 category: identity
 service_url: https://x402-seller.opencovenant.org
 version: v1
