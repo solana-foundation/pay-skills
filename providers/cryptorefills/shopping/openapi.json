@@ -1,0 +1,831 @@
+{
+  "openapi": "3.1.0",
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "info": {
+    "title": "CryptoRefills x402 — Solana mainnet USDC",
+    "version": "1.0.0",
+    "description": "Buy gift cards, mobile top-ups, and digital products with USDC on Solana mainnet. 10,001+ brands across 180 countries. Two-phase x402 v2 checkout: POST /v1/orders returns 402 with PAYMENT-REQUIRED, agent signs and re-POSTs with PAYMENT-SIGNATURE.",
+    "contact": {
+      "name": "CryptoRefills",
+      "email": "support@cryptorefills.com",
+      "url": "https://cryptorefills.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://solana.x402.cryptorefills.com",
+      "description": "Production"
+    }
+  ],
+  "tags": [
+    {
+      "name": "discovery",
+      "description": "Browse brands and products without paying."
+    },
+    {
+      "name": "price",
+      "description": "Quote a USDC price for a chosen denomination — required before paying."
+    },
+    {
+      "name": "orders",
+      "description": "x402 two-phase paid checkout."
+    }
+  ],
+  "paths": {
+    "/v1/brands": {
+      "get": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "List brands available in a country",
+        "description": "Discover brand_name values agents pass to /v1/catalog. Free endpoint.",
+        "operationId": "listBrands",
+        "parameters": [
+          {
+            "name": "country_code",
+            "in": "query",
+            "required": true,
+            "description": "Lowercase ISO 3166-1 alpha-2 country code (e.g. 'us', 'it').",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 2,
+              "example": "us"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of brands available in the requested country.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Brand"
+                  }
+                },
+                "examples": {
+                  "us": {
+                    "value": [
+                      {
+                        "brand_name": "Amazon.com",
+                        "family": "Amazon.com",
+                        "category": "e-commerce",
+                        "min": "5",
+                        "max": "500"
+                      },
+                      {
+                        "brand_name": "Steam",
+                        "family": "Steam",
+                        "category": "gaming",
+                        "min": "5",
+                        "max": "100"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/catalog": {
+      "get": {
+        "tags": [
+          "discovery"
+        ],
+        "summary": "List products (denominations) for a country and brand",
+        "description": "Returns product_id values and indicative pricing. Use brand_name from /v1/brands. For range products price_usdc is the literal string 'variable' — call /v1/price for the actual quote.",
+        "operationId": "listCatalog",
+        "parameters": [
+          {
+            "name": "country_code",
+            "in": "query",
+            "required": true,
+            "description": "Lowercase ISO 3166-1 alpha-2 country code.",
+            "schema": {
+              "type": "string",
+              "example": "us"
+            }
+          },
+          {
+            "name": "brand_name",
+            "in": "query",
+            "required": false,
+            "description": "Brand name from /v1/brands. At least one of brand_name or family_name should be set to avoid huge responses.",
+            "schema": {
+              "type": "string",
+              "example": "Amazon.com"
+            }
+          },
+          {
+            "name": "family_name",
+            "in": "query",
+            "required": false,
+            "description": "Filter by product family.",
+            "schema": {
+              "type": "string",
+              "example": "Gaming"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of catalog items.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CatalogItem"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/v1/price": {
+      "get": {
+        "tags": [
+          "price"
+        ],
+        "summary": "Quote the USDC price for a chosen denomination",
+        "description": "Free endpoint. Required before /v1/orders for range products (Amazon.it €5–€1000 etc.) where /v1/catalog returns price_usdc='variable'. The returned price_usdc is indicative — the binding figure is maxAmountRequired in the 402 envelope at order time. Quotes have a short TTL (~60s) recorded in quote_expires_at.",
+        "operationId": "quotePrice",
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "query",
+            "required": true,
+            "description": "Canonical product UUID from /v1/catalog.",
+            "schema": {
+              "type": "string",
+              "example": "74c4f9b8-90ce-401d-82ba-4aef5567a876"
+            }
+          },
+          {
+            "name": "country_code",
+            "in": "query",
+            "required": true,
+            "description": "Lowercase ISO 3166-1 alpha-2 country code.",
+            "schema": {
+              "type": "string",
+              "example": "us"
+            }
+          },
+          {
+            "name": "brand_name",
+            "in": "query",
+            "required": true,
+            "description": "Brand name from /v1/catalog (narrows the upstream lookup).",
+            "schema": {
+              "type": "string",
+              "example": "Amazon.com"
+            }
+          },
+          {
+            "name": "product_value",
+            "in": "query",
+            "required": false,
+            "description": "Chosen face value. Required for range products. Must lie in [min_value, max_value] from /v1/catalog.",
+            "schema": {
+              "type": "number",
+              "example": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Indicative USDC price for the chosen denomination.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriceQuote"
+                },
+                "examples": {
+                  "amazon_us_50": {
+                    "value": {
+                      "product_id": "74c4f9b8-90ce-401d-82ba-4aef5567a876",
+                      "product_name": "Amazon.com Gift Card 50 USD",
+                      "brand_name": "Amazon.com",
+                      "country_code": "us",
+                      "is_range": true,
+                      "face_value": "50",
+                      "currency": "USD",
+                      "price_usdc": "50.42",
+                      "min_value": "5.00",
+                      "max_value": "500.00",
+                      "quote_expires_at": "2030-01-01T00:00:00Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/orders": {
+      "post": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Two-phase x402 checkout (paid)",
+        "description": "Phase 1 (no PAYMENT-SIGNATURE header): server replies 402 with the PAYMENT-REQUIRED header (base64url-encoded x402 v2 envelope) and an X-Session-Id header. Phase 2 (PAYMENT-SIGNATURE header set, X-Session-Id echoed): server verifies, settles via the facilitator, returns 200 with the order receipt. Default rail on this host: USDC on Solana mainnet.",
+        "operationId": "createOrder",
+        "x-payment-required": true,
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "x402Version": 2,
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "assetSymbol": "USDC",
+          "assetDecimals": 6,
+          "pricingMode": "dynamic",
+          "signing": "Build an SPL token Transfer to the ATA derived from (owner=payTo, mint=asset). Partially-sign the versioned transaction with your wallet; CDP signs as feePayer (extra.feePayer in PAYMENT-REQUIRED)."
+        },
+        "x402Version": 2,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderRequest"
+              },
+              "example": {
+                "email": "agent@example.com",
+                "items": [
+                  {
+                    "product_id": "74c4f9b8-90ce-401d-82ba-4aef5567a876",
+                    "beneficiary_account": "shopper@example.com",
+                    "product_value": 25
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Phase 2 success. Order accepted and settling. Poll GET /v1/orders/{order_id} until status='completed'.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderReceipt"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Phase 1. Decode the PAYMENT-REQUIRED response header (base64url JSON) to learn the rail, payTo, and amount.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "base64url-encoded x402 v2 PaymentRequired envelope. accepts[0] is the Solana mainnet requirement on this host.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Session-Id": {
+                "description": "UUID for this payment session. Echo on Phase 2 via the X-Session-Id request header. Required on this host.",
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequired"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamError"
+          },
+          "503": {
+            "description": "Facilitator unavailable. Retry after the Retry-After header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/orders/{order_id}": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "summary": "Poll order status and voucher delivery",
+        "description": "Free. Poll every 5–10 seconds until status='completed' or 'failed'. Voucher fields appear inside deliveries[] once delivery_state='completed'.",
+        "operationId": "getOrder",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "description": "CryptoRefills order ID from POST /v1/orders.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current order state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderStatus"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "BadRequest": {
+        "description": "Validation error.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Resource not found.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "UpstreamError": {
+        "description": "CryptoRefills upstream returned an error.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Brand": {
+        "type": "object",
+        "required": [
+          "brand_name",
+          "family",
+          "category"
+        ],
+        "properties": {
+          "brand_name": {
+            "type": "string",
+            "description": "Use as brand_name in /v1/catalog."
+          },
+          "family": {
+            "type": "string",
+            "description": "Product family (e.g. 'Gift Cards', 'Mobile Recharge')."
+          },
+          "category": {
+            "type": "string",
+            "description": "Product category (e.g. 'Gaming')."
+          },
+          "min": {
+            "type": "string",
+            "description": "Minimum denomination available, indicative."
+          },
+          "max": {
+            "type": "string",
+            "description": "Maximum denomination available, indicative."
+          }
+        }
+      },
+      "CatalogItem": {
+        "type": "object",
+        "required": [
+          "product_id",
+          "brand_name",
+          "is_range",
+          "price_usdc",
+          "country_code"
+        ],
+        "properties": {
+          "product_id": {
+            "type": "string",
+            "description": "Pass to /v1/orders items[].product_id."
+          },
+          "product_name": {
+            "type": "string"
+          },
+          "brand_name": {
+            "type": "string"
+          },
+          "denomination": {
+            "type": "string",
+            "description": "Upstream descriptive denomination, when provided."
+          },
+          "denomination_label": {
+            "type": "string",
+            "description": "Short tag, unique per row of the same brand."
+          },
+          "currency": {
+            "type": "string",
+            "description": "Face-value currency (typically 'USD')."
+          },
+          "is_range": {
+            "type": "boolean",
+            "description": "true → caller picks USD amount via product_value; call /v1/price for the quote."
+          },
+          "face_value_usd": {
+            "type": "number",
+            "description": "Fixed face value. Present only when is_range=false."
+          },
+          "price_usdc": {
+            "type": "string",
+            "description": "Indicative USDC price for fixed products; literal 'variable' for range products."
+          },
+          "country_code": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "min_value": {
+            "type": "number",
+            "description": "Minimum range value. Present only when is_range=true."
+          },
+          "max_value": {
+            "type": "number",
+            "description": "Maximum range value. Present only when is_range=true."
+          }
+        }
+      },
+      "PriceQuote": {
+        "type": "object",
+        "required": [
+          "product_id",
+          "brand_name",
+          "is_range",
+          "price_usdc",
+          "currency",
+          "quote_expires_at"
+        ],
+        "properties": {
+          "product_id": {
+            "type": "string"
+          },
+          "product_name": {
+            "type": "string"
+          },
+          "brand_name": {
+            "type": "string"
+          },
+          "country_code": {
+            "type": "string"
+          },
+          "is_range": {
+            "type": "boolean"
+          },
+          "face_value": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "price_usdc": {
+            "type": "string",
+            "description": "Indicative USDC amount. The binding figure is maxAmountRequired in the 402 envelope."
+          },
+          "min_value": {
+            "type": "string"
+          },
+          "max_value": {
+            "type": "string"
+          },
+          "quote_expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO-8601 UTC instant after which the quote should be refreshed."
+          }
+        }
+      },
+      "OrderRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "items"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Contact email for the order."
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/OrderItem"
+            }
+          },
+          "callback_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Optional webhook URL for order state changes."
+          }
+        }
+      },
+      "OrderItem": {
+        "type": "object",
+        "required": [
+          "product_id",
+          "beneficiary_account"
+        ],
+        "properties": {
+          "product_id": {
+            "type": "string",
+            "description": "From /v1/catalog product_id."
+          },
+          "beneficiary_account": {
+            "type": "string",
+            "description": "Email or account that receives the voucher (top-ups: phone number)."
+          },
+          "product_value": {
+            "type": "number",
+            "description": "Required when the product is a range product (is_range=true). Quote first via /v1/price."
+          }
+        }
+      },
+      "OrderReceipt": {
+        "type": "object",
+        "required": [
+          "order_id",
+          "status",
+          "poll_url"
+        ],
+        "properties": {
+          "order_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "processing",
+              "completed",
+              "failed",
+              "expired"
+            ]
+          },
+          "email": {
+            "type": "string"
+          },
+          "estimated_delivery_seconds": {
+            "type": "integer"
+          },
+          "poll_url": {
+            "type": "string"
+          },
+          "deliveries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Delivery"
+            }
+          }
+        }
+      },
+      "OrderStatus": {
+        "type": "object",
+        "required": [
+          "order_id",
+          "status"
+        ],
+        "properties": {
+          "order_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "processing",
+              "completed",
+              "failed",
+              "expired"
+            ]
+          },
+          "deliveries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Delivery"
+            }
+          }
+        }
+      },
+      "Delivery": {
+        "type": "object",
+        "required": [
+          "id",
+          "delivery_state"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "delivery_state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "completed",
+              "failed"
+            ]
+          },
+          "brand_name": {
+            "type": "string"
+          },
+          "product_name": {
+            "type": "string"
+          },
+          "denomination": {
+            "type": "string"
+          },
+          "face_value": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "voucher_code": {
+            "type": "string",
+            "description": "Primary redemption code."
+          },
+          "pin_serial": {
+            "type": "string"
+          },
+          "security_code": {
+            "type": "string"
+          },
+          "redeem_instructions": {
+            "type": "string"
+          },
+          "terms_and_conditions": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "barcode_image_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "qr_image_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "beneficiary_account": {
+            "type": "string"
+          },
+          "country_code": {
+            "type": "string"
+          },
+          "delivery_type": {
+            "type": "string",
+            "enum": [
+              "by_email",
+              "by_sms",
+              "inline"
+            ]
+          },
+          "failure_reason": {
+            "type": "string"
+          }
+        }
+      },
+      "X402PaymentRequired": {
+        "type": "object",
+        "description": "Decoded form of the PAYMENT-REQUIRED header (the wire form is base64url-encoded JSON).",
+        "required": [
+          "x402Version",
+          "accepts"
+        ],
+        "properties": {
+          "x402Version": {
+            "type": "integer",
+            "enum": [
+              2
+            ]
+          },
+          "accepts": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/X402PaymentRequirement"
+            }
+          },
+          "resource": {
+            "type": "object"
+          }
+        }
+      },
+      "X402PaymentRequirement": {
+        "type": "object",
+        "required": [
+          "scheme",
+          "network",
+          "maxAmountRequired",
+          "asset",
+          "payTo"
+        ],
+        "properties": {
+          "scheme": {
+            "type": "string",
+            "enum": [
+              "exact"
+            ]
+          },
+          "network": {
+            "type": "string",
+            "description": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp on this host."
+          },
+          "maxAmountRequired": {
+            "type": "string",
+            "description": "Atomic units of the asset (decimals=6 for USDC)."
+          },
+          "asset": {
+            "type": "string",
+            "description": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v on this host."
+          },
+          "extra": {
+            "type": "object",
+            "description": "Rail-specific metadata (EIP-712 domain for EVM; feePayer for Solana)."
+          },
+          "payTo": {
+            "type": "string",
+            "description": "Per-order destination wallet, generated server-side."
+          },
+          "description": {
+            "type": "string"
+          },
+          "outputSchema": {
+            "type": "object"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Stable machine-readable code."
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable detail."
+          }
+        }
+      }
+    }
+  }
+}
