@@ -1,25 +1,39 @@
 ---
-name: erc8004-lookup
-title: "GenTech Labs — ERC-8004 Lookup API"
-description: "Verify any agent on-chain identity across Avalanche, Base, and Arbitrum via x402 USDC on Base."
-use_case: "Use when an agent needs to verify another agent identity, check registration status, or validate ERC-8004 token ownership."
-category: security
+name: gentechlabs-erc8004-lookup
+title: GenTech Labs — ERC-8004 Identity Lookup API
+category: identity
+version: 1.0.0
+author: gentech
+description: >
+use_case: >
 service_url: https://api.gentechlabs.net
-version: v1
+openapi:
+  content: |
+    { "openapi": "3.1.0", "info": { "title": "ERC-8004 Lookup API", "version": "1.0.0" }, "paths": { "/v1/identity/{address}": { "get": { "summary": "Lookup identity", "responses": {"200": {"description": "Identity data"}} } } } }
+  Verify any agent's on-chain identity across chains. Check registration, metadata, and token ID.
+  ERC-8004 agent identity verification and metadata lookup.
+  Verify agent ownership, capabilities, and on-chain reputation via x402 USDC on Base.
+endpoints:
+  - method: GET
+    path: /v1/identity/{address}
+    description: Look up ERC-8004 identity for an agent address
+    price_usd: 0.001
+    request: { address: "0x..." }
+    response: { address, name, capabilities, domains, metadata, verified }
+network: base
+currency: USDC
+payment_protocol: x402
+base_url: https://gentechlabs.net
 ---
 
-# GenTech Labs — ERC-8004 Lookup API
+# GenTech Labs — ERC-8004 Identity Lookup API
 
-Verify any agent on-chain identity across Avalanche, Base, and Arbitrum via x402 USDC on Base.
+ERC-8004 agent identity verification and metadata lookup. Verify agent ownership and capabilities.
 
 ## Endpoints
 
-- `GET /v1/identity/{address}` — Verify agent identity on-chain ($0.001)
+- `GET /v1/identity/{address}` — Look up ERC-8004 identity ($0.001)
 
 ## Payment
 
-x402 USDC on Base. Each call returns a `402 Payment Required` response with x402 challenge when payment is needed.
-
-## Rate Limits
-
-TTL-cached responses. No hard rate limit — reasonable use expected.
+x402 USDC on Base. Each call returns a `Payment-Required` header with x402 challenge when payment is needed.
