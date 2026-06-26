@@ -14,8 +14,9 @@ by CoinGecko, DeFiLlama, the Fear & Greed Index and Tavily. Highlights:
 
 - `GET /api/yield?chain=&risk=` — DeFi yield/APY across Ethereum, Base,
   Arbitrum and Solana with live DeFiLlama TVL + APY. ~$0.10.
-- `GET /api/security?token=&address=&chain=` — wallet-security and custody
-  framework with hardware-wallet guidance. ~$0.10.
+- `GET /api/security?token=&address=&chain=` — pre-trade on-chain risk scan
+  (honeypot/rug/tax + sanctioned-address screening via GoPlus, 7 EVM chains),
+  plus a self-custody framework via `value_tier`/`setup`. ~$0.10.
 - `GET /api/threats` — current crypto threat/scam intelligence.
 - Plus `strategy`, `exchange`, `tax` (20+ countries), `onboard`, `spend`,
   `banking`, `merchant`, and `research-brief`.
