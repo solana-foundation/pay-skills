@@ -30,6 +30,15 @@
           "note": "Entry fee can be tuned within the band; always read the live amount from the 402 challenge (accepts[0].amount, in USDC atomic units) rather than hardcoding.",
           "signing": "Build an SPL token Transfer to the ATA derived from (owner=payTo, mint=asset). Partially-sign the versioned transaction with your wallet; the facilitator (PayAI) signs as feePayer (extra.feePayer in PAYMENT-REQUIRED). Re-send with the PAYMENT-SIGNATURE header."
         },
+        "parameters": [
+          {
+            "name": "PAYMENT-SIGNATURE",
+            "in": "header",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "x402 v2 payment proof — base64-encoded JSON of the signed payment payload. Omit on the first call to receive the 402 challenge; set it on the retry to settle the entry and start the run."
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -49,6 +58,12 @@
           },
           "402": {
             "description": "Payment required (x402 v2). Pay the USDC requirement in `accepts[0]` and re-send with the PAYMENT-SIGNATURE header.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded JSON of the same x402 v2 challenge as the body (x402Version, resource, accepts[]). Canonical machine-readable challenge.",
+                "schema": { "type": "string" }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/PaymentRequired" }
@@ -56,7 +71,12 @@
             }
           },
           "423": {
-            "description": "Hell is currently 'conquered' (the pot was won). Entries are closed until the next season opens — poll GET /hell/round/state."
+            "description": "Hell is currently 'conquered' (the pot was won). Entries are closed until the next season opens — poll GET /hell/round/state.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ClosedSeason" }
+              }
+            }
           }
         }
       }
@@ -87,7 +107,12 @@
             }
           },
           "410": {
-            "description": "Your run's clock ran out (reason: run-expired). Pay again at /hell/session/create/usdc to start a fresh run."
+            "description": "Your run's clock ran out (reason: run-expired). Pay again at /hell/session/create/usdc to start a fresh run.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RunExpired" }
+              }
+            }
           }
         }
       }
@@ -120,6 +145,7 @@
       },
       "SessionCreated": {
         "type": "object",
+        "required": ["sessionId", "secondsRemaining"],
         "properties": {
           "sessionId": { "type": "string", "description": "Use this for all guesses." },
           "secondsRemaining": { "type": "integer", "description": "Your run clock — it starts now." },
@@ -128,12 +154,15 @@
       },
       "PaymentRequired": {
         "type": "object",
+        "required": ["x402Version", "accepts"],
         "properties": {
           "x402Version": { "type": "integer", "example": 2 },
           "accepts": {
             "type": "array",
+            "minItems": 1,
             "items": {
               "type": "object",
+              "required": ["scheme", "network", "amount", "asset", "payTo", "extra"],
               "properties": {
                 "scheme": { "type": "string", "example": "exact" },
                 "network": { "type": "string", "example": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" },
@@ -141,7 +170,11 @@
                 "asset": { "type": "string", "description": "USDC mint.", "example": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" },
                 "payTo": { "type": "string", "description": "Recipient wallet." },
                 "maxTimeoutSeconds": { "type": "integer", "example": 60 },
-                "extra": { "type": "object", "properties": { "feePayer": { "type": "string", "description": "Set this as your transaction's fee payer; the network fee is sponsored." } } }
+                "extra": {
+                  "type": "object",
+                  "required": ["feePayer"],
+                  "properties": { "feePayer": { "type": "string", "description": "Set this as your transaction's fee payer; the network fee is sponsored." } }
+                }
               }
             }
           },
@@ -150,8 +183,9 @@
       },
       "GuessResult": {
         "type": "object",
+        "required": ["result", "secondsRemaining"],
         "properties": {
-          "result": { "type": "string", "enum": ["WRONG", "CORRECT", "WIN"] },
+          "result": { "type": "string", "enum": ["WRONG", "CORRECT", "WIN"], "description": "Outcome of this guess. CORRECT advances to nextCheckpoint; WIN clears all 10 and takes the pot; WRONG means guess again." },
           "hints": { "type": "array", "items": { "type": "string" }, "description": "Cryptic metaphors encoding properties of the correct block — decode to narrow your next guess." },
           "nextCheckpoint": { "type": "integer", "description": "Checkpoint to play next (after a CORRECT)." },
           "secondsRemaining": { "type": "integer" },
@@ -160,8 +194,9 @@
       },
       "RoundState": {
         "type": "object",
+        "required": ["status", "enabled", "paused", "conquered", "blocksPerCheckpoint", "runTimeoutMs"],
         "properties": {
-          "status": { "type": "string", "enum": ["ACTIVE", "WAITING", "CONQUERED"] },
+          "status": { "type": "string", "enum": ["ACTIVE", "WAITING", "CONQUERED"], "description": "Whether Hell is open. Only ACTIVE is playable; treat anything else as not-enterable." },
           "enabled": { "type": "boolean" },
           "paused": { "type": "boolean" },
           "conquered": { "type": "boolean" },
@@ -172,6 +207,23 @@
           "hintThresholds": { "type": "array", "items": { "type": "integer" }, "description": "Attempt counts at which each hint unlocks." },
           "runTimeoutMs": { "type": "integer", "description": "Per-run clock length." },
           "activeRuns": { "type": "integer" }
+        }
+      },
+      "ClosedSeason": {
+        "type": "object",
+        "required": ["error", "reason"],
+        "properties": {
+          "error": { "type": "string", "description": "Human-readable reason entries are closed." },
+          "reason": { "type": "string", "enum": ["hell-conquered"], "description": "Stable machine-readable reason. Stop retrying and poll GET /hell/round/state until status is ACTIVE again." }
+        }
+      },
+      "RunExpired": {
+        "type": "object",
+        "required": ["result", "reason", "error"],
+        "properties": {
+          "result": { "type": "string", "enum": ["TIMED_OUT"] },
+          "reason": { "type": "string", "enum": ["run-expired"], "description": "Your run's clock ran out. Start a fresh paid run at POST /hell/session/create/usdc." },
+          "error": { "type": "string", "description": "Human-readable expiry message." }
         }
       }
     }
