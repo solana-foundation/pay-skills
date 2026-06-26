@@ -9,17 +9,23 @@ endpoints:
   - method: POST
     path: /api/chat
     description: Chat completion with Qwen2.5 32B. Charged per request.
-    pricing:
-      - type: metered
-        unit: requests
-        price_usd: 0.001
+    metering:
+      dimensions:
+        - direction: usage
+          unit: requests
+          scale: 1
+          tiers:
+            - price_usd: 0.001
   - method: POST
     path: /api/generate
     description: Text generation with Qwen2.5 32B. Charged per request.
-    pricing:
-      - type: metered
-        unit: requests
-        price_usd: 0.001
+    metering:
+      dimensions:
+        - direction: usage
+          unit: requests
+          scale: 1
+          tiers:
+            - price_usd: 0.001
 ---
 
 ## Qwen2.5 32B GPU Inference
