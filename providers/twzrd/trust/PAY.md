@@ -2,7 +2,7 @@
 name: trust
 title: "TWZRD Agent Reputation Rails"
 description: "Pre-spend trust check for x402 agents on Solana. Free preflight (allow/warn/block) before any payment. Paid signed V6 trust receipt for portable proof. Wash detection, provider reputation, and live leaderboard — no API keys."
-use_case: "Use before paying any x402 endpoint to check if the counterparty is a real agent or a wash wallet. Use during payment to gate settlement on trust. Use after payment to get a portable, offline-verifiable signed receipt. Use for discovery to find top-ranked x402 agents and services."
+use_case: "Use before paying any x402 endpoint to check counterparty trust, wash risk, and payment history. Gate settlement on trust, get a portable signed receipt after payment, and discover top-ranked x402 agents and services."
 category: security
 service_url: https://intel.twzrd.xyz
 openapi:
