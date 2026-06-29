@@ -11,7 +11,7 @@ openapi:
 
 TWZRD is the independent trust layer for Solana x402 payments. Before an agent pays any endpoint, TWZRD answers "should I pay this counterparty?" from the live on-chain payer graph — not self-reported reputation.
 
-**Before payment:** Free preflight returns `allow` / `warn` / `block` with a readiness card. Clean agents with real on-chain history get `allow`. Wash wallets and scripted fleets get `block`.
+**Before payment:** Free preflight returns `allow` / `warn` / `block` with a readiness card. Verified clean agents get `allow`. Suspicious, unknown, or thin-history wallets get `warn` (elevated risk — buy the $0.05 receipt for signed proof). The heaviest wash wallets and scripted fleets can escalate to `block`.
 
 **During payment:** Optional settle-time trust gate (`canSpendSafely`) refuses to settle if the counterparty scores below threshold — before USDC leaves your wallet. Ships as `@wzrd_sol/plugin-trustgate` (npm) and `twzrd-x402-gate` (npm).
 
