@@ -13,6 +13,7 @@
   "paths": {
     "/x402/v1/operator/{wallet}": {
       "get": {
+        "operationId": "operator_risk",
         "summary": "Fetch operator risk profile for a deployer wallet",
         "description": "Returns risk_level, risk_score, confirmed_rugs, total_tokens and rug_rate for a deployer wallet. The cheapest high-signal call: is this operator a known serial rugger?",
         "parameters": [
@@ -30,7 +31,74 @@
         ],
         "responses": {
           "200": {
-            "description": "Operator risk profile"
+            "description": "Operator risk profile. When the wallet is not a known operator, known=false and only wallet/known/risk_level/confirmed_rugs are returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["wallet", "known"],
+                  "properties": {
+                    "wallet": {
+                      "type": "string"
+                    },
+                    "known": {
+                      "type": "boolean",
+                      "description": "false = wallet not in the operator graph"
+                    },
+                    "operator_id": {
+                      "type": ["string", "null"]
+                    },
+                    "risk_level": {
+                      "type": "string",
+                      "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"]
+                    },
+                    "risk_score": {
+                      "type": "number",
+                      "description": "0-100 derived risk score"
+                    },
+                    "risk_label": {
+                      "type": "string"
+                    },
+                    "summary": {
+                      "type": "string",
+                      "description": "Plain-language verdict"
+                    },
+                    "confirmed_rugs": {
+                      "type": "integer"
+                    },
+                    "confirmed_safe": {
+                      "type": "integer"
+                    },
+                    "total_tokens": {
+                      "type": "integer"
+                    },
+                    "pending": {
+                      "type": "integer",
+                      "description": "Deployments still awaiting outcome resolution"
+                    },
+                    "rug_rate_pct": {
+                      "type": "number",
+                      "description": "confirmed_rugs / total_tokens as a percentage"
+                    },
+                    "tags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "patterns": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "latency_ms": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
           },
           "402": {
             "description": "Payment required (x402 challenge)"
@@ -48,6 +116,7 @@
     },
     "/x402/v1/token/{mint}": {
       "get": {
+        "operationId": "token_risk",
         "summary": "Fetch pre-sign risk verdict for a token mint",
         "description": "Returns risk_level, risk_score, deploying operator info and Token-2022 authority flags for a mint. One-call pre-sign verdict for a token.",
         "parameters": [
@@ -65,7 +134,96 @@
         ],
         "responses": {
           "200": {
-            "description": "Token risk verdict"
+            "description": "Token risk verdict. Enrichment fields (launch_platform, authority flags, token_extensions) are present when scan data exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["mint", "known", "risk_level"],
+                  "properties": {
+                    "mint": {
+                      "type": "string"
+                    },
+                    "known": {
+                      "type": "boolean"
+                    },
+                    "risk_score": {
+                      "type": "number",
+                      "description": "0-100"
+                    },
+                    "risk_level": {
+                      "type": "string",
+                      "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"]
+                    },
+                    "final_outcome": {
+                      "type": "string",
+                      "description": "confirmed_scam | confirmed_safe | pending"
+                    },
+                    "flags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "summary": {
+                      "type": "string",
+                      "description": "Plain-language verdict"
+                    },
+                    "is_bundle": {
+                      "type": "boolean",
+                      "description": "Coordinated bundle-buy cluster detected at launch"
+                    },
+                    "dev_wallet": {
+                      "type": ["string", "null"],
+                      "description": "Deploying operator wallet, when attributed"
+                    },
+                    "operator": {
+                      "type": ["object", "null"],
+                      "description": "Rap sheet of the deploying operator, when known",
+                      "properties": {
+                        "wallet": {
+                          "type": "string"
+                        },
+                        "risk_level": {
+                          "type": "string"
+                        },
+                        "confirmed_rugs": {
+                          "type": "integer"
+                        },
+                        "risk_label": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "symbol": {
+                      "type": ["string", "null"]
+                    },
+                    "predicted_at": {
+                      "type": ["string", "null"]
+                    },
+                    "launch_platform": {
+                      "type": "string"
+                    },
+                    "has_mint_authority": {
+                      "type": "boolean"
+                    },
+                    "has_freeze_authority": {
+                      "type": "boolean"
+                    },
+                    "token_extensions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Token-2022 extensions present on the mint"
+                    },
+                    "latency_ms": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
           },
           "402": {
             "description": "Payment required (x402 challenge)"
@@ -83,6 +241,7 @@
     },
     "/x402/v1/predictions/{mint}": {
       "get": {
+        "operationId": "predictions",
         "summary": "Fetch risk prediction and resolved outcome for a mint",
         "description": "Returns the SolSentry risk prediction for a mint plus the resolved outcome if known (auditable accuracy record).",
         "parameters": [
@@ -100,7 +259,96 @@
         ],
         "responses": {
           "200": {
-            "description": "Prediction record"
+            "description": "Auditable prediction record: every scan of the mint with predicted risk, resolved outcome and was_correct flag.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["mint", "known", "predictions"],
+                  "properties": {
+                    "mint": {
+                      "type": "string"
+                    },
+                    "known": {
+                      "type": "boolean",
+                      "description": "false = mint never scanned (predictions is empty)"
+                    },
+                    "summary": {
+                      "type": "object",
+                      "properties": {
+                        "scan_count": {
+                          "type": "integer"
+                        },
+                        "resolved_count": {
+                          "type": "integer"
+                        },
+                        "correct_count": {
+                          "type": "integer"
+                        },
+                        "fp_event_count": {
+                          "type": "integer"
+                        },
+                        "ever_critical": {
+                          "type": "boolean"
+                        },
+                        "ever_high": {
+                          "type": "boolean"
+                        },
+                        "final_outcome": {
+                          "type": ["string", "null"]
+                        },
+                        "risk_level_distribution": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    },
+                    "predictions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "tracking_id": {
+                            "type": ["string", "null"]
+                          },
+                          "agent_id": {
+                            "type": ["string", "null"]
+                          },
+                          "predicted_at": {
+                            "type": ["string", "null"]
+                          },
+                          "predicted_risk": {
+                            "type": ["number", "null"],
+                            "description": "0-100 risk score at scan time"
+                          },
+                          "dev_wallet": {
+                            "type": ["string", "null"]
+                          },
+                          "final_outcome": {
+                            "type": ["string", "null"]
+                          },
+                          "resolved_at": {
+                            "type": ["string", "null"]
+                          },
+                          "was_correct": {
+                            "type": ["boolean", "null"],
+                            "description": "null = not yet resolved"
+                          },
+                          "scan_flags": {
+                            "type": "object"
+                          }
+                        }
+                      }
+                    },
+                    "latency_ms": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
           },
           "402": {
             "description": "Payment required (x402 challenge)"
@@ -118,6 +366,7 @@
     },
     "/x402/v1/contract-analysis/{program_id}": {
       "get": {
+        "operationId": "contract_analysis",
         "summary": "Check program or contract safety before signing",
         "description": "Known-entity lookup + Token-2022 authority scan + account-info read for a program or mint an agent is about to interact with. Returns a pre-sign risk assessment.",
         "parameters": [
@@ -135,7 +384,62 @@
         ],
         "responses": {
           "200": {
-            "description": "Contract risk assessment"
+            "description": "Contract risk assessment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["address", "risk_score", "verdict"],
+                  "properties": {
+                    "address": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "description": "program | mint | account"
+                    },
+                    "known_label": {
+                      "type": ["string", "null"],
+                      "description": "Label from the known-entity registry, if any"
+                    },
+                    "known_category": {
+                      "type": ["string", "null"]
+                    },
+                    "risk_score": {
+                      "type": "integer",
+                      "description": "0-100"
+                    },
+                    "verdict": {
+                      "type": "string"
+                    },
+                    "flags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "authorities": {
+                      "type": "object",
+                      "description": "Mint/freeze/other authorities found on the account"
+                    },
+                    "extensions": {
+                      "type": "object",
+                      "description": "Token-2022 extensions and their risk-relevant settings"
+                    },
+                    "explanation": {
+                      "type": "string",
+                      "description": "Plain-language rationale"
+                    },
+                    "fetched_at": {
+                      "type": "string"
+                    },
+                    "latency_ms": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
           },
           "402": {
             "description": "Payment required (x402 challenge)"
@@ -153,6 +457,7 @@
     },
     "/x402/v1/lookalike-check": {
       "get": {
+        "operationId": "lookalike_check",
         "summary": "Check a destination address for poisoned lookalikes",
         "description": "Checks a destination address against poisoned lookalike siblings of wallets the caller has transacted with. Returns match, similarity_score and the matched address. Run before sending funds.",
         "parameters": [
@@ -170,16 +475,80 @@
           {
             "name": "contacts",
             "in": "query",
-            "required": false,
+            "required": true,
             "schema": {
-              "type": "string"
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             },
-            "description": "Comma-separated known-good addresses to compare against"
+            "style": "form",
+            "explode": false,
+            "description": "Known-good addresses to compare against (comma-separated on the wire). At least one is required."
           }
         ],
         "responses": {
           "200": {
-            "description": "Lookalike verdict"
+            "description": "Lookalike verdict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["destination", "suspect", "confidence"],
+                  "properties": {
+                    "destination": {
+                      "type": "string"
+                    },
+                    "suspect": {
+                      "type": "boolean",
+                      "description": "true when the top finding is medium or strong confidence"
+                    },
+                    "confidence": {
+                      "type": "string",
+                      "enum": ["none", "weak", "medium", "strong"],
+                      "description": "Confidence of the top finding"
+                    },
+                    "findings": {
+                      "type": "array",
+                      "description": "Top candidate lookalikes, ranked by confidence (max 5)",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "original_contact": {
+                            "type": "string",
+                            "description": "The known-good contact this destination resembles"
+                          },
+                          "prefix_match": {
+                            "type": "integer",
+                            "description": "Matching characters at the start"
+                          },
+                          "suffix_match": {
+                            "type": "integer",
+                            "description": "Matching characters at the end"
+                          },
+                          "confidence": {
+                            "type": "string",
+                            "enum": ["weak", "medium", "strong"]
+                          },
+                          "reasons": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "contacts_checked": {
+                      "type": "integer"
+                    },
+                    "latency_ms": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
           },
           "402": {
             "description": "Payment required (x402 challenge)"
@@ -197,6 +566,7 @@
     },
     "/x402/v1/tx-preview": {
       "post": {
+        "operationId": "tx_preview",
         "summary": "Generate a pre-sign risk bundle for a transaction",
         "description": "Accepts a transaction description and returns a structured pre-sign risk bundle (operator, token, contract and counterparty signals) so an agent can decide whether to sign.",
         "requestBody": {
@@ -280,7 +650,59 @@
         },
         "responses": {
           "200": {
-            "description": "Pre-sign risk bundle"
+            "description": "Pre-sign risk bundle",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["risk_score", "verdict", "findings", "decode_ok"],
+                  "properties": {
+                    "risk_score": {
+                      "type": "integer",
+                      "description": "0-100 aggregate across all detectors"
+                    },
+                    "verdict": {
+                      "type": "string",
+                      "enum": ["block", "warn", "safe"]
+                    },
+                    "findings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "detector": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
+                          },
+                          "summary": {
+                            "type": "string"
+                          },
+                          "detail": {
+                            "type": "object"
+                          }
+                        }
+                      }
+                    },
+                    "detectors_run": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "decode_ok": {
+                      "type": "boolean",
+                      "description": "false = tx_base64 could not be decoded; verdict based on partial signals"
+                    },
+                    "latency_ms": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
           },
           "402": {
             "description": "Payment required (x402 challenge)"
@@ -298,6 +720,7 @@
     },
     "/x402/v1/holders/{mint}": {
       "get": {
+        "operationId": "holders",
         "summary": "Fetch holder count and top-holder concentration for a mint",
         "description": "Returns holder_count, top_holders and concentration_pct for a mint in one call (replaces chaining raw getTokenLargestAccounts RPC).",
         "parameters": [
@@ -315,7 +738,73 @@
         ],
         "responses": {
           "200": {
-            "description": "Holder concentration"
+            "description": "Holder concentration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["mint", "count", "confidence", "top1", "top10"],
+                  "properties": {
+                    "mint": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "description": "Estimated total holders (>= 1)"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "description": "0.0-1.0; >= 0.6 is reliable for display"
+                    },
+                    "source": {
+                      "type": "string",
+                      "description": "Data path that produced the result (helius_das, getLargest, ...)"
+                    },
+                    "top1": {
+                      "type": "number",
+                      "description": "Top-1 wallet share of supply, percent"
+                    },
+                    "top10": {
+                      "type": "number",
+                      "description": "Top-10 wallets share of supply, percent"
+                    },
+                    "sampled": {
+                      "type": "integer",
+                      "description": "Accounts actually counted (vs estimated)"
+                    },
+                    "supply": {
+                      "type": "number",
+                      "description": "Circulating supply in UI units"
+                    },
+                    "largest": {
+                      "type": "array",
+                      "description": "Top-N account breakdown (present when available)",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "wallet": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "number"
+                          },
+                          "pct": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    },
+                    "display": {
+                      "type": "string",
+                      "description": "Human-readable holder-count one-liner"
+                    },
+                    "latency_ms": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
           },
           "402": {
             "description": "Payment required (x402 challenge)"
@@ -333,6 +822,7 @@
     },
     "/x402/v1/drain-trace/{wallet}": {
       "get": {
+        "operationId": "drain_trace",
         "summary": "Trace post-rug fund flows from a wallet to their terminus",
         "description": "Multi-hop SOL/token flow trace from a rug wallet to its terminus (CEX, bridge, mixer) with USD amounts and labels. Forensic / post-incident use.",
         "parameters": [
@@ -359,7 +849,86 @@
         ],
         "responses": {
           "200": {
-            "description": "Fund-flow trace"
+            "description": "Fund-flow trace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["wallet", "hop_count", "hops"],
+                  "properties": {
+                    "wallet": {
+                      "type": "string"
+                    },
+                    "origin_token": {
+                      "type": ["string", "null"]
+                    },
+                    "origin_risk": {
+                      "type": "number"
+                    },
+                    "hop_count": {
+                      "type": "integer"
+                    },
+                    "total_sol_drained": {
+                      "type": "number"
+                    },
+                    "reached_cex": {
+                      "type": "boolean"
+                    },
+                    "reached_mixer": {
+                      "type": "boolean"
+                    },
+                    "hops": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "hop_number": {
+                            "type": "integer"
+                          },
+                          "from": {
+                            "type": "string"
+                          },
+                          "to": {
+                            "type": "string"
+                          },
+                          "amount_sol": {
+                            "type": "number"
+                          },
+                          "tx_signature": {
+                            "type": "string"
+                          },
+                          "timestamp": {
+                            "type": ["string", "integer", "null"]
+                          },
+                          "destination_label": {
+                            "type": ["string", "null"],
+                            "description": "Known-entity label of the destination (CEX, bridge, mixer), when identified"
+                          },
+                          "destination_category": {
+                            "type": "string",
+                            "description": "cex | bridge | mixer | unknown"
+                          }
+                        }
+                      }
+                    },
+                    "endpoints": {
+                      "type": "array",
+                      "description": "Terminal destinations reached by the trace"
+                    },
+                    "spl_outflows": {
+                      "type": "array",
+                      "description": "SPL-token outflows detected alongside SOL flows"
+                    },
+                    "trace_time_ms": {
+                      "type": "number"
+                    },
+                    "latency_ms": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
           },
           "402": {
             "description": "Payment required (x402 challenge)"
@@ -377,6 +946,7 @@
     },
     "/x402/v1/dossier/{wallet}": {
       "get": {
+        "operationId": "dossier",
         "summary": "Generate a full identity dossier for a deployer wallet",
         "description": "Deep identity dossier for a deployer wallet: SNS trace, deployment history, fund-flow summary and an AI-written risk narrative. High-value due-diligence.",
         "parameters": [
@@ -394,7 +964,120 @@
         ],
         "responses": {
           "200": {
-            "description": "Dossier report"
+            "description": "Dossier report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["wallet", "built_at", "confidence"],
+                  "properties": {
+                    "wallet": {
+                      "type": "string"
+                    },
+                    "built_at": {
+                      "type": "string"
+                    },
+                    "elapsed_s": {
+                      "type": "number"
+                    },
+                    "schema_version": {
+                      "type": "integer"
+                    },
+                    "operator_id": {
+                      "type": ["string", "null"]
+                    },
+                    "risk_level": {
+                      "type": ["string", "null"]
+                    },
+                    "rug_rate_pct": {
+                      "type": ["number", "null"]
+                    },
+                    "total_tokens": {
+                      "type": ["integer", "null"]
+                    },
+                    "confirmed_rugs": {
+                      "type": ["integer", "null"]
+                    },
+                    "genesis": {
+                      "type": ["object", "null"],
+                      "description": "First on-chain activity: {signature, slot, blockTime, age_days}"
+                    },
+                    "first_funder": {
+                      "type": ["object", "null"],
+                      "description": "Wallet that first funded this one, with labels"
+                    },
+                    "second_funder": {
+                      "type": ["object", "null"]
+                    },
+                    "assets": {
+                      "type": "object",
+                      "description": "Identity assets: SNS domains, vanity patterns, payment UUIDs"
+                    },
+                    "token_authority_map": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "integer"
+                      },
+                      "description": "authority wallet -> token count"
+                    },
+                    "timing_siblings": {
+                      "type": "array",
+                      "description": "Wallets that co-deployed within the timing window"
+                    },
+                    "cex_exits": {
+                      "type": "array",
+                      "description": "Detected fund exits to centralized exchanges"
+                    },
+                    "identity_signals": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "description": "sns | vanity | payment_uuid | first_funder_cex | ..."
+                          },
+                          "confidence": {
+                            "type": "string",
+                            "enum": ["HIGH", "MEDIUM", "LOW"]
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "evidence": {
+                            "type": "object"
+                          }
+                        }
+                      }
+                    },
+                    "confidence": {
+                      "type": "string",
+                      "enum": ["HIGH", "MEDIUM", "LOW"],
+                      "description": "Overall identity confidence"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "cached": {
+                      "type": "boolean",
+                      "description": "true = served from the 7-day dossier cache"
+                    },
+                    "latency_ms": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
           },
           "402": {
             "description": "Payment required (x402 challenge)"
