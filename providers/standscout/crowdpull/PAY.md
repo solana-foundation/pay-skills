@@ -9,15 +9,16 @@ openapi:
   path: openapi.json
 ---
 
-CrowdPull packages public-data jobs as small paid calls. Start with the
-storefront or source catalog when the user is still choosing a route. Use the
-smoke endpoint when you only need to prove payment and discovery. Use the
-marketplace routes when the task is concrete enough to cap the query, location,
-and result count.
+CrowdPull packages public-data jobs as small paid calls. Use the normal
+CrowdPull storefront at `https://crowdpull.click/api/storefront` when the user
+is still choosing a route. Use the Pay.sh smoke endpoint when you only need to
+prove payment and discovery. Use the marketplace routes when the task is
+concrete enough to cap the query, location, and result count.
 
 ## Spend-aware usage
 
-- Call the free storefront first when the user has not picked a job yet.
+- Check `https://crowdpull.click/api/storefront` first when the user has not
+  picked a job yet.
 - Use `/api/smoke/discovery` for directory checks. It is intentionally tiny and
   does not start a scrape.
 - Keep `maxItems` low on the first marketplace call. Increase the cap only
