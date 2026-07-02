@@ -1,47 +1,21 @@
 ---
-name: gentechlabs-rugcheck-v2
-title: GenTech Labs — Rugcheck v2 API
+name: rugcheck-v2
+title: "GenTech Labs — Rugcheck v2 API"
+description: "Solana token rug pull risk scoring with 11-factor analysis. Detects honeypots, freeze authority, LP locks, holder concentration, and scam patterns before trading."
+use_case: "Use when an agent needs to verify Solana token safety, check for scam patterns, assess risk scores, or validate token contracts before trading."
 category: security
-version: 1.0.0
-author: gentech
-description: >
-use_case: >
 service_url: https://rugcheck.gentechlabs.net
 openapi:
   content: |
-    { "openapi": "3.1.0", "info": { "title": "Rugcheck v2 API", "version": "1.0.0" }, "paths": { "/v1/score/{mint}": { "get": { "summary": "Score token", "responses": {"200": {"description": "Risk score"}} } } } }
-  Analyze Solana token risk with 11-factor scoring. Detect honeypots, rugs, and scam tokens before trading.
-  Solana token rug pull risk scoring via x402 USDC on Base.
-  Analyzes mint authority, LP locks, holder distribution, and social signals to generate a risk score.
-endpoints:
-  - method: GET
-    path: /v1/score/{mint_address}
-    description: Get rug pull risk score for a Solana token mint address
-    price_usd: 0.005
-    request: { mint_address: "string" }
-    response: { mint_address, risk_score, risks: [{ type, severity, detail }], metadata: {} }
-network: base
-currency: USDC
-payment_protocol: x402
-base_url: https://gentechlabs.net
+    { "openapi": "3.1.0", "info": { "title": "GenTech Labs — Rugcheck v2 API", "version": "1.0.0" }, "paths": {} }
 ---
 
 # GenTech Labs — Rugcheck v2 API
 
-Solana token rug pull risk scoring. Analyzes mint authority, LP locks, holder distribution, and social signals.
+Solana token rug pull risk scoring with 11-factor analysis. Detects honeypots, freeze authority, LP locks, holder concentration, and scam patterns before trading.
 
-## Endpoints
+## Spend-aware usage
 
-- `GET /v1/score/{mint_address}` — Risk score for a Solana token ($0.005)
-
-## Risk Categories
-
-- Mint authority status (revoked vs active)
-- Liquidity pool lock status
-- Holder concentration analysis
-- Social signal verification
-- Contract verification checks
-
-## Payment
-
-x402 USDC on Base. Each call returns a `Payment-Required` header with x402 challenge when payment is needed.
+- Prefer specific lookups over broad searches to minimize cost.
+- Cache results when possible — many endpoints support TTL-based caching.
+- Use the cheapest endpoint that satisfies the task.
