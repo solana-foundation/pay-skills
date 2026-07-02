@@ -24,13 +24,13 @@ WebSocket streaming uses prepaid credits: one $0.10 x402 payment buys 10,000 cre
 
 Per-call USDC, $0.012 default and tiered up to $0.030 for the heaviest endpoints. Live table at `GET https://x402-api.vybenetwork.xyz/`.
 
-| Tier | Price | Example routes |
-|------|-------|----------------|
-| default | $0.012 | token details, wallet token balances, markets list |
-| 30 cr | $0.015 | OHLCV candles |
-| 50 cr | $0.018 | wallet PnL, top traders, time-series counters |
-| 80 cr | $0.024 | top holders, transfers, trades, active users, TVL |
-| 100 cr | $0.030 | batch wallet endpoints (POST) |
+| Price | Example routes |
+|-------|----------------|
+| $0.012 | token details, wallet token balances, markets list |
+| $0.015 | OHLCV candles |
+| $0.018 | wallet PnL, top traders, time-series counters |
+| $0.024 | top holders, transfers, trades, active users, TVL |
+| $0.030 | batch wallet endpoints (POST) |
 
 ## Spend-aware usage
 
