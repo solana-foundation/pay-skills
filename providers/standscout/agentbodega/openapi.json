@@ -1,0 +1,2709 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AgentBodega",
+    "version": "0.1.0",
+    "description": "Small x402-payable utility APIs for agents: endpoint inspection, launch checks, and hosted artifacts.",
+    "contact": {
+      "name": "AgentBodega",
+      "email": "support@agentbodega.store",
+      "url": "https://agentbodega.store"
+    },
+    "x-guidance": "Start with GET /api/directory and GET /.well-known/x402 to inspect available services and prices. Use the $0.001 status endpoints for smoke tests, then call larger bundle or audit endpoints only after checking the live 402 challenge and spend cap."
+  },
+  "servers": [
+    {
+      "url": "https://agentbodega.store"
+    }
+  ],
+  "x-discovery": {
+    "tags": [
+      "x402",
+      "agent-tools",
+      "mcp-tools",
+      "paid-utilities"
+    ],
+    "endpointCount": 31
+  },
+  "paths": {
+    "/api/directory": {
+      "get": {
+        "summary": "List payable agent utility endpoints.",
+        "operationId": "list_directory",
+        "security": [],
+        "tags": [
+          "directory",
+          "discovery"
+        ],
+        "responses": {
+          "200": {
+            "description": "Service directory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/status/suggest": {
+      "post": {
+        "summary": "Create official status coverage request",
+        "operationId": "status_service_suggestion",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 120,
+                    "description": "Service name, for example Stripe or Railway."
+                  },
+                  "homepage": {
+                    "type": "string",
+                    "format": "uri",
+                    "maxLength": 300
+                  },
+                  "domain": {
+                    "type": "string",
+                    "maxLength": 253,
+                    "description": "Plain domain if the homepage URL is not known."
+                  },
+                  "statusPage": {
+                    "type": "string",
+                    "format": "uri",
+                    "maxLength": 300
+                  },
+                  "sourceUrl": {
+                    "type": "string",
+                    "format": "uri",
+                    "maxLength": 300,
+                    "description": "Machine-readable status API URL if known."
+                  },
+                  "category": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "normal",
+                      "high",
+                      "urgent"
+                    ],
+                    "default": "normal"
+                  },
+                  "useCase": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "requestedBy": {
+                    "type": "string",
+                    "maxLength": 120
+                  },
+                  "contact": {
+                    "type": "string",
+                    "maxLength": 160
+                  }
+                },
+                "additionalProperties": true
+              },
+              "example": {
+                "name": "Railway",
+                "homepage": "https://railway.com",
+                "priority": "normal",
+                "useCase": "Official deploy status checks."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Free route result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Suggestion accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid suggestion."
+          }
+        },
+        "tags": [
+          "status",
+          "suggestion",
+          "coverage-request",
+          "agent-feedback"
+        ]
+      }
+    },
+    "/api/inspect/x402": {
+      "post": {
+        "summary": "Check x402 payment metadata",
+        "operationId": "x402_inspector",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "url"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "GET",
+                      "HEAD",
+                      "POST"
+                    ],
+                    "default": "GET"
+                  },
+                  "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "body": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "timeoutMs": {
+                    "type": "integer",
+                    "minimum": 500,
+                    "maximum": 8000,
+                    "default": 5000
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "url": "https://example.com/api/paid"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/status/check": {
+      "post": {
+        "summary": "Check one official status source",
+        "operationId": "official_status_check",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "service"
+                ],
+                "properties": {
+                  "service": {
+                    "type": "string",
+                    "description": "Service id from /api/status/catalog, for example github or gitlab."
+                  },
+                  "includeComponents": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "includeIncidentDetails": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional deep incident history/timeline fetch. For Status.io providers this parses the public history page; for Statuspage providers it uses /api/v2/incidents.json."
+                  },
+                  "incidentLimit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 5,
+                    "description": "Maximum recent incidents to return when includeIncidentDetails is true."
+                  },
+                  "component": {
+                    "type": "string",
+                    "description": "Optional component selector, alias, id, or name. For Anthropic examples: api, code, console, claude-ai, cowork, government."
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 12,
+                    "description": "Optional component selectors when the caller wants a scoped provider status."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "service": "github",
+                "includeComponents": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/status/bundle": {
+      "post": {
+        "summary": "Check deploy readiness services",
+        "operationId": "status_bundle_check",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.005"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "bundle": {
+                    "type": "string",
+                    "enum": [
+                      "vibe-deploy-readiness",
+                      "ai-app-stack",
+                      "source-and-ci",
+                      "deploy-platforms",
+                      "all"
+                    ],
+                    "default": "vibe-deploy-readiness"
+                  },
+                  "services": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "description": "Optional explicit service ids from /api/status/catalog."
+                  },
+                  "includeComponents": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "bundle": "vibe-deploy-readiness",
+                "includeComponents": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/status/stack": {
+      "post": {
+        "summary": "Check a custom service stack",
+        "operationId": "status_stack_bundle",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.005"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "services"
+                ],
+                "properties": {
+                  "services": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 3,
+                    "maxItems": 20,
+                    "description": "Service ids from /api/status/catalog. Stack pricing requires at least three stack roles and no repeated capped layer, for example one data layer and one deploy host."
+                  },
+                  "includeComponents": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "services": [
+                  "github",
+                  "npm",
+                  "vercel",
+                  "supabase",
+                  "openai"
+                ],
+                "includeComponents": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/status/github": {
+      "post": {
+        "summary": "Check GitHub status before retrying",
+        "operationId": "official_status_github",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "includeComponents": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "includeIncidentDetails": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional deep incident history/timeline fetch. For Status.io providers this parses the public history page; for Statuspage providers it uses /api/v2/incidents.json."
+                  },
+                  "incidentLimit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 5,
+                    "description": "Maximum recent incidents to return when includeIncidentDetails is true."
+                  },
+                  "component": {
+                    "type": "string",
+                    "description": "Optional component selector, alias, id, or name. For Anthropic examples: api, code, console, claude-ai, cowork, government."
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 12,
+                    "description": "Optional component selectors when the caller wants a scoped provider status."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "includeComponents": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/status/gitlab": {
+      "post": {
+        "summary": "Check GitLab.com status before retrying",
+        "operationId": "official_status_gitlab",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "includeComponents": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "includeIncidentDetails": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional deep incident history/timeline fetch. For Status.io providers this parses the public history page; for Statuspage providers it uses /api/v2/incidents.json."
+                  },
+                  "incidentLimit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 5,
+                    "description": "Maximum recent incidents to return when includeIncidentDetails is true."
+                  },
+                  "component": {
+                    "type": "string",
+                    "description": "Optional component selector, alias, id, or name. For Anthropic examples: api, code, console, claude-ai, cowork, government."
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 12,
+                    "description": "Optional component selectors when the caller wants a scoped provider status."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "includeComponents": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/status/bitbucket": {
+      "post": {
+        "summary": "Check Bitbucket status before retrying",
+        "operationId": "official_status_bitbucket",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "includeComponents": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "includeIncidentDetails": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional deep incident history/timeline fetch. For Status.io providers this parses the public history page; for Statuspage providers it uses /api/v2/incidents.json."
+                  },
+                  "incidentLimit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 5,
+                    "description": "Maximum recent incidents to return when includeIncidentDetails is true."
+                  },
+                  "component": {
+                    "type": "string",
+                    "description": "Optional component selector, alias, id, or name. For Anthropic examples: api, code, console, claude-ai, cowork, government."
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 12,
+                    "description": "Optional component selectors when the caller wants a scoped provider status."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "includeComponents": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/status/npm": {
+      "post": {
+        "summary": "Check npm status before retrying",
+        "operationId": "official_status_npm",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "includeComponents": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "includeIncidentDetails": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional deep incident history/timeline fetch. For Status.io providers this parses the public history page; for Statuspage providers it uses /api/v2/incidents.json."
+                  },
+                  "incidentLimit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 5,
+                    "description": "Maximum recent incidents to return when includeIncidentDetails is true."
+                  },
+                  "component": {
+                    "type": "string",
+                    "description": "Optional component selector, alias, id, or name. For Anthropic examples: api, code, console, claude-ai, cowork, government."
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 12,
+                    "description": "Optional component selectors when the caller wants a scoped provider status."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "includeComponents": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/status/vercel": {
+      "post": {
+        "summary": "Check Vercel status before retrying",
+        "operationId": "official_status_vercel",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "includeComponents": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "includeIncidentDetails": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional deep incident history/timeline fetch. For Status.io providers this parses the public history page; for Statuspage providers it uses /api/v2/incidents.json."
+                  },
+                  "incidentLimit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 5,
+                    "description": "Maximum recent incidents to return when includeIncidentDetails is true."
+                  },
+                  "component": {
+                    "type": "string",
+                    "description": "Optional component selector, alias, id, or name. For Anthropic examples: api, code, console, claude-ai, cowork, government."
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 12,
+                    "description": "Optional component selectors when the caller wants a scoped provider status."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "includeComponents": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/status/netlify": {
+      "post": {
+        "summary": "Check Netlify status before retrying",
+        "operationId": "official_status_netlify",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "includeComponents": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "includeIncidentDetails": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional deep incident history/timeline fetch. For Status.io providers this parses the public history page; for Statuspage providers it uses /api/v2/incidents.json."
+                  },
+                  "incidentLimit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 5,
+                    "description": "Maximum recent incidents to return when includeIncidentDetails is true."
+                  },
+                  "component": {
+                    "type": "string",
+                    "description": "Optional component selector, alias, id, or name. For Anthropic examples: api, code, console, claude-ai, cowork, government."
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 12,
+                    "description": "Optional component selectors when the caller wants a scoped provider status."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "includeComponents": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/status/render": {
+      "post": {
+        "summary": "Check Render status before retrying",
+        "operationId": "official_status_render",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "includeComponents": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "includeIncidentDetails": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional deep incident history/timeline fetch. For Status.io providers this parses the public history page; for Statuspage providers it uses /api/v2/incidents.json."
+                  },
+                  "incidentLimit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 5,
+                    "description": "Maximum recent incidents to return when includeIncidentDetails is true."
+                  },
+                  "component": {
+                    "type": "string",
+                    "description": "Optional component selector, alias, id, or name. For Anthropic examples: api, code, console, claude-ai, cowork, government."
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 12,
+                    "description": "Optional component selectors when the caller wants a scoped provider status."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "includeComponents": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/status/fly": {
+      "post": {
+        "summary": "Check Fly.io status before retrying",
+        "operationId": "official_status_fly",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "includeComponents": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "includeIncidentDetails": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional deep incident history/timeline fetch. For Status.io providers this parses the public history page; for Statuspage providers it uses /api/v2/incidents.json."
+                  },
+                  "incidentLimit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 5,
+                    "description": "Maximum recent incidents to return when includeIncidentDetails is true."
+                  },
+                  "component": {
+                    "type": "string",
+                    "description": "Optional component selector, alias, id, or name. For Anthropic examples: api, code, console, claude-ai, cowork, government."
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 12,
+                    "description": "Optional component selectors when the caller wants a scoped provider status."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "includeComponents": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/status/coinbase": {
+      "post": {
+        "summary": "Check Coinbase status before retrying",
+        "operationId": "official_status_coinbase",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "includeComponents": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "includeIncidentDetails": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional deep incident history/timeline fetch. For Status.io providers this parses the public history page; for Statuspage providers it uses /api/v2/incidents.json."
+                  },
+                  "incidentLimit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 5,
+                    "description": "Maximum recent incidents to return when includeIncidentDetails is true."
+                  },
+                  "component": {
+                    "type": "string",
+                    "description": "Optional component selector, alias, id, or name. For Anthropic examples: api, code, console, claude-ai, cowork, government."
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 12,
+                    "description": "Optional component selectors when the caller wants a scoped provider status."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "includeComponents": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/status/cursor": {
+      "post": {
+        "summary": "Check Cursor status before retrying",
+        "operationId": "official_status_cursor",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "includeComponents": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "includeIncidentDetails": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional deep incident history/timeline fetch. For Status.io providers this parses the public history page; for Statuspage providers it uses /api/v2/incidents.json."
+                  },
+                  "incidentLimit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 5,
+                    "description": "Maximum recent incidents to return when includeIncidentDetails is true."
+                  },
+                  "component": {
+                    "type": "string",
+                    "description": "Optional component selector, alias, id, or name. For Anthropic examples: api, code, console, claude-ai, cowork, government."
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 12,
+                    "description": "Optional component selectors when the caller wants a scoped provider status."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "includeComponents": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/status/bambulab": {
+      "post": {
+        "summary": "Check Bambu Lab status before retrying",
+        "operationId": "official_status_bambulab",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "includeComponents": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "includeIncidentDetails": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional deep incident history/timeline fetch. For Status.io providers this parses the public history page; for Statuspage providers it uses /api/v2/incidents.json."
+                  },
+                  "incidentLimit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 5,
+                    "description": "Maximum recent incidents to return when includeIncidentDetails is true."
+                  },
+                  "component": {
+                    "type": "string",
+                    "description": "Optional component selector, alias, id, or name. For Anthropic examples: api, code, console, claude-ai, cowork, government."
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 12,
+                    "description": "Optional component selectors when the caller wants a scoped provider status."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "includeComponents": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/status/ring": {
+      "post": {
+        "summary": "Check Ring status before retrying",
+        "operationId": "official_status_ring",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "includeComponents": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "includeIncidentDetails": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional deep incident history/timeline fetch. For Status.io providers this parses the public history page; for Statuspage providers it uses /api/v2/incidents.json."
+                  },
+                  "incidentLimit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 5,
+                    "description": "Maximum recent incidents to return when includeIncidentDetails is true."
+                  },
+                  "component": {
+                    "type": "string",
+                    "description": "Optional component selector, alias, id, or name. For Anthropic examples: api, code, console, claude-ai, cowork, government."
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 12,
+                    "description": "Optional component selectors when the caller wants a scoped provider status."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "includeComponents": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/status/cloudflare": {
+      "post": {
+        "summary": "Check Cloudflare status before retrying",
+        "operationId": "official_status_cloudflare",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "includeComponents": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "includeIncidentDetails": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional deep incident history/timeline fetch. For Status.io providers this parses the public history page; for Statuspage providers it uses /api/v2/incidents.json."
+                  },
+                  "incidentLimit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 5,
+                    "description": "Maximum recent incidents to return when includeIncidentDetails is true."
+                  },
+                  "component": {
+                    "type": "string",
+                    "description": "Optional component selector, alias, id, or name. For Anthropic examples: api, code, console, claude-ai, cowork, government."
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 12,
+                    "description": "Optional component selectors when the caller wants a scoped provider status."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "includeComponents": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/status/supabase": {
+      "post": {
+        "summary": "Check Supabase status before retrying",
+        "operationId": "official_status_supabase",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "includeComponents": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "includeIncidentDetails": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional deep incident history/timeline fetch. For Status.io providers this parses the public history page; for Statuspage providers it uses /api/v2/incidents.json."
+                  },
+                  "incidentLimit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 5,
+                    "description": "Maximum recent incidents to return when includeIncidentDetails is true."
+                  },
+                  "component": {
+                    "type": "string",
+                    "description": "Optional component selector, alias, id, or name. For Anthropic examples: api, code, console, claude-ai, cowork, government."
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 12,
+                    "description": "Optional component selectors when the caller wants a scoped provider status."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "includeComponents": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/status/convex": {
+      "post": {
+        "summary": "Check Convex status before retrying",
+        "operationId": "official_status_convex",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "includeComponents": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "includeIncidentDetails": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional deep incident history/timeline fetch. For Status.io providers this parses the public history page; for Statuspage providers it uses /api/v2/incidents.json."
+                  },
+                  "incidentLimit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 5,
+                    "description": "Maximum recent incidents to return when includeIncidentDetails is true."
+                  },
+                  "component": {
+                    "type": "string",
+                    "description": "Optional component selector, alias, id, or name. For Anthropic examples: api, code, console, claude-ai, cowork, government."
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 12,
+                    "description": "Optional component selectors when the caller wants a scoped provider status."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "includeComponents": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/status/clerk": {
+      "post": {
+        "summary": "Check Clerk status before retrying",
+        "operationId": "official_status_clerk",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "includeComponents": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "includeIncidentDetails": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional deep incident history/timeline fetch. For Status.io providers this parses the public history page; for Statuspage providers it uses /api/v2/incidents.json."
+                  },
+                  "incidentLimit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 5,
+                    "description": "Maximum recent incidents to return when includeIncidentDetails is true."
+                  },
+                  "component": {
+                    "type": "string",
+                    "description": "Optional component selector, alias, id, or name. For Anthropic examples: api, code, console, claude-ai, cowork, government."
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 12,
+                    "description": "Optional component selectors when the caller wants a scoped provider status."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "includeComponents": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/status/openai": {
+      "post": {
+        "summary": "Check OpenAI status before retrying",
+        "operationId": "official_status_openai",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "includeComponents": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "includeIncidentDetails": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional deep incident history/timeline fetch. For Status.io providers this parses the public history page; for Statuspage providers it uses /api/v2/incidents.json."
+                  },
+                  "incidentLimit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 5,
+                    "description": "Maximum recent incidents to return when includeIncidentDetails is true."
+                  },
+                  "component": {
+                    "type": "string",
+                    "description": "Optional component selector, alias, id, or name. For Anthropic examples: api, code, console, claude-ai, cowork, government."
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 12,
+                    "description": "Optional component selectors when the caller wants a scoped provider status."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "includeComponents": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/status/anthropic": {
+      "post": {
+        "summary": "Check Anthropic Claude status before retrying",
+        "operationId": "official_status_anthropic",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "includeComponents": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "includeIncidentDetails": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Optional deep incident history/timeline fetch. For Status.io providers this parses the public history page; for Statuspage providers it uses /api/v2/incidents.json."
+                  },
+                  "incidentLimit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "default": 5,
+                    "description": "Maximum recent incidents to return when includeIncidentDetails is true."
+                  },
+                  "component": {
+                    "type": "string",
+                    "description": "Optional component selector, alias, id, or name. For Anthropic examples: api, code, console, claude-ai, cowork, government."
+                  },
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 12,
+                    "description": "Optional component selectors when the caller wants a scoped provider status."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "includeComponents": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/check/domain": {
+      "post": {
+        "summary": "Check DNS and email launch basics",
+        "operationId": "domain_launch_check",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.02"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "domain"
+                ],
+                "properties": {
+                  "domain": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Domain name to inspect, without a URL scheme."
+                  },
+                  "dkimSelectors": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 10,
+                    "description": "Optional DKIM selectors to check, such as google or selector1."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "domain": "example.com",
+                "dkimSelectors": [
+                  "google",
+                  "selector1"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/artifacts": {
+      "post": {
+        "summary": "Create a temporary hosted artifact",
+        "operationId": "hosted_artifact",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "kind",
+                  "content"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "text",
+                      "json",
+                      "svg",
+                      "redirect"
+                    ]
+                  },
+                  "content": {
+                    "description": "Artifact body. Use a string for text, SVG, and redirects, or any JSON value when kind is json."
+                  },
+                  "contentType": {
+                    "type": "string",
+                    "description": "Optional MIME type override."
+                  },
+                  "ttlSeconds": {
+                    "type": "integer",
+                    "minimum": 60,
+                    "maximum": 604800,
+                    "default": 86400,
+                    "description": "Artifact lifetime in seconds."
+                  },
+                  "filename": {
+                    "type": "string",
+                    "maxLength": 120,
+                    "description": "Optional display filename."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "kind": "json",
+                "content": {
+                  "ok": true,
+                  "message": "hello agent"
+                },
+                "ttlSeconds": 3600
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "artifactUrl",
+                    "expiresAt"
+                  ],
+                  "properties": {
+                    "artifactUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/audit/agent-launch": {
+      "post": {
+        "summary": "Check agent launch readiness",
+        "operationId": "agent_launch_audit",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.03"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "url"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "siteType": {
+                    "type": "string",
+                    "enum": [
+                      "all",
+                      "content",
+                      "api"
+                    ],
+                    "default": "all"
+                  },
+                  "includeEvidence": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "url": "https://example.com",
+                "siteType": "all",
+                "includeEvidence": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/check/agent-discoverability": {
+      "post": {
+        "summary": "Check agent discoverability signals",
+        "operationId": "agent_discoverability_check",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "url"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "includeEvidence": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "url": "https://example.com",
+                "includeEvidence": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/check/agent-protocols": {
+      "post": {
+        "summary": "Check agent protocol metadata",
+        "operationId": "agent_protocol_check",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.02"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "url"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "includeEvidence": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "url": "https://example.com",
+                "includeEvidence": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/check/agent-commerce": {
+      "post": {
+        "summary": "Check agent commerce metadata",
+        "operationId": "agent_commerce_check",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "url"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "includeEvidence": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "url": "https://example.com",
+                "includeEvidence": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/audit/agent-batch": {
+      "post": {
+        "summary": "Check agent readiness for URLs",
+        "operationId": "agent_readiness_batch",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.05"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "urls"
+                ],
+                "properties": {
+                  "urls": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "minItems": 1,
+                    "maxItems": 5
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "all",
+                      "discoverability",
+                      "protocols",
+                      "commerce"
+                    ],
+                    "default": "all"
+                  },
+                  "includeEvidence": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "urls": [
+                  "https://example.com",
+                  "https://example.org"
+                ],
+                "scope": "all",
+                "includeEvidence": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/badge/agent-ready": {
+      "post": {
+        "summary": "Generate an agent-ready badge",
+        "operationId": "agent_ready_badge",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "url"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "all",
+                      "discoverability",
+                      "protocols",
+                      "commerce"
+                    ],
+                    "default": "all"
+                  },
+                  "includeEvidence": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "url": "https://example.com",
+                "scope": "all",
+                "includeEvidence": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/package/x402-directory": {
+      "post": {
+        "summary": "Create x402 directory listing data",
+        "operationId": "x402_directory_pack",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "url"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 12
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "url": "https://example.com",
+                "name": "Example x402 API",
+                "tags": [
+                  "x402",
+                  "agents"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Utility result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "x402": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-PAYMENT",
+        "description": "Base64url-encoded x402 payment payload."
+      }
+    }
+  }
+}
