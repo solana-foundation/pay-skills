@@ -61,7 +61,7 @@ openapi:
         "/api/v1/scrape/status/{jobId}": {
           "get": {
             "summary": "Check scrape job status",
-            "description": "Check the status of an async scrape job.",
+            "description": "Check the status of an async scrape job. Free endpoint - no payment required.",
             "operationId": "getScrapeStatus",
             "parameters": [
               {
@@ -77,9 +77,6 @@ openapi:
             "responses": {
               "200": {
                 "description": "Job status"
-              },
-              "402": {
-                "description": "x402 payment required"
               }
             }
           }
