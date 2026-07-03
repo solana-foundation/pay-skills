@@ -3,7 +3,7 @@ name: travel-search
 title: "GenTech Labs — Travel Search API"
 description: "Flight and hotel search across providers. Real-time availability, price comparison, and booking links."
 use_case: "Use when an agent needs to search for flights, find hotels, compare travel prices, or plan trips."
-category: travel
+category: maps
 service_url: https://api.gentechlabs.net
 openapi:
   content: |
