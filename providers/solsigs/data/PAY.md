@@ -5,7 +5,7 @@ description: "23 Solana x402 endpoints for AI agents — DEX prices, whale track
 use_case: "Use for real-time Solana market data, token safety checks, wallet analysis, whale moves, prediction-market odds, and x402 payment/fulfillment evidence."
 category: finance
 service_url: https://solsigs.com
-version: v2
+version: 1.0.0
 openapi:
   path: openapi.json
 ---
