@@ -69,9 +69,6 @@ openapi:
             "responses": {
               "200": {
                 "description": "Available models list"
-              },
-              "402": {
-                "description": "x402 payment required"
               }
             }
           }
