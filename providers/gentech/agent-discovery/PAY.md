@@ -87,7 +87,7 @@ openapi:
       },
       "x-payment": {
         "protocol": "x402",
-        "network": "base",
+        "network": "solana",
         "token": "USDC"
       }
     }
