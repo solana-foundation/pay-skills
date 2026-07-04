@@ -1,0 +1,19 @@
+---
+name: token-risk
+title: "UnlockPressure Token Risk"
+description: "Source-backed token unlock sell-pressure data with upcoming events, event-level risk scores, 90-day token summaries, and historical unlock backtests."
+use_case: "Use for 90-day token unlock pressure checks, liquidity-risk triage, agent portfolio rebalance reviews, and source-backed crypto market-data due diligence."
+category: data
+service_url: https://unlockpressure.pricepilot402-arya.workers.dev
+openapi:
+  path: openapi.json
+---
+
+UnlockPressure exposes Phase 1 x402-paid token unlock intelligence for agents that need source-backed sell-pressure context before trading, portfolio review, or market-monitoring decisions.
+
+## Spend-aware usage
+
+- Start with `POST /v1/token/risk-summary` for a single-symbol 90-day summary before buying narrower event details.
+- Use `GET /v1/unlocks/upcoming` with a high `minRisk` threshold when screening many tokens.
+- Reuse unlock identifiers from public token/unlock pages when calling event-level risk or backtest endpoints.
+- Keep windows narrow unless the task truly needs a longer unlock horizon.
