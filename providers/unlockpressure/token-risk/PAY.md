@@ -13,7 +13,7 @@ UnlockPressure exposes Phase 1 x402-paid token unlock intelligence for agents th
 
 ## Spend-aware usage
 
-- Start with `POST /v1/token/risk-summary` for a single-symbol 90-day summary before buying narrower event details.
-- Use `GET /v1/unlocks/upcoming` with a high `minRisk` threshold when screening many tokens.
+- Start with `GET /v1/unlocks/upcoming?days=90&minRisk=70` as the $0.02 bodyless wallet-paid ping when testing x402 routing.
+- Use `POST /v1/token/risk-summary` for a single-symbol 90-day forward unlock-pressure summary after the ping returns material events.
 - Reuse unlock identifiers from public token/unlock pages when calling event-level risk or backtest endpoints.
 - Keep windows narrow unless the task truly needs a longer unlock horizon.
