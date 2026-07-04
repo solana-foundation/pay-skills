@@ -1,688 +1,628 @@
 {
-    "openapi": "3.1.0",
-    "info": {
-        "title": "x402 Notary",
-        "version": "0.1.0",
-        "description": "Cryptographic receipts for AI inference. Agents notarize {prompt, response, model_id} for $0.001 USDC via x402 on Solana mainnet and receive a signed Ed25519 attestation, sha256 content hash, and Merkle chain-anchor. Raw prompt/response text is not persisted by default: the notary stores proof material, not secrets. Any agent can verify any attestation for free \u2014 the missing trust primitive for multi-agent systems.",
-        "contact": {
-            "email": "clawdbotworker@gmail.com"
-        },
-        "x-guidance": "Start free: GET /llms.txt for a summary and GET /api/stats for live volume. To notarize an inference, POST /api/notarize with {prompt, response, model_id} and pay $0.001 USDC via x402 on Solana mainnet (no API key). The notary does not persist raw prompt/response text by default; keep your original content client-side and verify any attestation for free via POST /api/verify with the attestation_id plus either the original content or its content_hash. The response includes the Ed25519 signature check and a Merkle inclusion proof once the batch is sealed. Batch up to 20 records with POST /api/notarize/batch ($0.005). The notary public key is at GET /api/pubkey."
+  "openapi": "3.1.0",
+  "info": {
+    "title": "x402 Notary",
+    "version": "0.1.0",
+    "description": "Cryptographic receipts for AI inference. Agents notarize {prompt, response, model_id} for $0.001 USDC via x402 on Solana mainnet and receive a signed Ed25519 attestation, sha256 content hash, and Merkle chain-anchor. Raw prompt/response text is not persisted by default: the notary stores proof material, not secrets. Any agent can verify any attestation for free — the missing trust primitive for multi-agent systems.",
+    "contact": {
+      "email": "clawdbotworker@gmail.com"
     },
-    "servers": [
-        {
-            "url": "https://notary-solana.forgemesh.io"
-        }
-    ],
-    "paths": {
-        "/": {
-            "get": {
-                "summary": "Fetch service card and API links",
-                "security": [],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object",
-                                "description": "No request parameters are required for this endpoint.",
-                                "properties": {},
-                                "additionalProperties": false
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Success",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/health": {
-            "get": {
-                "summary": "Fetch Notary service health status",
-                "security": [],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object",
-                                "description": "No request parameters are required for this endpoint.",
-                                "properties": {},
-                                "additionalProperties": false
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Success",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "status": {
-                                            "type": "string"
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/pubkey": {
-            "get": {
-                "summary": "Fetch Notary Ed25519 public key",
-                "security": [],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object",
-                                "description": "No request parameters are required for this endpoint.",
-                                "properties": {},
-                                "additionalProperties": false
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Success",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "algorithm": {
-                                            "type": "string"
-                                        },
-                                        "public_key": {
-                                            "type": "string"
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/stats": {
-            "get": {
-                "summary": "Fetch notarization volume and anchor stats",
-                "security": [],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object",
-                                "description": "No request parameters are required for this endpoint.",
-                                "properties": {},
-                                "additionalProperties": false
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Success",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "total_notarizations": {
-                                            "type": "integer"
-                                        },
-                                        "last_24h": {
-                                            "type": "integer"
-                                        },
-                                        "top_models": {
-                                            "type": "array",
-                                            "items": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "model_id": {
-                                                        "type": "string"
-                                                    },
-                                                    "n": {
-                                                        "type": "integer"
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        "anchored_batches": {
-                                            "type": "integer"
-                                        },
-                                        "pending_seal": {
-                                            "type": "integer"
-                                        },
-                                        "latest_anchor": {
-                                            "type": [
-                                                "object",
-                                                "null"
-                                            ]
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/receipt/{id}": {
-            "get": {
-                "summary": "Fetch public receipt proof material",
-                "security": [],
-                "parameters": [
-                    {
-                        "name": "id",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Attestation id (att_\u2026)"
-                    },
-                    {
-                        "name": "token",
-                        "in": "query",
-                        "required": false,
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Receipt token returned at notarization; raw payload is not stored by default"
-                    }
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object",
-                                "description": "No request parameters are required for this endpoint.",
-                                "properties": {},
-                                "additionalProperties": false
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Success",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object"
-                                }
-                            }
-                        }
-                    },
-                    "403": {
-                        "description": "Invalid receipt token"
-                    },
-                    "404": {
-                        "description": "Unknown attestation id"
-                    }
-                }
-            }
-        },
-        "/mcp": {
-            "post": {
-                "summary": "Submit hosted Notary MCP request",
-                "security": [],
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object",
-                                "description": "MCP JSON-RPC 2.0 message",
-                                "additionalProperties": true
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Success",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object"
-                                }
-                            }
-                        }
-                    },
-                    "405": {
-                        "description": "GET/DELETE not supported (stateless)"
-                    }
-                }
-            }
-        },
-        "/api/verify": {
-            "post": {
-                "summary": "Verify an attestation receipt",
-                "security": [],
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object",
-                                "properties": {
-                                    "attestation_id": {
-                                        "type": "string",
-                                        "description": "Attestation id (att_\u2026) returned by /api/notarize"
-                                    },
-                                    "prompt": {
-                                        "type": "string",
-                                        "description": "Original prompt \u2014 supply with response+model_id to recompute the content hash"
-                                    },
-                                    "response": {
-                                        "type": "string",
-                                        "description": "Original model output"
-                                    },
-                                    "model_id": {
-                                        "type": "string",
-                                        "description": "Original model id"
-                                    },
-                                    "client_timestamp": {
-                                        "type": "string",
-                                        "description": "Original client timestamp if one was notarized"
-                                    },
-                                    "content_hash": {
-                                        "type": "string",
-                                        "description": "Alternative to full content: compare this sha256 hex directly"
-                                    }
-                                },
-                                "required": [
-                                    "attestation_id"
-                                ]
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Success",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "valid": {
-                                            "type": "boolean"
-                                        },
-                                        "checks": {
-                                            "type": "object",
-                                            "properties": {
-                                                "signature_valid": {
-                                                    "type": "boolean"
-                                                },
-                                                "hash_match": {
-                                                    "type": [
-                                                        "boolean",
-                                                        "null"
-                                                    ],
-                                                    "description": "null when no content or hash was supplied to compare"
-                                                }
-                                            }
-                                        },
-                                        "attestation": {
-                                            "type": "object"
-                                        },
-                                        "anchor": {
-                                            "type": "object",
-                                            "properties": {
-                                                "status": {
-                                                    "type": "string",
-                                                    "description": "pending | sealed | anchored"
-                                                },
-                                                "merkle_root": {
-                                                    "type": "string"
-                                                },
-                                                "leaf": {
-                                                    "type": "string"
-                                                },
-                                                "leaf_index": {
-                                                    "type": "integer"
-                                                },
-                                                "proof": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "type": "object",
-                                                        "properties": {
-                                                            "hash": {
-                                                                "type": "string"
-                                                            },
-                                                            "position": {
-                                                                "type": "string"
-                                                            }
-                                                        }
-                                                    }
-                                                },
-                                                "chain_tx": {
-                                                    "type": [
-                                                        "string",
-                                                        "null"
-                                                    ]
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Missing attestation_id"
-                    },
-                    "404": {
-                        "description": "Unknown attestation id"
-                    }
-                }
-            }
-        },
-        "/api/notarize": {
-            "post": {
-                "summary": "Create one AI inference receipt",
-                "description": "Pay $0.001 USDC via x402 (Solana mainnet). Returns a signed Ed25519 attestation over the sha256 content hash of {prompt, response, model_id, client_timestamp}, a private receipt_token, payload_stored=false, and Merkle anchor status.",
-                "security": [],
-                "x-x402-price": "$0.001",
-                "x-payment-info": {
-                    "price": {
-                        "mode": "fixed",
-                        "currency": "USD",
-                        "amount": "0.001"
-                    },
-                    "protocols": [
-                        {
-                            "x402": {}
-                        }
-                    ]
-                },
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object",
-                                "properties": {
-                                    "prompt": {
-                                        "type": "string",
-                                        "description": "Exact prompt/input sent to the model"
-                                    },
-                                    "response": {
-                                        "type": "string",
-                                        "description": "Exact model output being notarized"
-                                    },
-                                    "model_id": {
-                                        "type": "string",
-                                        "description": "Model identifier, e.g. openai/gpt-5 or claude-fable-5"
-                                    },
-                                    "client_timestamp": {
-                                        "type": "string",
-                                        "description": "ISO-8601 time the inference ran (optional; included in the content hash)"
-                                    },
-                                    "metadata": {
-                                        "type": "object",
-                                        "description": "Optional caller metadata, <= 4 KB \u2014 accepted but NOT persisted or hashed (reserved for future opt-in retention)"
-                                    }
-                                },
-                                "required": [
-                                    "prompt",
-                                    "response",
-                                    "model_id"
-                                ]
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Success",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "attestation_id": {
-                                            "type": "string"
-                                        },
-                                        "content_hash": {
-                                            "type": "string",
-                                            "description": "sha256 hex over canonical {prompt, response, model_id, client_timestamp}"
-                                        },
-                                        "model_id": {
-                                            "type": "string"
-                                        },
-                                        "notarized_at": {
-                                            "type": "string"
-                                        },
-                                        "client_timestamp": {
-                                            "type": [
-                                                "string",
-                                                "null"
-                                            ]
-                                        },
-                                        "signature": {
-                                            "type": "string",
-                                            "description": "base64 Ed25519 signature by the notary key"
-                                        },
-                                        "signer_pubkey": {
-                                            "type": "string",
-                                            "description": "base64 raw Ed25519 public key"
-                                        },
-                                        "algorithm": {
-                                            "type": "string"
-                                        },
-                                        "receipt_token": {
-                                            "type": "string",
-                                            "description": "Private receipt token; payload is not stored by default"
-                                        },
-                                        "receipt_url": {
-                                            "type": "string"
-                                        },
-                                        "payload_stored": {
-                                            "type": "boolean",
-                                            "description": "false by default: prompt/response/metadata are not persisted"
-                                        },
-                                        "anchor": {
-                                            "type": "object",
-                                            "properties": {
-                                                "status": {
-                                                    "type": "string"
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid parameters (free \u2014 returned before payment)"
-                    },
-                    "402": {
-                        "description": "Payment Required"
-                    }
-                }
-            }
-        },
-        "/api/notarize/batch": {
-            "post": {
-                "summary": "Create receipts for up to 20 inferences",
-                "description": "Pay $0.005 USDC via x402 for 1-20 records; returns one signed attestation per record.",
-                "security": [],
-                "x-x402-price": "$0.005",
-                "x-payment-info": {
-                    "price": {
-                        "mode": "fixed",
-                        "currency": "USD",
-                        "amount": "0.005"
-                    },
-                    "protocols": [
-                        {
-                            "x402": {}
-                        }
-                    ]
-                },
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object",
-                                "properties": {
-                                    "records": {
-                                        "type": "array",
-                                        "description": "Array of 1-20 inference records to notarize in one paid request",
-                                        "items": {
-                                            "type": "object",
-                                            "properties": {
-                                                "prompt": {
-                                                    "type": "string",
-                                                    "description": "Exact prompt/input sent to the model"
-                                                },
-                                                "response": {
-                                                    "type": "string",
-                                                    "description": "Exact model output being notarized"
-                                                },
-                                                "model_id": {
-                                                    "type": "string",
-                                                    "description": "Model identifier, e.g. openai/gpt-5 or claude-fable-5"
-                                                },
-                                                "client_timestamp": {
-                                                    "type": "string",
-                                                    "description": "ISO-8601 time the inference ran (optional; included in the content hash)"
-                                                },
-                                                "metadata": {
-                                                    "type": "object",
-                                                    "description": "Optional caller metadata, <= 4 KB \u2014 accepted but NOT persisted or hashed (reserved for future opt-in retention)"
-                                                }
-                                            },
-                                            "required": [
-                                                "prompt",
-                                                "response",
-                                                "model_id"
-                                            ]
-                                        },
-                                        "minItems": 1,
-                                        "maxItems": 20
-                                    }
-                                },
-                                "required": [
-                                    "records"
-                                ]
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Success",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "count": {
-                                            "type": "integer"
-                                        },
-                                        "attestations": {
-                                            "type": "array",
-                                            "items": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "attestation_id": {
-                                                        "type": "string"
-                                                    },
-                                                    "content_hash": {
-                                                        "type": "string",
-                                                        "description": "sha256 hex over canonical {prompt, response, model_id, client_timestamp}"
-                                                    },
-                                                    "model_id": {
-                                                        "type": "string"
-                                                    },
-                                                    "notarized_at": {
-                                                        "type": "string"
-                                                    },
-                                                    "client_timestamp": {
-                                                        "type": [
-                                                            "string",
-                                                            "null"
-                                                        ]
-                                                    },
-                                                    "signature": {
-                                                        "type": "string",
-                                                        "description": "base64 Ed25519 signature by the notary key"
-                                                    },
-                                                    "signer_pubkey": {
-                                                        "type": "string",
-                                                        "description": "base64 raw Ed25519 public key"
-                                                    },
-                                                    "algorithm": {
-                                                        "type": "string"
-                                                    },
-                                                    "receipt_token": {
-                                                        "type": "string",
-                                                        "description": "Private receipt token; payload is not stored by default"
-                                                    },
-                                                    "receipt_url": {
-                                                        "type": "string"
-                                                    },
-                                                    "payload_stored": {
-                                                        "type": "boolean",
-                                                        "description": "false by default: prompt/response/metadata are not persisted"
-                                                    },
-                                                    "anchor": {
-                                                        "type": "object",
-                                                        "properties": {
-                                                            "status": {
-                                                                "type": "string"
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid parameters (free \u2014 returned before payment)"
-                    },
-                    "402": {
-                        "description": "Payment Required"
-                    }
-                }
-            }
-        }
-    },
-    "x-x402": {
-        "rail": "solana",
-        "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-        "payTo": "5rVbNzBsyMfseNub362tLMRPLiMTTSLaC9oWEMsxZcFy",
-        "currency": "USDC",
-        "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-        "facilitator": "https://facilitator.payai.network"
-    },
-    "x-notary-public-key": {
-        "algorithm": "ed25519",
-        "public_key": "XlLOy8DE5Lmu7V6yhXC/hWguGAzTdHPUIWl5svyF6Pg="
+    "x-guidance": "Start free: GET /llms.txt for a summary and GET /api/stats for live volume. To notarize an inference, POST /api/notarize with {prompt, response, model_id} and pay $0.001 USDC via x402 on Solana mainnet (no API key). The notary does not persist raw prompt/response text by default; keep your original content client-side and verify any attestation for free via POST /api/verify with the attestation_id plus either the original content or its content_hash. The response includes the Ed25519 signature check and a Merkle inclusion proof once the batch is sealed. Batch up to 20 records with POST /api/notarize/batch ($0.005); use batch for 6+ records when optimizing spend, and use single notarize calls for 1-5 records. The notary public key is at GET /api/pubkey."
+  },
+  "servers": [
+    {
+      "url": "https://notary-solana.forgemesh.io"
     }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "Fetch service card and API links",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Fetch Notary service health status",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pubkey": {
+      "get": {
+        "summary": "Fetch Notary Ed25519 public key",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "algorithm": {
+                      "type": "string"
+                    },
+                    "public_key": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stats": {
+      "get": {
+        "summary": "Fetch notarization volume and anchor stats",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "total_notarizations": {
+                      "type": "integer"
+                    },
+                    "last_24h": {
+                      "type": "integer"
+                    },
+                    "top_models": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "model_id": {
+                            "type": "string"
+                          },
+                          "n": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    },
+                    "anchored_batches": {
+                      "type": "integer"
+                    },
+                    "pending_seal": {
+                      "type": "integer"
+                    },
+                    "latest_anchor": {
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/receipt/{id}": {
+      "get": {
+        "summary": "Fetch public receipt proof material",
+        "security": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Attestation id (att_…)"
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Receipt token returned at notarization; raw payload is not stored by default"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid receipt token"
+          },
+          "404": {
+            "description": "Unknown attestation id"
+          }
+        }
+      }
+    },
+    "/mcp": {
+      "post": {
+        "summary": "Submit hosted Notary MCP request",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "MCP JSON-RPC 2.0 message",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "GET/DELETE not supported (stateless)"
+          }
+        }
+      }
+    },
+    "/api/verify": {
+      "post": {
+        "summary": "Verify an attestation receipt",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "attestation_id": {
+                    "type": "string",
+                    "description": "Attestation id (att_…) returned by /api/notarize"
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "description": "Original prompt — supply with response+model_id to recompute the content hash"
+                  },
+                  "response": {
+                    "type": "string",
+                    "description": "Original model output"
+                  },
+                  "model_id": {
+                    "type": "string",
+                    "description": "Original model id"
+                  },
+                  "client_timestamp": {
+                    "type": "string",
+                    "description": "Original client timestamp if one was notarized"
+                  },
+                  "content_hash": {
+                    "type": "string",
+                    "description": "Alternative to full content: compare this sha256 hex directly"
+                  }
+                },
+                "required": [
+                  "attestation_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "valid": {
+                      "type": "boolean"
+                    },
+                    "checks": {
+                      "type": "object",
+                      "properties": {
+                        "signature_valid": {
+                          "type": "boolean"
+                        },
+                        "hash_match": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ],
+                          "description": "null when no content or hash was supplied to compare"
+                        }
+                      }
+                    },
+                    "attestation": {
+                      "type": "object"
+                    },
+                    "anchor": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "description": "pending | sealed | anchored"
+                        },
+                        "merkle_root": {
+                          "type": "string"
+                        },
+                        "leaf": {
+                          "type": "string"
+                        },
+                        "leaf_index": {
+                          "type": "integer"
+                        },
+                        "proof": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "hash": {
+                                "type": "string"
+                              },
+                              "position": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "chain_tx": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing attestation_id"
+          },
+          "404": {
+            "description": "Unknown attestation id"
+          }
+        }
+      }
+    },
+    "/api/notarize": {
+      "post": {
+        "summary": "Create one AI inference receipt",
+        "description": "Pay $0.001 USDC via x402 (Solana mainnet). Returns a signed Ed25519 attestation over the sha256 content hash of {prompt, response, model_id, client_timestamp}, a private receipt_token, payload_stored=false, and Merkle anchor status.",
+        "security": [],
+        "x-x402-price": "$0.001",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "prompt": {
+                    "type": "string",
+                    "description": "Exact prompt/input sent to the model"
+                  },
+                  "response": {
+                    "type": "string",
+                    "description": "Exact model output being notarized"
+                  },
+                  "model_id": {
+                    "type": "string",
+                    "description": "Model identifier, e.g. openai/gpt-5 or claude-fable-5"
+                  },
+                  "client_timestamp": {
+                    "type": "string",
+                    "description": "ISO-8601 time the inference ran (optional; included in the content hash)"
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "description": "Optional caller metadata, <= 4 KB — accepted but NOT persisted or hashed (reserved for future opt-in retention)"
+                  }
+                },
+                "required": [
+                  "prompt",
+                  "response",
+                  "model_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "attestation_id": {
+                      "type": "string"
+                    },
+                    "content_hash": {
+                      "type": "string",
+                      "description": "sha256 hex over canonical {prompt, response, model_id, client_timestamp}"
+                    },
+                    "model_id": {
+                      "type": "string"
+                    },
+                    "notarized_at": {
+                      "type": "string"
+                    },
+                    "client_timestamp": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "signature": {
+                      "type": "string",
+                      "description": "base64 Ed25519 signature by the notary key"
+                    },
+                    "signer_pubkey": {
+                      "type": "string",
+                      "description": "base64 raw Ed25519 public key"
+                    },
+                    "algorithm": {
+                      "type": "string"
+                    },
+                    "receipt_token": {
+                      "type": "string",
+                      "description": "Private receipt token; payload is not stored by default"
+                    },
+                    "receipt_url": {
+                      "type": "string"
+                    },
+                    "payload_stored": {
+                      "type": "boolean",
+                      "description": "false by default: prompt/response/metadata are not persisted"
+                    },
+                    "anchor": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid parameters (free — returned before payment)"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/notarize/batch": {
+      "post": {
+        "summary": "Create receipts for up to 20 inferences",
+        "description": "Pay $0.005 USDC via x402 for 1-20 records; returns one signed attestation per record. Spend breakeven versus single $0.001 calls is 6 records, so use this endpoint for 6+ records when optimizing cost.",
+        "security": [],
+        "x-x402-price": "$0.005",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.005"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "records": {
+                    "type": "array",
+                    "description": "Array of 1-20 inference records to notarize in one paid request",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "prompt": {
+                          "type": "string",
+                          "description": "Exact prompt/input sent to the model"
+                        },
+                        "response": {
+                          "type": "string",
+                          "description": "Exact model output being notarized"
+                        },
+                        "model_id": {
+                          "type": "string",
+                          "description": "Model identifier, e.g. openai/gpt-5 or claude-fable-5"
+                        },
+                        "client_timestamp": {
+                          "type": "string",
+                          "description": "ISO-8601 time the inference ran (optional; included in the content hash)"
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "description": "Optional caller metadata, <= 4 KB — accepted but NOT persisted or hashed (reserved for future opt-in retention)"
+                        }
+                      },
+                      "required": [
+                        "prompt",
+                        "response",
+                        "model_id"
+                      ]
+                    },
+                    "minItems": 1,
+                    "maxItems": 20
+                  }
+                },
+                "required": [
+                  "records"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "count": {
+                      "type": "integer"
+                    },
+                    "attestations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "attestation_id": {
+                            "type": "string"
+                          },
+                          "content_hash": {
+                            "type": "string",
+                            "description": "sha256 hex over canonical {prompt, response, model_id, client_timestamp}"
+                          },
+                          "model_id": {
+                            "type": "string"
+                          },
+                          "notarized_at": {
+                            "type": "string"
+                          },
+                          "client_timestamp": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "signature": {
+                            "type": "string",
+                            "description": "base64 Ed25519 signature by the notary key"
+                          },
+                          "signer_pubkey": {
+                            "type": "string",
+                            "description": "base64 raw Ed25519 public key"
+                          },
+                          "algorithm": {
+                            "type": "string"
+                          },
+                          "receipt_token": {
+                            "type": "string",
+                            "description": "Private receipt token; payload is not stored by default"
+                          },
+                          "receipt_url": {
+                            "type": "string"
+                          },
+                          "payload_stored": {
+                            "type": "boolean",
+                            "description": "false by default: prompt/response/metadata are not persisted"
+                          },
+                          "anchor": {
+                            "type": "object",
+                            "properties": {
+                              "status": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid parameters (free — returned before payment)"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    }
+  },
+  "x-x402": {
+    "rail": "solana",
+    "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+    "payTo": "5rVbNzBsyMfseNub362tLMRPLiMTTSLaC9oWEMsxZcFy",
+    "currency": "USDC",
+    "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "facilitator": "https://facilitator.payai.network"
+  },
+  "x-notary-public-key": {
+    "algorithm": "ed25519",
+    "public_key": "XlLOy8DE5Lmu7V6yhXC/hWguGAzTdHPUIWl5svyF6Pg="
+  }
 }

@@ -19,7 +19,8 @@ downstream agents can check a receipt before acting on an output.
 
 - Use `POST /api/notarize` for one inference receipt.
 - Use `POST /api/notarize/batch` only when multiple outputs need receipts in the
-  same workflow.
+  same workflow and the batch has 6 or more records. The batch endpoint is a
+  flat $0.005, so 1-5 records are cheaper as individual $0.001 calls.
 - Use free `POST /api/verify` before paying for a new receipt when the user
   already has an attestation id and source content.
 - Keep the original prompt and response client-side. The notary stores proof
