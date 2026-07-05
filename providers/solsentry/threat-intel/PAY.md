@@ -23,7 +23,7 @@ metered and are out of scope for this listing.
 
 Per-call pricing (USDC on Solana mainnet; the authoritative price is returned in
 the live `402` challenge): operator $0.002 · token $0.003 · predictions $0.002 ·
-contract-analysis $0.005 · lookalike-check $0.003 · tx-preview $0.008 ·
+contract-analysis $0.01 · lookalike-check $0.003 · tx-preview $0.008 ·
 holders $0.005 · drain-trace $0.05 · dossier $0.50.
 
 ## Spend-aware usage
