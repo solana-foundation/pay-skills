@@ -6,67 +6,8 @@ use_case: "Use for Japanese corporate-number lookup, KYC/KYB on JP companies, ve
 category: identity
 service_url: https://houjin.agentic-jp.com
 version: v1
-endpoints:
-  - method: GET
-    path: /corporation/:number
-    resource: corporation
-    description: "Look up a single Japanese corporation by its 13-digit corporate number (法人番号)"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.002
-  - method: POST
-    path: /verify
-    resource: verify
-    description: "Reconcile a company name and optional address to ranked candidate corporate numbers with a confidence score"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.003
-  - method: GET
-    path: /stats
-    resource: stats
-    description: "Get dataset metadata: how many corporations are loaded and which prefectures are covered"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.001
-  - method: POST
-    path: /search
-    resource: search
-    description: "Search the Japanese corporate registry by trade name and location, filterable by prefecture and city. Dynamic price: a base per-request fee plus a per-result fee capped at limit=50."
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.005
-        - direction: output
-          unit: results
-          scale: 1
-          tiers:
-            - price_usd: 0.0002
-  - method: POST
-    path: /batch
-    resource: batch
-    description: "Look up many Japanese corporate numbers in one request (up to 50 items)"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.002
+openapi:
+  path: openapi.json
 ---
 
 Pay-per-request access to Japan's official corporate-number registry

@@ -6,73 +6,8 @@ use_case: "Use for Japanese furigana and kana readings, ruby annotation, reading
 category: ai_ml
 service_url: https://furigana.agentic-jp.com
 version: v1
-endpoints:
-  - method: POST
-    path: /furigana
-    resource: furigana
-    description: "Generate furigana/kana readings for arbitrary Japanese text, suitable for ruby annotation"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.001
-  - method: POST
-    path: /normalize
-    resource: normalize
-    description: "Normalize Japanese text width and character form (fullwidth/halfwidth, old-form kana)"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.001
-  - method: POST
-    path: /name-readings
-    resource: name-readings
-    description: "Resolve kana readings for a Japanese personal name using a name-reading dictionary"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.005
-  - method: POST
-    path: /classify
-    resource: classify
-    description: "Classify a Japanese string as a personal name, place name, or organization name"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.002
-  - method: POST
-    path: /convert
-    resource: convert
-    description: "Convert Japanese text between hiragana, katakana, and romaji"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.001
-  - method: POST
-    path: /batch
-    resource: batch
-    description: "Process many furigana/conversion items in one request (up to 100 items)"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.0008
+openapi:
+  path: openapi.json
 ---
 
 Pay-per-request kana/furigana readings and Japanese text processing for AI

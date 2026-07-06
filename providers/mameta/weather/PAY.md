@@ -6,62 +6,8 @@ use_case: "Use for Japanese weather forecasts, JMA forecast data, checking weath
 category: data
 service_url: https://weather.agentic-jp.com
 version: v1
-endpoints:
-  - method: GET
-    path: /forecast/:area
-    resource: forecast
-    description: "Get the JMA weather forecast for a Japanese forecast area"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.003
-  - method: GET
-    path: /overview/:area
-    resource: overview
-    description: "Get a short weather overview text for a Japanese forecast area"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.002
-  - method: GET
-    path: /warnings/:area
-    resource: warnings
-    description: "Get active JMA weather warnings and advisories for a Japanese region"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.005
-  - method: GET
-    path: /areas
-    resource: areas
-    description: "List JMA forecast areas with their codes and names"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.001
-  - method: POST
-    path: /batch
-    resource: batch
-    description: "Fetch forecasts or warnings for many Japanese areas in one request (up to 50 items)"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.003
+openapi:
+  path: openapi.json
 ---
 
 Pay-per-request Japanese weather forecasts and warnings from the Japan

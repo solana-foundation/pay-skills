@@ -6,73 +6,8 @@ use_case: "Use for checking Japanese public holidays, business-day and working-d
 category: data
 service_url: https://holiday.agentic-jp.com
 version: v1
-endpoints:
-  - method: GET
-    path: /is-holiday/:date
-    resource: is-holiday
-    description: "Check whether a given date is a Japanese public holiday and return its name"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.001
-  - method: GET
-    path: /holidays/:year
-    resource: holidays
-    description: "List all Japanese public holidays for a given year with names and dates"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.002
-  - method: POST
-    path: /business-days
-    resource: business-days
-    description: "Count Japanese business days between two dates, skipping holidays and weekends"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.003
-  - method: POST
-    path: /add-business-days
-    resource: add-business-days
-    description: "Add a number of Japanese business days to a date, skipping holidays and weekends"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.003
-  - method: POST
-    path: /next-business-day
-    resource: next-business-day
-    description: "Find the next Japanese business day after a given date"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.002
-  - method: POST
-    path: /batch
-    resource: batch
-    description: "Run many holiday or business-day calculations in one request (up to 100 items)"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.001
+openapi:
+  path: openapi.json
 ---
 
 Pay-per-request Japanese public-holiday data and business-day arithmetic for

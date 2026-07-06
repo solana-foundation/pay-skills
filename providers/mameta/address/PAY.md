@@ -6,73 +6,8 @@ use_case: "Use for Japanese address normalization, JP geocoding and reverse geoc
 category: maps
 service_url: https://address.agentic-jp.com
 version: v1
-endpoints:
-  - method: POST
-    path: /normalize
-    resource: normalize
-    description: "Normalize a Japanese address string into clean prefecture/city/town/chome-banchi components with a confidence score"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.001
-  - method: POST
-    path: /geocode
-    resource: geocode
-    description: "Geocode a Japanese address to latitude/longitude with a match-level granularity and confidence score"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.003
-  - method: POST
-    path: /reverse-geocode
-    resource: reverse-geocode
-    description: "Reverse-geocode latitude/longitude coordinates to the nearest Japanese address with structured components"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.003
-  - method: GET
-    path: /postal-code/:zip
-    resource: postal-code
-    description: "Look up Japanese address candidates for a 7-digit postal code, with kana readings"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.001
-  - method: POST
-    path: /parse
-    resource: parse
-    description: "Parse free-form Japanese text into a structured address plus extracted building name and addressee"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.005
-  - method: POST
-    path: /batch
-    resource: batch
-    description: "Normalize or geocode many Japanese addresses in one request (up to 100 items)"
-    pricing:
-      dimensions:
-        - direction: usage
-          unit: requests
-          scale: 1
-          tiers:
-            - price_usd: 0.0008
+openapi:
+  path: openapi.json
 ---
 
 Pay-per-request normalization and geocoding for Japanese addresses — the
