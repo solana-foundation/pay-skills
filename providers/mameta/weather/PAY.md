@@ -18,8 +18,8 @@ and event planning in Japan.
 
 - Use `GET /areas` ($0.001) to resolve a JMA area code before calling the
   forecast endpoints.
-- Use `GET /overview/:area` ($0.002) for a quick text summary; `GET
-  /forecast/:area` ($0.003) for the structured forecast; `GET /warnings/:area`
+- Use `GET /overview/:area` ($0.005) for a quick text summary; `GET
+  /forecast/:area` ($0.005) for the structured forecast; `GET /warnings/:area`
   ($0.005) only when you specifically need active advisories.
-- Use `POST /batch` ($0.003/item) to fetch multiple areas in one request
+- Use `POST /batch` ($0.004/item) to fetch multiple areas in one request
   rather than looping, up to 50 areas per call.

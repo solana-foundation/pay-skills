@@ -21,12 +21,12 @@ and invoice reconciliation.
   English summary) in one call — cheaper than chaining 3-4 lookups when
   you need more than the raw record.
 
-- Use `GET /corporation/:number` ($0.002) when you already have the 13-digit
+- Use `GET /corporation/:number` ($0.005) when you already have the 13-digit
   corporate number — it's a direct lookup.
-- Use `POST /verify` ($0.003) for the name-matching / 名寄せ case: it returns
+- Use `POST /verify` ($0.005) for the name-matching / 名寄せ case: it returns
   ranked candidates with a confidence score and handles 株式会社 / (株) / ㈱
   spelling variation. A dissolved corporation is never reported as verified.
 - Use `POST /search` (base $0.005 + $0.0002 per result, capped at limit=50)
   to discover companies by name or location; cap `limit` to the smallest
   useful number to keep cost down.
-- Use `POST /batch` ($0.002/item) for bulk number lookups, up to 50 per call.
+- Use `POST /batch` ($0.004/item) for bulk number lookups, up to 50 per call.

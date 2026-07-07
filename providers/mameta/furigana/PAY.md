@@ -16,10 +16,10 @@ local Japanese tokenizer.
 
 ## Spend-aware usage
 
-- Use `POST /furigana` ($0.001) for general text; use `POST /name-readings`
+- Use `POST /furigana` ($0.005) for general text; use `POST /name-readings`
   ($0.005) only for personal names, where the dictionary-backed reading
   matters and a plain tokenizer is unreliable.
-- Use `POST /convert` ($0.001) for hiragana/katakana/romaji conversion and
+- Use `POST /convert` ($0.005) for hiragana/katakana/romaji conversion and
   `POST /normalize` ($0.001) for width/form cleanup — both are cheap.
-- Use `POST /batch` for bulk work; it bills per item at $0.0008 (20% discount).
+- Use `POST /batch` for bulk work; it bills per item at 80% of the single-call price.
   Batch up to 100 items per request rather than looping single calls.

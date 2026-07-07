@@ -16,12 +16,12 @@ process invoices, e-commerce orders, delivery plans, or customer records.
 
 ## Spend-aware usage
 
-- Use `POST /normalize` ($0.001) for the common case: cleaning and structuring
+- Use `POST /normalize` ($0.005) for the common case: cleaning and structuring
   an address string. Don't reach for `/parse` unless the input is genuinely
   free-form with building names or an addressee mixed in.
 - Use `GET /postal-code/:zip` ($0.001) when you already have a postal code —
   it's cheaper than geocoding.
-- Use `POST /batch` for bulk work; it bills per item at $0.0008 (a 20% discount
+- Use `POST /batch` for bulk work; it bills per item at $0.004 (a 20% discount
   vs. individual calls). Batch up to 100 addresses per request.
-- `POST /geocode` and `/reverse-geocode` ($0.003) hit an external geocoder —
+- `POST /geocode` and `/reverse-geocode` ($0.005) hit an external geocoder —
   call them only when you actually need coordinates.

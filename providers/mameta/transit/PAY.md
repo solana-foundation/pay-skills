@@ -17,7 +17,7 @@ are disrupted.
 
 ## Spend-aware usage
 
-- Use `GET /lines` and `GET /stations/search` ($0.001) to resolve canonical
+- Use `GET /lines` ($0.001) and `GET /stations/search` ($0.002) to resolve canonical
   line and station identifiers before calling the pricier status endpoints.
 - Use `GET /station/:name/status` ($0.005) for one station; `GET /alerts/feed`
   ($0.005) when you want the whole nationwide disruption picture in one call.
