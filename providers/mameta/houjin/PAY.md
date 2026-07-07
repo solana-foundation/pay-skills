@@ -16,6 +16,11 @@ and invoice reconciliation.
 
 ## Spend-aware usage
 
+- For full due diligence, `POST /report` ($0.25) returns the complete
+  KYB answer (registry record, status, kana/romaji readings, risk flags,
+  English summary) in one call — cheaper than chaining 3-4 lookups when
+  you need more than the raw record.
+
 - Use `GET /corporation/:number` ($0.002) when you already have the 13-digit
   corporate number — it's a direct lookup.
 - Use `POST /verify` ($0.003) for the name-matching / 名寄せ case: it returns
