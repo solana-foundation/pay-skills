@@ -20,6 +20,6 @@ JP holidays and weekends.
   `GET /holidays/:year` ($0.005) when you need the whole year — fetching the
   year once is cheaper than many single-date checks.
 - Use `POST /business-days`, `/add-business-days`, `/next-business-day` for
-  date arithmetic ($0.002–$0.005).
+  date arithmetic ($0.001–$0.005).
 - Use `POST /batch` ($0.004/item) for bulk date calculations rather than
   looping single calls; batch up to 100 items.
