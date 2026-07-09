@@ -1,18 +1,18 @@
 ---
-name: token-security
-title: "Token Security Risk Analysis"
-description: "Pay-per-request token security analysis. AI-powered risk assessment detects scams before you trade."
-use_case: "Analyze token contracts for rugpull risk, honeypots, and malicious patterns before trading. Returns risk score (0-100), flags, and detailed analysis."
-category: security
+name: nft-search
+title: "NFT Search & Collection Data"
+description: "Pay-per-request NFT search. Search collections, get real-time pricing, floor data, and collection analytics."
+use_case: "Search NFT collections across marketplaces, get floor prices, collection stats, and metadata for any NFT."
+category: nft
 service_url: https://gentech-x402-gateway.jordanjones0902.workers.dev
 openapi:
   content: |
     {
       "openapi": "3.1.0",
       "info": {
-        "title": "Token Security Risk Analysis",
+        "title": "NFT Search & Collection Data",
         "version": "1.0.0",
-        "description": "Pay-per-request token security analysis. AI-powered risk assessment detects scams before you trade."
+        "description": "Pay-per-request NFT search. Search collections, get real-time pricing, floor data, and collection analytics."
       },
       "servers": [
         {
@@ -21,12 +21,12 @@ openapi:
         }
       ],
       "paths": {
-        "/api/token/risk": {
+        "/api/nft/search": {
           "get": {
-            "operationId": "api_token_risk",
-            "summary": "AI-powered token risk assessment",
+            "operationId": "api_nft_search",
+            "summary": "NFT search and collection data",
             "tags": [
-              "token"
+              "nft"
             ],
             "x-payment-info": {
               "price": {
@@ -67,16 +67,16 @@ pricing:
   per_request: 0.001
 ---
 
-## Token Security Risk Analysis
+## NFT Search & Collection Data
 
-Pay-per-request token security analysis. AI-powered risk assessment detects scams before you trade.
+Pay-per-request NFT search. Search collections, get real-time pricing, floor data, and collection analytics.
 
 ### Spend-aware usage
 
-Cache results for the same token address (risk scores don't change frequently). Skip analysis for well-known tokens.
+Use collection slugs for precise lookups. Cache floor prices within your session.
 
 ### Endpoints
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/token/risk` | AI-powered token risk assessment |\n\n
+| `GET /api/nft/search` | NFT search and collection data |\n\n

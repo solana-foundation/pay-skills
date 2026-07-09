@@ -1,18 +1,18 @@
 ---
-name: token-security
-title: "Token Security Risk Analysis"
-description: "Pay-per-request token security analysis. AI-powered risk assessment detects scams before you trade."
-use_case: "Analyze token contracts for rugpull risk, honeypots, and malicious patterns before trading. Returns risk score (0-100), flags, and detailed analysis."
-category: security
+name: agent-discover
+title: "Agent Discovery & Reconnaissance"
+description: "Pay-per-request agent discovery. Find agents by capability, verify registrations, and assess reputation."
+use_case: "Discover and scan AI agents across marketplaces and on-chain. Get agent profiles, reputation scores, and capability verification."
+category: ai_ml
 service_url: https://gentech-x402-gateway.jordanjones0902.workers.dev
 openapi:
   content: |
     {
       "openapi": "3.1.0",
       "info": {
-        "title": "Token Security Risk Analysis",
+        "title": "Agent Discovery & Reconnaissance",
         "version": "1.0.0",
-        "description": "Pay-per-request token security analysis. AI-powered risk assessment detects scams before you trade."
+        "description": "Pay-per-request agent discovery. Find agents by capability, verify registrations, and assess reputation."
       },
       "servers": [
         {
@@ -21,12 +21,12 @@ openapi:
         }
       ],
       "paths": {
-        "/api/token/risk": {
+        "/api/agentscan": {
           "get": {
-            "operationId": "api_token_risk",
-            "summary": "AI-powered token risk assessment",
+            "operationId": "api_agentscan",
+            "summary": "AgentScan \u2014 AI-powered agent reconnaissance",
             "tags": [
-              "token"
+              "agentscan"
             ],
             "x-payment-info": {
               "price": {
@@ -67,16 +67,16 @@ pricing:
   per_request: 0.001
 ---
 
-## Token Security Risk Analysis
+## Agent Discovery & Reconnaissance
 
-Pay-per-request token security analysis. AI-powered risk assessment detects scams before you trade.
+Pay-per-request agent discovery. Find agents by capability, verify registrations, and assess reputation.
 
 ### Spend-aware usage
 
-Cache results for the same token address (risk scores don't change frequently). Skip analysis for well-known tokens.
+Prefer targeted searches over broad scans.
 
 ### Endpoints
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/token/risk` | AI-powered token risk assessment |\n\n
+| `GET /api/agentscan` | AgentScan — AI-powered agent reconnaissance |\n\n
