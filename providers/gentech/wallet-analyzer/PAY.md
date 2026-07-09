@@ -1,8 +1,8 @@
 ---
-name: token-security
-title: "Token Security Risk Analysis"
-description: "Pay-per-request token security analysis. AI-powered risk assessment detects scams before you trade."
-use_case: "Analyze token contracts for rugpull risk, honeypots, and malicious patterns before trading. Returns risk score (0-100), flags, and detailed analysis."
+name: wallet-analyzer
+title: "Wallet Analyzer & Smart Money Tracking"
+description: "Pay-per-request wallet analytics. Scan addresses for risk scoring, transaction patterns, and smart money tracking."
+use_case: "Analyze wallet addresses for risk patterns, transaction history, and smart money signals. Track whale activity and detect suspicious behavior."
 category: security
 service_url: https://gentech-x402-gateway.jordanjones0902.workers.dev
 openapi:
@@ -10,9 +10,9 @@ openapi:
     {
       "openapi": "3.1.0",
       "info": {
-        "title": "Token Security Risk Analysis",
+        "title": "Wallet Analyzer & Smart Money Tracking",
         "version": "1.0.0",
-        "description": "Pay-per-request token security analysis. AI-powered risk assessment detects scams before you trade."
+        "description": "Pay-per-request wallet analytics. Scan addresses for risk scoring, transaction patterns, and smart money tracking."
       },
       "servers": [
         {
@@ -21,12 +21,12 @@ openapi:
         }
       ],
       "paths": {
-        "/api/token/risk": {
+        "/api/wallet/analyze": {
           "get": {
-            "operationId": "api_token_risk",
-            "summary": "AI-powered token risk assessment",
+            "operationId": "api_wallet_analyze",
+            "summary": "AI-powered wallet analytics and smart money tracking",
             "tags": [
-              "token"
+              "wallet"
             ],
             "x-payment-info": {
               "price": {
@@ -67,16 +67,16 @@ pricing:
   per_request: 0.001
 ---
 
-## Token Security Risk Analysis
+## Wallet Analyzer & Smart Money Tracking
 
-Pay-per-request token security analysis. AI-powered risk assessment detects scams before you trade.
+Pay-per-request wallet analytics. Scan addresses for risk scoring, transaction patterns, and smart money tracking.
 
 ### Spend-aware usage
 
-Cache results for the same token address (risk scores don't change frequently). Skip analysis for well-known tokens.
+Cache results for frequently-checked addresses. Batch analyze during market scanning.
 
 ### Endpoints
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/token/risk` | AI-powered token risk assessment |\n\n
+| `GET /api/wallet/analyze` | AI-powered wallet analytics and smart money tracking |\n\n
