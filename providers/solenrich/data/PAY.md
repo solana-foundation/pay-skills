@@ -14,8 +14,10 @@ SolEnrich enriches Solana wallets, tokens, transactions, protocols, and perps
 markets in a single paid call. Every endpoint returns structured JSON
 (`format: "json"`), a deterministic natural-language briefing sized for LLM
 context windows (`format: "llm"`), or both (`format: "both"`). All endpoints
-are POST to `/entrypoints/{key}/invoke` with a JSON body `{ "input": { ... } }`
-and settle via x402 (USDC on Solana). Prices range $0.001–$0.10 per call.
+are POST to `/entrypoints/{key}/invoke` with a flat JSON body containing the
+parameters in the OpenAPI schema, e.g. `{ "mint": "...", "format": "llm" }`
+(a `{ "input": { ... } }` envelope is also accepted), and settle via x402
+(USDC on Solana). Prices range $0.001–$0.10 per call.
 
 What it offers, by task:
 
