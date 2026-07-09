@@ -11,6 +11,10 @@ openapi:
 
 UnlockPressure exposes Phase 1 x402-paid token unlock intelligence for agents that need source-backed sell-pressure context before trading, portfolio review, or market-monitoring decisions.
 
+## Payment network
+
+UnlockPressure accepts x402 payments on Base mainnet USDC (`eip155:8453`, asset `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`). It is not a Solana-mainnet payment endpoint; agents need an EVM/Base-capable x402 wallet for paid calls.
+
 ## Spend-aware usage
 
 - Start with `GET /v1/unlocks/upcoming?days=90&minRisk=70` as the $0.02 bodyless wallet-paid ping when testing x402 routing.
