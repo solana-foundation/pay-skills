@@ -6,7 +6,7 @@ use_case: "Use when you must confirm a Solana wallet really performed a specific
 category: identity
 service_url: https://uzproof.com
 openapi:
-  url: https://uzproof.com/openapi.json
+  path: openapi.json
 ---
 
 # UZPROOF
