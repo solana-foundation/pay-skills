@@ -1017,11 +1017,24 @@
     "/v1/compute/inference": {
       "post": {
         "summary": "Run receipt-gated inference",
-        "description": "Receipt-gated inference proxy (no x402 charge, but not open access). Wallet must hold an active TWZRD Receipt (Silver+). Checks resolver -> verifies cnft_minted -> proxies to model backend. 402 if no receipt or tier too low.",
-        "security": [],
+        "description": "Receipt-gated inference proxy (not open access). Wallet must hold an active TWZRD Receipt (Silver+). Checks resolver -> verifies cnft_minted -> proxies to model backend. Returns 402 if no receipt or tier too low.",
+        "security": [
+          {
+            "twzrdReceipt": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK (JSON)."
+          },
+          "400": {
+            "description": "Missing required wallet or prompt field."
+          },
+          "402": {
+            "description": "Active TWZRD Receipt required, or wallet receipt tier is below Silver."
+          },
+          "502": {
+            "description": "Receipt resolver or inference backend unavailable."
           }
         },
         "requestBody": {
@@ -1047,6 +1060,14 @@
               }
             }
           }
+        },
+        "x-access-gate": {
+          "type": "receipt",
+          "required_receipt": "twzrd.receipt",
+          "minimum_tier": "Silver",
+          "wallet_source": "requestBody.wallet",
+          "resolver": "https://api.twzrd.xyz/v1/receipts/r/{wallet}",
+          "failure_status": 402
         }
       }
     },
@@ -1122,24 +1143,70 @@
     "/v1/wash/analyze": {
       "post": {
         "summary": "Analyze wallet wash risk batch",
-        "description": "Wash detection API: batch analyze up to 100 wallets for circular flow, ring detection, and collusion signals. Pro tier.",
-        "security": [],
+        "description": "Wash detection API: batch analyze up to 100 wallets for circular flow, ring detection, and collusion signals. Pro tier when premium gating is enabled.",
+        "security": [
+          {
+            "twzrdPro": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK (JSON)."
+          },
+          "401": {
+            "description": "Invalid Pro API key when premium gating is enabled."
+          },
+          "402": {
+            "description": "Pro access required when premium gating is enabled; request may be satisfied with Pro API key, CCM-qualified wallet, or x402 Solana USDC settlement."
+          },
+          "422": {
+            "description": "Invalid request body."
           }
+        },
+        "x-access-gate": {
+          "type": "pro_tier",
+          "required_when": "PREMIUM_GATING_ENABLED=true",
+          "alternatives": [
+            "X-API-Key Pro credential",
+            "CCM-qualified wallet",
+            "x402 Solana USDC settlement"
+          ],
+          "failure_status": 402
         }
       }
     },
     "/v1/reputation/analyze": {
       "post": {
         "summary": "Analyze merchant reputation batch",
-        "description": "Provider reputation API: batch analyze up to 100 merchants for heavy-fleet, captive concentration, and tier classification. Pro tier.",
-        "security": [],
+        "description": "Provider reputation API: batch analyze up to 100 merchants for heavy-fleet, captive concentration, and tier classification. Pro tier when premium gating is enabled.",
+        "security": [
+          {
+            "twzrdPro": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK (JSON)."
+          },
+          "401": {
+            "description": "Invalid Pro API key when premium gating is enabled."
+          },
+          "402": {
+            "description": "Pro access required when premium gating is enabled; request may be satisfied with Pro API key, CCM-qualified wallet, or x402 Solana USDC settlement."
+          },
+          "422": {
+            "description": "Invalid request body."
           }
+        },
+        "x-access-gate": {
+          "type": "pro_tier",
+          "required_when": "PREMIUM_GATING_ENABLED=true",
+          "alternatives": [
+            "X-API-Key Pro credential",
+            "CCM-qualified wallet",
+            "x402 Solana USDC settlement"
+          ],
+          "failure_status": 402
         }
       }
     },
@@ -1215,6 +1282,22 @@
             "description": "`watch_id` path parameter."
           }
         ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "twzrdReceipt": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-TWZRD-Receipt",
+        "description": "Marker for routes gated by an active TWZRD Receipt (Silver+). Inference resolves entitlement from requestBody.wallet via the receipt resolver."
+      },
+      "twzrdPro": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "TWZRD Pro credential. When premium gating is enabled, Pro routes may also accept a CCM-qualified wallet or x402 Solana USDC settlement."
       }
     }
   }
