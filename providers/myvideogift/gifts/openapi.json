@@ -1,0 +1,150 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "My Video Gift — Agent API",
+    "version": "2026-07-09",
+    "description": "Photos (and optional video clips) in, a finished personalized gift film with an original song out — one flat USDC price per delivered film. Discovery + build steps are free; only the final render is paid.",
+    "contact": { "name": "My Video Gift", "url": "https://myvideogift.com", "email": "hello@myvideogift.com" }
+  },
+  "servers": [{ "url": "https://myvideogift-pay-gateway.fly.dev", "description": "pay.sh gateway (USDC on Solana)" }],
+  "paths": {
+    "/occasions": {
+      "get": {
+        "operationId": "listOccasions",
+        "summary": "List supported gift occasions",
+        "description": "Free. Returns the occasions you can create a gift for (slug, name, tone, photo ideas). Call this first to pick a valid `occasion` slug.",
+        "responses": { "200": { "description": "Occasions", "content": { "application/json": { "schema": { "type": "object", "properties": { "occasions": { "type": "array", "items": { "type": "object" } } } } } } } }
+      }
+    },
+    "/samples": {
+      "get": {
+        "operationId": "listSamples",
+        "summary": "List pre-rendered sample films",
+        "description": "Free. The 'what you get' quality gallery — finished sample films per occasion.",
+        "responses": { "200": { "description": "Samples", "content": { "application/json": { "schema": { "type": "object" } } } } }
+      }
+    },
+    "/gifts": {
+      "post": {
+        "operationId": "createGift",
+        "summary": "Create and reserve a gift",
+        "description": "Free. Reserves a gift and fixes its brief (occasion, recipient, story, feelings). Supports an Idempotency-Key header for safe retries. Returns a gift_id + share_slug.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateGift" } } }
+        },
+        "responses": {
+          "201": { "description": "Gift reserved", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GiftCreated" } } } },
+          "400": { "description": "Invalid request" }
+        }
+      }
+    },
+    "/gifts/{giftId}/photos": {
+      "post": {
+        "operationId": "addPhotos",
+        "summary": "Add recipient photos (URL or base64)",
+        "description": "Free. Add 1–10 photos per call by public URL (SSRF-guarded fetch) or inline base64. Up to 30 photos per gift.",
+        "parameters": [{ "name": "giftId", "in": "path", "required": true, "description": "The gift_id returned by POST /gifts.", "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AddPhotos" } } }
+        },
+        "responses": {
+          "200": { "description": "Photos accepted", "content": { "application/json": { "schema": { "type": "object", "properties": { "photo_count": { "type": "integer" }, "photo_ids": { "type": "array", "items": { "type": "string" } } } } } } },
+          "400": { "description": "Invalid photo URL/data or photo limit reached" }
+        }
+      }
+    },
+    "/gifts/{giftId}": {
+      "get": {
+        "operationId": "getGift",
+        "summary": "Poll gift status (and delivery URLs once ready)",
+        "description": "Free. Poll after rendering; once status is 'delivered-paid' the response includes film_url (16x9 + 9x16) and the hosted gift_url. A held/failed render auto-refunds and can be re-rendered.",
+        "parameters": [{ "name": "giftId", "in": "path", "required": true, "description": "The gift_id returned by POST /gifts.", "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Gift status", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GiftStatus" } } } },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+    "/gifts/{giftId}/render": {
+      "post": {
+        "operationId": "renderGift",
+        "summary": "Render and deliver the film (PAID, USDC)",
+        "description": "The one paid action. Requires consent:true (you attest rights to the photos and the recipient's depiction). Payment is settled in USDC by the pay.sh gateway; the film renders and delivers (poll GET /gifts/{giftId} for the film URL). A failed/held render is made good with a free re-render.",
+        "parameters": [{ "name": "giftId", "in": "path", "required": true, "description": "The gift_id returned by POST /gifts.", "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["consent"], "properties": { "consent": { "type": "boolean", "enum": [true], "description": "Attests you hold the rights to these photos and to the recipient's depiction." } } } } }
+        },
+        "responses": {
+          "202": { "description": "Rendering started", "content": { "application/json": { "schema": { "type": "object", "properties": { "status": { "type": "string" }, "tier": { "type": "string" }, "poll_after_sec": { "type": "integer" } } } } } },
+          "402": { "description": "Payment required (x402 / USDC on Solana)" },
+          "409": { "description": "Not ready (needs a reservation + at least one photo)" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateGift": {
+        "type": "object",
+        "required": ["occasion", "recipient_name", "relationship"],
+        "properties": {
+          "occasion": { "type": "string", "description": "A slug from GET /occasions (e.g. 'anniversary-video')." },
+          "recipient_name": { "type": "string", "minLength": 1, "maxLength": 80, "description": "The gift recipient's name." },
+          "relationship": { "type": "string", "minLength": 1, "maxLength": 80, "description": "e.g. 'my wife', 'grandpa'." },
+          "memory": { "type": "string", "maxLength": 500 },
+          "story_note": { "type": "string", "maxLength": 500 },
+          "feeling_words": { "type": "array", "items": { "type": "string", "maxLength": 30 }, "maxItems": 6 },
+          "length_sec": { "type": "integer", "minimum": 30, "maximum": 180 },
+          "tier": { "type": "string", "enum": ["standard", "signature"], "default": "signature" }
+        }
+      },
+      "GiftCreated": {
+        "type": "object",
+        "properties": {
+          "gift_id": { "type": "string" },
+          "status": { "type": "string", "example": "reserved" },
+          "tier": { "type": "string" },
+          "occasion": { "type": "string" },
+          "share_slug": { "type": "string" },
+          "photo_limit": { "type": "integer" }
+        }
+      },
+      "AddPhotos": {
+        "type": "object",
+        "required": ["photos"],
+        "properties": {
+          "photos": {
+            "type": "array", "minItems": 1, "maxItems": 10, "description": "1-10 photos, each as {url} (public image URL) or {data,mime} (base64 bytes).",
+            "items": {
+              "oneOf": [
+                { "type": "object", "required": ["url"], "properties": { "url": { "type": "string", "format": "uri" } } },
+                { "type": "object", "required": ["data", "mime"], "properties": { "data": { "type": "string", "description": "base64" }, "mime": { "type": "string", "enum": ["image/jpeg", "image/png", "image/webp"] } } }
+              ]
+            }
+          },
+          "subject_photo_index": { "type": "integer", "minimum": 0, "description": "Which photo is the main subject." }
+        }
+      },
+      "GiftStatus": {
+        "type": "object",
+        "properties": {
+          "gift_id": { "type": "string" },
+          "status": { "type": "string", "description": "reserved | needs-content | delivered-paid | …" },
+          "tier": { "type": "string" },
+          "occasion": { "type": "string" },
+          "recipient_name": { "type": "string" },
+          "share_slug": { "type": "string" },
+          "photo_count": { "type": "integer" },
+          "clip_count": { "type": "integer" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "fulfillment": { "type": "object", "nullable": true },
+          "film_url": { "type": "object", "properties": { "16x9": { "type": "string" }, "9x16": { "type": "string" } } },
+          "gift_url": { "type": "string" }
+        }
+      }
+    }
+  }
+}
