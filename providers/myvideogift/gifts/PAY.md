@@ -20,21 +20,24 @@ build steps are free; only the final render is paid.
 3. `POST /gifts` — create + reserve a gift with the recipient, relationship,
    occasion, a short memory/story, and a few feeling words (free). Keep the
    returned `gift_id`.
-4. `POST /gifts/{gift_id}/photos` — add the recipient's photos by URL or base64,
-   up to 30 (free). Optional short video clips are supported too.
-5. `POST /gifts/{gift_id}/render` — **the one paid call.** Requires `consent:true`
+4. `POST /gifts/{giftId}/photos` — add the recipient's photos by URL or base64,
+   up to 30 (free). Optionally `POST /gifts/{giftId}/clips` adds 1-3 short video
+   clips (up to 4MB each) — photos alone are enough.
+5. `POST /gifts/{giftId}/render` — **the one paid call.** Requires `consent:true`
    (you attest rights to the photos and the recipient's depiction). Settled in USDC.
-6. `GET /gifts/{gift_id}` — poll until `status` is `delivered-paid`, then read
+6. `GET /gifts/{giftId}` — poll until `status` is `delivered-paid`, then read
    `film_url` (16x9 + 9x16) and the hosted `gift_url` (free).
 
 ## Spend-aware usage
 
-- Everything except `render` is FREE. Only `POST /gifts/{gift_id}/render` costs
+- Everything except `render` is FREE. Only `POST /gifts/{giftId}/render` costs
   USDC (one flat price per delivered film) — reserve it for when the gift is ready.
 - Create the gift ONCE and reuse its `gift_id` for photos, render, and status.
   Don't create duplicate gifts, and don't re-render a gift that already delivered
-  (read the URLs from `GET /gifts/{gift_id}` instead).
+  (read the URLs from `GET /gifts/{giftId}` instead).
+- Every render delivers the **signature** tier at the single listed USDC price —
+  there is no cheaper tier on this channel, so `tier` needs no tuning.
 - Confirm the recipient, occasion, and photos with the user BEFORE the paid render.
-- A render takes a few minutes — poll `GET /gifts/{gift_id}`; do NOT re-POST render
+- A render takes a few minutes — poll `GET /gifts/{giftId}`; do NOT re-POST render
   to "retry". A held or failed render is auto-made-good with a free re-render, so
   never pay twice for the same gift.
