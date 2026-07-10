@@ -4,7 +4,7 @@ title: "CryptoPulse"
 description: "Global crypto intelligence: DeFi yield/APY on Ethereum, Base, Arbitrum and Solana (live DeFiLlama TVL and APY), wallet-security and custody guidance, threat intelligence, exchange comparison, crypto-tax for 20+ countries, plus onboarding and banking."
 use_case: "Use for DeFi yield discovery by chain and risk, crypto wallet-security and custody decisions, exchange selection, crypto-tax questions across 20+ countries, scam/threat intelligence, and beginner crypto onboarding and banking guidance."
 category: finance
-service_url: https://cryptopulse-xi-five.vercel.app
+service_url: https://cryptopulse.theaslangroupllc.com
 openapi:
   path: openapi.json
 ---

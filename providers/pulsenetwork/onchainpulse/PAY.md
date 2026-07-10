@@ -4,7 +4,7 @@ title: "OnchainPulse"
 description: "Onchain token-safety and risk scanning — honeypot, rugpull, mint/freeze-authority, LP lock/burn and holder-concentration checks for Solana memecoins (by mint) and EVM tokens on 7 chains, plus RWA-tokenization and DeFi-yield intelligence."
 use_case: "Use when an agent needs a pre-trade safety check on a token — is this a honeypot, a rug, or safe to buy — for a Solana memecoin mint or an EVM contract, or for onchain RWA-tokenization, crypto-regulation, and DeFi-yield context."
 category: security
-service_url: https://onchainpulse-nine.vercel.app
+service_url: https://onchainpulse.theaslangroupllc.com
 openapi:
   path: openapi.json
 ---
