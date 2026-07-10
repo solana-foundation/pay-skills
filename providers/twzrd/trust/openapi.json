@@ -5,6 +5,11 @@
     "version": "0.5.2",
     "summary": "Trust + receipt layer for autonomous Solana agents (x402).",
     "description": "The trust + receipt layer agents call BEFORE paying (free preflight ReadinessCard) and AFTER paying (portable V6 receipt). Paid trust + Solana Market market intel are x402-enforced on Solana mainnet USDC; discovery, preflight, and receipt verification are free.",
+    "contact": {
+      "name": "TWZRD",
+      "url": "https://twzrd.xyz",
+      "email": "support@twzrd.xyz"
+    },
     "x-guidance": "Recommended call sequence for an agent: (1) read /llms.txt for orientation and /openapi.json for machine-readable schemas. Start free: GET /v1/intel/get_top_intel_agents?limit=1 for the top agent on the real Solana x402 payer graph (with total_payers_observed and corpus_slices), then qualify any specific counterparty for free via get_facilitator_footprint, get_counterparties, compare_wallets, or score_wallets_batch BEFORE paying. (2) call the free POST /v1/intel/preflight with the resource you are about to pay for and check can_spend / decision; (3) only if approved, pay for GET /v1/intel/trust/{pubkey} (0.05 USDC) to get live trust intel plus a portable V6 receipt -- pass seller_wallet=<the seller you are about to pay> (or ?merchant= on market routes) so the settle-time trust gate protects the spend; (4) verify any receipt offline via the free POST /v1/receipts/verify. Solana Market market intel routes are x402-paid (0.03 USDC) over HTTP and free over MCP."
   },
   "servers": [
@@ -21,6 +26,10 @@
     "descriptor": "https://intel.twzrd.xyz/.well-known/x402",
     "receipt": {
       "type": "twzrd.receipt.v6",
+      "supported_leaf_versions": [
+        "v5",
+        "v6"
+      ],
       "kind": "portable-signed",
       "verifiable": true,
       "leaf_hash": "keccak256",
@@ -39,7 +48,7 @@
   "paths": {
     "/v1/intel/trust/{pubkey}": {
       "get": {
-        "summary": "Fetch paid TWZRD trust receipt",
+        "summary": "Fetch trust intel and receipt",
         "description": "Live trust intelligence for a Solana agent pubkey (identity age, execution integrity, payment history, counterparty breadth) plus a portable V6 receipt. Proven on mainnet. Optional query: seller_wallet (the seller you are about to pay; arms the settle-time trust gate -- settlement is refused, charged:false, if that seller scores below threshold; the scored pubkey itself is never gated). x402-paid: 0.05 USDC (50000 base units) on Solana mainnet.",
         "responses": {
           "200": {
@@ -126,29 +135,16 @@
           "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402"
         },
         "x-payment-info": {
-          "amount": "50000",
-          "price_usdc": 0.05,
-          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-          "payTo": "GFpLvocNdEjnSsLH3VJQL6wGcjGxTbUBrj6fqN3Qe1Gs",
-          "scheme": "exact",
-          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402"
-        },
-        "x-pricing-tiers": {
-          "full": {
-            "query": {},
-            "amount": "50000",
-            "price_usdc": 0.05,
-            "description": "Default full trust response with signed V6 receipt."
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.050000"
           },
-          "mid": {
-            "query": {
-              "tier": "mid"
-            },
-            "amount": "10000",
-            "price_usdc": 0.01,
-            "description": "Mid-tier trust response: tier, score, attributes, and receipt pointer."
-          }
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
         },
         "parameters": [
           {
@@ -168,28 +164,92 @@
               "type": "string"
             },
             "description": "Optional seller counterparty (base58) you are about to pay -- distinct from the scored {pubkey}. When set (or sent as the X-TWZRD-Seller-Wallet header), the settle-time trust gate evaluates this wallet and refuses to settle (402, charged:false, no on-chain tx) if it scores below threshold. The scored subject itself is never gated."
+          }
+        ]
+      }
+    },
+    "/v1/intel/merchant/{pubkey}": {
+      "get": {
+        "summary": "Fetch merchant track-record receipt",
+        "description": "Signed merchant track-record receipt for a Solana receive wallet (pay_to). Attests inbound corpus demand quality (unique payers, tx volume, wash labels) plus a portable V6 receipt. attestation_kind=merchant_track_record - NOT a payer trust score. Zero inbound -> 422 charged:false (settle-when-deliverable). Free teaser: GET /v1/intel/merchant_card/{wallet}. x402-paid: 0.05 USDC (50000 base units) on Solana mainnet.",
+        "responses": {
+          "200": {
+            "description": "Paid response (JSON) including settlement tx.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "What the agent receives for the 0.05 USDC payment.",
+                  "properties": {
+                    "pubkey": {
+                      "type": "string"
+                    },
+                    "attestation_kind": {
+                      "type": "string",
+                      "description": "Always merchant_track_record."
+                    },
+                    "merchant_track_record": {
+                      "type": "object",
+                      "description": "Full provider_reputation_v1 inbound track record."
+                    },
+                    "demand_quality_snapshot": {
+                      "type": "object",
+                      "description": "Frozen free-card demand quality fields at mint time."
+                    },
+                    "twzrd_receipt": {
+                      "type": "object",
+                      "description": "Portable Ed25519-signed V6 receipt (verify offline)."
+                    }
+                  }
+                }
+              }
+            }
           },
+          "402": {
+            "description": "Payment required (x402). Returns payment-required header."
+          },
+          "503": {
+            "description": "Surface disabled (WZRD_AGENT_INTEL_ENABLED=false)."
+          }
+        },
+        "x402": {
+          "amount": "50000",
+          "price_usdc": 0.05,
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "payTo": "GFpLvocNdEjnSsLH3VJQL6wGcjGxTbUBrj6fqN3Qe1Gs",
+          "scheme": "exact",
+          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402"
+        },
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.050000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
           {
-            "name": "tier",
-            "in": "query",
-            "required": false,
+            "name": "pubkey",
+            "in": "path",
+            "required": true,
             "schema": {
-              "type": "string",
-              "enum": [
-                "full",
-                "mid"
-              ],
-              "default": "full"
+              "type": "string"
             },
-            "description": "Optional trust response tier. Omit or set full for the default 0.05 USDC response; set tier=mid for the 0.01 USDC mid-tier response. Query strings are modeled here, not in the OpenAPI path key."
+            "description": "Merchant (pay_to) Solana wallet address (base58)."
           }
         ]
       }
     },
     "/v1/intel/quick/{pubkey}": {
       "get": {
-        "summary": "Fetch quick wallet reputation",
-        "description": "Cheap $0.001 quick reputation check — basic tier + score only. Entry point for agents to qualify a counterparty before a larger payment. x402-paid: 0.001 USDC (1000 base units) on Solana mainnet.",
+        "summary": "Fetch quick reputation score",
+        "description": "Cheap $0.001 quick reputation check: basic tier + score only. Entry point for agents to qualify a counterparty before a larger payment. x402-paid: 0.001 USDC (1000 base units) on Solana mainnet.",
         "responses": {
           "200": {
             "description": "Paid response (JSON) including settlement tx."
@@ -211,13 +271,16 @@
           "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402"
         },
         "x-payment-info": {
-          "amount": "1000",
-          "price_usdc": 0.001,
-          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-          "payTo": "GFpLvocNdEjnSsLH3VJQL6wGcjGxTbUBrj6fqN3Qe1Gs",
-          "scheme": "exact",
-          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402"
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
         },
         "parameters": [
           {
@@ -234,7 +297,7 @@
     },
     "/v1/intel/solana_market_orderbook_depth": {
       "get": {
-        "summary": "Fetch Solana market orderbook depth",
+        "summary": "Fetch market orderbook depth",
         "description": "Solana Market normalized orderbook depth and liquidity profile for a ticker (query: ticker, optional merchant = provider_reputation sidecar + settle-time trust-gate counterparty). x402-paid: 0.03 USDC (30000 base units) on Solana mainnet.",
         "responses": {
           "200": {
@@ -257,13 +320,16 @@
           "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402"
         },
         "x-payment-info": {
-          "amount": "30000",
-          "price_usdc": 0.03,
-          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-          "payTo": "GFpLvocNdEjnSsLH3VJQL6wGcjGxTbUBrj6fqN3Qe1Gs",
-          "scheme": "exact",
-          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402"
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.030000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
         },
         "parameters": [
           {
@@ -289,7 +355,7 @@
     },
     "/v1/intel/solana_market_shape": {
       "get": {
-        "summary": "Fetch Solana market structure signals",
+        "summary": "Fetch market structure signals",
         "description": "Solana Market market structure signals for a ticker (concentration, venue fragmentation, settlement patterns). Query: ticker, optional merchant (provider_reputation sidecar + settle-time trust-gate counterparty). x402-paid: 0.03 USDC (30000 base units) on Solana mainnet.",
         "responses": {
           "200": {
@@ -312,13 +378,16 @@
           "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402"
         },
         "x-payment-info": {
-          "amount": "30000",
-          "price_usdc": 0.03,
-          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-          "payTo": "GFpLvocNdEjnSsLH3VJQL6wGcjGxTbUBrj6fqN3Qe1Gs",
-          "scheme": "exact",
-          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402"
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.030000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
         },
         "parameters": [
           {
@@ -344,7 +413,7 @@
     },
     "/v1/intel/solana_market_onchain_trades_summary": {
       "get": {
-        "summary": "Fetch Solana market trade summary",
+        "summary": "Summarize market on-chain trades",
         "description": "Solana Market recent on-chain trade activity: per-ticker via the by-market feed, or a global summary when no ticker is given. Optional query: ticker, merchant (provider_reputation sidecar + settle-time trust-gate counterparty). x402-paid: 0.03 USDC (30000 base units) on Solana mainnet.",
         "responses": {
           "200": {
@@ -367,13 +436,16 @@
           "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402"
         },
         "x-payment-info": {
-          "amount": "30000",
-          "price_usdc": 0.03,
-          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-          "payTo": "GFpLvocNdEjnSsLH3VJQL6wGcjGxTbUBrj6fqN3Qe1Gs",
-          "scheme": "exact",
-          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402"
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.030000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
         },
         "parameters": [
           {
@@ -397,10 +469,137 @@
         ]
       }
     },
+    "/v1/intel/solana_market_visibility_map": {
+      "get": {
+        "summary": "Fetch market visibility map",
+        "description": "Solana Market visibility map: which markets have meaningful on-chain settlement activity and liquidity. Optional query: merchant (provider_reputation sidecar + settle-time trust-gate counterparty). x402-paid: 0.03 USDC (30000 base units) on Solana mainnet.",
+        "responses": {
+          "200": {
+            "description": "Paid response (JSON) including settlement tx."
+          },
+          "402": {
+            "description": "Payment required (x402). Returns payment-required header."
+          },
+          "503": {
+            "description": "Surface disabled (WZRD_AGENT_INTEL_ENABLED=false)."
+          }
+        },
+        "x402": {
+          "amount": "30000",
+          "price_usdc": 0.03,
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "payTo": "GFpLvocNdEjnSsLH3VJQL6wGcjGxTbUBrj6fqN3Qe1Gs",
+          "scheme": "exact",
+          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402"
+        },
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.030000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "merchant",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional seller pubkey; when set and corpus has inbound payers, paid response includes data.provider_reputation (fail-open). Also the settle-time trust-gate counterparty: when the gate is enabled and this wallet scores below threshold, the server refuses to settle (402, charged:false, no on-chain tx) BEFORE your payment broadcasts. Omit it and the gate has nothing to evaluate."
+          }
+        ]
+      }
+    },
+    "/v1/intel/marketplace": {
+      "get": {
+        "summary": "Browse wash-flagged service directory",
+        "description": "Free Solana x402 service directory: PayAI Bazaar listings overlaid with the cross-facilitator corpus wash/sybil flag per provider, plus a corpus-wide flagged-seller avoid-list and stats. The only x402 directory that flags which listings to avoid before paying. Free, no payment, no auth.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK (JSON)."
+          }
+        },
+        "parameters": [
+          {
+            "name": "flagged_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "Return only wash-flagged listings."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100
+            },
+            "description": "Max directory rows to return (1-200)."
+          }
+        ]
+      }
+    },
+    "/v1/intel/x402-directory": {
+      "get": {
+        "summary": "Browse three-bazaar x402 directory",
+        "description": "Free combined three-bazaar x402 service directory: merges PayAI Bazaar, CDP Bazaar (Coinbase), and Agentic Market into a unified view indexed by payTo wallet with source tags, TWZRD wash overlay, cross-chain caveats. query params: flagged_only (bool), limit (1-500), source (payai_bazaar|cdp_bazaar|agentic_market). Free, no payment, no auth.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK (JSON)."
+          }
+        },
+        "parameters": [
+          {
+            "name": "flagged_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "Return only wash-flagged listings."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100
+            },
+            "description": "Max directory rows to return (1-500)."
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Source filter: payai_bazaar, cdp_bazaar, agentic_market, or omit for all."
+          }
+        ]
+      }
+    },
     "/v1/intel/x402-demo": {
       "get": {
-        "summary": "Fetch sample x402 trust demo",
+        "summary": "Run sample preflight demo",
         "description": "Free, sample-only homepage demo: GET opens a default bundle; POST accepts a custom preflight payload. Composes a LIVE preflight ReadinessCard + a SAMPLE signed V6 receipt in one call. charged:false, settles nothing, receipt_scope:sample_only. Pointers to the real paid trust endpoint + verify endpoint included. Free, no payment, no auth.",
+        "security": [],
         "responses": {
           "200": {
             "description": "OK (JSON)."
@@ -410,8 +609,9 @@
     },
     "/v1/intel/preflight": {
       "post": {
-        "summary": "Run preflight spend check",
+        "summary": "Run preflight spend gate",
         "description": "Free preflight ReadinessCard: can_spend / trust_score / proof / caveats / decision before paying an x402 resource. The one-command demo. Free, no payment, no auth.",
+        "security": [],
         "responses": {
           "200": {
             "description": "OK (JSON)."
@@ -460,10 +660,34 @@
         }
       }
     },
+    "/v1/intel/merchant_card/{wallet}": {
+      "get": {
+        "summary": "Fetch merchant demand card",
+        "description": "Free merchant card: demand quality around a Solana receive wallet (graph only). Path key is pay_to wallet or registry resource_id (PR-3). Unique payers, wash flags, catalog join, resource map claim resource_listing_only. Paid twin: GET /v1/intel/merchant/{wallet}. Free, no payment, no auth.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK (JSON)."
+          }
+        },
+        "parameters": [
+          {
+            "name": "wallet",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "`wallet` path parameter."
+          }
+        ]
+      }
+    },
     "/v1/intel/score_wallet_for_intel": {
       "get": {
-        "summary": "Score one wallet from x402 history",
+        "summary": "Score one wallet from x402 graph",
         "description": "Free discovery: 0-100 intel score for a wallet from its on-chain x402 payment history (query param: wallet). Free, no payment, no auth.",
+        "security": [],
         "responses": {
           "200": {
             "description": "OK (JSON)."
@@ -484,8 +708,9 @@
     },
     "/v1/intel/get_top_intel_agents": {
       "get": {
-        "summary": "List top x402 paying agents",
+        "summary": "List top observed x402 payers",
         "description": "Free discovery HERO: the most active paying agents on the real Solana x402 payer graph with their independent intel scores. One call (limit=1) returns top_agent plus total_payers_observed, corpus_slices, and leaderboard_note from a single self-consistent source. Observed payers are ECOSYSTEM behavior TWZRD scores (not calls or revenue to TWZRD); the raw count includes the April-2026 onboarding/demo faucet wave, so the durable graph is reported via corpus_slices (pre_spike_base, multi_merchant_ge2). Query params: limit, min_paid_calls, max_days_since_last. Free, no payment, no auth.",
+        "security": [],
         "responses": {
           "200": {
             "description": "OK (JSON)."
@@ -526,8 +751,9 @@
     },
     "/v1/intel/get_facilitator_footprint": {
       "get": {
-        "summary": "Fetch wallet facilitator footprint",
+        "summary": "List facilitators a payer used",
         "description": "Free discovery: which x402 facilitators a Solana payer has settled through, from the observed on-chain payer graph (query param: wallet). Use it to qualify a counterparty before paying. Free, no payment, no auth.",
+        "security": [],
         "responses": {
           "200": {
             "description": "OK (JSON)."
@@ -548,8 +774,9 @@
     },
     "/v1/intel/get_counterparties": {
       "get": {
-        "summary": "List wallet counterparties",
+        "summary": "List top merchants a wallet pays",
         "description": "Free discovery (capped teaser): the top distinct merchants/resources a Solana wallet pays, from the observed x402 payer graph (query params: wallet, limit<=25). Free, no payment, no auth.",
+        "security": [],
         "responses": {
           "200": {
             "description": "OK (JSON)."
@@ -583,6 +810,7 @@
       "get": {
         "summary": "Compare two wallet intel scores",
         "description": "Free discovery: side-by-side intel for two Solana wallets (intel score + counterparty breadth) to compare candidate agents before paying (query params: wallet_a, wallet_b). Free, no payment, no auth.",
+        "security": [],
         "responses": {
           "200": {
             "description": "OK (JSON)."
@@ -612,8 +840,9 @@
     },
     "/v1/intel/score_wallets_batch": {
       "post": {
-        "summary": "Score wallets from x402 history",
+        "summary": "Score up to 25 wallets in batch",
         "description": "Free discovery: 0-100 intel score for up to 25 Solana wallets in one call, from their observed on-chain x402 payment history. Free, no payment, no auth.",
+        "security": [],
         "responses": {
           "200": {
             "description": "OK (JSON)."
@@ -649,6 +878,7 @@
       "get": {
         "summary": "Fetch sample signed V6 receipt",
         "description": "Free no-wallet SAMPLE signed V6 receipt (illustrative score, null address). Verify offline via /v1/receipts/verify before paying for live trust. Free, no payment, no auth.",
+        "security": [],
         "responses": {
           "200": {
             "description": "OK (JSON)."
@@ -660,6 +890,7 @@
       "post": {
         "summary": "Verify a signed V6 receipt",
         "description": "Free local V6 receipt verifier: recompute the keccak256 leaf from a portable receipt preimage and compare. Free, no payment, no auth.",
+        "security": [],
         "responses": {
           "200": {
             "description": "OK (JSON)."
@@ -703,6 +934,31 @@
       "get": {
         "summary": "Fetch TWZRD service health",
         "description": "Service health + active network / pay_to / signal source. Free, no payment, no auth.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK (JSON)."
+          }
+        }
+      }
+    },
+    "/supported": {
+      "get": {
+        "summary": "List supported x402 payment kinds",
+        "description": "x402 facilitator /supported: Solana exact kinds + feePayer. Includes twzrd.merchant_attach capability (settle through TWZRD for free merchant track-record attach on POST /settle). Free, no payment, no auth.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK (JSON)."
+          }
+        }
+      }
+    },
+    "/settle": {
+      "post": {
+        "summary": "Submit x402 payment settlement",
+        "description": "x402 facilitator /settle: cosign feePayer, submit, confirm. Returns twzrd_receipt + merchant_attach (demand_quality_snapshot for payTo). Pitch: settle through TWZRD - merchant track-record + signed receipt for free. Best-effort attach; never voids on-chain settle. Free, no payment, no auth.",
+        "security": [],
         "responses": {
           "200": {
             "description": "OK (JSON)."
@@ -714,6 +970,7 @@
       "get": {
         "summary": "Fetch x402 service descriptor",
         "description": "x402 service descriptor (this document). Free, no payment, no auth.",
+        "security": [],
         "responses": {
           "200": {
             "description": "OK (JSON)."
@@ -725,6 +982,7 @@
       "get": {
         "summary": "Fetch OpenAPI route metadata",
         "description": "OpenAPI 3.1 description of the public routes with x402 payment annotations on paid paths. Free, no payment, no auth.",
+        "security": [],
         "responses": {
           "200": {
             "description": "OK (JSON)."
@@ -736,6 +994,7 @@
       "get": {
         "summary": "Fetch agent-facing service guide",
         "description": "Plain-text agent-facing pointer to the trust surface, discovery endpoints, and the live mainnet proof. Free, no payment, no auth.",
+        "security": [],
         "responses": {
           "200": {
             "description": "OK (JSON)."
@@ -747,6 +1006,7 @@
       "get": {
         "summary": "Fetch TWZRD A2A agent card",
         "description": "A2A agent card: endpoints, pricing, x402 + MCP capabilities for orchestrators and registries. Free, no payment, no auth.",
+        "security": [],
         "responses": {
           "200": {
             "description": "OK (JSON)."
@@ -757,19 +1017,11 @@
     "/v1/compute/inference": {
       "post": {
         "summary": "Run receipt-gated inference",
-        "description": "Receipt-gated inference proxy. Wallet must hold an active TWZRD Receipt (Silver+). Checks resolver -> verifies cnft_minted -> proxies to model backend. 402 if no receipt or tier too low.",
+        "description": "Receipt-gated inference proxy (no x402 charge, but not open access). Wallet must hold an active TWZRD Receipt (Silver+). Checks resolver -> verifies cnft_minted -> proxies to model backend. 402 if no receipt or tier too low.",
+        "security": [],
         "responses": {
           "200": {
             "description": "OK (JSON)."
-          },
-          "400": {
-            "description": "Missing required wallet or prompt field."
-          },
-          "402": {
-            "description": "Active TWZRD Receipt required, or wallet receipt tier is below Silver."
-          },
-          "502": {
-            "description": "Receipt resolver or inference backend unavailable."
           }
         },
         "requestBody": {
@@ -795,19 +1047,6 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "twzrdReceipt": []
-          }
-        ],
-        "x-access-gate": {
-          "type": "receipt",
-          "required_receipt": "twzrd.receipt",
-          "minimum_tier": "Silver",
-          "wallet_source": "requestBody.wallet",
-          "resolver": "https://api.twzrd.xyz/v1/receipts/r/{wallet}",
-          "failure_status": 402
         }
       }
     },
@@ -815,6 +1054,7 @@
       "get": {
         "summary": "Fetch wallet wash risk badge",
         "description": "Free SVG trust badge for any Solana wallet. Embed in marketplaces with <img>. Returns clean/suspicious/severe tier with live wash score. Cacheable (1h). Free, no payment, no auth.",
+        "security": [],
         "responses": {
           "200": {
             "description": "OK (JSON)."
@@ -837,6 +1077,7 @@
       "get": {
         "summary": "Fetch merchant reputation badge",
         "description": "Free SVG provider reputation badge for any Solana merchant wallet. Returns tier_a/b/c/blocked with wash flag. Embed in marketplaces with <img>. Cacheable (1h). Free, no payment, no auth.",
+        "security": [],
         "responses": {
           "200": {
             "description": "OK (JSON)."
@@ -855,90 +1096,125 @@
         ]
       }
     },
-    "/v1/wash/analyze": {
-      "post": {
-        "summary": "Analyze wallet wash risk",
-        "description": "Wash detection API — batch analyze up to 100 wallets for circular flow, ring detection, and collusion signals. Pro tier.",
+    "/v1/intel/badge/{pubkey}": {
+      "get": {
+        "summary": "Fetch trust-tier SVG badge",
+        "description": "Free SVG intel badge for any Solana pubkey. Returns coarse trust tier (Bronze/Silver/Gold/Platinum) from the live x402 payer graph. Embed in marketplaces with <img>. Cacheable (1h). Exact score + receipt are the paid GET /v1/intel/quick ($0.001) and /v1/intel/trust ($0.05). Free, no payment, no auth.",
+        "security": [],
         "responses": {
           "200": {
             "description": "OK (JSON)."
-          },
-          "401": {
-            "description": "Invalid Pro API key when premium gating is enabled."
-          },
-          "402": {
-            "description": "Pro access required when premium gating is enabled; request may be satisfied with Pro API key, CCM-qualified wallet, or x402 Solana USDC settlement."
-          },
-          "422": {
-            "description": "Invalid request body."
           }
         },
-        "security": [
+        "parameters": [
           {
-            "twzrdPro": []
+            "name": "pubkey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "`pubkey` path parameter."
           }
-        ],
-        "x-access-gate": {
-          "type": "pro_tier",
-          "required_when": "PREMIUM_GATING_ENABLED=true",
-          "alternatives": [
-            "X-API-Key Pro credential",
-            "CCM-qualified wallet",
-            "x402 Solana USDC settlement"
-          ],
-          "failure_status": 402
+        ]
+      }
+    },
+    "/v1/wash/analyze": {
+      "post": {
+        "summary": "Analyze wallet wash risk batch",
+        "description": "Wash detection API: batch analyze up to 100 wallets for circular flow, ring detection, and collusion signals. Pro tier.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK (JSON)."
+          }
         }
       }
     },
     "/v1/reputation/analyze": {
       "post": {
-        "summary": "Analyze merchant reputation",
-        "description": "Provider reputation API — batch analyze up to 100 merchants for heavy-fleet, captive concentration, and tier classification. Pro tier.",
+        "summary": "Analyze merchant reputation batch",
+        "description": "Provider reputation API: batch analyze up to 100 merchants for heavy-fleet, captive concentration, and tier classification. Pro tier.",
+        "security": [],
         "responses": {
           "200": {
             "description": "OK (JSON)."
-          },
-          "401": {
-            "description": "Invalid Pro API key when premium gating is enabled."
-          },
-          "402": {
-            "description": "Pro access required when premium gating is enabled; request may be satisfied with Pro API key, CCM-qualified wallet, or x402 Solana USDC settlement."
-          },
-          "422": {
-            "description": "Invalid request body."
           }
-        },
-        "security": [
-          {
-            "twzrdPro": []
-          }
-        ],
-        "x-access-gate": {
-          "type": "pro_tier",
-          "required_when": "PREMIUM_GATING_ENABLED=true",
-          "alternatives": [
-            "X-API-Key Pro credential",
-            "CCM-qualified wallet",
-            "x402 Solana USDC settlement"
-          ],
-          "failure_status": 402
         }
       }
-    }
-  },
-  "components": {
-    "securitySchemes": {
-      "twzrdReceipt": {
-        "type": "apiKey",
-        "in": "header",
-        "name": "X-TWZRD-Receipt",
-        "description": "Machine-readable marker for endpoints gated by an active TWZRD Receipt. The inference route resolves entitlement from the JSON body wallet via the receipt resolver and requires Silver+."
+    },
+    "/v1/intel/watch": {
+      "post": {
+        "summary": "Register a seller re-call watch",
+        "description": "Register a re-call watch on a seller wallet: TWZRD re-checks the seller when recheck_after_unix elapses and POSTs event twzrd.watch.recheck_due to your webhook when the score/decision materially changes. webhook_url optional (omit for poll-only); public HTTPS only. Max 25 active watches per payer_wallet. Free, no payment, no auth.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK (JSON)."
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Watch registration: payer + seller wallets, optional webhook.",
+                "properties": {
+                  "payer_wallet": {
+                    "type": "string",
+                    "description": "Your agent wallet (the watcher), base58."
+                  },
+                  "seller_wallet": {
+                    "type": "string",
+                    "description": "The seller/merchant wallet to watch, base58."
+                  },
+                  "webhook_url": {
+                    "type": "string",
+                    "description": "Optional public HTTPS URL to POST when intel materially changes. Omit for poll-only."
+                  }
+                },
+                "required": [
+                  "payer_wallet",
+                  "seller_wallet"
+                ]
+              }
+            }
+          }
+        }
       },
-      "twzrdPro": {
-        "type": "apiKey",
-        "in": "header",
-        "name": "X-API-Key",
-        "description": "TWZRD Pro access credential. When premium gating is enabled, Pro routes can also be satisfied by a CCM-qualified wallet or x402 Solana USDC settlement."
+      "get": {
+        "summary": "List re-call watches for a payer",
+        "description": "List active re-call watches for a payer wallet with current score/decision and recheck_after_unix (query param: payer_wallet; webhook URLs masked to host). Free, no payment, no auth.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK (JSON)."
+          }
+        }
+      }
+    },
+    "/v1/intel/watch/{watch_id}": {
+      "delete": {
+        "summary": "Remove a re-call watch by id",
+        "description": "Deactivate a re-call watch by ID (query param: payer_wallet must match the watch owner). Free, no payment, no auth.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK (JSON)."
+          }
+        },
+        "parameters": [
+          {
+            "name": "watch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "`watch_id` path parameter."
+          }
+        ]
       }
     }
   }
