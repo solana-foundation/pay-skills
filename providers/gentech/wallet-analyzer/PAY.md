@@ -32,7 +32,7 @@ openapi:
               "price": {
                 "mode": "fixed",
                 "currency": "USD",
-                "amount": "NaN"
+                "amount": "0.001"
               },
               "protocols": [
                 {
@@ -79,4 +79,4 @@ Cache results for frequently-checked addresses. Batch analyze during market scan
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/wallet/analyze` | AI-powered wallet analytics and smart money tracking |\n\n
+| `GET /api/wallet/analyze` | AI-powered wallet analytics and smart money tracking 

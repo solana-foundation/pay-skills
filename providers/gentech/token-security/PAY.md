@@ -32,7 +32,7 @@ openapi:
               "price": {
                 "mode": "fixed",
                 "currency": "USD",
-                "amount": "NaN"
+                "amount": "0.001"
               },
               "protocols": [
                 {
@@ -79,4 +79,4 @@ Cache results for the same token address (risk scores don't change frequently). 
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/token/risk` | AI-powered token risk assessment |\n\n
+| `GET /api/token/risk` | AI-powered token risk assessment 

@@ -32,7 +32,7 @@ openapi:
               "price": {
                 "mode": "fixed",
                 "currency": "USD",
-                "amount": "NaN"
+                "amount": "0.001"
               },
               "protocols": [
                 {
@@ -79,4 +79,4 @@ Prefer targeted searches over broad scans.
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/agentscan` | AgentScan — AI-powered agent reconnaissance |\n\n
+| `GET /api/agentscan` | AgentScan — AI-powered agent reconnaissance 

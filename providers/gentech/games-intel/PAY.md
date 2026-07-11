@@ -3,7 +3,7 @@ name: games-intel
 title: "Game Intelligence Suite"
 description: "Pay-per-request game intelligence. Search game libraries, compare prices across stores, track upcoming releases."
 use_case: "Search games across platforms, find cheapest prices, track releases, and stay updated with gaming news and patch notes."
-category: entertainment
+category: media
 service_url: https://gentech-x402-gateway.jordanjones0902.workers.dev
 openapi:
   content: |
@@ -32,7 +32,7 @@ openapi:
               "price": {
                 "mode": "fixed",
                 "currency": "USD",
-                "amount": "NaN"
+                "amount": "0.001"
               },
               "protocols": [
                 {
@@ -68,7 +68,7 @@ openapi:
               "price": {
                 "mode": "fixed",
                 "currency": "USD",
-                "amount": "NaN"
+                "amount": "0.001"
               },
               "protocols": [
                 {
@@ -104,7 +104,7 @@ openapi:
               "price": {
                 "mode": "fixed",
                 "currency": "USD",
-                "amount": "NaN"
+                "amount": "0.001"
               },
               "protocols": [
                 {
@@ -140,7 +140,7 @@ openapi:
               "price": {
                 "mode": "fixed",
                 "currency": "USD",
-                "amount": "NaN"
+                "amount": "0.001"
               },
               "protocols": [
                 {
@@ -187,4 +187,4 @@ Use search with specific game names rather than broad queries. Cache game IDs fo
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/games/search` | Game search across multiple platforms |\n| `GET /api/games/cheapest` | Cheapest game price finder |\n| `GET /api/games/news` | Game news and patch notes |\n| `GET /api/games/release` | Game release info and dates |\n\n
+| `GET /api/games/search` | Game search across multiple platforms | `GET /api/games/cheapest` | Cheapest game price finder | `GET /api/games/news` | Game news and patch notes | `GET /api/games/release` | Game release info and dates 
