@@ -3,7 +3,7 @@ name: nft-search
 title: "NFT Search & Collection Data"
 description: "Pay-per-request NFT search. Search collections, get real-time pricing, floor data, and collection analytics."
 use_case: "Search NFT collections across marketplaces, get floor prices, collection stats, and metadata for any NFT."
-category: nft
+category: other
 service_url: https://gentech-x402-gateway.jordanjones0902.workers.dev
 openapi:
   content: |
@@ -32,7 +32,7 @@ openapi:
               "price": {
                 "mode": "fixed",
                 "currency": "USD",
-                "amount": "NaN"
+                "amount": "0.001"
               },
               "protocols": [
                 {
@@ -79,4 +79,4 @@ Use collection slugs for precise lookups. Cache floor prices within your session
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/nft/search` | NFT search and collection data |\n\n
+| `GET /api/nft/search` | NFT search and collection data 

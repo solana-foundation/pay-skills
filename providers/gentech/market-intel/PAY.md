@@ -32,7 +32,7 @@ openapi:
               "price": {
                 "mode": "fixed",
                 "currency": "USD",
-                "amount": "NaN"
+                "amount": "0.001"
               },
               "protocols": [
                 {
@@ -68,7 +68,7 @@ openapi:
               "price": {
                 "mode": "fixed",
                 "currency": "USD",
-                "amount": "NaN"
+                "amount": "0.001"
               },
               "protocols": [
                 {
@@ -115,4 +115,4 @@ Narrow searches by specific product name for fastest results.
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/intel/search` | Unified search across games + movies |\n| `GET /api/intel/cheapest` | Cheapest across all categories |\n\n
+| `GET /api/intel/search` | Unified search across games + movies | `GET /api/intel/cheapest` | Cheapest across all categories 

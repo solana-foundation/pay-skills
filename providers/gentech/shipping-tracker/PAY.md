@@ -3,7 +3,7 @@ name: shipping-tracker
 title: "Multi-Carrier Shipping Tracker"
 description: "Pay-per-request shipping tracking. Track packages across 4 major carriers with real-time status, location, and ETA."
 use_case: "Track packages across UPS, FedEx, USPS, and DHL with real-time status updates, location data, and delivery estimates."
-category: logistics
+category: other
 service_url: https://gentech-x402-gateway.jordanjones0902.workers.dev
 openapi:
   content: |
@@ -32,7 +32,7 @@ openapi:
               "price": {
                 "mode": "fixed",
                 "currency": "USD",
-                "amount": "NaN"
+                "amount": "0.001"
               },
               "protocols": [
                 {
@@ -79,4 +79,4 @@ Use the auto-detect endpoint for carrier-agnostic tracking numbers.
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/shipping/track` | Multi-carrier shipping tracker |\n\n
+| `GET /api/shipping/track` | Multi-carrier shipping tracker 

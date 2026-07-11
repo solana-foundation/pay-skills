@@ -3,7 +3,7 @@ name: movie-intel
 title: "Movie Intelligence Suite"
 description: "Pay-per-request movie intelligence. Search, compare prices, get details, and watch trailers."
 use_case: "Search movies, find cheapest rental/buy prices, get detailed info (cast, studio, genres), and watch trailers across streaming platforms."
-category: entertainment
+category: media
 service_url: https://gentech-x402-gateway.jordanjones0902.workers.dev
 openapi:
   content: |
@@ -32,7 +32,7 @@ openapi:
               "price": {
                 "mode": "fixed",
                 "currency": "USD",
-                "amount": "NaN"
+                "amount": "0.001"
               },
               "protocols": [
                 {
@@ -68,7 +68,7 @@ openapi:
               "price": {
                 "mode": "fixed",
                 "currency": "USD",
-                "amount": "NaN"
+                "amount": "0.001"
               },
               "protocols": [
                 {
@@ -104,7 +104,7 @@ openapi:
               "price": {
                 "mode": "fixed",
                 "currency": "USD",
-                "amount": "NaN"
+                "amount": "0.001"
               },
               "protocols": [
                 {
@@ -140,7 +140,7 @@ openapi:
               "price": {
                 "mode": "fixed",
                 "currency": "USD",
-                "amount": "NaN"
+                "amount": "0.001"
               },
               "protocols": [
                 {
@@ -187,4 +187,4 @@ Search by exact title for best results. Use movie IDs for repeat lookups.
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/movies/search` | Movie search |\n| `GET /api/movies/cheapest` | Cheapest movie watch option |\n| `GET /api/movies/details` | Movie details (cast, studio, genres) |\n| `GET /api/movies/trailers` | Movie trailers (YouTube) |\n\n
+| `GET /api/movies/search` | Movie search | `GET /api/movies/cheapest` | Cheapest movie watch option | `GET /api/movies/details` | Movie details (cast, studio, genres) | `GET /api/movies/trailers` | Movie trailers (YouTube) 

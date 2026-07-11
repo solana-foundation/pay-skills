@@ -32,7 +32,7 @@ openapi:
               "price": {
                 "mode": "fixed",
                 "currency": "USD",
-                "amount": "NaN"
+                "amount": "0.001"
               },
               "protocols": [
                 {
@@ -79,4 +79,4 @@ Batch check multiple wallets in sequence during airdrop seasons.
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/airdrops/check` | Airdrop eligibility checker |\n\n
+| `GET /api/airdrops/check` | Airdrop eligibility checker 
