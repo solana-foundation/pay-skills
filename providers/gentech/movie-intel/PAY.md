@@ -8,164 +8,217 @@ service_url: https://gentech-x402-gateway.jordanjones0902.workers.dev
 openapi:
   content: |
     {
-      "openapi": "3.1.0",
-      "info": {
-        "title": "Movie Intelligence Suite",
-        "version": "1.0.0",
-        "description": "Pay-per-request movie intelligence. Search, compare prices, get details, and watch trailers."
-      },
-      "servers": [
-        {
-          "url": "https://gentech-x402-gateway.jordanjones0902.workers.dev",
-          "description": "GenTech x402 Gateway"
+        "openapi": "3.1.0",
+        "info": {
+            "title": "Movie Intelligence Suite",
+            "version": "1.0.0",
+            "description": "Pay-per-request movie intelligence. Search, compare prices, get details, and watch trailers."
+        },
+        "servers": [
+            {
+                "url": "https://gentech-x402-gateway.jordanjones0902.workers.dev",
+                "description": "GenTech x402 Gateway"
+            }
+        ],
+        "paths": {
+            "/api/movies/search": {
+                "get": {
+                    "operationId": "api_movies_search",
+                    "summary": "Movie search",
+                    "tags": [
+                        "movies"
+                    ],
+                    "x-payment-info": {
+                        "price": {
+                            "mode": "fixed",
+                            "currency": "USD",
+                            "amount": "0.001"
+                        },
+                        "protocols": [
+                            {
+                                "x402": {}
+                            }
+                        ],
+                        "networks": [
+                            "eip155:8453",
+                            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                            "eip155:43114",
+                            "eip155:56",
+                            "eip155:196"
+                        ]
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Successful response"
+                        },
+                        "402": {
+                            "description": "Payment Required \u2014 USDC on Base, Solana, Avalanche, BNB, or OKX"
+                        }
+                    },
+                    "parameters": [
+                        {
+                            "name": "q",
+                            "in": "query",
+                            "required": true,
+                            "schema": {
+                                "type": "string"
+                            },
+                            "description": "Movie title search query"
+                        }
+                    ]
+                }
+            },
+            "/api/movies/cheapest": {
+                "get": {
+                    "operationId": "api_movies_cheapest",
+                    "summary": "Cheapest movie watch option",
+                    "tags": [
+                        "movies"
+                    ],
+                    "x-payment-info": {
+                        "price": {
+                            "mode": "fixed",
+                            "currency": "USD",
+                            "amount": "0.001"
+                        },
+                        "protocols": [
+                            {
+                                "x402": {}
+                            }
+                        ],
+                        "networks": [
+                            "eip155:8453",
+                            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                            "eip155:43114",
+                            "eip155:56",
+                            "eip155:196"
+                        ]
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Successful response"
+                        },
+                        "402": {
+                            "description": "Payment Required \u2014 USDC on Base, Solana, Avalanche, BNB, or OKX"
+                        }
+                    },
+                    "parameters": [
+                        {
+                            "name": "title",
+                            "in": "query",
+                            "required": true,
+                            "schema": {
+                                "type": "string"
+                            },
+                            "description": "Movie title to find cheapest watch option"
+                        }
+                    ]
+                }
+            },
+            "/api/movies/details": {
+                "get": {
+                    "operationId": "api_movies_details",
+                    "summary": "Movie details (cast, studio, genres)",
+                    "tags": [
+                        "movies"
+                    ],
+                    "x-payment-info": {
+                        "price": {
+                            "mode": "fixed",
+                            "currency": "USD",
+                            "amount": "0.001"
+                        },
+                        "protocols": [
+                            {
+                                "x402": {}
+                            }
+                        ],
+                        "networks": [
+                            "eip155:8453",
+                            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                            "eip155:43114",
+                            "eip155:56",
+                            "eip155:196"
+                        ]
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Successful response"
+                        },
+                        "402": {
+                            "description": "Payment Required \u2014 USDC on Base, Solana, Avalanche, BNB, or OKX"
+                        }
+                    },
+                    "parameters": [
+                        {
+                            "name": "title",
+                            "in": "query",
+                            "required": true,
+                            "schema": {
+                                "type": "string"
+                            },
+                            "description": "Movie title to get details for"
+                        },
+                        {
+                            "name": "id",
+                            "in": "query",
+                            "required": false,
+                            "schema": {
+                                "type": "string"
+                            },
+                            "description": "Optional movie ID for precise lookup"
+                        }
+                    ]
+                }
+            },
+            "/api/movies/trailers": {
+                "get": {
+                    "operationId": "api_movies_trailers",
+                    "summary": "Movie trailers (YouTube)",
+                    "tags": [
+                        "movies"
+                    ],
+                    "x-payment-info": {
+                        "price": {
+                            "mode": "fixed",
+                            "currency": "USD",
+                            "amount": "0.001"
+                        },
+                        "protocols": [
+                            {
+                                "x402": {}
+                            }
+                        ],
+                        "networks": [
+                            "eip155:8453",
+                            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                            "eip155:43114",
+                            "eip155:56",
+                            "eip155:196"
+                        ]
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Successful response"
+                        },
+                        "402": {
+                            "description": "Payment Required \u2014 USDC on Base, Solana, Avalanche, BNB, or OKX"
+                        }
+                    },
+                    "parameters": [
+                        {
+                            "name": "title",
+                            "in": "query",
+                            "required": true,
+                            "schema": {
+                                "type": "string"
+                            },
+                            "description": "Movie title to find trailers for"
+                        }
+                    ]
+                }
+            }
         }
-      ],
-      "paths": {
-        "/api/movies/search": {
-          "get": {
-            "operationId": "api_movies_search",
-            "summary": "Movie search",
-            "tags": [
-              "movies"
-            ],
-            "x-payment-info": {
-              "price": {
-                "mode": "fixed",
-                "currency": "USD",
-                "amount": "0.001"
-              },
-              "protocols": [
-                {
-                  "x402": {}
-                }
-              ],
-              "networks": [
-                "eip155:8453",
-                "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-                "eip155:43114",
-                "eip155:56",
-                "eip155:196"
-              ]
-            },
-            "responses": {
-              "200": {
-                "description": "Successful response"
-              },
-              "402": {
-                "description": "Payment Required \u2014 USDC on Base, Solana, Avalanche, BNB, or OKX"
-              }
-            }
-          }
-        },
-        "/api/movies/cheapest": {
-          "get": {
-            "operationId": "api_movies_cheapest",
-            "summary": "Cheapest movie watch option",
-            "tags": [
-              "movies"
-            ],
-            "x-payment-info": {
-              "price": {
-                "mode": "fixed",
-                "currency": "USD",
-                "amount": "0.001"
-              },
-              "protocols": [
-                {
-                  "x402": {}
-                }
-              ],
-              "networks": [
-                "eip155:8453",
-                "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-                "eip155:43114",
-                "eip155:56",
-                "eip155:196"
-              ]
-            },
-            "responses": {
-              "200": {
-                "description": "Successful response"
-              },
-              "402": {
-                "description": "Payment Required \u2014 USDC on Base, Solana, Avalanche, BNB, or OKX"
-              }
-            }
-          }
-        },
-        "/api/movies/details": {
-          "get": {
-            "operationId": "api_movies_details",
-            "summary": "Movie details (cast, studio, genres)",
-            "tags": [
-              "movies"
-            ],
-            "x-payment-info": {
-              "price": {
-                "mode": "fixed",
-                "currency": "USD",
-                "amount": "0.001"
-              },
-              "protocols": [
-                {
-                  "x402": {}
-                }
-              ],
-              "networks": [
-                "eip155:8453",
-                "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-                "eip155:43114",
-                "eip155:56",
-                "eip155:196"
-              ]
-            },
-            "responses": {
-              "200": {
-                "description": "Successful response"
-              },
-              "402": {
-                "description": "Payment Required \u2014 USDC on Base, Solana, Avalanche, BNB, or OKX"
-              }
-            }
-          }
-        },
-        "/api/movies/trailers": {
-          "get": {
-            "operationId": "api_movies_trailers",
-            "summary": "Movie trailers (YouTube)",
-            "tags": [
-              "movies"
-            ],
-            "x-payment-info": {
-              "price": {
-                "mode": "fixed",
-                "currency": "USD",
-                "amount": "0.001"
-              },
-              "protocols": [
-                {
-                  "x402": {}
-                }
-              ],
-              "networks": [
-                "eip155:8453",
-                "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-                "eip155:43114",
-                "eip155:56",
-                "eip155:196"
-              ]
-            },
-            "responses": {
-              "200": {
-                "description": "Successful response"
-              },
-              "402": {
-                "description": "Payment Required \u2014 USDC on Base, Solana, Avalanche, BNB, or OKX"
-              }
-            }
-          }
-        }
-      }
     }
 network: solana
 accepts:
