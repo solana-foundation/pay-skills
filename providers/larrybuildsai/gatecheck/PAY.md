@@ -22,7 +22,7 @@ discovery is available at `https://proofbeforepay.vercel.app/gatecheck/mcp`.
 
 - Start with the $0.50 health probe only when a specific paid route needs an unpaid 402 check.
 - Choose the $1 quick readiness tier before the $5 deep or $10 report tiers; the live 402 challenge selects the amount from the requested tier.
-- Generate a $9 launch pack only after readiness evidence shows the service is suitable for distribution.
+- Choose the $9 single-route launch pack, $29 service launch pack, or $49 premium marketplace launch pack only after readiness evidence shows the service is suitable for distribution; the live 402 challenge selects the amount from the requested tier.
 - The deterministic trust-receipt endpoint costs $0.05.
 - Cache reports and receipt hashes; repeat a check only after a deployment or payment-configuration change.
 

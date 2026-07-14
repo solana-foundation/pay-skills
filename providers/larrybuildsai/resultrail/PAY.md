@@ -20,7 +20,7 @@ discovery is available at `https://proofbeforepay.vercel.app/resultrail/mcp`.
 
 ## Spend-aware usage
 
-- Use the public quote route before payment to confirm price and success criteria.
+- Use the free public `POST /v1/resultrail/quote` route before payment to confirm the exact price, paid endpoint, and success criteria.
 - Choose the $0.05 URL extraction when one page is sufficient.
 - Use the $0.12 domain pack only when company and technology signals are needed.
 - Cache source packs and receipt hashes instead of repeating unchanged requests.

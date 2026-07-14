@@ -21,8 +21,9 @@ discovery is available at `https://proofbeforepay.vercel.app/signal-desk/mcp`.
 ## Spend-aware usage
 
 - Start with the $0.03 route quote before buying multiple model or web-tool calls.
+- A public lead brief costs $0.03; buy it only when one bounded public URL or domain brief is sufficient.
 - Use the $0.01 token-risk snapshot only for a specific token and chain.
-- Reuse public lead briefs and comparison receipts instead of repeating the same request.
+- A market-tool comparison costs $0.03; reuse public lead briefs and comparison receipts instead of repeating the same request.
 - Treat results as planning inputs; do not route spending beyond the caller's declared budget.
 
 ## Safety and claim boundaries
