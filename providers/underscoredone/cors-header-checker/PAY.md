@@ -6,7 +6,7 @@ use_case: "Pick this when you need to see a live server's actual CORS response h
 category: devtools
 service_url: https://cors-header-checker.underscoredone.com
 openapi:
-  url: https://cors-header-checker.underscoredone.com/openapi.json
+  path: openapi.json
 ---
 
 Sends a real request to any URL you provide, attaches an Origin header, and reads back all six standard cross-origin permission headers the server returns. Tells you whether cross-origin requests are enabled at all, whether your specific origin is permitted, and shows you every permission value exactly as the server sent it. Perfect for figuring out why a browser is blocking a request, confirming a freshly deployed service is configured correctly, or auditing whether a public API allows credentialed cross-origin calls.
