@@ -1,93 +1,29 @@
 ---
 name: nft-search
-title: "NFT Search & Collection Data"
-description: "Pay-per-request NFT search. Search collections, get real-time pricing, floor data, and collection analytics."
-use_case: "Search NFT collections across marketplaces, get floor prices, collection stats, and metadata for any NFT."
-category: other
+title: "NFT Search — Collection & Asset Data"
+description: "Multi-chain NFT search engine. Search collections and individual assets across Ethereum, Solana, Polygon, and other major NFT ecosystems with collection metadata and floor prices."
+use_case: "Use when an agent needs to search NFT collections, get floor prices, find asset data across chains, or research NFT collection metadata and trading activity."
+category: finance
 service_url: https://gentech-x402-gateway.jordanjones0902.workers.dev
 openapi:
-  content: |
-    {
-        "openapi": "3.1.0",
-        "info": {
-            "title": "NFT Search & Collection Data",
-            "version": "1.0.0",
-            "description": "Pay-per-request NFT search. Search collections, get real-time pricing, floor data, and collection analytics."
-        },
-        "servers": [
-            {
-                "url": "https://gentech-x402-gateway.jordanjones0902.workers.dev",
-                "description": "GenTech x402 Gateway"
-            }
-        ],
-        "paths": {
-            "/api/nft/search": {
-                "get": {
-                    "operationId": "api_nft_search",
-                    "summary": "NFT search and collection data",
-                    "tags": [
-                        "nft"
-                    ],
-                    "x-payment-info": {
-                        "price": {
-                            "mode": "fixed",
-                            "currency": "USD",
-                            "amount": "0.001"
-                        },
-                        "protocols": [
-                            {
-                                "x402": {}
-                            }
-                        ],
-                        "networks": [
-                            "eip155:8453",
-                            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-                            "eip155:43114",
-                            "eip155:56",
-                            "eip155:196"
-                        ]
-                    },
-                    "responses": {
-                        "200": {
-                            "description": "Successful response"
-                        },
-                        "402": {
-                            "description": "Payment Required \u2014 USDC on Base, Solana, Avalanche, BNB, or OKX"
-                        }
-                    },
-                    "parameters": [
-                        {
-                            "name": "collection",
-                            "in": "query",
-                            "required": true,
-                            "schema": {
-                                "type": "string"
-                            },
-                            "description": "NFT collection slug or contract address"
-                        }
-                    ]
-                }
-            }
-        }
-    }
-network: solana
-accepts:
-  - eip155:8453
-  - solana:mainnet
+  path: ../openapi.json
 pricing:
   per_request: 0.001
 ---
 
-## NFT Search & Collection Data
 
-Pay-per-request NFT search. Search collections, get real-time pricing, floor data, and collection analytics.
+# GenTech Labs — NFT Search — Collection & Asset Data
 
-### Spend-aware usage
+Multi-chain NFT search engine. Search collections and individual assets across Ethereum, Solana, Polygon, and other major NFT ecosystems with collection metadata and floor prices.
 
-Use collection slugs for precise lookups. Cache floor prices within your session.
+## Spend-aware usage
 
-### Endpoints
+- Prefer specific lookups over broad searches to minimize cost.
+- Cache results when possible — many endpoints support TTL-based caching.
+- Use the cheapest endpoint that satisfies the task.
+
+## Endpoints
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/nft/search` | NFT search and collection data 
+| `GET /api/nft/search` | NFT Search — Collection & Asset Data — primary endpoint |

@@ -1,243 +1,29 @@
 ---
 name: movie-intel
-title: "Movie Intelligence Suite"
-description: "Pay-per-request movie intelligence. Search, compare prices, get details, and watch trailers."
-use_case: "Search movies, find cheapest rental/buy prices, get detailed info (cast, studio, genres), and watch trailers across streaming platforms."
-category: media
+title: "Movie Intelligence — Search, Details & Trailers"
+description: "Comprehensive movie search covering pricing, cast and crew details, studio info, genre classification, and YouTube trailer links across major digital retailers."
+use_case: "Use when an agent needs to search movies, find where to watch cheapest, get cast/crew details, check movie metadata, or retrieve trailer links."
+category: finance
 service_url: https://gentech-x402-gateway.jordanjones0902.workers.dev
 openapi:
-  content: |
-    {
-        "openapi": "3.1.0",
-        "info": {
-            "title": "Movie Intelligence Suite",
-            "version": "1.0.0",
-            "description": "Pay-per-request movie intelligence. Search, compare prices, get details, and watch trailers."
-        },
-        "servers": [
-            {
-                "url": "https://gentech-x402-gateway.jordanjones0902.workers.dev",
-                "description": "GenTech x402 Gateway"
-            }
-        ],
-        "paths": {
-            "/api/movies/search": {
-                "get": {
-                    "operationId": "api_movies_search",
-                    "summary": "Movie search",
-                    "tags": [
-                        "movies"
-                    ],
-                    "x-payment-info": {
-                        "price": {
-                            "mode": "fixed",
-                            "currency": "USD",
-                            "amount": "0.001"
-                        },
-                        "protocols": [
-                            {
-                                "x402": {}
-                            }
-                        ],
-                        "networks": [
-                            "eip155:8453",
-                            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-                            "eip155:43114",
-                            "eip155:56",
-                            "eip155:196"
-                        ]
-                    },
-                    "responses": {
-                        "200": {
-                            "description": "Successful response"
-                        },
-                        "402": {
-                            "description": "Payment Required \u2014 USDC on Base, Solana, Avalanche, BNB, or OKX"
-                        }
-                    },
-                    "parameters": [
-                        {
-                            "name": "q",
-                            "in": "query",
-                            "required": true,
-                            "schema": {
-                                "type": "string"
-                            },
-                            "description": "Movie title search query"
-                        }
-                    ]
-                }
-            },
-            "/api/movies/cheapest": {
-                "get": {
-                    "operationId": "api_movies_cheapest",
-                    "summary": "Cheapest movie watch option",
-                    "tags": [
-                        "movies"
-                    ],
-                    "x-payment-info": {
-                        "price": {
-                            "mode": "fixed",
-                            "currency": "USD",
-                            "amount": "0.001"
-                        },
-                        "protocols": [
-                            {
-                                "x402": {}
-                            }
-                        ],
-                        "networks": [
-                            "eip155:8453",
-                            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-                            "eip155:43114",
-                            "eip155:56",
-                            "eip155:196"
-                        ]
-                    },
-                    "responses": {
-                        "200": {
-                            "description": "Successful response"
-                        },
-                        "402": {
-                            "description": "Payment Required \u2014 USDC on Base, Solana, Avalanche, BNB, or OKX"
-                        }
-                    },
-                    "parameters": [
-                        {
-                            "name": "title",
-                            "in": "query",
-                            "required": true,
-                            "schema": {
-                                "type": "string"
-                            },
-                            "description": "Movie title to find cheapest watch option"
-                        }
-                    ]
-                }
-            },
-            "/api/movies/details": {
-                "get": {
-                    "operationId": "api_movies_details",
-                    "summary": "Movie details (cast, studio, genres)",
-                    "tags": [
-                        "movies"
-                    ],
-                    "x-payment-info": {
-                        "price": {
-                            "mode": "fixed",
-                            "currency": "USD",
-                            "amount": "0.001"
-                        },
-                        "protocols": [
-                            {
-                                "x402": {}
-                            }
-                        ],
-                        "networks": [
-                            "eip155:8453",
-                            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-                            "eip155:43114",
-                            "eip155:56",
-                            "eip155:196"
-                        ]
-                    },
-                    "responses": {
-                        "200": {
-                            "description": "Successful response"
-                        },
-                        "402": {
-                            "description": "Payment Required \u2014 USDC on Base, Solana, Avalanche, BNB, or OKX"
-                        }
-                    },
-                    "parameters": [
-                        {
-                            "name": "title",
-                            "in": "query",
-                            "required": true,
-                            "schema": {
-                                "type": "string"
-                            },
-                            "description": "Movie title to get details for"
-                        },
-                        {
-                            "name": "id",
-                            "in": "query",
-                            "required": false,
-                            "schema": {
-                                "type": "string"
-                            },
-                            "description": "Optional movie ID for precise lookup"
-                        }
-                    ]
-                }
-            },
-            "/api/movies/trailers": {
-                "get": {
-                    "operationId": "api_movies_trailers",
-                    "summary": "Movie trailers (YouTube)",
-                    "tags": [
-                        "movies"
-                    ],
-                    "x-payment-info": {
-                        "price": {
-                            "mode": "fixed",
-                            "currency": "USD",
-                            "amount": "0.001"
-                        },
-                        "protocols": [
-                            {
-                                "x402": {}
-                            }
-                        ],
-                        "networks": [
-                            "eip155:8453",
-                            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-                            "eip155:43114",
-                            "eip155:56",
-                            "eip155:196"
-                        ]
-                    },
-                    "responses": {
-                        "200": {
-                            "description": "Successful response"
-                        },
-                        "402": {
-                            "description": "Payment Required \u2014 USDC on Base, Solana, Avalanche, BNB, or OKX"
-                        }
-                    },
-                    "parameters": [
-                        {
-                            "name": "title",
-                            "in": "query",
-                            "required": true,
-                            "schema": {
-                                "type": "string"
-                            },
-                            "description": "Movie title to find trailers for"
-                        }
-                    ]
-                }
-            }
-        }
-    }
-network: solana
-accepts:
-  - eip155:8453
-  - solana:mainnet
+  path: ../openapi.json
 pricing:
   per_request: 0.001
 ---
 
-## Movie Intelligence Suite
 
-Pay-per-request movie intelligence. Search, compare prices, get details, and watch trailers.
+# GenTech Labs — Movie Intelligence — Search, Details & Trailers
 
-### Spend-aware usage
+Comprehensive movie search covering pricing, cast and crew details, studio info, genre classification, and YouTube trailer links across major digital retailers.
 
-Search by exact title for best results. Use movie IDs for repeat lookups.
+## Spend-aware usage
 
-### Endpoints
+- Prefer specific lookups over broad searches to minimize cost.
+- Cache results when possible — many endpoints support TTL-based caching.
+- Use the cheapest endpoint that satisfies the task.
+
+## Endpoints
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/movies/search` | Movie search | `GET /api/movies/cheapest` | Cheapest movie watch option | `GET /api/movies/details` | Movie details (cast, studio, genres) | `GET /api/movies/trailers` | Movie trailers (YouTube) 
+| `GET /api/movies/search` | Movie Intelligence — Search, Details & Trailers — primary endpoint |

@@ -1,140 +1,29 @@
 ---
 name: market-intel
-title: "Market Intelligence"
-description: "Pay-per-request market intelligence. Compare prices, find deals, and make informed purchasing decisions."
-use_case: "Search and compare prices across games and entertainment. Find the cheapest option for any title or product."
+title: "Market Intelligence — Price Comparison"
+description: "Unified product and price comparison engine across games, entertainment, and digital goods. Find the cheapest option for any title or product across multiple storefronts."
+use_case: "Use when an agent needs to compare prices across categories, find the cheapest option for a product, or get unified search results across games and entertainment."
 category: finance
 service_url: https://gentech-x402-gateway.jordanjones0902.workers.dev
 openapi:
-  content: |
-    {
-        "openapi": "3.1.0",
-        "info": {
-            "title": "Market Intelligence",
-            "version": "1.0.0",
-            "description": "Pay-per-request market intelligence. Compare prices, find deals, and make informed purchasing decisions."
-        },
-        "servers": [
-            {
-                "url": "https://gentech-x402-gateway.jordanjones0902.workers.dev",
-                "description": "GenTech x402 Gateway"
-            }
-        ],
-        "paths": {
-            "/api/intel/search": {
-                "get": {
-                    "operationId": "api_intel_search",
-                    "summary": "Unified search across games + movies",
-                    "tags": [
-                        "intel"
-                    ],
-                    "x-payment-info": {
-                        "price": {
-                            "mode": "fixed",
-                            "currency": "USD",
-                            "amount": "0.001"
-                        },
-                        "protocols": [
-                            {
-                                "x402": {}
-                            }
-                        ],
-                        "networks": [
-                            "eip155:8453",
-                            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-                            "eip155:43114",
-                            "eip155:56",
-                            "eip155:196"
-                        ]
-                    },
-                    "responses": {
-                        "200": {
-                            "description": "Successful response"
-                        },
-                        "402": {
-                            "description": "Payment Required \u2014 USDC on Base, Solana, Avalanche, BNB, or OKX"
-                        }
-                    },
-                    "parameters": [
-                        {
-                            "name": "q",
-                            "in": "query",
-                            "required": true,
-                            "schema": {
-                                "type": "string"
-                            },
-                            "description": "Product search query across games and movies"
-                        }
-                    ]
-                }
-            },
-            "/api/intel/cheapest": {
-                "get": {
-                    "operationId": "api_intel_cheapest",
-                    "summary": "Cheapest across all categories",
-                    "tags": [
-                        "intel"
-                    ],
-                    "x-payment-info": {
-                        "price": {
-                            "mode": "fixed",
-                            "currency": "USD",
-                            "amount": "0.001"
-                        },
-                        "protocols": [
-                            {
-                                "x402": {}
-                            }
-                        ],
-                        "networks": [
-                            "eip155:8453",
-                            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-                            "eip155:43114",
-                            "eip155:56",
-                            "eip155:196"
-                        ]
-                    },
-                    "responses": {
-                        "200": {
-                            "description": "Successful response"
-                        },
-                        "402": {
-                            "description": "Payment Required \u2014 USDC on Base, Solana, Avalanche, BNB, or OKX"
-                        }
-                    },
-                    "parameters": [
-                        {
-                            "name": "q",
-                            "in": "query",
-                            "required": true,
-                            "schema": {
-                                "type": "string"
-                            },
-                            "description": "Product name to find cheapest option"
-                        }
-                    ]
-                }
-            }
-        }
-    }
-network: solana
-accepts:
-  - eip155:8453
-  - solana:mainnet
+  path: ../openapi.json
 pricing:
   per_request: 0.001
 ---
 
-## Market Intelligence
 
-Pay-per-request market intelligence. Compare prices, find deals, and make informed purchasing decisions.
+# GenTech Labs — Market Intelligence — Price Comparison
 
-### Spend-aware usage
+Unified product and price comparison engine across games, entertainment, and digital goods. Find the cheapest option for any title or product across multiple storefronts.
 
-Narrow searches by specific product name for fastest results.
+## Spend-aware usage
 
-### Endpoints
+- Prefer specific lookups over broad searches to minimize cost.
+- Cache results when possible — many endpoints support TTL-based caching.
+- Use the cheapest endpoint that satisfies the task.
+
+## Endpoints
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/intel/search` | Unified search across games + movies | `GET /api/intel/cheapest` | Cheapest across all categories 
+| `GET /api/intel/search` | Market Intelligence — Price Comparison — primary endpoint |
