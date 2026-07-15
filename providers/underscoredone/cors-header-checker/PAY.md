@@ -2,7 +2,7 @@
 name: cors-header-checker
 title: "CORS Header Checker"
 description: "Sends a real request to any URL you provide, attaches an Origin header, and reads back all six standard cross-origin permission headers the server returns. No API key required — authenticate with an EVM or Solana wallet via SIWX and pay with USDC credits."
-use_case: "Pick this when you need to see a live server's actual CORS response headers for a specific origin, not guess from docs. Use it to diagnose browser-blocked requests, verify a fresh deploy, or audit whether an API permits credentialed cross-origin calls — all payable with USDC via x402 without an account."
+use_case: "Use when you need to see a live server's actual CORS response headers for a specific origin, not guess from docs. Use it to diagnose browser-blocked requests, verify a fresh deploy, or audit whether an API permits credentialed cross-origin calls — all payable with USDC via x402 without an account."
 category: devtools
 service_url: https://cors-header-checker.underscoredone.com
 openapi:
