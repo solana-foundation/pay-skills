@@ -1,29 +1,22 @@
 ---
 name: nft-search
-title: "NFT Search — Collection & Asset Data"
-description: "Multi-chain NFT search engine. Search collections and individual assets across Ethereum, Solana, Polygon, and other major NFT ecosystems with collection metadata and floor prices."
-use_case: "Use when an agent needs to search NFT collections, get floor prices, find asset data across chains, or research NFT collection metadata and trading activity."
+title: "NFT Search — Multi-Chain Collections & Assets"
+description: "Search NFT collections and assets across Ethereum, Solana, Polygon, and other major ecosystems. Returns collection metadata, floor prices, volume data, and asset details."
+use_case: "Use when an agent needs to research NFT collections, check floor prices, find asset data, or compare collections across chains."
 category: finance
 service_url: https://gentech-x402-gateway.jordanjones0902.workers.dev
 openapi:
-  path: ../openapi.json
+  path: openapi.json
 pricing:
-  per_request: 0.001
+  per_request: 0.005
 ---
 
+# GenTech Labs — NFT Search
 
-# GenTech Labs — NFT Search — Collection & Asset Data
-
-Multi-chain NFT search engine. Search collections and individual assets across Ethereum, Solana, Polygon, and other major NFT ecosystems with collection metadata and floor prices.
-
-## Spend-aware usage
-
-- Prefer specific lookups over broad searches to minimize cost.
-- Cache results when possible — many endpoints support TTL-based caching.
-- Use the cheapest endpoint that satisfies the task.
+Multi-chain NFT collection and asset search.
 
 ## Endpoints
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/nft/search` | NFT Search — Collection & Asset Data — primary endpoint |
+| Endpoint | Description | Price |
+|----------|-------------|-------|
+| `GET /api/nft/search` | Multi-chain NFT collection search | $0.005 |

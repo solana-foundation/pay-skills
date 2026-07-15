@@ -1,29 +1,25 @@
 ---
 name: movie-intel
-title: "Movie Intelligence — Search, Details & Trailers"
-description: "Comprehensive movie search covering pricing, cast and crew details, studio info, genre classification, and YouTube trailer links across major digital retailers."
-use_case: "Use when an agent needs to search movies, find where to watch cheapest, get cast/crew details, check movie metadata, or retrieve trailer links."
-category: finance
+title: "Movie Intel — Search, Details, Trailers & Deals"
+description: "Find movies, compare streaming/rental prices, get cast/crew details, and find trailers. Covers major streaming and rental platforms."
+use_case: "Use when an agent needs to find where to watch a movie, get the best price, check cast/crew info, or find trailers."
+category: media
 service_url: https://gentech-x402-gateway.jordanjones0902.workers.dev
 openapi:
-  path: ../openapi.json
+  path: openapi.json
 pricing:
-  per_request: 0.001
+  per_request: 0.005
 ---
 
+# GenTech Labs — Movie Intel
 
-# GenTech Labs — Movie Intelligence — Search, Details & Trailers
-
-Comprehensive movie search covering pricing, cast and crew details, studio info, genre classification, and YouTube trailer links across major digital retailers.
-
-## Spend-aware usage
-
-- Prefer specific lookups over broad searches to minimize cost.
-- Cache results when possible — many endpoints support TTL-based caching.
-- Use the cheapest endpoint that satisfies the task.
+Movie search with price comparison, cast/crew details, and trailer links.
 
 ## Endpoints
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/movies/search` | Movie Intelligence — Search, Details & Trailers — primary endpoint |
+| Endpoint | Description | Price |
+|----------|-------------|-------|
+| `GET /api/movies/search` | Movie search with price comparison | $0.005 |
+| `GET /api/movies/cheapest` | Find cheapest place to watch | $0.005 |
+| `GET /api/movies/details` | Cast, crew, studio, genres | $0.001 |
+| `GET /api/movies/trailers` | YouTube trailer links | $0.001 |

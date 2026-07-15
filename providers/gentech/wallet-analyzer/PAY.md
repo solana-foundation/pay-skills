@@ -1,29 +1,22 @@
 ---
 name: wallet-analyzer
-title: "Wallet Analytics — AI Smart Money Tracking"
-description: "AI-powered wallet analytics with smart money tracking. Analyzes transaction history, P&L, portfolio composition, top trader identification, and behavioral pattern recognition."
-use_case: "Use when an agent needs to analyze a wallet's trading history, track smart money movements, calculate wallet P&L, identify top traders, or profile wallet behavior patterns."
+title: "Wallet Analyzer — AI Smart Money Tracking"
+description: "AI-powered wallet analysis with smart money tracking. Analyzes transaction history, P&L, portfolio composition, and behavioral patterns."
+use_case: "Use when an agent needs to analyze a wallet's performance, track smart money movements, or evaluate trading strategies."
 category: finance
 service_url: https://gentech-x402-gateway.jordanjones0902.workers.dev
 openapi:
-  path: ../openapi.json
+  path: openapi.json
 pricing:
-  per_request: 0.001
+  per_request: 0.025
 ---
 
+# GenTech Labs — Wallet Analyzer
 
-# GenTech Labs — Wallet Analytics — AI Smart Money Tracking
-
-AI-powered wallet analytics with smart money tracking. Analyzes transaction history, P&L, portfolio composition, top trader identification, and behavioral pattern recognition.
-
-## Spend-aware usage
-
-- Prefer specific lookups over broad searches to minimize cost.
-- Cache results when possible — many endpoints support TTL-based caching.
-- Use the cheapest endpoint that satisfies the task.
+Deep wallet analytics with AI-powered pattern recognition and smart money tracking.
 
 ## Endpoints
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/wallet/analyze` | Wallet Analytics — AI Smart Money Tracking — primary endpoint |
+| Endpoint | Description | Price |
+|----------|-------------|-------|
+| `GET /api/wallet/analyze` | AI wallet analytics and P&L | $0.025 |

@@ -3,14 +3,13 @@ name: agent-discover
 title: "AgentScan — AI Agent Reconnaissance"
 description: "AgentScan performs AI-powered reconnaissance of on-chain agents, businesses, and identity profiles. Returns agent type, revenue, location, contact data, and social presence."
 use_case: "Use when an agent needs to research another agent's on-chain identity, verify business registration, find contact information, or perform competitive intelligence."
-category: finance
+category: data
 service_url: https://gentech-x402-gateway.jordanjones0902.workers.dev
 openapi:
-  path: ../openapi.json
+  path: openapi.json
 pricing:
-  per_request: 0.001
+  per_request: 0.100
 ---
-
 
 # GenTech Labs — AgentScan — AI Agent Reconnaissance
 
@@ -18,12 +17,11 @@ AgentScan performs AI-powered reconnaissance of on-chain agents, businesses, and
 
 ## Spend-aware usage
 
-- Prefer specific lookups over broad searches to minimize cost.
-- Cache results when possible — many endpoints support TTL-based caching.
-- Use the cheapest endpoint that satisfies the task.
+- Use this only when you need deep agent intelligence — it's the most expensive endpoint at $0.10.
+- For lighter lookups, prefer market-intel or wallet-analyzer first.
 
 ## Endpoints
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/agentscan` | AgentScan — AI Agent Reconnaissance — primary endpoint |
+| Endpoint | Description | Price |
+|----------|-------------|-------|
+| `GET /api/agentscan` | AgentScan — AI Agent Reconnaissance | $0.10 |
