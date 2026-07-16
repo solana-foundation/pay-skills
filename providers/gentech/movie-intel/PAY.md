@@ -8,7 +8,7 @@ service_url: https://gentech-x402-gateway.jordanjones0902.workers.dev
 openapi:
   path: openapi.json
 pricing:
-  per_request: 0.005
+  per_request: 0.001
 ---
 
 # GenTech Labs — Movie Intel
