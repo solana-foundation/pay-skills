@@ -54,6 +54,8 @@ USDC list price (e.g. $0.10) converted to token atomic via DexScreener or `fallb
 ## Spend-aware usage
 
 - Call **build-accept on your backend** — never expose merchant pricing logic client-only.
+- Derive `usdAmount`, `merchantId`, and `resourceUrl` from your authenticated server-side product configuration. Never forward buyer-supplied values to build or verify.
+- Reuse the exact server-authorized tuple for verification. A successful Token Pay verification proves that tuple was paid; your backend remains responsible for authorizing the protected resource.
 - Set `resourceKinds: ["external"]` and `allowedOrigins` when gating your own API.
 - Use **preview API** before deploy to catch ATA / price blockers.
 - One tiny token transfer to `payTo` initializes the merchant ATA before first live payment.

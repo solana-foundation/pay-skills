@@ -4,7 +4,7 @@ title: "Clustly"
 description: "Tip any X (Twitter) handle in Solana USDC via x402. Registered Clustly users receive directly to their linked Solana wallet; unregistered handles are escrowed in a Privy-custodied placeholder pocket the recipient can claim later via X OAuth."
 use_case: "Use for paying any X handle in USDC without a wallet address, tipping content, micropayments, programmatic rewards, agent-to-agent payouts, and routing funds to recipients who do not yet have a crypto wallet."
 category: finance
-service_url: https://clustly.ai
+service_url: https://tip.clustly.ai
 openapi:
   path: openapi.json
 ---

@@ -1,0 +1,1388 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "BRIJ Flight API",
+    "version": "1.0.0",
+    "description": "Production flight API for paid flight search, escrow-backed booking intents,\nand airline order status lookup.\n\n`POST /air/search` accepts either a valid x402 `PAYMENT-SIGNATURE` or a\nBRIJ gateway sponsored-preview signature. `POST /air/intents`,\n`POST /air/intents/{intent_id}/book`, and\n`POST /air/intents/{intent_id}/refund-requests` are protected by x402.\nClients that do not send a valid `PAYMENT-SIGNATURE` header receive\n`402 Payment Required` with a `PAYMENT-REQUIRED` header and JSON payment\nrequirements body.\n"
+  },
+  "servers": [
+    {
+      "url": "https://travel.brij.fi"
+    }
+  ],
+  "tags": [
+    {
+      "name": "health"
+    },
+    {
+      "name": "flights"
+    },
+    {
+      "name": "intents"
+    },
+    {
+      "name": "orders"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "operationId": "getHealth",
+        "summary": "Check API service liveness.",
+        "responses": {
+          "200": {
+            "description": "Service is alive.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "operationId": "getReadiness",
+        "summary": "Check database readiness.",
+        "responses": {
+          "200": {
+            "description": "Service is ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service is not ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.yaml": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "operationId": "getOpenAPI",
+        "summary": "Fetch this OpenAPI document.",
+        "responses": {
+          "200": {
+            "description": "OpenAPI YAML.",
+            "content": {
+              "application/yaml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/air/search": {
+      "post": {
+        "tags": [
+          "flights"
+        ],
+        "operationId": "searchFlights",
+        "summary": "Search live flight offers.",
+        "description": "Flight search can be paid with x402 or sponsored by the BRIJ gateway.\n\nFor direct x402 clients, send a valid `PAYMENT-SIGNATURE` header. Without\npayment, the API returns `402 Payment Required` carrying the **current** price.\n\nFor BRIJ Wallet preview calls, the gateway may send `X-BRIJ-SPONSORED-*`\nheaders. Providers should treat that as a BRIJ-sponsored preview, not as a\nuser-paid x402 settlement.\n\nBase x402 price is 0.10 USDC. The price is multiplied (up to 50×) by the\ncurrent search load: completed searches in the last 60 seconds and\nany upstream rate-limit response in the last 5 minutes. Always read\nthe latest `PAYMENT-REQUIRED` challenge before signing - the price\nyour client saw a moment ago may already be stale.\n",
+        "security": [
+          {
+            "x402PaymentSignature": []
+          },
+          {
+            "brijSponsoredPreview": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchRequest"
+              },
+              "examples": {
+                "madridToLisbon": {
+                  "value": {
+                    "origin_iata": "MAD",
+                    "destination_iata": "LIS",
+                    "depart_date": "2026-06-10",
+                    "adults": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Search results.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "description": "Base64-encoded x402 settlement response.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid search request or invalid payment signature.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "x402 payment required or payment verification failed.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 payment requirements.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Upstream flight provider is not configured.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/air/intents": {
+      "post": {
+        "tags": [
+          "intents"
+        ],
+        "operationId": "createBookingIntent",
+        "summary": "Create an escrow-backed booking intent from a selected offer.",
+        "description": "Paid x402 endpoint. Send a valid `PAYMENT-SIGNATURE` header to create\nthe intent. Without payment, the API returns `402 Payment Required`.\n\nCreates the local booking intent and initializes its Solana escrow.\nThis does not fund the escrow, pay the airline, or issue a ticket.\n",
+        "security": [
+          {
+            "x402PaymentSignature": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateIntentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Booking intent created.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "description": "Base64-encoded x402 settlement response.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid wallet, request body, or payment signature.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "x402 payment required or payment verification failed.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 payment requirements.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Offer is unsupported or no longer usable, or an active intent already exists for this funding_wallet and offer_id (code `intent_already_exists`; the existing intent_id is returned in `detail.intent_id`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Escrow initialization or upstream provider failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Booking is temporarily disabled by the operator (`booking_disabled`). Existing intents and refund requests are unaffected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/air/intents/{intent_id}": {
+      "get": {
+        "tags": [
+          "intents"
+        ],
+        "operationId": "getBookingIntent",
+        "summary": "Fetch a booking intent by id.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IntentID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Booking intent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Booking intent not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/air/intents/{intent_id}/book": {
+      "post": {
+        "tags": [
+          "intents"
+        ],
+        "operationId": "requestBooking",
+        "summary": "Pay the escrow and request booking.",
+        "description": "Paid x402 endpoint. The payment challenge is dynamic for the intent:\n`payTo` is the intent escrow address, `asset` is the expected escrow\nmint, and `amount` is the expected escrow amount.\n\nAfter x402 settlement, the API records passenger details, verifies exact\nescrow funding on-chain, and enqueues the booking worker. Airline payment\nand escrow capture happen asynchronously.\n\nIf booking fails after x402 settlement, retry the same `/book` call;\nexcess funds remain refundable to `refund_wallet`.\n",
+        "security": [
+          {
+            "x402PaymentSignature": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IntentID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestBookingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Booking sync job queued.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "description": "Base64-encoded x402 settlement response.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestBookingResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid passenger data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Intent not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Intent is not active, escrow is missing, funding is not exact, or `booking_already_requested` if a prior /book succeeded for this intent (retry has no effect; the worker is processing it).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "x402 payment required or payment verification failed.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 payment requirements.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Upstream flight provider is not configured.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Booking is temporarily disabled by the operator (`booking_disabled`). Existing intents and refund requests are unaffected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/air/intents/{intent_id}/refund-requests": {
+      "post": {
+        "tags": [
+          "intents"
+        ],
+        "operationId": "requestIntentRefund",
+        "summary": "Create a manual refund request for a booked intent.",
+        "description": "Paid x402 endpoint. Send a valid `PAYMENT-SIGNATURE` header to record\nthe refund request. Without payment, the API returns `402 Payment Required`.\n\nRecords a refund request for a booked intent. The on-chain escrow has\nalready been captured by the time the intent is `booked`, so refunds at\nthis stage are processed manually by an operator. This endpoint persists\nthe request and pages the operator on Telegram; the response is\n`202 Accepted` and is **not** a guarantee of refund — eligibility and\nany applicable carrier penalties are reviewed manually.\n\nFor pre-capture states (`active`), the booking_sync worker handles\nrefunds automatically; this endpoint returns `409 use_automatic_refund`\nfor those.\n\nThe caller must include the `X-Customer-Support-Code` header matching\nthe code returned at intent creation.\n",
+        "security": [
+          {
+            "x402PaymentSignature": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IntentID"
+          },
+          {
+            "name": "X-Customer-Support-Code",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "BRIJ-K7MQ-T9RV"
+          },
+          {
+            "name": "X-Passenger-Family-Name",
+            "in": "header",
+            "required": true,
+            "description": "Family name of the passenger as captured at /book. Compared case-insensitively with leading/trailing whitespace trimmed.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "Doe"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["reason"],
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "description": "Free-text explanation of why the refund is requested."
+                  },
+                  "contact": {
+                    "type": "string",
+                    "maxLength": 320,
+                    "description": "Optional reply-to channel (email, phone, etc.) the operator can use to follow up."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Refund request accepted and pending manual review.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "description": "Base64-encoded x402 settlement response.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["intent_id", "requested_at", "status"],
+                  "properties": {
+                    "intent_id": {
+                      "type": "string"
+                    },
+                    "requested_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["received"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failure (missing or oversized reason, or invalid payment signature).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "X-Customer-Support-Code or X-Passenger-Family-Name header is missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "x402 payment required or payment verification failed.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 payment requirements.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "X-Customer-Support-Code or X-Passenger-Family-Name does not match the intent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Intent not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Intent is not in a state that accepts a manual refund request (active intents are auto-refunded; already refunded; refund already requested; passenger family name unavailable).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/air/orders/{order_id}": {
+      "get": {
+        "tags": [
+          "orders"
+        ],
+        "operationId": "getAirOrder",
+        "summary": "Fetch airline order status.",
+        "description": "Returns the airline PNR and order status. Requires the `X-Customer-Support-Code` returned at intent creation — the same code used to authorize refund requests.",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "ord_0000000000000000000000"
+          },
+          {
+            "name": "X-Customer-Support-Code",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "BRIJ-K7MQ-T9RV"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Airline order status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "X-Customer-Support-Code header is missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "X-Customer-Support-Code does not match this order.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Order not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "x402PaymentSignature": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "PAYMENT-SIGNATURE",
+        "description": "Base64-encoded x402 payment payload."
+      },
+      "brijSponsoredPreview": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-BRIJ-SPONSORED-SIGNATURE",
+        "description": "BRIJ gateway Ed25519 signature for sponsored preview calls. The signature covers version, timestamp, wallet address, method, host, path, and request body hash."
+      }
+    },
+    "parameters": {
+      "IntentID": {
+        "name": "intent_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "example": "intent_8aa7f866bcc25a42"
+      }
+    },
+    "schemas": {
+      "StatusResponse": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "examples": [
+              "ok",
+              "ready",
+              "not_ready"
+            ]
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "SearchRequest": {
+        "type": "object",
+        "required": [
+          "origin_iata",
+          "destination_iata",
+          "depart_date"
+        ],
+        "properties": {
+          "origin_iata": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3,
+            "example": "MAD"
+          },
+          "destination_iata": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3,
+            "example": "LIS"
+          },
+          "depart_date": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-06-10"
+          },
+          "adults": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1
+          }
+        }
+      },
+      "SearchResponse": {
+        "type": "object",
+        "required": [
+          "search"
+        ],
+        "properties": {
+          "search": {
+            "$ref": "#/components/schemas/SearchResult"
+          }
+        }
+      },
+      "SearchResult": {
+        "type": "object",
+        "required": [
+          "request_id",
+          "offers"
+        ],
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "example": "orq_0000B5xGbA4yXTVomvGU2G"
+          },
+          "offers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfferSummary"
+            }
+          }
+        }
+      },
+      "OfferSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "owner_name",
+          "origin_iata",
+          "destination_iata",
+          "departing_at",
+          "arriving_at",
+          "total_amount",
+          "total_amount_decimal",
+          "total_currency",
+          "requires_instant_payment"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "off_0000B5xGbDG4ifAoeDTtG9"
+          },
+          "owner_name": {
+            "type": "string",
+            "example": "Air Europa"
+          },
+          "origin_iata": {
+            "type": "string",
+            "example": "MAD"
+          },
+          "destination_iata": {
+            "type": "string",
+            "example": "LIS"
+          },
+          "departing_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "arriving_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "total_amount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Atomic amount used by the API for money comparisons.",
+            "example": 67600000
+          },
+          "total_amount_decimal": {
+            "type": "string",
+            "example": "67.60"
+          },
+          "total_currency": {
+            "type": "string",
+            "example": "USD"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "requires_instant_payment": {
+            "type": "boolean"
+          },
+          "price_guarantee_expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "payment_required_by": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "passenger_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CreateIntentRequest": {
+        "type": "object",
+        "required": [
+          "funding_wallet",
+          "offer_id"
+        ],
+        "properties": {
+          "funding_wallet": {
+            "type": "string",
+            "description": "Solana wallet expected to fund the escrow."
+          },
+          "refund_wallet": {
+            "type": "string",
+            "description": "Optional Solana wallet for refunds. Defaults to funding_wallet."
+          },
+          "offer_id": {
+            "type": "string",
+            "description": "Identifier of the offer to lock in, as returned by POST /air/search."
+          }
+        }
+      },
+      "IntentResponse": {
+        "type": "object",
+        "required": [
+          "intent"
+        ],
+        "properties": {
+          "intent": {
+            "$ref": "#/components/schemas/BookingIntentView"
+          }
+        }
+      },
+      "BookingIntentView": {
+        "description": "Read-only projection of a booking intent. Omits customer_support_code and passenger PII; those fields are returned once at intent-creation and /book time.",
+        "type": "object",
+        "required": [
+          "id",
+          "funding_wallet",
+          "refund_wallet",
+          "offer_id",
+          "expected_ticket_amount",
+          "expected_ticket_currency",
+          "expected_escrow_amount",
+          "expected_escrow_mint",
+          "fee_amount",
+          "status",
+          "expires_at",
+          "escrow_slot_id",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "intent_8aa7f866bcc25a42"
+          },
+          "funding_wallet": {
+            "type": "string"
+          },
+          "refund_wallet": {
+            "type": "string"
+          },
+          "offer_id": {
+            "type": "string"
+          },
+          "expected_ticket_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "expected_ticket_currency": {
+            "type": "string",
+            "example": "USD"
+          },
+          "expected_escrow_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "expected_escrow_mint": {
+            "type": "string"
+          },
+          "fee_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "booked",
+              "refunded"
+            ]
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "escrow_slot_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "escrow_address": {
+            "type": "string"
+          },
+          "vault_address": {
+            "type": "string"
+          },
+          "escrow_init_signature": {
+            "type": "string"
+          },
+          "escrow_initialized_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "observed_escrow_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "observed_escrow_mint": {
+            "type": "string"
+          },
+          "escrow_funded_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "airline_order_id": {
+            "type": "string"
+          },
+          "payment_required_by": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ticketed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "capture_tx_hash": {
+            "type": "string"
+          },
+          "captured_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "refund_reason": {
+            "type": "string"
+          },
+          "refund_tx_hash": {
+            "type": "string"
+          },
+          "refunded_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "BookingIntent": {
+        "type": "object",
+        "required": [
+          "id",
+          "customer_support_code",
+          "funding_wallet",
+          "refund_wallet",
+          "offer_id",
+          "expected_ticket_amount",
+          "expected_ticket_currency",
+          "expected_escrow_amount",
+          "expected_escrow_mint",
+          "fee_amount",
+          "status",
+          "expires_at",
+          "escrow_slot_id",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "intent_8aa7f866bcc25a42"
+          },
+          "customer_support_code": {
+            "type": "string",
+            "example": "BRIJ-RA2T-CYTR"
+          },
+          "funding_wallet": {
+            "type": "string"
+          },
+          "refund_wallet": {
+            "type": "string"
+          },
+          "offer_id": {
+            "type": "string"
+          },
+          "expected_ticket_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "expected_ticket_currency": {
+            "type": "string",
+            "example": "USD"
+          },
+          "expected_escrow_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "expected_escrow_mint": {
+            "type": "string"
+          },
+          "fee_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "passenger_given_name": {
+            "type": "string"
+          },
+          "passenger_family_name": {
+            "type": "string"
+          },
+          "passenger_born_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "passenger_title": {
+            "type": "string"
+          },
+          "passenger_gender": {
+            "type": "string"
+          },
+          "passenger_email": {
+            "type": "string"
+          },
+          "passenger_phone_number": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "booked",
+              "refunded"
+            ]
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "escrow_slot_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "escrow_address": {
+            "type": "string"
+          },
+          "vault_address": {
+            "type": "string"
+          },
+          "escrow_init_signature": {
+            "type": "string"
+          },
+          "escrow_initialized_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "observed_escrow_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "observed_escrow_mint": {
+            "type": "string"
+          },
+          "escrow_funded_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "airline_order_id": {
+            "type": "string"
+          },
+          "payment_required_by": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ticketed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "capture_tx_hash": {
+            "type": "string"
+          },
+          "captured_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "refund_reason": {
+            "type": "string"
+          },
+          "refund_tx_hash": {
+            "type": "string"
+          },
+          "refunded_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RequestBookingRequest": {
+        "type": "object",
+        "required": [
+          "passengers"
+        ],
+        "properties": {
+          "passengers": {
+            "type": "array",
+            "description": "Passenger details for the booking. Exactly one passenger per intent.",
+            "minItems": 1,
+            "maxItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/PassengerInput"
+            }
+          }
+        }
+      },
+      "PassengerInput": {
+        "type": "object",
+        "description": "Passenger details. Field constraints mirror the upstream airline contract; values the airline would reject (e.g. gender other than 'm'/'f') are rejected by this API before settling x402, so funds stay in the agent's wallet on validation failure.",
+        "required": [
+          "given_name",
+          "family_name",
+          "born_on",
+          "title",
+          "gender",
+          "email",
+          "phone_number"
+        ],
+        "properties": {
+          "given_name": {
+            "type": "string",
+            "description": "Given (first) name as on the travel document.",
+            "example": "Antoine"
+          },
+          "family_name": {
+            "type": "string",
+            "description": "Family (last) name as on the travel document.",
+            "example": "Herzog"
+          },
+          "born_on": {
+            "type": "string",
+            "format": "date",
+            "description": "Date of birth in ISO 8601 (YYYY-MM-DD).",
+            "example": "1990-04-12"
+          },
+          "title": {
+            "type": "string",
+            "description": "Honorific. Lowercase, exactly one of the allowed values.",
+            "enum": ["mr", "mrs", "ms", "miss", "dr"],
+            "example": "mr"
+          },
+          "gender": {
+            "type": "string",
+            "description": "Biological sex as recorded on the travel document. Lowercase, exactly 'm' or 'f' (the airline does not accept other values).",
+            "enum": ["m", "f"],
+            "example": "m"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Contact email. Receives booking-in-progress and booking-confirmed notifications.",
+            "example": "passenger@example.com"
+          },
+          "phone_number": {
+            "type": "string",
+            "description": "Phone number in E.164 format (leading '+', country code, no spaces or punctuation).",
+            "pattern": "^\\+[1-9]\\d{6,14}$",
+            "example": "+447400123456"
+          }
+        }
+      },
+      "RequestBookingResponse": {
+        "type": "object",
+        "required": [
+          "intent",
+          "booking"
+        ],
+        "properties": {
+          "intent": {
+            "$ref": "#/components/schemas/BookingIntent"
+          },
+          "booking": {
+            "$ref": "#/components/schemas/BookResult"
+          }
+        }
+      },
+      "BookResult": {
+        "type": "object",
+        "required": [
+          "order_id",
+          "total_amount",
+          "total_currency",
+          "awaiting_payment",
+          "documents_issued"
+        ],
+        "properties": {
+          "order_id": {
+            "type": "string"
+          },
+          "total_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_currency": {
+            "type": "string"
+          },
+          "awaiting_payment": {
+            "type": "boolean"
+          },
+          "documents_issued": {
+            "type": "integer"
+          },
+          "payment_required_by": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "OrderResponse": {
+        "type": "object",
+        "required": [
+          "order"
+        ],
+        "properties": {
+          "order": {
+            "$ref": "#/components/schemas/OrderStatus"
+          }
+        }
+      },
+      "OrderStatus": {
+        "type": "object",
+        "required": [
+          "order_id",
+          "total_amount_decimal",
+          "total_amount",
+          "total_currency",
+          "awaiting_payment",
+          "documents_issued"
+        ],
+        "properties": {
+          "order_id": {
+            "type": "string"
+          },
+          "booking_reference": {
+            "type": "string"
+          },
+          "total_amount_decimal": {
+            "type": "string"
+          },
+          "total_amount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_currency": {
+            "type": "string"
+          },
+          "awaiting_payment": {
+            "type": "boolean"
+          },
+          "documents_issued": {
+            "type": "integer"
+          },
+          "price_guarantee_expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "payment_required_by": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  }
+}

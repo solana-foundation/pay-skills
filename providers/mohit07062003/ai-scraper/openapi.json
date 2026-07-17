@@ -1,0 +1,823 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Web3 Autonomous Scraper API",
+    "description": "Bypasses CAPTCHAs and returns clean HTML or token-efficient markdown from any URL. Pay per request via x402 on Solana — no account required.",
+    "version": "1.1.0"
+  },
+  "servers": [
+    {
+      "url": "https://ai-scraper-api.duckdns.org"
+    }
+  ],
+  "paths": {
+    "/scrape": {
+      "post": {
+        "summary": "Scrape any URL and return clean HTML content",
+        "description": "x402 v2 payment-gated endpoint. On first call returns 402 with PAYMENT-REQUIRED header (base64 x402 v2 challenge) and accepts[] array. Pay 0.005 USDC on Solana mainnet (network: solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp) then retry with X-PAYMENT header containing base64-encoded payment proof.",
+        "parameters": [
+          {
+            "name": "X-PAYMENT",
+            "in": "header",
+            "required": false,
+            "description": "x402 v2 payment proof. Base64-encoded JSON containing {x402Version:2, scheme:'exact', network:'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp', payload:{signature:'<tx_sig>'}}. Omit on the first request to receive the payment challenge. The transaction must be less than 5 minutes old and can only be used once.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "eyJ4NDAyVmVyc2lvbiI6Mn0="
+          },
+          {
+            "name": "Payment-Payload",
+            "in": "header",
+            "required": false,
+            "description": "Legacy v0 header — raw Solana transaction signature. Accepted for backward compatibility. Prefer X-PAYMENT for x402 v2 agents.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "targetUrl"
+                ],
+                "properties": {
+                  "targetUrl": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "The full URL of the page to process.",
+                    "example": "https://quotes.toscrape.com"
+                  }
+                }
+              },
+              "example": {
+                "targetUrl": "https://quotes.toscrape.com"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful scrape — payment verified on-chain.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "string",
+                      "description": "Scraped HTML content of the target URL"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": "<!DOCTYPE html><html>...</html>"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — the targetUrl field is missing from the request body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "error": "Missing required field: targetUrl"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required or Payment Verification Failed. If a transaction was provided but was invalid (e.g. double spend, underpaid, or expired), the response includes an `error` field explaining the failure, along with a fresh challenge to retry.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded x402 v2 challenge JSON containing x402Version, resource, and accepts[] array."
+              },
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Legacy x402 v0 challenge for backward compatibility."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Optional error message explaining why a previous payment failed."
+                    },
+                    "x402Version": {
+                      "type": "integer",
+                      "example": 2
+                    },
+                    "resource": {
+                      "type": "object",
+                      "properties": {
+                        "url": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "mimeType": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "accepts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "scheme": {
+                            "type": "string",
+                            "example": "exact"
+                          },
+                          "network": {
+                            "type": "string",
+                            "example": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                          },
+                          "amount": {
+                            "type": "string",
+                            "example": "5000"
+                          },
+                          "payTo": {
+                            "type": "string"
+                          },
+                          "maxTimeoutSeconds": {
+                            "type": "integer",
+                            "example": 300
+                          },
+                          "asset": {
+                            "type": "string",
+                            "example": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "challenge": {
+                    "summary": "Initial Payment Challenge",
+                    "value": {
+                      "x402Version": 2,
+                      "resource": {
+                        "url": "https://ai-scraper-api.duckdns.org/scrape",
+                        "description": "Pay 0.005 USDC to scrape any URL. One-time payment, no subscription.",
+                        "mimeType": "application/json"
+                      },
+                      "accepts": [
+                        {
+                          "scheme": "exact",
+                          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                          "amount": "5000",
+                          "payTo": "7hBC8GcHh5PEWNSJrTFVCZpvM4qMGpNJxqXJ5GsxoqmQ",
+                          "maxTimeoutSeconds": 300,
+                          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                        }
+                      ]
+                    }
+                  },
+                  "alreadyUsed": {
+                    "summary": "Replay attempt",
+                    "value": {
+                      "error": "This payment receipt has already been used.",
+                      "x402Version": 2,
+                      "resource": {
+                        "url": "https://ai-scraper-api.duckdns.org/scrape",
+                        "description": "Pay 0.005 USDC to scrape any URL. One-time payment, no subscription.",
+                        "mimeType": "application/json"
+                      },
+                      "accepts": [
+                        {
+                          "scheme": "exact",
+                          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                          "amount": "5000",
+                          "payTo": "7hBC8GcHh5PEWNSJrTFVCZpvM4qMGpNJxqXJ5GsxoqmQ",
+                          "maxTimeoutSeconds": 300,
+                          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                        }
+                      ]
+                    }
+                  },
+                  "expired": {
+                    "summary": "Expired transaction",
+                    "value": {
+                      "error": "Transaction is too old. Payments must be made within the last 5 minutes.",
+                      "x402Version": 2,
+                      "resource": {
+                        "url": "https://ai-scraper-api.duckdns.org/scrape",
+                        "description": "Pay 0.005 USDC to scrape any URL. One-time payment, no subscription.",
+                        "mimeType": "application/json"
+                      },
+                      "accepts": [
+                        {
+                          "scheme": "exact",
+                          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                          "amount": "5000",
+                          "payTo": "7hBC8GcHh5PEWNSJrTFVCZpvM4qMGpNJxqXJ5GsxoqmQ",
+                          "maxTimeoutSeconds": 300,
+                          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway — upstream scraper failed. Payment signature is NOT consumed on 502; retry immediately with the same X-PAYMENT header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "error": "Upstream scraper failed. Retry with the same X-PAYMENT — your payment was not consumed."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/markdown": {
+      "post": {
+        "summary": "Convert any URL to clean reader-mode markdown",
+        "description": "x402 v2 payment-gated endpoint. Scrapes the target URL, strips navigation, ads, and scripts using reader-mode extraction, and returns clean markdown — roughly 10x fewer tokens than raw HTML, ideal for LLM agents. Pay 0.005 USDC on Solana mainnet (network: solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp) then retry with X-PAYMENT header containing base64-encoded payment proof.",
+        "parameters": [
+          {
+            "name": "X-PAYMENT",
+            "in": "header",
+            "required": false,
+            "description": "x402 v2 payment proof. Base64-encoded JSON containing {x402Version:2, scheme:'exact', network:'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp', payload:{signature:'<tx_sig>'}}. Omit on the first request to receive the payment challenge. The transaction must be less than 5 minutes old and can only be used once.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "eyJ4NDAyVmVyc2lvbiI6Mn0="
+          },
+          {
+            "name": "Payment-Payload",
+            "in": "header",
+            "required": false,
+            "description": "Legacy v0 header — raw Solana transaction signature. Accepted for backward compatibility. Prefer X-PAYMENT for x402 v2 agents.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "targetUrl"
+                ],
+                "properties": {
+                  "targetUrl": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "The full URL of the page to process.",
+                    "example": "https://quotes.toscrape.com"
+                  }
+                }
+              },
+              "example": {
+                "targetUrl": "https://quotes.toscrape.com"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful conversion — payment verified on-chain.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Extracted article title, if detected",
+                      "nullable": true
+                    },
+                    "markdown": {
+                      "type": "string",
+                      "description": "Clean markdown content of the target URL"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "title": "Quotes to Scrape",
+                  "markdown": "# Quotes to Scrape\n\n> The world as we have created it..."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — the targetUrl field is missing from the request body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "error": "Missing required field: targetUrl"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required or Payment Verification Failed. If a transaction was provided but was invalid (e.g. double spend, underpaid, or expired), the response includes an `error` field explaining the failure, along with a fresh challenge to retry.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded x402 v2 challenge JSON containing x402Version, resource, and accepts[] array."
+              },
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Legacy x402 v0 challenge for backward compatibility."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Optional error message explaining why a previous payment failed."
+                    },
+                    "x402Version": {
+                      "type": "integer",
+                      "example": 2
+                    },
+                    "resource": {
+                      "type": "object",
+                      "properties": {
+                        "url": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "mimeType": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "accepts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "scheme": {
+                            "type": "string",
+                            "example": "exact"
+                          },
+                          "network": {
+                            "type": "string",
+                            "example": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                          },
+                          "amount": {
+                            "type": "string",
+                            "example": "5000"
+                          },
+                          "payTo": {
+                            "type": "string"
+                          },
+                          "maxTimeoutSeconds": {
+                            "type": "integer",
+                            "example": 300
+                          },
+                          "asset": {
+                            "type": "string",
+                            "example": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "challenge": {
+                    "summary": "Initial Payment Challenge",
+                    "value": {
+                      "x402Version": 2,
+                      "resource": {
+                        "url": "https://ai-scraper-api.duckdns.org/markdown",
+                        "description": "Pay 0.005 USDC to convert any URL to clean, token-efficient markdown.",
+                        "mimeType": "application/json"
+                      },
+                      "accepts": [
+                        {
+                          "scheme": "exact",
+                          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                          "amount": "5000",
+                          "payTo": "7hBC8GcHh5PEWNSJrTFVCZpvM4qMGpNJxqXJ5GsxoqmQ",
+                          "maxTimeoutSeconds": 300,
+                          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                        }
+                      ]
+                    }
+                  },
+                  "alreadyUsed": {
+                    "summary": "Replay attempt",
+                    "value": {
+                      "error": "This payment receipt has already been used.",
+                      "x402Version": 2,
+                      "resource": {
+                        "url": "https://ai-scraper-api.duckdns.org/markdown",
+                        "description": "Pay 0.005 USDC to convert any URL to clean, token-efficient markdown.",
+                        "mimeType": "application/json"
+                      },
+                      "accepts": [
+                        {
+                          "scheme": "exact",
+                          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                          "amount": "5000",
+                          "payTo": "7hBC8GcHh5PEWNSJrTFVCZpvM4qMGpNJxqXJ5GsxoqmQ",
+                          "maxTimeoutSeconds": 300,
+                          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                        }
+                      ]
+                    }
+                  },
+                  "expired": {
+                    "summary": "Expired transaction",
+                    "value": {
+                      "error": "Transaction is too old. Payments must be made within the last 5 minutes.",
+                      "x402Version": 2,
+                      "resource": {
+                        "url": "https://ai-scraper-api.duckdns.org/markdown",
+                        "description": "Pay 0.005 USDC to convert any URL to clean, token-efficient markdown.",
+                        "mimeType": "application/json"
+                      },
+                      "accepts": [
+                        {
+                          "scheme": "exact",
+                          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                          "amount": "5000",
+                          "payTo": "7hBC8GcHh5PEWNSJrTFVCZpvM4qMGpNJxqXJ5GsxoqmQ",
+                          "maxTimeoutSeconds": 300,
+                          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway — upstream scraper failed. Payment signature is NOT consumed on 502; retry immediately with the same X-PAYMENT header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "error": "Upstream scraper failed. Retry with the same X-PAYMENT — your payment was not consumed."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/extract": {
+      "post": {
+        "summary": "Extract structured JSON data from any URL",
+        "description": "x402 v2 payment-gated endpoint. Scrapes the target URL and uses an LLM to extract data matching your schema — send an object mapping field names to expected types, get back clean structured JSON. No HTML parsing needed on your side. Pay 0.02 USDC on Solana mainnet (network: solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp) then retry with X-PAYMENT header containing base64-encoded payment proof.",
+        "parameters": [
+          {
+            "name": "X-PAYMENT",
+            "in": "header",
+            "required": false,
+            "description": "x402 v2 payment proof. Base64-encoded JSON containing {x402Version:2, scheme:'exact', network:'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp', payload:{signature:'<tx_sig>'}}. Omit on the first request to receive the payment challenge. The transaction must be less than 5 minutes old and can only be used once.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "eyJ4NDAyVmVyc2lvbiI6Mn0="
+          },
+          {
+            "name": "Payment-Payload",
+            "in": "header",
+            "required": false,
+            "description": "Legacy v0 header — raw Solana transaction signature. Accepted for backward compatibility. Prefer X-PAYMENT for x402 v2 agents.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "targetUrl",
+                  "schema"
+                ],
+                "properties": {
+                  "targetUrl": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "The full URL of the page to extract data from.",
+                    "example": "https://books.toscrape.com"
+                  },
+                  "schema": {
+                    "type": "object",
+                    "description": "Object mapping field names to expected types or descriptions. Fields not found on the page are returned as null.",
+                    "example": {
+                      "title": "string",
+                      "price": "number",
+                      "inStock": "boolean"
+                    }
+                  }
+                }
+              },
+              "example": {
+                "targetUrl": "https://books.toscrape.com",
+                "schema": {
+                  "title": "string",
+                  "price": "number",
+                  "inStock": "boolean"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful extraction — payment verified on-chain.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Extracted page title, if detected",
+                      "nullable": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "description": "Extracted data matching your requested schema. Fields not found are null."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "title": "A Light in the Attic",
+                  "data": {
+                    "title": "A Light in the Attic",
+                    "price": 51.77,
+                    "inStock": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — the targetUrl field is missing from the request body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "error": "Missing required field: targetUrl"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required or Payment Verification Failed. If a transaction was provided but was invalid (e.g. double spend, underpaid, or expired), the response includes an `error` field explaining the failure, along with a fresh challenge to retry.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded x402 v2 challenge JSON containing x402Version, resource, and accepts[] array."
+              },
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Legacy x402 v0 challenge for backward compatibility."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Optional error message explaining why a previous payment failed."
+                    },
+                    "x402Version": {
+                      "type": "integer",
+                      "example": 2
+                    },
+                    "resource": {
+                      "type": "object",
+                      "properties": {
+                        "url": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "mimeType": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "accepts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "scheme": {
+                            "type": "string",
+                            "example": "exact"
+                          },
+                          "network": {
+                            "type": "string",
+                            "example": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                          },
+                          "amount": {
+                            "type": "string",
+                            "example": "20000"
+                          },
+                          "payTo": {
+                            "type": "string"
+                          },
+                          "maxTimeoutSeconds": {
+                            "type": "integer",
+                            "example": 300
+                          },
+                          "asset": {
+                            "type": "string",
+                            "example": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "challenge": {
+                    "summary": "Initial Payment Challenge",
+                    "value": {
+                      "x402Version": 2,
+                      "resource": {
+                        "url": "https://ai-scraper-api.duckdns.org/extract",
+                        "description": "Pay 0.02 USDC to extract structured JSON data from any URL using your own schema.",
+                        "mimeType": "application/json"
+                      },
+                      "accepts": [
+                        {
+                          "scheme": "exact",
+                          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                          "amount": "20000",
+                          "payTo": "7hBC8GcHh5PEWNSJrTFVCZpvM4qMGpNJxqXJ5GsxoqmQ",
+                          "maxTimeoutSeconds": 300,
+                          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                        }
+                      ]
+                    }
+                  },
+                  "alreadyUsed": {
+                    "summary": "Replay attempt",
+                    "value": {
+                      "error": "This payment receipt has already been used.",
+                      "x402Version": 2,
+                      "resource": {
+                        "url": "https://ai-scraper-api.duckdns.org/extract",
+                        "description": "Pay 0.02 USDC to extract structured JSON data from any URL using your own schema.",
+                        "mimeType": "application/json"
+                      },
+                      "accepts": [
+                        {
+                          "scheme": "exact",
+                          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                          "amount": "20000",
+                          "payTo": "7hBC8GcHh5PEWNSJrTFVCZpvM4qMGpNJxqXJ5GsxoqmQ",
+                          "maxTimeoutSeconds": 300,
+                          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                        }
+                      ]
+                    }
+                  },
+                  "expired": {
+                    "summary": "Expired transaction",
+                    "value": {
+                      "error": "Transaction is too old. Payments must be made within the last 5 minutes.",
+                      "x402Version": 2,
+                      "resource": {
+                        "url": "https://ai-scraper-api.duckdns.org/extract",
+                        "description": "Pay 0.02 USDC to extract structured JSON data from any URL using your own schema.",
+                        "mimeType": "application/json"
+                      },
+                      "accepts": [
+                        {
+                          "scheme": "exact",
+                          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                          "amount": "20000",
+                          "payTo": "7hBC8GcHh5PEWNSJrTFVCZpvM4qMGpNJxqXJ5GsxoqmQ",
+                          "maxTimeoutSeconds": 300,
+                          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway — upstream scraper failed. Payment signature is NOT consumed on 502; retry immediately with the same X-PAYMENT header.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "error": "Upstream scraper failed. Retry with the same X-PAYMENT — your payment was not consumed."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
