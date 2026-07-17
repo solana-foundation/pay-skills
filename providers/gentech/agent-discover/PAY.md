@@ -57,13 +57,13 @@ openapi:
                     },
                     "parameters": [
                         {
-                            "name": "q",
+                            "name": "agent",
                             "in": "query",
                             "required": true,
                             "schema": {
                                 "type": "string"
                             },
-                            "description": "Search query for agent discovery"
+                            "description": "Agent name or address to search for"
                         }
                     ]
                 }

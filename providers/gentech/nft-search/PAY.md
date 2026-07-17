@@ -57,7 +57,7 @@ openapi:
                     },
                     "parameters": [
                         {
-                            "name": "collection",
+                            "name": "q",
                             "in": "query",
                             "required": true,
                             "schema": {

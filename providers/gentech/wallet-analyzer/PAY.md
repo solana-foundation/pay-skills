@@ -57,7 +57,7 @@ openapi:
                     },
                     "parameters": [
                         {
-                            "name": "address",
+                            "name": "wallet",
                             "in": "query",
                             "required": true,
                             "schema": {

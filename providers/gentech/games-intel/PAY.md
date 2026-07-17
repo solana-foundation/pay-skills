@@ -104,7 +104,7 @@ openapi:
                     },
                     "parameters": [
                         {
-                            "name": "title",
+                            "name": "q",
                             "in": "query",
                             "required": true,
                             "schema": {
@@ -198,7 +198,7 @@ openapi:
                     },
                     "parameters": [
                         {
-                            "name": "title",
+                            "name": "q",
                             "in": "query",
                             "required": true,
                             "schema": {
