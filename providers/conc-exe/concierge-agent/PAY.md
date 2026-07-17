@@ -26,7 +26,7 @@ Concierge Agent is **market intelligence + Concierge Resources + Security Desk a
 
 Flow: `POST` + JSON → **402** + `PAYMENT-REQUIRED` → sign USDC → retry with `PAYMENT-SIGNATURE` → **200** JSON (or HTML `reply` for chat).
 
-x402 USDC payment accepted on Solana mainnet ($0.02–$0.25 per call; $0.02 security scout; $1.00 signal publish).
+x402 USDC payment accepted on Solana mainnet ($0.02–$0.25 per call; $0.02 security scout and signal publish).
 
 ## Spend-aware usage
 
