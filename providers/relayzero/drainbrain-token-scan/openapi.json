@@ -1,0 +1,99 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "DrainBrain Token Risk Scan (RelayZero)",
+    "version": "1.0.0",
+    "description": "ML rug-pull risk scoring for Solana token mints. Pay-per-call via x402: $0.02 USDC, exact scheme, Solana mainnet (PayAI facilitator, sponsored fee payer). No API key — an unpaid request returns an x402 v2 challenge in the payment-required header; sign it with any x402 client and retry with the payment-signature header."
+  },
+  "servers": [{ "url": "https://relayzero.ai", "description": "Production" }],
+  "paths": {
+    "/v1/intel/scan/{address}": {
+      "get": {
+        "operationId": "scanTokenAddress",
+        "summary": "Score a Solana token mint for rug-pull risk (DrainBrain ML)",
+        "description": "Scores a Solana token mint for rug-pull and honeypot risk using an in-house ML ensemble. Most scans return in a few seconds; a cold first scan of a mint can take up to ~60s.",
+        "tags": ["Intel"],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "minLength": 32, "maxLength": 44 },
+            "description": "Solana token mint address (base58)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Completed scan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "scan": {
+                      "type": "object",
+                      "properties": {
+                        "type": { "type": "string", "example": "drainbrain_scan" },
+                        "address": { "type": "string" },
+                        "result": {
+                          "type": "object",
+                          "properties": {
+                            "mint": { "type": "string" },
+                            "score": { "type": "number", "description": "Rug risk 0-100 (higher = riskier)" },
+                            "riskLevel": { "type": "string", "example": "CRITICAL" },
+                            "isRug": { "type": "boolean" },
+                            "rugStage": { "type": "number" },
+                            "rugStageName": { "type": "string" },
+                            "honeypot": {
+                              "type": "object",
+                              "properties": {
+                                "isHoneypot": { "type": "boolean" },
+                                "reason": { "type": "string", "nullable": true }
+                              }
+                            },
+                            "confidence": { "type": "number" },
+                            "cached": { "type": "boolean" },
+                            "timestamp": { "type": "string", "format": "date-time" }
+                          },
+                          "additionalProperties": true
+                        },
+                        "scanned_at": { "type": "string", "format": "date-time" }
+                      }
+                    },
+                    "source": { "type": "string", "example": "DrainBrain ML Security Oracle" },
+                    "generated_at": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid Solana token address" },
+          "402": {
+            "description": "Payment required — x402 v2 challenge in the payment-required header (exact scheme, USDC, Solana mainnet, sponsored fee payer)"
+          },
+          "503": { "description": "Scan engine temporarily unavailable" }
+        },
+        "x-payment-info": {
+          "price": { "mode": "fixed", "currency": "USD", "amount": "0.020000" },
+          "protocols": [{ "x402": {} }]
+        },
+        "x-extensions": {
+          "bazaar": {
+            "schema": {
+              "properties": {
+                "input": {
+                  "type": "object",
+                  "properties": {
+                    "address": { "type": "string", "description": "Solana token mint address (base58)" }
+                  },
+                  "required": ["address"]
+                },
+                "output": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
