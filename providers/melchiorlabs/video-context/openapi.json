@@ -43,19 +43,38 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/YoutubeTranscriptInput"
+              },
+              "example": {
+                "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                "language": "en",
+                "maxChunkCharacters": 2400
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Transcript context"
+            "description": "Structured YouTube transcript context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YoutubeTranscriptResponse"
+                }
+              }
+            }
           },
           "402": {
             "description": "x402 payment required"
           },
           "422": {
-            "description": "Video or captions cannot be processed; not settled"
+            "description": "Video or captions cannot be processed; payment is not settled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -63,7 +82,7 @@
     "/v1/transcripts/context": {
       "post": {
         "summary": "Generate agent-ready context from supplied transcripts",
-        "description": "Requires a valid x402 payment signature. Accepts text, WebVTT, SRT, or timestamped segments.",
+        "description": "Requires a valid x402 payment signature. Accepts exactly one of transcript text or timestamped segments; text may be plain text, WebVTT, or SRT.",
         "x-payment-info": {
           "price": {
             "mode": "fixed",
@@ -91,16 +110,38 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/TranscriptContextInput"
+              },
+              "example": {
+                "text": "WEBVTT\n\n00:00:00.000 --> 00:00:03.000\nHello, agents.",
+                "format": "vtt",
+                "maxChunkCharacters": 2400
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Normalized transcript context"
+            "description": "Normalized transcript context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptContextResponse"
+                }
+              }
+            }
           },
           "402": {
             "description": "x402 payment required"
+          },
+          "422": {
+            "description": "The supplied transcript could not be parsed; payment is not settled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -110,7 +151,14 @@
         "summary": "Check video context service health",
         "responses": {
           "200": {
-            "description": "Healthy"
+            "description": "Service and extractor are healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -126,15 +174,18 @@
         "properties": {
           "url": {
             "type": "string",
-            "format": "uri"
+            "format": "uri",
+            "description": "Public youtube.com or youtu.be video URL."
           },
           "language": {
             "type": "string",
-            "default": "en"
+            "default": "en",
+            "description": "Preferred caption language code, such as en or es."
           },
           "preferManual": {
             "type": "boolean",
-            "default": true
+            "default": true,
+            "description": "Prefer creator-provided captions over automatic captions when both exist."
           },
           "maxChunkCharacters": {
             "type": "integer",
@@ -154,10 +205,24 @@
       },
       "TranscriptContextInput": {
         "type": "object",
+        "oneOf": [
+          {
+            "required": [
+              "text"
+            ]
+          },
+          {
+            "required": [
+              "segments"
+            ]
+          }
+        ],
         "properties": {
           "text": {
             "type": "string",
-            "maxLength": 1000000
+            "minLength": 1,
+            "maxLength": 1000000,
+            "description": "Plain text, WebVTT, or SRT transcript. Mutually exclusive with segments."
           },
           "format": {
             "type": "string",
@@ -170,6 +235,9 @@
           },
           "segments": {
             "type": "array",
+            "minItems": 1,
+            "maxItems": 20000,
+            "description": "Timestamped transcript segments. Mutually exclusive with text.",
             "items": {
               "type": "object",
               "required": [
@@ -180,10 +248,12 @@
               "properties": {
                 "startSeconds": {
                   "type": "number",
+                  "minimum": 0,
                   "description": "Segment start time in seconds from the beginning of the source."
                 },
                 "endSeconds": {
                   "type": "number",
+                  "minimum": 0,
                   "description": "Segment end time in seconds from the beginning of the source."
                 },
                 "text": {
@@ -195,13 +265,376 @@
           },
           "sourceUrl": {
             "type": "string",
-            "format": "uri"
+            "format": "uri",
+            "description": "Optional source URL used to build chunk citations."
           },
           "maxChunkCharacters": {
             "type": "integer",
             "minimum": 400,
             "maximum": 8000,
             "default": 2400
+          },
+          "includeSegments": {
+            "type": "boolean",
+            "default": true
+          },
+          "includeText": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
+      "TranscriptSegment": {
+        "type": "object",
+        "required": [
+          "startSeconds",
+          "endSeconds",
+          "text"
+        ],
+        "properties": {
+          "startSeconds": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Segment start time in seconds from the beginning of the source."
+          },
+          "endSeconds": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Segment end time in seconds from the beginning of the source."
+          },
+          "text": {
+            "type": "string",
+            "description": "Transcript text spoken during this segment."
+          }
+        }
+      },
+      "TranscriptChunk": {
+        "type": "object",
+        "required": [
+          "index",
+          "startSeconds",
+          "endSeconds",
+          "text",
+          "citation"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Zero-based chunk index."
+          },
+          "startSeconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "endSeconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "text": {
+            "type": "string",
+            "description": "Model-sized transcript text for this time range."
+          },
+          "citation": {
+            "type": "object",
+            "required": [
+              "label"
+            ],
+            "properties": {
+              "label": {
+                "type": "string",
+                "description": "Human-readable source time range."
+              },
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "description": "Deep link to the source at the start of this chunk when a source URL is available."
+              }
+            }
+          }
+        }
+      },
+      "YoutubeTranscriptResponse": {
+        "type": "object",
+        "required": [
+          "requestId",
+          "video",
+          "transcript",
+          "chunks",
+          "usage",
+          "generatedAt"
+        ],
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "video": {
+            "type": "object",
+            "required": [
+              "id",
+              "title",
+              "url",
+              "channel",
+              "durationSeconds",
+              "publishedAt",
+              "thumbnail"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "channel": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "durationSeconds": {
+                "type": "number",
+                "minimum": 0
+              },
+              "publishedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "thumbnail": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uri"
+              }
+            }
+          },
+          "transcript": {
+            "type": "object",
+            "required": [
+              "language",
+              "source",
+              "segmentCount"
+            ],
+            "properties": {
+              "language": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "manual",
+                  "automatic"
+                ]
+              },
+              "segmentCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "text": {
+                "type": "string"
+              },
+              "segments": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/TranscriptSegment"
+                }
+              }
+            }
+          },
+          "chunks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TranscriptChunk"
+            }
+          },
+          "usage": {
+            "type": "object",
+            "required": [
+              "characters",
+              "estimatedTokens",
+              "chunkCount"
+            ],
+            "properties": {
+              "characters": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "estimatedTokens": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "chunkCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "cache": {
+                "type": "string",
+                "enum": [
+                  "hit",
+                  "miss"
+                ],
+                "description": "Present for YouTube extraction responses."
+              }
+            }
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "TranscriptContextResponse": {
+        "type": "object",
+        "required": [
+          "requestId",
+          "transcript",
+          "chunks",
+          "usage",
+          "generatedAt"
+        ],
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "transcript": {
+            "type": "object",
+            "required": [
+              "segmentCount"
+            ],
+            "properties": {
+              "segmentCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "text": {
+                "type": "string"
+              },
+              "segments": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/TranscriptSegment"
+                }
+              }
+            }
+          },
+          "chunks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TranscriptChunk"
+            }
+          },
+          "usage": {
+            "type": "object",
+            "required": [
+              "characters",
+              "estimatedTokens",
+              "chunkCount"
+            ],
+            "properties": {
+              "characters": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "estimatedTokens": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "chunkCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "cache": {
+                "type": "string",
+                "enum": [
+                  "hit",
+                  "miss"
+                ],
+                "description": "Present for YouTube extraction responses."
+              }
+            }
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "error",
+          "requestId"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          },
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "service",
+          "version",
+          "revision",
+          "extractor",
+          "uptimeSeconds",
+          "timestamp"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          },
+          "service": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "extractor": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "missing"
+            ]
+          },
+          "uptimeSeconds": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       }
