@@ -1,0 +1,904 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "BridgeNode",
+    "description": "DeepSeek V4 Flash inference via x402. Pay with Solana USDC. No registration, no API keys.",
+    "contact": {
+      "name": "BridgeNode",
+      "url": "https://bridgenode.cc/",
+      "email": "eli.BNx@proton.me"
+    },
+    "version": "1.0.0",
+    "x-guidance": "Use POST /v1/inference for DeepSeek V4 Flash chat completions. Send messages as JSON array, optional stream=true for SSE, optional max_tokens to limit output. Authenticate with ed25519 signature: generate UUID nonce, sign with your Solana private key, send X-Address + X-Signature + X-Nonce headers. Pre-deposit USDC to BHMDv3ri3LBEZjEzJgDZeUiguVX7LmsCstTXbM3dL8rN (Solana mainnet). Check balance at GET /v1/balance/{address}."
+  },
+  "servers": [
+    {
+      "url": "https://bridgenode.cc",
+      "description": "Production"
+    }
+  ],
+  "paths": {
+    "/.well-known/ai-manifest.json": {
+      "get": {
+        "tags": [
+          "free"
+        ],
+        "summary": "AI agent discovery manifest listing the inference endpoint and x402 payment requirements",
+        "operationId": "manifest__well_known_ai_manifest_json_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIManifestResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/.well-known/x402": {
+      "get": {
+        "tags": [
+          "free"
+        ],
+        "summary": "x402 V2 discovery manifest with resource endpoints and payment metadata",
+        "description": "x402scan discovery manifest \u2014 x402 V2 format",
+        "operationId": "manifest_x402__well_known_x402_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402ManifestResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/balance/{address}": {
+      "get": {
+        "tags": [
+          "free"
+        ],
+        "summary": "Retrieve the off-chain USDC balance for a given Solana wallet address",
+        "description": "Gr\u0105\u017eina agento off-chain balans\u0105.",
+        "operationId": "get_agent_balance_v1_balance__address__get",
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Address"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BalanceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/inference": {
+      "get": {
+        "tags": [
+          "x402"
+        ],
+        "summary": "x402 probe endpoint returning payment challenge with pricing and requirements",
+        "description": "x402scan probing endpoint \u2014 gr\u0105\u017eina 402 payment challenge.",
+        "operationId": "inference_probe_v1_inference_get",
+        "responses": {
+          "402": {
+            "description": "Payment required \u2014 send valid x402 payment to access inference",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "x402Version": {
+                      "type": "integer"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "resource": {
+                      "type": "object"
+                    },
+                    "accepts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "extensions": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "tags": [
+          "x402"
+        ],
+        "summary": "Send a chat completion request to DeepSeek V4 Flash with x402 payment via ed25519 signature",
+        "operationId": "inference_v1_inference_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InferenceResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required \u2014 x402 payment required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "x402Version": {
+                      "type": "integer"
+                    },
+                    "resource": {
+                      "type": "object"
+                    },
+                    "accepts": {
+                      "type": "array"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "x-payment-info": {
+          "price": {
+            "mode": "variable",
+            "currency": "USD",
+            "description": "$0.28/1M input tokens, $0.42/1M output tokens"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InferenceRequest"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SolanaAuth": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BalanceResponse": {
+        "description": "Agent balance response.",
+        "properties": {
+          "address": {
+            "description": "Solana wallet address (base58)",
+            "title": "Address",
+            "type": "string"
+          },
+          "balance": {
+            "description": "Off-chain USDC balance",
+            "title": "Balance",
+            "type": "number"
+          }
+        },
+        "required": [
+          "address",
+          "balance"
+        ],
+        "title": "BalanceResponse",
+        "type": "object"
+      },
+      "Choice": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index",
+            "description": "Choice index (always 0 for single completion)",
+            "default": 0
+          },
+          "message": {
+            "$ref": "#/components/schemas/ChoiceMessage"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "Choice",
+        "description": "Single completion choice."
+      },
+      "ChoiceMessage": {
+        "properties": {
+          "content": {
+            "type": "string",
+            "title": "Content",
+            "description": "Generated text content"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "description": "Always assistant",
+            "default": "assistant"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "title": "ChoiceMessage",
+        "description": "Message content inside a choice."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "InferenceResponse": {
+        "$defs": {
+          "Choice": {
+            "description": "Single completion choice.",
+            "properties": {
+              "index": {
+                "default": 0,
+                "description": "Choice index (always 0 for single completion)",
+                "title": "Index",
+                "type": "integer"
+              },
+              "message": {
+                "$ref": "#/components/schemas/ChoiceMessage"
+              }
+            },
+            "required": [
+              "message"
+            ],
+            "title": "Choice",
+            "type": "object"
+          },
+          "ChoiceMessage": {
+            "description": "Message content inside a choice.",
+            "properties": {
+              "content": {
+                "description": "Generated text content",
+                "title": "Content",
+                "type": "string"
+              },
+              "role": {
+                "default": "assistant",
+                "description": "Always assistant",
+                "title": "Role",
+                "type": "string"
+              }
+            },
+            "required": [
+              "content"
+            ],
+            "title": "ChoiceMessage",
+            "type": "object"
+          },
+          "ResponseMetadata": {
+            "description": "BridgeNode-specific metadata attached to every inference response.",
+            "properties": {
+              "cost_usd": {
+                "description": "Cost charged in USD",
+                "title": "Cost Usd",
+                "type": "number"
+              },
+              "nonce": {
+                "description": "The UUID nonce from the request",
+                "title": "Nonce",
+                "type": "string"
+              },
+              "token_stats": {
+                "$ref": "#/components/schemas/TokenStats"
+              },
+              "remaining_balance": {
+                "description": "Off-chain USDC balance remaining after this request",
+                "title": "Remaining Balance",
+                "type": "number"
+              }
+            },
+            "required": [
+              "cost_usd",
+              "nonce",
+              "token_stats",
+              "remaining_balance"
+            ],
+            "title": "ResponseMetadata",
+            "type": "object"
+          },
+          "TokenStats": {
+            "description": "Token usage statistics from DeepSeek.",
+            "properties": {
+              "prompt_tokens": {
+                "default": 0,
+                "description": "Total prompt tokens",
+                "title": "Prompt Tokens",
+                "type": "integer"
+              },
+              "completion_tokens": {
+                "default": 0,
+                "description": "Completion tokens generated",
+                "title": "Completion Tokens",
+                "type": "integer"
+              },
+              "prompt_cache_hit_tokens": {
+                "default": 0,
+                "description": "Prompt tokens served from cache",
+                "title": "Prompt Cache Hit Tokens",
+                "type": "integer"
+              },
+              "prompt_cache_miss_tokens": {
+                "default": 0,
+                "description": "Prompt tokens not in cache",
+                "title": "Prompt Cache Miss Tokens",
+                "type": "integer"
+              },
+              "approximate": {
+                "default": false,
+                "description": "Whether counts are estimated (stream fallback)",
+                "title": "Approximate",
+                "type": "boolean"
+              }
+            },
+            "title": "TokenStats",
+            "type": "object"
+          }
+        },
+        "description": "Successful inference response (non-stream).",
+        "properties": {
+          "choices": {
+            "description": "Completion choices",
+            "items": {
+              "$ref": "#/components/schemas/Choice"
+            },
+            "title": "Choices",
+            "type": "array"
+          },
+          "response_metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          }
+        },
+        "required": [
+          "choices",
+          "response_metadata"
+        ],
+        "title": "InferenceResponse",
+        "type": "object"
+      },
+      "ResponseMetadata": {
+        "properties": {
+          "cost_usd": {
+            "type": "number",
+            "title": "Cost Usd",
+            "description": "Cost charged in USD"
+          },
+          "nonce": {
+            "type": "string",
+            "title": "Nonce",
+            "description": "The UUID nonce from the request"
+          },
+          "token_stats": {
+            "$ref": "#/components/schemas/TokenStats"
+          },
+          "remaining_balance": {
+            "type": "number",
+            "title": "Remaining Balance",
+            "description": "Off-chain USDC balance remaining after this request"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cost_usd",
+          "nonce",
+          "token_stats",
+          "remaining_balance"
+        ],
+        "title": "ResponseMetadata",
+        "description": "BridgeNode-specific metadata attached to every inference response."
+      },
+      "TokenStats": {
+        "properties": {
+          "prompt_tokens": {
+            "type": "integer",
+            "title": "Prompt Tokens",
+            "description": "Total prompt tokens",
+            "default": 0
+          },
+          "completion_tokens": {
+            "type": "integer",
+            "title": "Completion Tokens",
+            "description": "Completion tokens generated",
+            "default": 0
+          },
+          "prompt_cache_hit_tokens": {
+            "type": "integer",
+            "title": "Prompt Cache Hit Tokens",
+            "description": "Prompt tokens served from cache",
+            "default": 0
+          },
+          "prompt_cache_miss_tokens": {
+            "type": "integer",
+            "title": "Prompt Cache Miss Tokens",
+            "description": "Prompt tokens not in cache",
+            "default": 0
+          },
+          "approximate": {
+            "type": "boolean",
+            "title": "Approximate",
+            "description": "Whether counts are estimated (stream fallback)",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "TokenStats",
+        "description": "Token usage statistics from DeepSeek."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "X402Accept": {
+        "properties": {
+          "scheme": {
+            "type": "string",
+            "title": "Scheme",
+            "description": "Payment scheme",
+            "default": "exact"
+          },
+          "network": {
+            "type": "string",
+            "title": "Network",
+            "description": "Solana mainnet",
+            "default": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+          },
+          "price": {
+            "type": "string",
+            "title": "Price",
+            "description": "Price description",
+            "default": "$0.001"
+          },
+          "minAmount": {
+            "type": "string",
+            "title": "Minamount",
+            "description": "Minimum amount (micro-USDC)",
+            "default": "1000"
+          },
+          "asset": {
+            "type": "string",
+            "title": "Asset",
+            "description": "USDC mint address"
+          },
+          "payTo": {
+            "type": "string",
+            "title": "Payto",
+            "description": "Payment destination address"
+          },
+          "maxTimeoutSeconds": {
+            "type": "integer",
+            "title": "Maxtimeoutseconds",
+            "description": "Maximum timeout",
+            "default": 60
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Pricing description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "asset",
+          "payTo",
+          "description"
+        ],
+        "title": "X402Accept",
+        "description": "Payment scheme accepted by BridgeNode."
+      },
+      "X402ManifestResponse": {
+        "description": "x402 V2 discovery manifest.",
+        "properties": {
+          "x402Version": {
+            "default": 2,
+            "description": "x402 spec version",
+            "title": "X402Version",
+            "type": "integer"
+          },
+          "name": {
+            "default": "BridgeNode",
+            "description": "Service name",
+            "title": "Name",
+            "type": "string"
+          },
+          "description": {
+            "default": "DeepSeek V4 Flash inference via x402",
+            "description": "Service description",
+            "title": "Description",
+            "type": "string"
+          },
+          "homepage": {
+            "description": "Homepage URL",
+            "title": "Homepage",
+            "type": "string"
+          },
+          "resources": {
+            "description": "Available resources",
+            "items": {
+              "$ref": "#/components/schemas/X402Resource"
+            },
+            "title": "Resources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "homepage",
+          "resources"
+        ],
+        "title": "X402ManifestResponse",
+        "type": "object"
+      },
+      "X402Resource": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "description": "Resource URL"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method",
+            "description": "HTTP method"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Resource description"
+          },
+          "mimeType": {
+            "type": "string",
+            "title": "Mimetype",
+            "description": "Content type",
+            "default": "application/json"
+          },
+          "accepts": {
+            "items": {
+              "$ref": "#/components/schemas/X402Accept"
+            },
+            "type": "array",
+            "title": "Accepts",
+            "description": "Accepted payment schemes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url",
+          "method",
+          "description"
+        ],
+        "title": "X402Resource",
+        "description": "Resource within x402 manifest."
+      },
+      "InferenceRequest": {
+        "$defs": {
+          "Message": {
+            "description": "Single chat message.",
+            "properties": {
+              "role": {
+                "description": "Message role",
+                "pattern": "^(user|assistant|system)$",
+                "title": "Role",
+                "type": "string"
+              },
+              "content": {
+                "description": "The message text content to send to the model",
+                "title": "Content",
+                "type": "string"
+              }
+            },
+            "required": [
+              "role",
+              "content"
+            ],
+            "title": "Message",
+            "type": "object"
+          }
+        },
+        "description": "Request body for POST /v1/inference.",
+        "properties": {
+          "messages": {
+            "description": "Chat messages",
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            },
+            "minItems": 1,
+            "title": "Messages",
+            "type": "array"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "default": "deepseek/deepseek-v4-flash",
+            "description": "Model name (ignored, always deepseek-v4-flash)",
+            "title": "Model"
+          },
+          "max_tokens": {
+            "maximum": 100000,
+            "minimum": 1,
+            "type": "integer",
+            "nullable": true,
+            "default": 256,
+            "description": "Maximum output tokens",
+            "title": "Max Tokens"
+          },
+          "stream": {
+            "type": "boolean",
+            "nullable": true,
+            "default": false,
+            "description": "Enable Server-Sent Events streaming",
+            "title": "Stream"
+          }
+        },
+        "required": [
+          "messages"
+        ],
+        "title": "InferenceRequest",
+        "type": "object"
+      },
+      "AIManifestResponse": {
+        "description": "AI agent discovery manifest.",
+        "properties": {
+          "name": {
+            "default": "BridgeNode",
+            "description": "Service name",
+            "title": "Name",
+            "type": "string"
+          },
+          "description": {
+            "default": "Anonymous DeepSeek inference via x402",
+            "description": "Service description",
+            "title": "Description",
+            "type": "string"
+          },
+          "version": {
+            "default": "1.0.0",
+            "description": "Manifest version",
+            "title": "Version",
+            "type": "string"
+          },
+          "payment": {
+            "$ref": "#/components/schemas/AIPayment",
+            "description": "Payment information"
+          },
+          "endpoints": {
+            "description": "Available endpoints",
+            "items": {
+              "$ref": "#/components/schemas/AIEndpoint"
+            },
+            "title": "Endpoints",
+            "type": "array"
+          }
+        },
+        "required": [
+          "payment",
+          "endpoints"
+        ],
+        "title": "AIManifestResponse",
+        "type": "object"
+      },
+      "AIEndpoint": {
+        "description": "Endpoint description in AI manifest.",
+        "properties": {
+          "url": {
+            "description": "Endpoint URL",
+            "title": "Url",
+            "type": "string"
+          },
+          "method": {
+            "description": "HTTP method",
+            "title": "Method",
+            "type": "string"
+          },
+          "description": {
+            "description": "What the endpoint does",
+            "title": "Description",
+            "type": "string"
+          },
+          "headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Required headers",
+            "title": "Headers",
+            "type": "object"
+          },
+          "requestBody": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "default": null,
+            "description": "Request body specification",
+            "title": "Requestbody"
+          },
+          "errorCodes": {
+            "description": "Possible HTTP error codes",
+            "items": {
+              "type": "integer"
+            },
+            "title": "Errorcodes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "url",
+          "method",
+          "description"
+        ],
+        "title": "AIEndpoint",
+        "type": "object"
+      },
+      "AIPayment": {
+        "description": "Payment information in AI manifest.",
+        "properties": {
+          "scheme": {
+            "default": "x402",
+            "description": "Payment scheme",
+            "title": "Scheme",
+            "type": "string"
+          },
+          "network": {
+            "default": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+            "description": "Solana mainnet",
+            "title": "Network",
+            "type": "string"
+          },
+          "asset": {
+            "description": "USDC mint address",
+            "title": "Asset",
+            "type": "string"
+          },
+          "payTo": {
+            "description": "Payment destination address",
+            "title": "Payto",
+            "type": "string"
+          },
+          "price": {
+            "default": "$0.28/1M input, $0.42/1M output",
+            "description": "Pricing",
+            "title": "Price",
+            "type": "string"
+          },
+          "fees": {
+            "default": "0%",
+            "description": "Platform fees",
+            "title": "Fees",
+            "type": "string"
+          },
+          "description": {
+            "default": "Pre-deposit USDC, then use ed25519 auth",
+            "description": "Payment description",
+            "title": "Description",
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset",
+          "payTo"
+        ],
+        "title": "AIPayment",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "SolanaAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Address",
+        "description": "Solana ed25519 auth: generate UUID nonce, sign with private key, send X-Address + X-Signature + X-Nonce"
+      }
+    }
+  },
+  "security": [
+    {
+      "SolanaAuth": []
+    }
+  ]
+}
