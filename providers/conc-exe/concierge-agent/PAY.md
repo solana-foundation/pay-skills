@@ -37,7 +37,7 @@ x402 USDC payment accepted on Solana mainnet ($0.02–$0.25 per call; $0.02 secu
 - Use **`/api/concierge-intel-verdict`** once per theme instead of chaining whales + yields + chat separately.
 - Alpha routes (`airdrop`, `listing`, `momentum`, `scalp`) weight Lounge insider signals first — set `includeInsider: true` (default) for best alpha quality.
 - Cap `limit` on Alpha bodies to the smallest number that answers the task (1–8, default 5).
-- For authorized security posture: scope check free, then `security-scan` ($0.10) or scout routes ($0.02). Always pass `allowlist` + `authorized: true`.
+- For authorized security posture: scope check free, then `security-scan` ($0.10) or scout routes ($0.02). Always pass `allowlist` + `authorized: true`. Free Concierge self-audit: `POST /api/concierge-security-scan` with `{"target":"https://conc-exe.xyz","authorized":true,"selfAudit":true}` (no payment).
 - Call from **server-side or agent runtime** — browser CORS is limited to the Lounge origin.
 
 ## Discovery
