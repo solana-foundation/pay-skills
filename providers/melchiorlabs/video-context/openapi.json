@@ -1,0 +1,221 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Melchior Video Context API",
+    "version": "0.1.0",
+    "description": "Paid, agent-ready YouTube transcripts and transcript normalization over x402.",
+    "x-guidance": "Use /v1/youtube/transcript when you have a public YouTube video URL. Send the URL and preferred caption language, complete the returned x402 payment requirement, then cite the returned chunk URLs in downstream answers. Use /v1/transcripts/context when you already have transcript text, WebVTT, SRT, or timestamped segments. Failed extraction responses are not settled."
+  },
+  "servers": [
+    {
+      "url": "https://transcript.melchiorlabs.com"
+    }
+  ],
+  "paths": {
+    "/v1/youtube/transcript": {
+      "post": {
+        "summary": "Extract agent-ready context from a public YouTube video",
+        "description": "Requires a valid x402 payment signature. Settlement occurs only after a successful response.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "eip155:8453",
+                "asset": "USDC"
+              }
+            },
+            {
+              "x402": {
+                "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                "asset": "USDC"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YoutubeTranscriptInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transcript context"
+          },
+          "402": {
+            "description": "x402 payment required"
+          },
+          "422": {
+            "description": "Video or captions cannot be processed; not settled"
+          }
+        }
+      }
+    },
+    "/v1/transcripts/context": {
+      "post": {
+        "summary": "Generate agent-ready context from supplied transcripts",
+        "description": "Requires a valid x402 payment signature. Accepts text, WebVTT, SRT, or timestamped segments.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.003"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "eip155:8453",
+                "asset": "USDC"
+              }
+            },
+            {
+              "x402": {
+                "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                "asset": "USDC"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranscriptContextInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Normalized transcript context"
+          },
+          "402": {
+            "description": "x402 payment required"
+          }
+        }
+      }
+    },
+    "/v1/health": {
+      "get": {
+        "summary": "Check video context service health",
+        "responses": {
+          "200": {
+            "description": "Healthy"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "YoutubeTranscriptInput": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "language": {
+            "type": "string",
+            "default": "en"
+          },
+          "preferManual": {
+            "type": "boolean",
+            "default": true
+          },
+          "maxChunkCharacters": {
+            "type": "integer",
+            "minimum": 400,
+            "maximum": 8000,
+            "default": 2400
+          },
+          "includeSegments": {
+            "type": "boolean",
+            "default": true
+          },
+          "includeText": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
+      "TranscriptContextInput": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 1000000
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "text",
+              "vtt",
+              "srt"
+            ],
+            "default": "text"
+          },
+          "segments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "startSeconds",
+                "endSeconds",
+                "text"
+              ],
+              "properties": {
+                "startSeconds": {
+                  "type": "number",
+                  "description": "Segment start time in seconds from the beginning of the source."
+                },
+                "endSeconds": {
+                  "type": "number",
+                  "description": "Segment end time in seconds from the beginning of the source."
+                },
+                "text": {
+                  "type": "string",
+                  "description": "Transcript text spoken during this segment."
+                }
+              }
+            }
+          },
+          "sourceUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "maxChunkCharacters": {
+            "type": "integer",
+            "minimum": 400,
+            "maximum": 8000,
+            "default": 2400
+          }
+        }
+      }
+    }
+  },
+  "x-x402": {
+    "networks": [
+      "eip155:8453",
+      "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+    ],
+    "asset": "USDC",
+    "resources": {
+      "/v1/youtube/transcript": "$0.01",
+      "/v1/transcripts/context": "$0.003"
+    }
+  }
+}
