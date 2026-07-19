@@ -3,8 +3,8 @@
   "info": {
     "title": "Melchior Video Context API",
     "version": "0.1.0",
-    "description": "Paid, agent-ready YouTube transcripts and transcript normalization over x402.",
-    "x-guidance": "Use /v1/youtube/transcript when you have a public YouTube video URL. Send the URL and preferred caption language, complete the returned x402 payment requirement, then cite the returned chunk URLs in downstream answers. Use /v1/transcripts/context when you already have transcript text, WebVTT, SRT, or timestamped segments. Failed extraction responses are not settled."
+    "description": "Paid, agent-ready YouTube transcripts, lexical evidence search, and transcript normalization over x402.",
+    "x-guidance": "Use /v1/youtube/search when you need only passages that lexically match a phrase or terms, with timestamp citations. Use /v1/youtube/transcript for the complete transcript and model-sized chunks. Use /v1/transcripts/context when you already have transcript text, WebVTT, SRT, or timestamped segments. Failed extraction responses are not settled."
   },
   "servers": [
     {
@@ -59,6 +59,75 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/YoutubeTranscriptResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "x402 payment required"
+          },
+          "422": {
+            "description": "Video or captions cannot be processed; payment is not settled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/youtube/search": {
+      "post": {
+        "summary": "Find cited evidence in a public YouTube transcript",
+        "description": "Deterministic lexical phrase and term matching. Requires a valid x402 payment signature; settlement occurs only after a successful response, including a valid search with zero matches.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.005"
+          },
+          "protocols": [
+            {
+              "x402": {
+                "network": "eip155:8453",
+                "asset": "USDC"
+              }
+            },
+            {
+              "x402": {
+                "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                "asset": "USDC"
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YoutubeSearchInput"
+              },
+              "example": {
+                "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                "query": "never gonna give you up",
+                "language": "en",
+                "maxResults": 5,
+                "contextSegments": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ranked lexical transcript passages; matches may be empty",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YoutubeSearchResponse"
                 }
               }
             }
@@ -200,6 +269,49 @@
           "includeText": {
             "type": "boolean",
             "default": true
+          }
+        }
+      },
+      "YoutubeSearchInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "url",
+          "query"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Public youtube.com or youtu.be video URL."
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "Phrase or terms to match lexically. This is not semantic search."
+          },
+          "language": {
+            "type": "string",
+            "default": "en",
+            "description": "Preferred caption language code, such as en or es."
+          },
+          "preferManual": {
+            "type": "boolean",
+            "default": true
+          },
+          "maxResults": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 5
+          },
+          "contextSegments": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5,
+            "default": 1,
+            "description": "Neighboring transcript segments included around each lexical match."
           }
         }
       },
@@ -491,6 +603,175 @@
           }
         }
       },
+      "YoutubeSearchMatch": {
+        "type": "object",
+        "required": [
+          "rank",
+          "score",
+          "startSeconds",
+          "endSeconds",
+          "text",
+          "matchedTerms",
+          "citation"
+        ],
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "score": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Deterministic lexical score used only to order this response."
+          },
+          "startSeconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "endSeconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "text": {
+            "type": "string"
+          },
+          "matchedTerms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "citation": {
+            "type": "object",
+            "required": [
+              "label",
+              "url"
+            ],
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "description": "YouTube deep link at the start of the passage."
+              }
+            }
+          }
+        }
+      },
+      "YoutubeSearchResponse": {
+        "type": "object",
+        "required": [
+          "requestId",
+          "video",
+          "query",
+          "matches",
+          "usage",
+          "generatedAt"
+        ],
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "video": {
+            "type": "object",
+            "required": [
+              "id",
+              "title",
+              "url",
+              "channel",
+              "durationSeconds",
+              "publishedAt",
+              "thumbnail"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "channel": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "durationSeconds": {
+                "type": "number",
+                "minimum": 0
+              },
+              "publishedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "thumbnail": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uri"
+              }
+            }
+          },
+          "query": {
+            "type": "string"
+          },
+          "matches": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "$ref": "#/components/schemas/YoutubeSearchMatch"
+            }
+          },
+          "usage": {
+            "type": "object",
+            "required": [
+              "candidateSegments",
+              "matchedSegments",
+              "returnedMatches",
+              "cache"
+            ],
+            "properties": {
+              "candidateSegments": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Transcript segments evaluated."
+              },
+              "matchedSegments": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Segments with a positive lexical score."
+              },
+              "returnedMatches": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10
+              },
+              "cache": {
+                "type": "string",
+                "enum": [
+                  "hit",
+                  "miss"
+                ]
+              }
+            }
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "TranscriptContextResponse": {
         "type": "object",
         "required": [
@@ -640,6 +921,7 @@
     "asset": "USDC",
     "resources": {
       "/v1/youtube/transcript": "$0.01",
+      "/v1/youtube/search": "$0.005",
       "/v1/transcripts/context": "$0.003"
     }
   }
