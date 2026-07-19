@@ -5,7 +5,7 @@ description: "Extract public YouTube captions into timestamped segments, model-s
 use_case: "Use for YouTube video understanding, cited video summaries, lecture and interview research, caption extraction, subtitle parsing, and transcript chunking for AI agents."
 category: media
 service_url: https://transcript.melchiorlabs.com
-version: v1
+version: "0.1.0"
 openapi:
   path: openapi.json
 ---
