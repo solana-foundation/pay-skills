@@ -2,7 +2,7 @@
 name: solana-preflight
 title: "Utilia Solana Preflight"
 description: "Live Solana priority-fee quantiles, unsigned transaction simulation, confirmed-failure diagnosis, token mint-risk evidence, and PDF-to-Markdown results."
-use_case: "Use immediately before building or submitting Solana transactions, when choosing compute-unit price, validating an unsigned transaction, diagnosing a failed signature, or screening a token mint."
+use_case: "Use for Solana transaction preflight before signing or broadcast, choosing compute-unit price, validating an unsigned transaction, diagnosing a failed signature, screening token-mint risk, and converting PDF documents to agent-ready Markdown."
 category: devtools
 service_url: https://api.utilia.ink
 version: v1
@@ -18,7 +18,7 @@ The lowest-cost recurring signal is `GET /v1/fees/priority` at $0.002 per call.
 It returns timestamped low, medium, high, and urgent micro-lamport quantiles,
 optionally localized to writable accounts. Simulation costs $0.008; transaction
 diagnosis costs $0.004; token-risk inspection costs $0.006; PDF-to-Markdown
-conversion costs $0.005.
+conversion costs $0.0025.
 
 ## Spend-aware usage
 
