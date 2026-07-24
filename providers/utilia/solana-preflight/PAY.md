@@ -13,6 +13,9 @@ openapi:
 Utilia is a read-only preflight and post-transaction evidence service for
 autonomous Solana agents. No account, subscription, or API key is required.
 Paid routes use x402 v2 exact USDC payments on Solana mainnet.
+This provider snapshot intentionally catalogs the Solana-settled preflight and
+PDF operations; the live service OpenAPI document remains authoritative for
+additional method aliases, Base-settled HTTP aliases, and media routes.
 
 The lowest-cost recurring signal is `GET /v1/fees/priority` at $0.002 per call.
 It returns timestamped low, medium, high, and urgent micro-lamport quantiles,
