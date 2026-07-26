@@ -5,6 +5,7 @@
     "description": "x402-paid Black-Scholes European option pricing, analytic Greeks, single-premium IV, IV surfaces, portfolio net Greeks, and scenario reprice. USDC exact on Solana mainnet and/or Base mainnet via PayAI. No API keys.",
     "version": "1.3.0",
     "contact": {
+      "name": "Derivatives Pricer",
       "url": "https://derivatives-pricer-production.up.railway.app"
     }
   },
@@ -33,6 +34,31 @@
     }
   ],
   "paths": {
+    "/": {
+      "get": {
+        "operationId": "getServiceCard",
+        "tags": [
+          "discovery"
+        ],
+        "summary": "Service card for agents",
+        "description": "Machine-readable catalog: capabilities, endpoints, examples, settlement. Free — no x402 payment.",
+        "security": [],
+        "x-free": true,
+        "responses": {
+          "200": {
+            "description": "Service discovery document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "operationId": "getHealth",
@@ -40,7 +66,9 @@
           "discovery"
         ],
         "summary": "Liveness probe",
-        "description": "Returns service status, networks, and pricing snapshot. Free.",
+        "description": "Returns service status, networks, pricing snapshot, and payTo receivers. Free — no x402 payment.",
+        "security": [],
+        "x-free": true,
         "responses": {
           "200": {
             "description": "Service is healthy",
@@ -56,17 +84,69 @@
         }
       }
     },
-    "/": {
+    "/openapi.json": {
       "get": {
-        "operationId": "getServiceCard",
+        "operationId": "getOpenApi",
         "tags": [
           "discovery"
         ],
-        "summary": "Service card for agents",
-        "description": "Machine-readable catalog: capabilities, endpoints, examples. Free.",
+        "summary": "OpenAPI 3.1 specification",
+        "description": "Full OpenAPI document for this service. Free — no x402 payment.",
+        "security": [],
+        "x-free": true,
         "responses": {
           "200": {
-            "description": "Service discovery document",
+            "description": "OpenAPI 3.1 document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/.well-known/x402": {
+      "get": {
+        "operationId": "getWellKnownX402",
+        "tags": [
+          "discovery"
+        ],
+        "summary": "x402 well-known discovery manifest",
+        "description": "Machine-readable x402 service discovery (resources, pricing, settlement). Free — no x402 payment. Same payload as /.well-known/x402.json.",
+        "security": [],
+        "x-free": true,
+        "responses": {
+          "200": {
+            "description": "x402 discovery document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/.well-known/x402.json": {
+      "get": {
+        "operationId": "getWellKnownX402Json",
+        "tags": [
+          "discovery"
+        ],
+        "summary": "x402 well-known discovery manifest",
+        "description": "Machine-readable x402 service discovery (JSON alias). Free — no x402 payment.",
+        "security": [],
+        "x-free": true,
+        "responses": {
+          "200": {
+            "description": "x402 discovery document",
             "content": {
               "application/json": {
                 "schema": {
@@ -86,7 +166,7 @@
           "options"
         ],
         "summary": "Price European option + Greeks",
-        "description": "Black-Scholes-Merton fair value and full analytic Greeks (delta, gamma, vega, theta, rho). Paid via x402: $0.01 USDC per request (Solana mainnet or Base mainnet). or Base mainnet (USDC exact).",
+        "description": "Black-Scholes-Merton fair value and full analytic Greeks (delta, gamma, vega, theta, rho). Paid via x402: $0.01 USDC per request (Solana mainnet or Base mainnet).",
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -197,7 +277,143 @@
             "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
             "eip155:8453"
           ]
-        }
+        },
+        "security": [
+          {
+            "x402": []
+          }
+        ]
+      }
+    },
+    "/v1/option/implied-vol": {
+      "post": {
+        "operationId": "solveImpliedVol",
+        "tags": [
+          "options"
+        ],
+        "summary": "Implied volatility from market premium",
+        "description": "Solve Black-Scholes implied volatility from a single market premium and return full analytic Greeks at the solved σ. Paid via x402: $0.03 USDC per request (Solana mainnet or Base mainnet).",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Optional key for safe retries of a paid request"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImpliedVolRequest"
+              },
+              "example": {
+                "underlying": 100,
+                "strike": 100,
+                "timeToExpiry": 1,
+                "rate": 0.05,
+                "dividendYield": 0,
+                "optionType": "call",
+                "premium": 10.45057562
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Implied vol, Greeks, model price (after successful x402 settlement)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImpliedVolResponse"
+                },
+                "example": {
+                  "impliedVol": 0.2,
+                  "greeks": {
+                    "delta": 0.63683059,
+                    "gamma": 0.01876202,
+                    "vega": 37.52403469,
+                    "theta": -6.41402764,
+                    "rho": 53.23248343
+                  },
+                  "modelPrice": 10.45057562,
+                  "priceError": 0,
+                  "iterations": 12,
+                  "converged": true,
+                  "inputs": {
+                    "underlying": 100,
+                    "strike": 100,
+                    "timeToExpiry": 1,
+                    "rate": 0.05,
+                    "dividendYield": 0,
+                    "optionType": "call",
+                    "premium": 10.45057562
+                  },
+                  "requestId": "00000000-0000-4000-8000-000000000003",
+                  "computedAt": "2026-01-01T00:00:00.000Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402). Decode PAYMENT-REQUIRED header (base64 JSON) for accepts[] — Solana mainnet and/or Base mainnet USDC exact, amount, and payTo.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 payment requirements (v2)",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequiredBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "IV solver failed to converge or premium out of bounds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-pricing": {
+          "currency": "USDC",
+          "price_usd": 0.03,
+          "unit": "request",
+          "scheme": "exact",
+          "networks": [
+            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+            "eip155:8453"
+          ]
+        },
+        "security": [
+          {
+            "x402": []
+          }
+        ]
       }
     },
     "/v1/volatility/surface": {
@@ -207,7 +423,7 @@
           "volatility"
         ],
         "summary": "Implied volatility surface from market premiums",
-        "description": "Invert a market option book into an IV surface grid, per-quote IV and Greeks, fit metrics, and solve stats. Shared rate/yield; each option has its own underlying (multi-maturity marks). Paid via x402: $0.10 USDC per request (Solana mainnet or Base mainnet). or Base mainnet (USDC exact).",
+        "description": "Invert a market option book into an IV surface grid, per-quote IV and Greeks, fit metrics, and solve stats. Shared rate/yield; each option has its own underlying (multi-maturity marks). Paid via x402: $0.10 USDC per request (Solana mainnet or Base mainnet).",
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -415,179 +631,12 @@
             "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
             "eip155:8453"
           ]
-        }
-      }
-    },
-    "/.well-known/x402": {
-      "get": {
-        "operationId": "getWellKnownX402",
-        "tags": [
-          "discovery"
-        ],
-        "summary": "x402 well-known discovery manifest",
-        "description": "Machine-readable x402 service discovery (resources, pricing, settlement). Free. Same payload as /.well-known/x402.json.",
-        "responses": {
-          "200": {
-            "description": "x402 discovery document",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": true
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/.well-known/x402.json": {
-      "get": {
-        "operationId": "getWellKnownX402Json",
-        "tags": [
-          "discovery"
-        ],
-        "summary": "x402 well-known discovery manifest",
-        "description": "Machine-readable x402 service discovery (JSON alias). Free.",
-        "responses": {
-          "200": {
-            "description": "x402 discovery document",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": true
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/option/implied-vol": {
-      "post": {
-        "operationId": "solveImpliedVol",
-        "tags": [
-          "options"
-        ],
-        "summary": "Implied volatility from market premium",
-        "description": "Solve Black-Scholes implied volatility from a single market premium and return full analytic Greeks at the solved σ. Paid via x402: $0.03 USDC per request (Solana mainnet or Base mainnet). or Base mainnet (USDC exact).",
-        "parameters": [
+        },
+        "security": [
           {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "description": "Optional key for safe retries of a paid request"
+            "x402": []
           }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ImpliedVolRequest"
-              },
-              "example": {
-                "underlying": 100,
-                "strike": 100,
-                "timeToExpiry": 1,
-                "rate": 0.05,
-                "dividendYield": 0,
-                "optionType": "call",
-                "premium": 10.45057562
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Implied vol, Greeks, model price (after successful x402 settlement)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ImpliedVolResponse"
-                },
-                "example": {
-                  "impliedVol": 0.2,
-                  "greeks": {
-                    "delta": 0.63683059,
-                    "gamma": 0.01876202,
-                    "vega": 37.52403469,
-                    "theta": -6.41402764,
-                    "rho": 53.23248343
-                  },
-                  "modelPrice": 10.45057562,
-                  "priceError": 0,
-                  "iterations": 12,
-                  "converged": true,
-                  "inputs": {
-                    "underlying": 100,
-                    "strike": 100,
-                    "timeToExpiry": 1,
-                    "rate": 0.05,
-                    "dividendYield": 0,
-                    "optionType": "call",
-                    "premium": 10.45057562
-                  },
-                  "requestId": "00000000-0000-4000-8000-000000000003",
-                  "computedAt": "2026-01-01T00:00:00.000Z"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request body",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "Payment required (x402). Decode PAYMENT-REQUIRED header (base64 JSON) for accepts[] — Solana mainnet and/or Base mainnet USDC exact, amount, and payTo.",
-            "headers": {
-              "PAYMENT-REQUIRED": {
-                "description": "Base64-encoded x402 payment requirements (v2)",
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PaymentRequiredBody"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "IV solver failed to converge or premium out of bounds",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "x-pricing": {
-          "currency": "USDC",
-          "price_usd": 0.03,
-          "unit": "request",
-          "scheme": "exact",
-          "networks": [
-            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-            "eip155:8453"
-          ]
-        }
+        ]
       }
     },
     "/v1/portfolio/greeks": {
@@ -597,7 +646,7 @@
           "portfolio"
         ],
         "summary": "Net portfolio Greeks and MTM",
-        "description": "Aggregate net Greeks and mark-to-model for a multi-leg European option book. quantity > 0 long, quantity < 0 short. Optional dollar Greeks. Paid via x402: $0.15 USDC per request (Solana mainnet or Base mainnet). or Base mainnet (USDC exact).",
+        "description": "Aggregate net Greeks and mark-to-model for a multi-leg European option book. quantity > 0 long, quantity < 0 short. Optional dollar Greeks. Paid via x402: $0.15 USDC per request (Solana mainnet or Base mainnet).",
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -752,7 +801,12 @@
             "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
             "eip155:8453"
           ]
-        }
+        },
+        "security": [
+          {
+            "x402": []
+          }
+        ]
       }
     },
     "/v1/portfolio/scenario": {
@@ -762,7 +816,7 @@
           "portfolio"
         ],
         "summary": "Portfolio scenario reprice",
-        "description": "Reprice a multi-leg European portfolio under relative spot/vol shocks and calendar time decay. Returns base MTM+Greeks and per-scenario shocked MTM, MTM change, and full Greeks. Paid via x402: $0.25 USDC per request (Solana mainnet or Base mainnet). or Base mainnet (USDC exact).",
+        "description": "Reprice a multi-leg European portfolio under relative spot/vol shocks and calendar time decay. Returns base MTM+Greeks and per-scenario shocked MTM, MTM change, and full Greeks. Paid via x402: $0.25 USDC per request (Solana mainnet or Base mainnet).",
         "parameters": [
           {
             "name": "Idempotency-Key",
@@ -922,7 +976,12 @@
             "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
             "eip155:8453"
           ]
-        }
+        },
+        "security": [
+          {
+            "x402": []
+          }
+        ]
       }
     }
   },
@@ -1756,6 +1815,14 @@
           }
         }
       }
+    },
+    "securitySchemes": {
+      "x402": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "x402",
+        "description": "x402 micropayment (HTTP 402). Clients settle USDC exact on Solana mainnet and/or Base mainnet, then retry with the payment proof. Free discovery endpoints override with security: []."
+      }
     }
   },
   "x-payment": {
@@ -1777,5 +1844,10 @@
       }
     ],
     "note": "Unpaid requests return HTTP 402 with accepts for each configured network. Clients may settle USDC on Solana or Base."
-  }
+  },
+  "security": [
+    {
+      "x402": []
+    }
+  ]
 }
