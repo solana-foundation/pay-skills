@@ -1,0 +1,200 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "MadeOnSol — Pay-per-call Solana memecoin intelligence",
+    "version": "1.0.0",
+    "description": "Seven x402 endpoints for autonomous AI agents. USDC settlement on Solana mainnet via PayAI facilitator. Catalog at GET /api/x402."
+  },
+  "servers": [
+    {
+      "url": "https://madeonsol.com/api/x402",
+      "description": "Production"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "x402Payment": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "PAYMENT-SIGNATURE",
+        "description": "Base64-encoded x402 v2 PaymentPayload JSON. On missing header the server returns 402 with the PAYMENT-REQUIRED challenge; sign a USDC transfer, retry."
+      }
+    },
+    "responses": {
+      "PaymentRequired": {
+        "description": "Payment required (x402 v2 challenge). Body and PAYMENT-REQUIRED header carry the same base64 JSON.",
+        "headers": {
+          "PAYMENT-REQUIRED": { "schema": { "type": "string" }, "description": "Base64-encoded x402 v2 PaymentRequired JSON" }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "x402Version": { "type": "integer", "const": 2 },
+                "resource": { "type": "object" },
+                "accepts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "scheme": { "type": "string", "const": "exact" },
+                      "network": { "type": "string", "const": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" },
+                      "amount": { "type": "string", "description": "USDC atomic units (6 decimals)" },
+                      "asset": { "type": "string", "const": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" },
+                      "payTo": { "type": "string" },
+                      "maxTimeoutSeconds": { "type": "integer" },
+                      "extra": {
+                        "type": "object",
+                        "properties": {
+                          "feePayer": { "type": "string", "description": "Facilitator sponsors tx fees — agent only needs USDC" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [{ "x402Payment": [] }],
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "Discovery — list all x402 endpoints with prices and descriptions",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Catalog of x402 endpoints (free, no payment)",
+            "content": { "application/json": {} }
+          }
+        }
+      }
+    },
+    "/kol/feed": {
+      "get": {
+        "summary": "Real-time KOL trade feed",
+        "description": "Live feed of recent buys/sells from 946+ tracked Solana KOL wallets. Every trade includes market_cap_usd_at_trade and price_usd_at_trade stamped at the exact swap moment. $0.005 USDC.",
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 } },
+          { "name": "before", "in": "query", "description": "ISO 8601 cursor — return trades older than this timestamp", "schema": { "type": "string", "format": "date-time" } },
+          { "name": "action", "in": "query", "schema": { "type": "string", "enum": ["buy", "sell"] } },
+          { "name": "kol", "in": "query", "description": "Filter by KOL wallet address", "schema": { "type": "string" } },
+          { "name": "min_sol", "in": "query", "description": "Minimum SOL size per trade", "schema": { "type": "number" } },
+          { "name": "token_age_max_min", "in": "query", "description": "Max token age (minutes) at time of trade", "schema": { "type": "integer" } },
+          { "name": "min_kol_winrate", "in": "query", "description": "Minimum 7d winrate of the KOL (0-100)", "schema": { "type": "number" } },
+          { "name": "strategy", "in": "query", "schema": { "type": "string", "enum": ["scalper", "day_trader", "swing_trader", "hodler", "mixed"] } }
+        ],
+        "responses": {
+          "200": { "description": "KOL trade feed with MC + USD price stamped at trade time" },
+          "402": { "$ref": "#/components/responses/PaymentRequired" }
+        }
+      }
+    },
+    "/kol/leaderboard": {
+      "get": {
+        "summary": "KOL ranking by PnL, winrate, profit factor",
+        "description": "Top KOLs over a time window, sortable by realized PnL / winrate / volume / avg_roi / profit_factor / early_entry_pct / consistency. $0.005 USDC.",
+        "parameters": [
+          { "name": "period", "in": "query", "schema": { "type": "string", "enum": ["today", "7d", "30d", "90d", "180d"], "default": "7d" } },
+          { "name": "sort", "in": "query", "schema": { "type": "string", "enum": ["pnl", "winrate", "volume", "avg_roi", "profit_factor", "early_entry_pct", "consistency"], "default": "pnl" } },
+          { "name": "strategy", "in": "query", "schema": { "type": "string", "enum": ["scalper", "day_trader", "swing_trader", "hodler", "mixed"] } },
+          { "name": "min_winrate", "in": "query", "schema": { "type": "number", "minimum": 0, "maximum": 100 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 } }
+        ],
+        "responses": {
+          "200": { "description": "Ranked KOL leaderboard with full score block" },
+          "402": { "$ref": "#/components/responses/PaymentRequired" }
+        }
+      }
+    },
+    "/kol/tokens/hot": {
+      "get": {
+        "summary": "Tokens with accelerating KOL interest",
+        "description": "Tokens ranked by acceleration — ratio of fresh KOL entrants in the recent sub-window vs the full window. Surfaces tokens where KOL interest is intensifying right now. $0.01 USDC.",
+        "parameters": [
+          { "name": "period", "in": "query", "schema": { "type": "string", "enum": ["1h", "6h"], "default": "1h" } },
+          { "name": "min_kols", "in": "query", "schema": { "type": "integer", "minimum": 2, "default": 3 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 20 } },
+          { "name": "min_avg_winrate", "in": "query", "schema": { "type": "number" } },
+          { "name": "unique_strategies", "in": "query", "schema": { "type": "boolean" } }
+        ],
+        "responses": {
+          "200": { "description": "Hot tokens by KOL acceleration with quality enrichment" },
+          "402": { "$ref": "#/components/responses/PaymentRequired" }
+        }
+      }
+    },
+    "/kol/tokens/trending": {
+      "get": {
+        "summary": "Tokens by raw KOL buy volume",
+        "description": "Tokens ranked by total KOL buy SOL over the window. Pure capital-flow signal — where smart money is putting size. $0.01 USDC.",
+        "parameters": [
+          { "name": "period", "in": "query", "schema": { "type": "string", "enum": ["5m", "15m", "30m", "1h", "2h", "4h", "12h"], "default": "1h" } },
+          { "name": "min_kols", "in": "query", "schema": { "type": "integer", "default": 2 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 20 } }
+        ],
+        "responses": {
+          "200": { "description": "Trending KOL tokens by volume" },
+          "402": { "$ref": "#/components/responses/PaymentRequired" }
+        }
+      }
+    },
+    "/deployer-hunter/alerts": {
+      "get": {
+        "summary": "Real-time Pump.fun deployer launch alerts",
+        "description": "Live alerts when tracked deployers launch new tokens. Each deployer is tier-graded (elite/good/moderate/rising/cold) by historical bonding rate. Includes KOL buy cross-reference. $0.01 USDC.",
+        "parameters": [
+          { "name": "tier", "in": "query", "schema": { "type": "string", "enum": ["elite", "good", "moderate", "rising", "cold"] } },
+          { "name": "since", "in": "query", "schema": { "type": "string", "format": "date-time" } },
+          { "name": "before", "in": "query", "schema": { "type": "string", "format": "date-time" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 50 } },
+          { "name": "min_kol_buys", "in": "query", "schema": { "type": "integer" } },
+          { "name": "priority", "in": "query", "schema": { "type": "string", "enum": ["high", "medium", "low"] } }
+        ],
+        "responses": {
+          "200": { "description": "Deployer alerts with launch event + KOL buy cross-ref" },
+          "402": { "$ref": "#/components/responses/PaymentRequired" }
+        }
+      }
+    },
+    "/kol/coordination": {
+      "get": {
+        "summary": "Multi-KOL coordination clusters",
+        "description": "Detect tokens being bought by multiple KOLs within a tight time window. Returns peak-density windows, exit detection, 0-100 composite coordination score, MC at first KOL buy. $0.02 USDC.",
+        "parameters": [
+          { "name": "period", "in": "query", "schema": { "type": "string", "enum": ["1h", "6h", "24h", "7d"], "default": "24h" } },
+          { "name": "min_kols", "in": "query", "schema": { "type": "integer", "minimum": 2, "maximum": 50, "default": 3 } },
+          { "name": "window_minutes", "in": "query", "description": "Peak-density window size in minutes", "schema": { "type": "integer", "minimum": 1, "maximum": 60, "default": 15 } },
+          { "name": "min_score", "in": "query", "schema": { "type": "integer", "minimum": 0, "maximum": 100 } },
+          { "name": "min_avg_winrate", "in": "query", "schema": { "type": "number" } },
+          { "name": "min_mc_usd", "in": "query", "description": "Filter on MC at first KOL buy (entry-time MC)", "schema": { "type": "number" } },
+          { "name": "max_mc_usd", "in": "query", "schema": { "type": "number" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 20 } }
+        ],
+        "responses": {
+          "200": { "description": "Coordination clusters with peak-density windows + scoring" },
+          "402": { "$ref": "#/components/responses/PaymentRequired" }
+        }
+      }
+    },
+    "/kol/pairs": {
+      "get": {
+        "summary": "KOL affinity matrix",
+        "description": "Pairs of KOLs that frequently co-trade the same tokens within a 2-hour window. Returns shared token count and agreement score per pair. Identifies coordinated KOL groups. $0.02 USDC.",
+        "parameters": [
+          { "name": "period", "in": "query", "schema": { "type": "string", "enum": ["7d", "30d"], "default": "7d" } },
+          { "name": "min_shared", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 20, "default": 2 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 20 } }
+        ],
+        "responses": {
+          "200": { "description": "KOL pair affinity matrix with shared-token counts" },
+          "402": { "$ref": "#/components/responses/PaymentRequired" }
+        }
+      }
+    }
+  }
+}
