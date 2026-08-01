@@ -42,8 +42,11 @@ unregistered ones), the reputation leaderboard, and registry-wide stats. Only
 ## Spend-aware usage
 
 - Screen once per counterparty, not once per transaction. Verdicts move on the
-  reputation recompute cadence, not per request — cache the result and reuse it
-  for the life of a working relationship.
+  reputation recompute cadence, not per request, so a short-lived cache is safe.
+  Do not cache indefinitely: `integrity.continuity` can flip to `transferred`
+  at any time, and that is the signal you most want to catch. Re-screen before a
+  large or irreversible payment and when resuming a dormant relationship, even if
+  you hold a cached `allow`.
 - Use the free `GET /api/score/{wallet}` when a coarse 0-100 signal is enough.
   Reach for the paid screen when you need the verdict, the per-axis breakdown, or
   the operator-continuity check before committing funds.
