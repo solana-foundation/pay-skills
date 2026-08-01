@@ -1,0 +1,902 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Utilia Solana Preflight API",
+    "version": "0.5.7",
+    "description": "A machine-payable live Solana priority-fee feed for transaction bots, with simulation, transaction diagnosis, token-risk, and document tools. No account, subscription, or API key is required. Paid routes use x402 v2 exact USDC payments on Solana mainnet.",
+    "contact": {
+      "url": "https://api.utilia.ink"
+    },
+    "x-guidance": "Use Utilia before a Solana transaction is signed or broadcast, and after a failed transaction needs explanation.\n\nFor unsigned or signed serialized transactions, call POST /v1/transaction/simulate before broadcast. It replaces the recent blockhash, disables signature verification, and classifies failures without submitting the transaction.\n\nFor fee bidding, call GET /v1/fees/priority immediately before choosing a compute-unit price. Repeat the account query parameter for writable accounts to localize the estimate; omit it for a network-wide sample. Each response is timestamped and costs $0.002.\n\nFor a budget-capped five-calls-per-hour feed, run: npx -y utilia-solana-agent@0.5.7 watch-fees --every 12m --max-calls 25. It stops after $0.05 of maximum Utilia spend.\n\nFor a confirmed signature, call GET /v1/transaction/{signature} to inspect balance deltas, logs, compute use, confirmation state, and retry-safe error guidance.\n\nBefore interacting with an unfamiliar token, call GET /v1/token/{mint} to inspect authorities, Token-2022 controls, supply, holder concentration, and risk flags.\n\nFor agent-ready document text, call POST /v1/pdf/to-markdown with either a public HTTPS URL or a base64 PDF. The response includes page-delimited Markdown, metadata, and a source SHA-256 digest.\n\nEach paid operation declares a fixed USD price and x402 support in x-payment-info. Call it normally, read the PAYMENT-REQUIRED header from HTTP 402, sign the advertised exact Solana USDC payment, then retry with PAYMENT-SIGNATURE."
+  },
+  "servers": [
+    {
+      "url": "https://api.utilia.ink"
+    }
+  ],
+  "x-discovery": {
+    "ownershipProofs": [
+      "3L9YN6EHurbGPnxBXzhVnQfs5YbrsDoxHHEThuAMGNs8EWAaUzdNAJxYiQPyqBFCBja1rrDmVeXdPJaFc9zvdLdd"
+    ]
+  },
+  "tags": [
+    {
+      "name": "Transactions",
+      "description": "Solana transaction preflight and diagnostics"
+    },
+    {
+      "name": "Fees",
+      "description": "Live Solana priority-fee bids for transaction agents"
+    },
+    {
+      "name": "Tokens",
+      "description": "SPL token authority and concentration signals"
+    },
+    {
+      "name": "Documents",
+      "description": "Deterministic document transforms for agents"
+    },
+    {
+      "name": "Service",
+      "description": "Free service status"
+    }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "operationId": "getServiceHealth",
+        "summary": "Check Utilia service health",
+        "tags": [
+          "Service"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "service",
+                    "version",
+                    "payments"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "const": "ok"
+                    },
+                    "service": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "payments": {
+                      "type": "string",
+                      "enum": [
+                        "enabled",
+                        "disabled"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/transaction/{signature}": {
+      "get": {
+        "operationId": "analyzeSolanaTransaction",
+        "summary": "Analyze a confirmed Solana transaction",
+        "description": "Analyze a confirmed Solana transaction, including confirmation, balance changes, logs, compute usage, and a retry-safe failure classification.",
+        "tags": [
+          "Transactions"
+        ],
+        "parameters": [
+          {
+            "name": "signature",
+            "in": "path",
+            "required": true,
+            "description": "Base58 Solana transaction signature",
+            "schema": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 88
+            }
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.004000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "x-x402-price": "$0.004",
+        "responses": {
+          "200": {
+            "description": "Transaction analysis",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "signature",
+                    "slot",
+                    "succeeded",
+                    "classification",
+                    "solBalanceChanges",
+                    "tokenBalanceChanges",
+                    "logs",
+                    "confirmation"
+                  ],
+                  "properties": {
+                    "signature": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "slot": {
+                      "type": "integer"
+                    },
+                    "blockTime": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "succeeded": {
+                      "type": "boolean"
+                    },
+                    "feeLamports": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "computeUnitsConsumed": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "classification": {
+                      "type": "object",
+                      "required": [
+                        "category",
+                        "summary",
+                        "suggestedAction"
+                      ],
+                      "properties": {
+                        "category": {
+                          "type": "string",
+                          "enum": [
+                            "none",
+                            "slippage",
+                            "insufficient_funds",
+                            "compute_budget",
+                            "expired_blockhash",
+                            "account_conflict",
+                            "program_error",
+                            "unknown"
+                          ]
+                        },
+                        "summary": {
+                          "type": "string"
+                        },
+                        "suggestedAction": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    },
+                    "solBalanceChanges": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "account": {
+                            "type": "string"
+                          },
+                          "lamports": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    },
+                    "tokenBalanceChanges": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "owner": {
+                            "type": "string"
+                          },
+                          "mint": {
+                            "type": "string"
+                          },
+                          "rawAmount": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "logs": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "rawError": {},
+                    "confirmation": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "additionalProperties": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "x402 payment required",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 v2 payment requirements",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/transaction/simulate": {
+      "post": {
+        "operationId": "simulateSolanaTransaction",
+        "summary": "Simulate and classify a transaction",
+        "description": "Simulate a serialized Solana transaction with a fresh recent blockhash and classify any failure before broadcast.",
+        "tags": [
+          "Transactions"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.008000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "x-x402-price": "$0.008",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "transaction"
+                ],
+                "properties": {
+                  "transaction": {
+                    "type": "string",
+                    "description": "Base64- or base58-encoded serialized transaction"
+                  },
+                  "encoding": {
+                    "type": "string",
+                    "enum": [
+                      "base64",
+                      "base58"
+                    ],
+                    "default": "base64"
+                  },
+                  "accountAddresses": {
+                    "type": "array",
+                    "maxItems": 20,
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Simulation analysis",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "slot",
+                    "succeeded",
+                    "unitsConsumed",
+                    "classification",
+                    "logs"
+                  ],
+                  "properties": {
+                    "slot": {
+                      "type": "integer"
+                    },
+                    "succeeded": {
+                      "type": "boolean"
+                    },
+                    "unitsConsumed": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "classification": {
+                      "type": "object",
+                      "required": [
+                        "category",
+                        "summary",
+                        "suggestedAction"
+                      ],
+                      "properties": {
+                        "category": {
+                          "type": "string",
+                          "enum": [
+                            "none",
+                            "slippage",
+                            "insufficient_funds",
+                            "compute_budget",
+                            "expired_blockhash",
+                            "account_conflict",
+                            "program_error",
+                            "unknown"
+                          ]
+                        },
+                        "summary": {
+                          "type": "string"
+                        },
+                        "suggestedAction": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    },
+                    "logs": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "rawError": {},
+                    "replacementBlockhash": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "additionalProperties": true
+                    },
+                    "accounts": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {}
+                    },
+                    "returnData": {}
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "x402 payment required",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 v2 payment requirements",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/fees/priority": {
+      "get": {
+        "operationId": "estimateSolanaPriorityFees",
+        "summary": "Estimate priority fee quantiles",
+        "description": "Return timestamped priority-fee quantiles in micro-lamports per compute unit, optionally localized to up to 20 writable accounts. Intended for live transaction builders and recurring bot polling.",
+        "tags": [
+          "Fees"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.002000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "x-x402-price": "$0.002",
+        "parameters": [
+          {
+            "name": "account",
+            "in": "query",
+            "description": "Repeatable writable Solana account address",
+            "schema": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string"
+              }
+            },
+            "style": "form",
+            "explode": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Priority fee quantiles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "observedAt",
+                    "accounts",
+                    "sampleCount",
+                    "minMicroLamports",
+                    "lowMicroLamports",
+                    "mediumMicroLamports",
+                    "highMicroLamports",
+                    "urgentMicroLamports",
+                    "maxMicroLamports",
+                    "note"
+                  ],
+                  "properties": {
+                    "observedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "accounts": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "sampleCount": {
+                      "type": "integer"
+                    },
+                    "minMicroLamports": {
+                      "type": "integer"
+                    },
+                    "lowMicroLamports": {
+                      "type": "integer"
+                    },
+                    "mediumMicroLamports": {
+                      "type": "integer"
+                    },
+                    "highMicroLamports": {
+                      "type": "integer"
+                    },
+                    "urgentMicroLamports": {
+                      "type": "integer"
+                    },
+                    "maxMicroLamports": {
+                      "type": "integer"
+                    },
+                    "note": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "x402 payment required",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 v2 payment requirements",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/token/{mint}": {
+      "get": {
+        "operationId": "analyzeSolanaToken",
+        "summary": "Fetch Solana token mint risk signals",
+        "description": "Inspect an SPL token mint for active authorities, Token-2022 controls, supply, holder concentration, and risk flags.",
+        "tags": [
+          "Tokens"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.006000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "x-x402-price": "$0.006",
+        "parameters": [
+          {
+            "name": "mint",
+            "in": "path",
+            "required": true,
+            "description": "Base58 SPL token mint address",
+            "schema": {
+              "type": "string",
+              "minLength": 32,
+              "maxLength": 44
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mint analysis",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "mint",
+                    "program",
+                    "ownerProgram",
+                    "supplyRaw",
+                    "token2022Extensions",
+                    "largestAccounts",
+                    "riskFlags",
+                    "caution"
+                  ],
+                  "properties": {
+                    "mint": {
+                      "type": "string"
+                    },
+                    "program": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "ownerProgram": {
+                      "type": "string"
+                    },
+                    "decimals": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "supplyRaw": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "initialized": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "mintAuthority": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "freezeAuthority": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "token2022Extensions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "top10HolderPercent": {
+                      "type": "number"
+                    },
+                    "largestAccounts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rank": {
+                            "type": "integer"
+                          },
+                          "address": {
+                            "type": "string"
+                          },
+                          "amountRaw": {
+                            "type": "string"
+                          },
+                          "supplyPercent": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    },
+                    "riskFlags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "holderDataAvailable": {
+                      "type": "boolean"
+                    },
+                    "caution": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "x402 payment required",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 v2 payment requirements",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/pdf/to-markdown": {
+      "post": {
+        "operationId": "convertPdfToMarkdown",
+        "summary": "Extract a PDF as page-delimited Markdown",
+        "description": "Extract text and metadata from a public HTTPS PDF URL or a base64 PDF. The fetcher rejects private networks and credentials, limits input to 8 MiB, follows at most three vetted HTTPS redirects, and enforces a maximum page count.",
+        "tags": [
+          "Documents"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.002500"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "x-x402-price": "$0.0025",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "Public HTTPS PDF URL; mutually exclusive with pdfBase64"
+                  },
+                  "pdfBase64": {
+                    "type": "string",
+                    "description": "Base64 PDF up to 8 MiB; mutually exclusive with url"
+                  },
+                  "title": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "maxPages": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "default": 50
+                  }
+                },
+                "oneOf": [
+                  {
+                    "required": [
+                      "url"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "pdfBase64"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Markdown extraction",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "title",
+                    "totalPages",
+                    "sourceBytes",
+                    "textCharacters",
+                    "sha256",
+                    "markdown",
+                    "warning"
+                  ],
+                  "properties": {
+                    "title": {
+                      "type": "string"
+                    },
+                    "totalPages": {
+                      "type": "integer"
+                    },
+                    "sourceBytes": {
+                      "type": "integer"
+                    },
+                    "textCharacters": {
+                      "type": "integer"
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "markdown": {
+                      "type": "string"
+                    },
+                    "warning": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "x402 payment required",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 v2 payment requirements",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
