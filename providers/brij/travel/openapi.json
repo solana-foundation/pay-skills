@@ -8,8 +8,8 @@
       "email": "support@brij.fi",
       "url": "https://travel.brij.fi"
     },
-    "description": "Production flight API for paid flight search, escrow-backed booking intents,\nand airline order status lookup.\n\n`POST /air/search` accepts either a valid x402 `PAYMENT-SIGNATURE` or a\nBRIJ gateway sponsored-preview signature. `POST /air/intents`,\n`POST /air/book`, and `POST /air/refund-requests` are protected by x402.\nClients that do not send a valid `PAYMENT-SIGNATURE` header receive\n`402 Payment Required` with a `PAYMENT-REQUIRED` header and JSON payment\nrequirements body.\n\nEvery endpoint takes its intent id in the request body, never in the path.\n",
-    "x-guidance": "Four steps, each paid per call with x402 (USDC on Solana).\n\n1. POST /air/search — find live offers. Price is dynamic: 0.10 USDC x1..50 depending on load, so always read the current PAYMENT-REQUIRED challenge rather than reusing a price you saw earlier.\n2. POST /air/intents — lock one offer_id and derive its escrow. Costs 0.10 USDC. The response carries the intent id and the customer_support_code: PERSIST BOTH. The support code cannot be re-read later and is required to read the order or request a refund.\n3. POST /air/book — send intent_id and one passenger in the body. The price is this intent's escrow amount, i.e. the ticket price, quoted in the challenge. Booking is asynchronous: a 200 means the request was accepted, then poll GET /air/intents/{intent_id} until status is booked or refunded.\n4. POST /air/refund-requests — optional, 0.10 USDC. Needs intent_id in the body plus the X-Customer-Support-Code and X-Passenger-Family-Name headers. It files a request for manual review; it does not execute a refund.\n\nIds never travel in the path: every endpoint takes intent_id in the request body. If the upstream price moved between steps 2 and 3 the booking is rejected and the escrow is refunded automatically to the refund wallet frozen at intent creation."
+    "description": "Production flight API for paid flight search, escrow-backed booking intents,\nand airline order status lookup.\n\n`POST /air/search` accepts either a valid x402 `PAYMENT-SIGNATURE` or a\nBRIJ gateway sponsored-preview signature. `POST /air/intents`,\n`POST /air/book`, and `POST /air/refund-requests` are protected by x402.\nClients that do not send a valid `PAYMENT-SIGNATURE` header receive\n`402 Payment Required` with a `PAYMENT-REQUIRED` header and JSON payment\nrequirements body.\n\nAction endpoints (POST /air/book, POST /air/refund-requests) take intent_id\nin the request body — never in the path. The two reads are path-addressed:\nGET /air/intents/{intent_id} and GET /air/orders/{order_id}.\n",
+    "x-guidance": "Four steps, each paid per call with x402 (USDC on Solana).\n\n1. POST /air/search — find live offers. Price is dynamic: 0.10 USDC x1..50 depending on load, so always read the current PAYMENT-REQUIRED challenge rather than reusing a price you saw earlier.\n2. POST /air/intents — lock one offer_id and derive its escrow. Costs 0.10 USDC. The response carries the intent id and the customer_support_code: PERSIST BOTH. The support code cannot be re-read later and is required to read the order or request a refund.\n3. POST /air/book — send intent_id and one passenger in the body. The price is this intent's escrow amount, i.e. the ticket price, quoted in the challenge. Booking is asynchronous: a 200 means the request was accepted, then poll GET /air/intents/{intent_id} until status is booked or refunded.\n4. POST /air/refund-requests — optional, 0.10 USDC. Needs intent_id in the body plus the X-Customer-Support-Code and X-Passenger-Family-Name headers. It files a request for manual review; it does not execute a refund.\n\nAction POSTs never take an id in the path: send intent_id in the request body of POST /air/book and POST /air/refund-requests. The two GET reads (GET /air/intents/{intent_id}, GET /air/orders/{order_id}) are path-addressed. If the upstream price moved between steps 2 and 3 the booking is rejected and the escrow is refunded automatically to the refund wallet frozen at intent creation."
   },
   "servers": [
     {
@@ -900,6 +900,8 @@
           "destination_iata",
           "departing_at",
           "arriving_at",
+          "origin_time_zone",
+          "destination_time_zone",
           "stops",
           "total_amount",
           "total_amount_decimal",
@@ -1509,7 +1511,9 @@
           "origin_iata",
           "destination_iata",
           "departing_at",
-          "arriving_at"
+          "arriving_at",
+          "origin_time_zone",
+          "destination_time_zone"
         ],
         "properties": {
           "origin_iata": {
