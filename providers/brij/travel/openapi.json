@@ -3,7 +3,13 @@
   "info": {
     "title": "BRIJ Flight API",
     "version": "1.0.0",
-    "description": "Production flight API for paid flight search, escrow-backed booking intents,\nand airline order status lookup.\n\n`POST /air/search` accepts either a valid x402 `PAYMENT-SIGNATURE` or a\nBRIJ gateway sponsored-preview signature. `POST /air/intents`,\n`POST /air/intents/{intent_id}/book`, and\n`POST /air/intents/{intent_id}/refund-requests` are protected by x402.\nClients that do not send a valid `PAYMENT-SIGNATURE` header receive\n`402 Payment Required` with a `PAYMENT-REQUIRED` header and JSON payment\nrequirements body.\n"
+    "contact": {
+      "name": "BRIJ Travel support",
+      "email": "support@brij.fi",
+      "url": "https://travel.brij.fi"
+    },
+    "description": "Production flight API for paid flight search, escrow-backed booking intents,\nand airline order status lookup.\n\n`POST /air/search` accepts either a valid x402 `PAYMENT-SIGNATURE` or a\nBRIJ gateway sponsored-preview signature. `POST /air/intents`,\n`POST /air/book`, and `POST /air/refund-requests` are protected by x402.\nClients that do not send a valid `PAYMENT-SIGNATURE` header receive\n`402 Payment Required` with a `PAYMENT-REQUIRED` header and JSON payment\nrequirements body.\n\nEvery endpoint takes its intent id in the request body, never in the path.\n",
+    "x-guidance": "Four steps, each paid per call with x402 (USDC on Solana).\n\n1. POST /air/search — find live offers. Price is dynamic: 0.10 USDC x1..50 depending on load, so always read the current PAYMENT-REQUIRED challenge rather than reusing a price you saw earlier.\n2. POST /air/intents — lock one offer_id and derive its escrow. Costs 0.10 USDC. The response carries the intent id and the customer_support_code: PERSIST BOTH. The support code cannot be re-read later and is required to read the order or request a refund.\n3. POST /air/book — send intent_id and one passenger in the body. The price is this intent's escrow amount, i.e. the ticket price, quoted in the challenge. Booking is asynchronous: a 200 means the request was accepted, then poll GET /air/intents/{intent_id} until status is booked or refunded.\n4. POST /air/refund-requests — optional, 0.10 USDC. Needs intent_id in the body plus the X-Customer-Support-Code and X-Passenger-Family-Name headers. It files a request for manual review; it does not execute a refund.\n\nIds never travel in the path: every endpoint takes intent_id in the request body. If the upstream price moved between steps 2 and 3 the booking is rejected and the escrow is refunded automatically to the refund wallet frozen at intent creation."
   },
   "servers": [
     {
@@ -31,7 +37,8 @@
           "health"
         ],
         "operationId": "getHealth",
-        "summary": "Check API service liveness.",
+        "summary": "Check process liveness.",
+        "security": [],
         "responses": {
           "200": {
             "description": "Service is alive.",
@@ -53,6 +60,7 @@
         ],
         "operationId": "getReadiness",
         "summary": "Check database readiness.",
+        "security": [],
         "responses": {
           "200": {
             "description": "Service is ready.",
@@ -77,20 +85,21 @@
         }
       }
     },
-    "/openapi.yaml": {
+    "/openapi.json": {
       "get": {
         "tags": [
           "health"
         ],
         "operationId": "getOpenAPI",
         "summary": "Fetch this OpenAPI document.",
+        "security": [],
         "responses": {
           "200": {
-            "description": "OpenAPI YAML.",
+            "description": "OpenAPI JSON.",
             "content": {
-              "application/yaml": {
+              "application/json": {
                 "schema": {
-                  "type": "string"
+                  "type": "object"
                 }
               }
             }
@@ -105,6 +114,17 @@
         ],
         "operationId": "searchFlights",
         "summary": "Search live flight offers.",
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "dynamic",
+            "currency": "USD",
+            "min": "0.10",
+            "max": "5.00"
+          }
+        },
         "description": "Flight search can be paid with x402 or sponsored by the BRIJ gateway.\n\nFor direct x402 clients, send a valid `PAYMENT-SIGNATURE` header. Without\npayment, the API returns `402 Payment Required` carrying the **current** price.\n\nFor BRIJ Wallet preview calls, the gateway may send `X-BRIJ-SPONSORED-*`\nheaders. Providers should treat that as a BRIJ-sponsored preview, not as a\nuser-paid x402 settlement.\n\nBase x402 price is 0.10 USDC. The price is multiplied (up to 50×) by the\ncurrent search load: completed searches in the last 60 seconds and\nany upstream rate-limit response in the last 5 minutes. Always read\nthe latest `PAYMENT-REQUIRED` challenge before signing - the price\nyour client saw a moment ago may already be stale.\n",
         "security": [
           {
@@ -202,6 +222,16 @@
         ],
         "operationId": "createBookingIntent",
         "summary": "Create an escrow-backed booking intent from a selected offer.",
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.10"
+          }
+        },
         "description": "Paid x402 endpoint. Send a valid `PAYMENT-SIGNATURE` header to create\nthe intent. Without payment, the API returns `402 Payment Required`.\n\nCreates the local booking intent and initializes its Solana escrow.\nThis does not fund the escrow, pay the airline, or issue a ticket.\n",
         "security": [
           {
@@ -299,58 +329,28 @@
         }
       }
     },
-    "/air/intents/{intent_id}": {
-      "get": {
-        "tags": [
-          "intents"
-        ],
-        "operationId": "getBookingIntent",
-        "summary": "Fetch a booking intent by id.",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/IntentID"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Booking intent.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/IntentResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Booking intent not found.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/air/intents/{intent_id}/book": {
+    "/air/book": {
       "post": {
         "tags": [
           "intents"
         ],
-        "operationId": "requestBooking",
+        "operationId": "bookIntent",
         "summary": "Pay the escrow and request booking.",
-        "description": "Paid x402 endpoint. The payment challenge is dynamic for the intent:\n`payTo` is the intent escrow address, `asset` is the expected escrow\nmint, and `amount` is the expected escrow amount.\n\nAfter x402 settlement, the API records passenger details, verifies exact\nescrow funding on-chain, and enqueues the booking worker. Airline payment\nand escrow capture happen asynchronously.\n\nIf booking fails after x402 settlement, retry the same `/book` call;\nexcess funds remain refundable to `refund_wallet`.\n",
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "dynamic",
+            "currency": "USD",
+            "min": "10.00",
+            "max": "10000.00"
+          }
+        },
+        "description": "The intent id travels in the request body; the resource URL is static. Paid x402 endpoint. The payment challenge is dynamic for the intent:\n`payTo` is the intent escrow address, `asset` is the expected escrow\nmint, and `amount` is the expected escrow amount.\n\nAfter x402 settlement, the API records passenger details, verifies exact\nescrow funding on-chain, and enqueues the booking worker. Airline payment\nand escrow capture happen asynchronously.\n\nIf booking fails after x402 settlement, retry the same `/book` call;\nexcess funds remain refundable to `refund_wallet`.\n",
         "security": [
           {
             "x402PaymentSignature": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/IntentID"
           }
         ],
         "requestBody": {
@@ -358,7 +358,21 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RequestBookingRequest"
+                "$ref": "#/components/schemas/BookRequest"
+              },
+              "example": {
+                "intent_id": "intent_0000000000000000",
+                "passengers": [
+                  {
+                    "given_name": "Jane",
+                    "family_name": "Doe",
+                    "born_on": "1990-01-01",
+                    "title": "ms",
+                    "gender": "f",
+                    "email": "jane.doe@example.com",
+                    "phone_number": "+15551234567"
+                  }
+                ]
               }
             }
           }
@@ -403,7 +417,7 @@
             }
           },
           "409": {
-            "description": "Intent is not active, escrow is missing, funding is not exact, or `booking_already_requested` if a prior /book succeeded for this intent (retry has no effect; the worker is processing it).",
+            "description": "Intent is not active, `intent_expired` if its booking window has closed (create a new intent from a fresh offer; detail carries `expired_at`), escrow is missing, funding is not exact, or `booking_already_requested` if a prior /book succeeded for this intent (retry has no effect; the worker is processing it).",
             "content": {
               "application/json": {
                 "schema": {
@@ -454,23 +468,30 @@
         }
       }
     },
-    "/air/intents/{intent_id}/refund-requests": {
+    "/air/refund-requests": {
       "post": {
         "tags": [
           "intents"
         ],
-        "operationId": "requestIntentRefund",
-        "summary": "Create a manual refund request for a booked intent.",
-        "description": "Paid x402 endpoint. Send a valid `PAYMENT-SIGNATURE` header to record\nthe refund request. Without payment, the API returns `402 Payment Required`.\n\nRecords a refund request for a booked intent. The on-chain escrow has\nalready been captured by the time the intent is `booked`, so refunds at\nthis stage are processed manually by an operator. This endpoint persists\nthe request and pages the operator on Telegram; the response is\n`202 Accepted` and is **not** a guarantee of refund — eligibility and\nany applicable carrier penalties are reviewed manually.\n\nFor pre-capture states (`active`), the booking_sync worker handles\nrefunds automatically; this endpoint returns `409 use_automatic_refund`\nfor those.\n\nThe caller must include the `X-Customer-Support-Code` header matching\nthe code returned at intent creation.\n",
+        "operationId": "createRefundRequest",
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.10"
+          }
+        },
+        "summary": "Request a manual refund after the intent has been booked.",
+        "description": "The intent id travels in the request body; the resource URL is static. Paid x402 endpoint. Send a valid `PAYMENT-SIGNATURE` header to record\nthe refund request. Without payment, the API returns `402 Payment Required`.\n\nRecords a refund request for a booked intent. The on-chain escrow has\nalready been captured by the time the intent is `booked`, so refunds at\nthis stage are processed manually by an operator. This endpoint persists\nthe request and pages the operator on Telegram; the response is\n`202 Accepted` and is **not** a guarantee of refund — eligibility and\nany applicable carrier penalties are reviewed manually.\n\nFor pre-capture states (`active`), the booking_sync worker handles\nrefunds automatically; this endpoint returns `409 use_automatic_refund`\nfor those.\n\nThe caller must include the `X-Customer-Support-Code` header matching\nthe code returned at intent creation.\n",
         "security": [
           {
             "x402PaymentSignature": []
           }
         ],
         "parameters": [
-          {
-            "$ref": "#/components/parameters/IntentID"
-          },
           {
             "name": "X-Customer-Support-Code",
             "in": "header",
@@ -497,8 +518,16 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["reason"],
+                "required": [
+                  "intent_id",
+                  "reason"
+                ],
                 "properties": {
+                  "intent_id": {
+                    "type": "string",
+                    "description": "Id returned by POST /air/intents.",
+                    "example": "intent_0000000000000000"
+                  },
                   "reason": {
                     "type": "string",
                     "maxLength": 1000,
@@ -510,6 +539,11 @@
                     "description": "Optional reply-to channel (email, phone, etc.) the operator can use to follow up."
                   }
                 }
+              },
+              "example": {
+                "intent_id": "intent_0000000000000000",
+                "reason": "Passenger can no longer travel on these dates.",
+                "contact": "jane.doe@example.com"
               }
             }
           }
@@ -529,7 +563,11 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["intent_id", "requested_at", "status"],
+                  "required": [
+                    "intent_id",
+                    "requested_at",
+                    "status"
+                  ],
                   "properties": {
                     "intent_id": {
                       "type": "string"
@@ -540,7 +578,9 @@
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["received"]
+                      "enum": [
+                        "received"
+                      ]
                     }
                   }
                 }
@@ -619,6 +659,43 @@
         }
       }
     },
+    "/air/intents/{intent_id}": {
+      "get": {
+        "tags": [
+          "intents"
+        ],
+        "operationId": "getBookingIntent",
+        "summary": "Fetch a booking intent by id.",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IntentID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Booking intent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Booking intent not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/air/orders/{order_id}": {
       "get": {
         "tags": [
@@ -626,7 +703,12 @@
         ],
         "operationId": "getAirOrder",
         "summary": "Fetch airline order status.",
-        "description": "Returns the airline PNR and order status. Requires the `X-Customer-Support-Code` returned at intent creation — the same code used to authorize refund requests.",
+        "description": "Returns the airline PNR and order status. Not an x402-paid endpoint, but not open either: it requires the `X-Customer-Support-Code` returned at intent creation — the same code used to authorize refund requests.",
+        "security": [
+          {
+            "customerSupportCode": []
+          }
+        ],
         "parameters": [
           {
             "name": "order_id",
@@ -636,15 +718,6 @@
               "type": "string"
             },
             "example": "ord_0000000000000000000000"
-          },
-          {
-            "name": "X-Customer-Support-Code",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "example": "BRIJ-K7MQ-T9RV"
           }
         ],
         "responses": {
@@ -700,6 +773,12 @@
         "name": "PAYMENT-SIGNATURE",
         "description": "Base64-encoded x402 payment payload."
       },
+      "customerSupportCode": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Customer-Support-Code",
+        "description": "Per-intent support code returned at intent creation (for example `BRIJ-K7MQ-T9RV`). Authorizes reading the airline order and filing a refund request. Not a payment credential."
+      },
       "brijSponsoredPreview": {
         "type": "apiKey",
         "in": "header",
@@ -715,7 +794,7 @@
         "schema": {
           "type": "string"
         },
-        "example": "intent_8aa7f866bcc25a42"
+        "example": "intent_0000000000000000"
       }
     },
     "schemas": {
@@ -821,6 +900,7 @@
           "destination_iata",
           "departing_at",
           "arriving_at",
+          "stops",
           "total_amount",
           "total_amount_decimal",
           "total_currency",
@@ -837,19 +917,45 @@
           },
           "origin_iata": {
             "type": "string",
+            "description": "Start of the whole journey (first leg's origin).",
             "example": "MAD"
           },
           "destination_iata": {
             "type": "string",
+            "description": "End of the whole journey (last leg's destination), NOT the first connection point.",
             "example": "LIS"
           },
           "departing_at": {
             "type": "string",
-            "format": "date-time"
+            "description": "Journey departure, airport-local time with no UTC offset.",
+            "example": "2026-08-02T14:42:00"
           },
           "arriving_at": {
             "type": "string",
-            "format": "date-time"
+            "description": "FINAL arrival at the journey destination, airport-local time with no UTC offset.",
+            "example": "2026-08-02T21:10:00"
+          },
+          "origin_time_zone": {
+            "type": "string",
+            "description": "IANA timezone of the journey origin.",
+            "example": "America/New_York"
+          },
+          "destination_time_zone": {
+            "type": "string",
+            "description": "IANA timezone of the journey destination.",
+            "example": "America/Los_Angeles"
+          },
+          "stops": {
+            "type": "integer",
+            "description": "Number of connections. 0 means a direct flight.",
+            "example": 1
+          },
+          "segments": {
+            "type": "array",
+            "description": "Every leg of the itinerary, in order.",
+            "items": {
+              "$ref": "#/components/schemas/OfferSegment"
+            }
           },
           "total_amount": {
             "type": "integer",
@@ -904,8 +1010,7 @@
             "description": "Optional Solana wallet for refunds. Defaults to funding_wallet."
           },
           "offer_id": {
-            "type": "string",
-            "description": "Identifier of the offer to lock in, as returned by POST /air/search."
+            "type": "string"
           }
         }
       },
@@ -942,7 +1047,7 @@
         "properties": {
           "id": {
             "type": "string",
-            "example": "intent_8aa7f866bcc25a42"
+            "example": "intent_0000000000000000"
           },
           "funding_wallet": {
             "type": "string"
@@ -1072,7 +1177,7 @@
         "properties": {
           "id": {
             "type": "string",
-            "example": "intent_8aa7f866bcc25a42"
+            "example": "intent_0000000000000000"
           },
           "customer_support_code": {
             "type": "string",
@@ -1206,23 +1311,6 @@
           }
         }
       },
-      "RequestBookingRequest": {
-        "type": "object",
-        "required": [
-          "passengers"
-        ],
-        "properties": {
-          "passengers": {
-            "type": "array",
-            "description": "Passenger details for the booking. Exactly one passenger per intent.",
-            "minItems": 1,
-            "maxItems": 1,
-            "items": {
-              "$ref": "#/components/schemas/PassengerInput"
-            }
-          }
-        }
-      },
       "PassengerInput": {
         "type": "object",
         "description": "Passenger details. Field constraints mirror the upstream airline contract; values the airline would reject (e.g. gender other than 'm'/'f') are rejected by this API before settling x402, so funds stay in the agent's wallet on validation failure.",
@@ -1255,13 +1343,22 @@
           "title": {
             "type": "string",
             "description": "Honorific. Lowercase, exactly one of the allowed values.",
-            "enum": ["mr", "mrs", "ms", "miss", "dr"],
+            "enum": [
+              "mr",
+              "mrs",
+              "ms",
+              "miss",
+              "dr"
+            ],
             "example": "mr"
           },
           "gender": {
             "type": "string",
             "description": "Biological sex as recorded on the travel document. Lowercase, exactly 'm' or 'f' (the airline does not accept other values).",
-            "enum": ["m", "f"],
+            "enum": [
+              "m",
+              "f"
+            ],
             "example": "m"
           },
           "email": {
@@ -1380,6 +1477,76 @@
           "created_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "BookRequest": {
+        "type": "object",
+        "required": [
+          "intent_id",
+          "passengers"
+        ],
+        "properties": {
+          "intent_id": {
+            "type": "string",
+            "description": "Id returned by POST /air/intents.",
+            "example": "intent_0000000000000000"
+          },
+          "passengers": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/PassengerInput"
+            }
+          }
+        }
+      },
+      "OfferSegment": {
+        "type": "object",
+        "description": "One flight leg of an offer. Times are in the airport's local timezone and carry no UTC offset.",
+        "required": [
+          "origin_iata",
+          "destination_iata",
+          "departing_at",
+          "arriving_at"
+        ],
+        "properties": {
+          "origin_iata": {
+            "type": "string",
+            "example": "JFK"
+          },
+          "destination_iata": {
+            "type": "string",
+            "example": "DFW"
+          },
+          "departing_at": {
+            "type": "string",
+            "description": "Airport-local time, no UTC offset.",
+            "example": "2026-08-02T14:42:00"
+          },
+          "arriving_at": {
+            "type": "string",
+            "description": "Airport-local time, no UTC offset.",
+            "example": "2026-08-02T17:44:00"
+          },
+          "origin_time_zone": {
+            "type": "string",
+            "description": "IANA timezone of the origin airport; combine with departing_at for an absolute instant.",
+            "example": "America/New_York"
+          },
+          "destination_time_zone": {
+            "type": "string",
+            "description": "IANA timezone of the destination airport; combine with arriving_at for an absolute instant.",
+            "example": "America/Chicago"
+          },
+          "carrier_name": {
+            "type": "string",
+            "example": "American Airlines"
+          },
+          "flight_number": {
+            "type": "string",
+            "example": "1953"
           }
         }
       }

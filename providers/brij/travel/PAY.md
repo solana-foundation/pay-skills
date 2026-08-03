@@ -29,8 +29,11 @@ capture, the full USDC amount is refunded automatically.
   an intent when the user is ready to book; don't create exploratory intents.
 - `GET /air/intents/{id}` is free — poll it instead of re-calling paid endpoints
   to track booking status.
+- Booking goes through `POST /air/book` with the `intent_id` and passenger
+  details in the request body; the resource URL is static.
 - Once the intent reaches `booked` status, retrieve the airline PNR via
   `GET /air/orders/{order_id}`; the `order_id` is returned in the
-  `POST /air/intents/{id}/book` response as `booking.order_id`.
-- Refund requests go to `POST /air/intents/{id}/refund-requests` and are
-  reviewed manually; they don't re-trigger a search.
+  `POST /air/book` response as `booking.order_id`.
+- Refund requests go to `POST /air/refund-requests` with the `intent_id` and a
+  `reason` in the request body; they are reviewed manually and don't re-trigger
+  a search.
