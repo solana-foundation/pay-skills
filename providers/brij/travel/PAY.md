@@ -42,6 +42,7 @@ capture, the full USDC amount is refunded automatically.
   `booking.order_id`.
 - Refund requests go to `POST /air/refund-requests` with the `intent_id` and a
   `reason` in the request body, plus the `X-Customer-Support-Code` and
-  `X-Passenger-Family-Name` headers; they are reviewed manually and don't
+  `X-Passenger-Family-Name` headers (the lead passenger's family name — the
+  first passenger sent to `POST /air/book`); they are reviewed manually and don't
   re-trigger a search. Persist the `customer_support_code` returned by
   `POST /air/intents` — it cannot be re-read later.

@@ -347,7 +347,7 @@
             "max": "10000.00"
           }
         },
-        "description": "The intent id travels in the request body; the resource URL is static. Paid x402 endpoint. The payment challenge is dynamic for the intent:\n`payTo` is the intent escrow address, `asset` is the expected escrow\nmint, and `amount` is the expected escrow amount.\n\nAfter x402 settlement, the API records passenger details, verifies exact\nescrow funding on-chain, and enqueues the booking worker. Airline payment\nand escrow capture happen asynchronously.\n\nIf booking fails after x402 settlement, retry the same `/book` call;\nexcess funds remain refundable to `refund_wallet`.\n",
+        "description": "The intent id travels in the request body; the resource URL is static. Paid x402 endpoint. The payment challenge is dynamic for the intent:\n`payTo` is the intent escrow address, `asset` is the expected escrow\nmint, and `amount` is the expected escrow amount.\n\nAfter x402 settlement, the API records the passenger list (lead first), verifies exact\nescrow funding on-chain, and enqueues the booking worker. Airline payment\nand escrow capture happen asynchronously.\n\nIf booking fails after x402 settlement, retry the same `/book` call;\nexcess funds remain refundable to `refund_wallet`.\n",
         "security": [
           {
             "x402PaymentSignature": []
@@ -485,7 +485,7 @@
           }
         },
         "summary": "Request a manual refund after the intent has been booked.",
-        "description": "The intent id travels in the request body; the resource URL is static. Paid x402 endpoint. Send a valid `PAYMENT-SIGNATURE` header to record\nthe refund request. Without payment, the API returns `402 Payment Required`.\n\nRecords a refund request for a booked intent. The on-chain escrow has\nalready been captured by the time the intent is `booked`, so refunds at\nthis stage are processed manually by an operator. This endpoint persists\nthe request and pages the operator on Telegram; the response is\n`202 Accepted` and is **not** a guarantee of refund — eligibility and\nany applicable carrier penalties are reviewed manually.\n\nFor pre-capture states (`active`), the booking_sync worker handles\nrefunds automatically; this endpoint returns `409 use_automatic_refund`\nfor those.\n\nThe caller must include the `X-Customer-Support-Code` header matching\nthe code returned at intent creation.\n",
+        "description": "The intent id travels in the request body; the resource URL is static. Paid x402 endpoint. Send a valid `PAYMENT-SIGNATURE` header to record\nthe refund request. Without payment, the API returns `402 Payment Required`.\n\nRecords a refund request for a booked intent. The on-chain escrow has\nalready been captured by the time the intent is `booked`, so refunds at\nthis stage are processed manually by an operator. This endpoint persists\nthe request and pages the operator on Telegram; the response is\n`202 Accepted` and is **not** a guarantee of refund — eligibility and\nany applicable carrier penalties are reviewed manually.\n\nFor pre-capture states (`active`), the booking_sync worker handles\nrefunds automatically; this endpoint returns `409 use_automatic_refund`\nfor those.\n\nThe caller must include the `X-Customer-Support-Code` header matching\nthe code returned at intent creation.\n\n\nFor multi-passenger bookings, X-Passenger-Family-Name is the LEAD passenger's family name (position 0 of the /air/book list).",
         "security": [
           {
             "x402PaymentSignature": []
@@ -941,10 +941,27 @@
             "format": "date",
             "example": "2026-06-10"
           },
+          "return_date": {
+            "type": "string",
+            "format": "date",
+            "description": "Optional. Adds the inbound slice (destination back to origin on this date). Round-trip offers cover both directions and are booked in ONE /air/book — the escrow amount is the round-trip total.",
+            "example": "2026-08-22"
+          },
           "adults": {
             "type": "integer",
             "minimum": 1,
-            "default": 1
+            "maximum": 9,
+            "description": "Adult passengers, 1 to 9 (the airline maximum per booking). The offer is priced for this many travellers, and /air/book must later supply exactly this many passengers."
+          },
+          "cabin_class": {
+            "type": "string",
+            "enum": [
+              "economy",
+              "premium_economy",
+              "business",
+              "first"
+            ],
+            "description": "Optional, defaults to economy."
           }
         }
       },
@@ -998,6 +1015,7 @@
           "checked_bags_included",
           "carry_on_bags_included",
           "conditions",
+          "slices",
           "total_emissions_kg",
           "identity_documents_required",
           "total_amount",
@@ -1103,6 +1121,13 @@
                 "$ref": "#/components/schemas/FareConditions"
               }
             ]
+          },
+          "slices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfferSlice"
+            },
+            "description": "Each direction of the journey: one entry for a one-way, two for a round trip (outbound then inbound). The journey-level fields above describe the OUTBOUND for compatibility; slices is the canonical and only complete view for round trips. comparison_key joins all directions, so two round trips sharing an outbound but not a return stay distinct."
           },
           "total_emissions_kg": {
             "type": "string",
@@ -1257,6 +1282,10 @@
             "type": "integer",
             "format": "int64"
           },
+          "passenger_count": {
+            "type": "integer",
+            "description": "How many passengers the offer was priced for; /air/book must supply exactly this many."
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -1390,6 +1419,10 @@
           "fee_amount": {
             "type": "integer",
             "format": "int64"
+          },
+          "passenger_count": {
+            "type": "integer",
+            "description": "How many passengers the offer was priced for; /air/book must supply exactly this many."
           },
           "passenger_given_name": {
             "type": "string"
@@ -1675,10 +1708,11 @@
           "passengers": {
             "type": "array",
             "minItems": 1,
-            "maxItems": 1,
+            "maxItems": 9,
             "items": {
               "$ref": "#/components/schemas/PassengerInput"
-            }
+            },
+            "description": "Exactly as many passengers as the intent's passenger_count (= adults searched), LEAD PASSENGER FIRST. Positions map to the offer's travellers. The lead passenger receives all emails, and refund requests authenticate against the LEAD passenger's family name. Duplicate travellers (same name and birth date) are refused with 400 duplicate_passenger. All refunds are all-or-nothing: one booking = one escrow, there is no per-passenger cancellation."
           }
         }
       },
@@ -1884,6 +1918,64 @@
               "$ref": "#/components/schemas/OfferService"
             },
             "description": "Purchasable extras with prices. Empty array = the airline offers none on this fare (an answer, not missing data)."
+          }
+        }
+      },
+      "OfferSlice": {
+        "type": "object",
+        "description": "One direction of the journey: the outbound, and for round trips the inbound. Same semantics as the journey-level fields (whole-direction endpoints, airport-local times, stops = plane changes).",
+        "required": [
+          "origin_iata",
+          "destination_iata",
+          "departing_at",
+          "arriving_at",
+          "stops",
+          "segments"
+        ],
+        "properties": {
+          "origin_iata": {
+            "type": "string",
+            "example": "MAD"
+          },
+          "destination_iata": {
+            "type": "string",
+            "example": "LIS"
+          },
+          "departing_at": {
+            "type": "string",
+            "description": "Airport-local, no UTC offset.",
+            "example": "2026-08-07T10:20:00"
+          },
+          "arriving_at": {
+            "type": "string",
+            "example": "2026-08-07T11:35:00"
+          },
+          "origin_time_zone": {
+            "type": "string",
+            "example": "Europe/Madrid"
+          },
+          "destination_time_zone": {
+            "type": "string",
+            "example": "Europe/Lisbon"
+          },
+          "duration": {
+            "type": "string",
+            "example": "PT1H15M"
+          },
+          "stops": {
+            "type": "integer"
+          },
+          "technical_stops": {
+            "type": "integer"
+          },
+          "fare_brand_name": {
+            "type": "string"
+          },
+          "segments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfferSegment"
+            }
           }
         }
       }
