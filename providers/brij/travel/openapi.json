@@ -125,7 +125,7 @@
             "max": "5.00"
           }
         },
-        "description": "Flight search can be paid with x402 or sponsored by the BRIJ gateway.\n\nFor direct x402 clients, send a valid `PAYMENT-SIGNATURE` header. Without\npayment, the API returns `402 Payment Required` carrying the **current** price.\n\nFor BRIJ Wallet preview calls, the gateway may send `X-BRIJ-SPONSORED-*`\nheaders. Providers should treat that as a BRIJ-sponsored preview, not as a\nuser-paid x402 settlement.\n\nBase x402 price is 0.10 USDC. The price is multiplied (up to 50×) by the\ncurrent search load: completed searches in the last 60 seconds and\nany upstream rate-limit response in the last 5 minutes. Always read\nthe latest `PAYMENT-REQUIRED` challenge before signing - the price\nyour client saw a moment ago may already be stale.\n\n\nThe same flight commonly appears several times at different prices: each offer is one fare (fare_brand_name, baggage, change/refund conditions) sold by one seller (owner_name). Two offers on the same flight can share identical conditions and differ only in seller and price — compare the fare fields, never assume cheaper means more restrictive.\n\n**Data boundaries — what this response does and does not contain.**\nEach offer carries EVERYTHING the flight inventory provider discloses at search time: itinerary (legs, times with IANA timezones, durations, aircraft, terminals, technical stops), identity (comparison_key, both carriers on codeshares, flight numbers, fare_basis_code), fare content (brand, cabin, included baggage, change/refund conditions with penalties), price breakdown (base + tax), CO2 estimate, and loyalty programmes. To drill into ONE offer — fresh price/expiry and paid-ancillary prices — use POST /air/offer-details.\n\nNot available in SEARCH results (use POST /air/offer-details per offer):\n- Prices of paid ancillaries (extra checked bags and other extras).\n- Seat maps and specific seat availability.\n- Full legal fare-rule text. It does not exist upstream in machine form: the structured conditions object IS the complete machine-readable ruleset. For airline-side research, fare_basis_code plus the marketing carrier identifies the exact fare.\n\nEverywhere in this response, null/empty means the airline did not disclose the value — unknown, never zero or false.",
+        "description": "Flight search can be paid with x402 or sponsored by the BRIJ gateway.\n\nFor direct x402 clients, send a valid `PAYMENT-SIGNATURE` header. Without\npayment, the API returns `402 Payment Required` carrying the **current** price.\n\nFor BRIJ Wallet preview calls, the gateway may send `X-BRIJ-SPONSORED-*`\nheaders. Providers should treat that as a BRIJ-sponsored preview, not as a\nuser-paid x402 settlement.\n\nBase x402 price is 0.10 USDC. The price is multiplied (up to 50×) by the\ncurrent search load: completed searches in the last 60 seconds and\nany upstream rate-limit response in the last 5 minutes. Always read\nthe latest `PAYMENT-REQUIRED` challenge before signing - the price\nyour client saw a moment ago may already be stale.\n\n\nThe same flight commonly appears several times at different prices: each offer is one fare (fare_brand_name, baggage, change/refund conditions) sold by one seller (owner_name). Two offers on the same flight can share identical conditions and differ only in seller and price — compare the fare fields, never assume cheaper means more restrictive.\n\n**Data boundaries — what this response does and does not contain.**\nEach offer carries EVERYTHING the flight inventory provider discloses at search time: itinerary (legs, times with IANA timezones, durations, aircraft, terminals, technical stops), identity (comparison_key, both carriers on codeshares, flight numbers, fare_basis_code), fare content (brand, cabin, included baggage, change/refund conditions with penalties), price breakdown (base + tax), CO2 estimate, and loyalty programmes. To drill into ONE offer — fresh price/expiry and paid-ancillary prices — use POST /air/offer-details. Filters (max_stops, departure_after/before, max_price) apply before sort, grouping and limit — so limit + sort=duration + max_stops=0 means \"the fastest directs\". Offers default to cheapest first; a full response can exceed 300 KB, so LLM-driven agents should send cheapest_per_itinerary=true with a limit and drill into finalists.\n\nNot available in SEARCH results (use POST /air/offer-details per offer):\n- Prices of paid ancillaries (extra checked bags and other extras).\n- Seat maps and specific seat availability.\n- Full legal fare-rule text. It does not exist upstream in machine form: the structured conditions object IS the complete machine-readable ruleset. For airline-side research, fare_basis_code plus the marketing carrier identifies the exact fare.\n\nEverywhere in this response, null/empty means the airline did not disclose the value — unknown, never zero or false.",
         "security": [
           {
             "x402PaymentSignature": []
@@ -962,6 +962,48 @@
               "first"
             ],
             "description": "Optional, defaults to economy."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Optional. Cap the number of offers returned. Offers are always sorted cheapest first, so a limit keeps the best ones."
+          },
+          "cheapest_per_itinerary": {
+            "type": "boolean",
+            "description": "Optional. Return only the cheapest fare of each physical itinerary (comparison_key); fare_options_count on each offer reports how many fares were collapsed. Recommended for LLM-driven agents together with limit: a full response can exceed 300 KB, the grouped-and-limited view is a few KB. Inspect a finalist's alternatives via POST /air/offer-details or an ungrouped search."
+          },
+          "sort": {
+            "type": "string",
+            "enum": [
+              "price",
+              "duration",
+              "departure",
+              "emissions"
+            ],
+            "description": "Ordering, ascending only. Default price. duration = fastest first, departure = earliest local departure first, emissions = lowest CO2 first (unknown values sort last)."
+          },
+          "max_stops": {
+            "type": "integer",
+            "minimum": 0,
+            "nullable": true,
+            "description": "Maximum plane changes PER DIRECTION: 0 keeps directs only (a round trip qualifies only if both legs are direct). Absent = any. Technical stops without a plane change do not count."
+          },
+          "departure_after": {
+            "type": "string",
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+            "description": "Outbound departs at or after this time, LOCAL to the departure airport, HH:MM.",
+            "example": "12:00"
+          },
+          "departure_before": {
+            "type": "string",
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+            "description": "Outbound departs at or before this time, local HH:MM. Combine with departure_after for a window: afternoon = after 12:00, before 18:00.",
+            "example": "18:00"
+          },
+          "max_price": {
+            "type": "string",
+            "description": "Decimal cap on total_amount in the offer currency, e.g. \"250.00\".",
+            "example": "250.00"
           }
         }
       },
@@ -1121,6 +1163,10 @@
                 "$ref": "#/components/schemas/FareConditions"
               }
             ]
+          },
+          "fare_options_count": {
+            "type": "integer",
+            "description": "Present only on cheapest_per_itinerary searches: how many fares of this same itinerary were collapsed into this cheapest one."
           },
           "slices": {
             "type": "array",

@@ -24,7 +24,10 @@ capture, the full USDC amount is refunded automatically.
 
 - Run `/air/search` once per user query. Results include offer IDs valid for a
   short window — pass the offer ID directly to `POST /air/intents` rather than
-  re-searching.
+  re-searching. A full response can exceed 300 KB: send
+  `cheapest_per_itinerary=true` with a `limit` (plus `sort` and filters like
+  `max_stops` or `departure_after`/`departure_before`) to get a few-KB view,
+  then drill into finalists with `POST /air/offer-details`.
 - To revalidate a single offer (fresh price/expiry) or price paid ancillaries
   such as extra bags, use `POST /air/offer-details` with the `offer_id` — it's
   cheaper and quota-friendlier than re-searching. A stale offer returns 404
