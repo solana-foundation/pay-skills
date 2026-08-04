@@ -125,7 +125,7 @@
             "max": "5.00"
           }
         },
-        "description": "Flight search can be paid with x402 or sponsored by the BRIJ gateway.\n\nFor direct x402 clients, send a valid `PAYMENT-SIGNATURE` header. Without\npayment, the API returns `402 Payment Required` carrying the **current** price.\n\nFor BRIJ Wallet preview calls, the gateway may send `X-BRIJ-SPONSORED-*`\nheaders. Providers should treat that as a BRIJ-sponsored preview, not as a\nuser-paid x402 settlement.\n\nBase x402 price is 0.10 USDC. The price is multiplied (up to 50×) by the\ncurrent search load: completed searches in the last 60 seconds and\nany upstream rate-limit response in the last 5 minutes. Always read\nthe latest `PAYMENT-REQUIRED` challenge before signing - the price\nyour client saw a moment ago may already be stale.\n",
+        "description": "Flight search can be paid with x402 or sponsored by the BRIJ gateway.\n\nFor direct x402 clients, send a valid `PAYMENT-SIGNATURE` header. Without\npayment, the API returns `402 Payment Required` carrying the **current** price.\n\nFor BRIJ Wallet preview calls, the gateway may send `X-BRIJ-SPONSORED-*`\nheaders. Providers should treat that as a BRIJ-sponsored preview, not as a\nuser-paid x402 settlement.\n\nBase x402 price is 0.10 USDC. The price is multiplied (up to 50×) by the\ncurrent search load: completed searches in the last 60 seconds and\nany upstream rate-limit response in the last 5 minutes. Always read\nthe latest `PAYMENT-REQUIRED` challenge before signing - the price\nyour client saw a moment ago may already be stale.\n\n\nThe same flight commonly appears several times at different prices: each offer is one fare (fare_brand_name, baggage, change/refund conditions) sold by one seller (owner_name). Two offers on the same flight can share identical conditions and differ only in seller and price — compare the fare fields, never assume cheaper means more restrictive.",
         "security": [
           {
             "x402PaymentSignature": []
@@ -903,6 +903,11 @@
           "origin_time_zone",
           "destination_time_zone",
           "stops",
+          "fare_brand_name",
+          "cabin_class",
+          "checked_bags_included",
+          "carry_on_bags_included",
+          "conditions",
           "total_amount",
           "total_amount_decimal",
           "total_currency",
@@ -958,6 +963,40 @@
             "items": {
               "$ref": "#/components/schemas/OfferSegment"
             }
+          },
+          "fare_brand_name": {
+            "type": "string",
+            "description": "Airline's name for this fare (e.g. \"Basic\", \"Flexible Balearic\"). The SAME flight is listed once per fare and per seller: use this plus conditions, baggage and owner_name to tell same-flight offers apart. Empty when the airline did not name the fare.",
+            "example": "Flexible Balearic"
+          },
+          "cabin_class": {
+            "type": "string",
+            "description": "Normalized cabin: economy, premium_economy, business, first. Empty when unknown.",
+            "example": "economy"
+          },
+          "cabin_class_marketing_name": {
+            "type": "string",
+            "description": "The airline's own name for the cabin.",
+            "example": "ECONOMY"
+          },
+          "checked_bags_included": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Checked bags included for the WHOLE journey (minimum across legs). null = the airline did not say — do not assume 0."
+          },
+          "carry_on_bags_included": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Carry-on bags included for the whole journey. null = unknown."
+          },
+          "conditions": {
+            "nullable": true,
+            "description": "Change/refund permissions for this fare; null when the airline disclosed nothing.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FareConditions"
+              }
+            ]
           },
           "total_amount": {
             "type": "integer",
@@ -1551,6 +1590,40 @@
           "flight_number": {
             "type": "string",
             "example": "1953"
+          }
+        }
+      },
+      "FareConditions": {
+        "type": "object",
+        "description": "What the fare permits before departure. Every field of the parent offer is emitted; null on an *_allowed field means the airline did not disclose it — treat as unknown, do NOT assume false. Penalty amounts are decimal strings in the given currency; \"0\" means free.",
+        "properties": {
+          "change_allowed": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "true = changeable (see penalty), false = not changeable, null = airline did not say."
+          },
+          "change_penalty_amount": {
+            "type": "string",
+            "description": "Decimal fee to change, \"0\" = free change. Absent when unknown.",
+            "example": "0"
+          },
+          "change_penalty_currency": {
+            "type": "string",
+            "example": "USD"
+          },
+          "refund_allowed": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "true = refundable before departure (see penalty), false = non-refundable, null = airline did not say."
+          },
+          "refund_penalty_amount": {
+            "type": "string",
+            "description": "Decimal fee to refund, \"0\" = free refund. Absent when unknown.",
+            "example": "0"
+          },
+          "refund_penalty_currency": {
+            "type": "string",
+            "example": "USD"
           }
         }
       }
