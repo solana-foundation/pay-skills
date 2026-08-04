@@ -25,6 +25,10 @@ capture, the full USDC amount is refunded automatically.
 - Run `/air/search` once per user query. Results include offer IDs valid for a
   short window — pass the offer ID directly to `POST /air/intents` rather than
   re-searching.
+- To revalidate a single offer (fresh price/expiry) or price paid ancillaries
+  such as extra bags, use `POST /air/offer-details` with the `offer_id` — it's
+  cheaper and quota-friendlier than re-searching. A stale offer returns 404
+  without settling the payment.
 - `POST /air/intents` initializes an on-chain escrow immediately. Only create
   an intent when the user is ready to book; don't create exploratory intents.
 - `GET /air/intents/{id}` is free — poll it instead of re-calling paid endpoints
@@ -32,8 +36,10 @@ capture, the full USDC amount is refunded automatically.
 - Booking goes through `POST /air/book` with the `intent_id` and passenger
   details in the request body; the resource URL is static.
 - Once the intent reaches `booked` status, retrieve the airline PNR via
-  `GET /air/orders/{order_id}`; the `order_id` is returned in the
-  `POST /air/book` response as `booking.order_id`.
+  `GET /air/orders/{order_id}` (a token 0.01 USDC, gated by the
+  `X-Customer-Support-Code` header; refusals are never charged); the
+  `order_id` is returned in the `POST /air/book` response as
+  `booking.order_id`.
 - Refund requests go to `POST /air/refund-requests` with the `intent_id` and a
   `reason` in the request body, plus the `X-Customer-Support-Code` and
   `X-Passenger-Family-Name` headers; they are reviewed manually and don't

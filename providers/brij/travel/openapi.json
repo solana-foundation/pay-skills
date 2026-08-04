@@ -9,7 +9,7 @@
       "url": "https://travel.brij.fi"
     },
     "description": "Production flight API for paid flight search, escrow-backed booking intents,\nand airline order status lookup.\n\n`POST /air/search` accepts either a valid x402 `PAYMENT-SIGNATURE` or a\nBRIJ gateway sponsored-preview signature. `POST /air/intents`,\n`POST /air/book`, and `POST /air/refund-requests` are protected by x402.\nClients that do not send a valid `PAYMENT-SIGNATURE` header receive\n`402 Payment Required` with a `PAYMENT-REQUIRED` header and JSON payment\nrequirements body.\n\nAction endpoints (POST /air/book, POST /air/refund-requests) take intent_id\nin the request body — never in the path. The two reads are path-addressed:\nGET /air/intents/{intent_id} and GET /air/orders/{order_id}.\n",
-    "x-guidance": "Four steps, each paid per call with x402 (USDC on Solana).\n\n1. POST /air/search — find live offers. Price is dynamic: 0.10 USDC x1..50 depending on load, so always read the current PAYMENT-REQUIRED challenge rather than reusing a price you saw earlier.\n2. POST /air/intents — lock one offer_id and derive its escrow. Costs 0.10 USDC. The response carries the intent id and the customer_support_code: PERSIST BOTH. The support code cannot be re-read later and is required to read the order or request a refund.\n3. POST /air/book — send intent_id and one passenger in the body. The price is this intent's escrow amount, i.e. the ticket price, quoted in the challenge. Booking is asynchronous: a 200 means the request was accepted, then poll GET /air/intents/{intent_id} until status is booked or refunded.\n4. POST /air/refund-requests — optional, 0.10 USDC. Needs intent_id in the body plus the X-Customer-Support-Code and X-Passenger-Family-Name headers. It files a request for manual review; it does not execute a refund.\n\nAction POSTs never take an id in the path: send intent_id in the request body of POST /air/book and POST /air/refund-requests. The two GET reads (GET /air/intents/{intent_id}, GET /air/orders/{order_id}) are path-addressed. If the upstream price moved between steps 2 and 3 the booking is rejected and the escrow is refunded automatically to the refund wallet frozen at intent creation.\n\nThe search response is the complete picture available at search time; there is no per-offer detail endpoint. Paid-ancillary prices, seat maps and legal fare-rule text are not obtainable through this API — when a decision depends on them, say so to the customer rather than guessing, and prefer fares whose included baggage and conditions already satisfy the need."
+    "x-guidance": "Four steps, each paid per call with x402 (USDC on Solana).\n\n1. POST /air/search — find live offers. Price is dynamic: 0.10 USDC x1..50 depending on load, so always read the current PAYMENT-REQUIRED challenge rather than reusing a price you saw earlier.\n2. POST /air/intents — lock one offer_id and derive its escrow. Costs 0.10 USDC. The response carries the intent id and the customer_support_code: PERSIST BOTH. The support code cannot be re-read later and is required to read the order or request a refund.\n3. POST /air/book — send intent_id and one passenger in the body. The price is this intent's escrow amount, i.e. the ticket price, quoted in the challenge. Booking is asynchronous: a 200 means the request was accepted, then poll GET /air/intents/{intent_id} until status is booked or refunded.\n4. POST /air/refund-requests — optional, 0.10 USDC. Needs intent_id in the body plus the X-Customer-Support-Code and X-Passenger-Family-Name headers. It files a request for manual review; it does not execute a refund.\n\nAction POSTs never take an id in the path: send intent_id in the request body of POST /air/book and POST /air/refund-requests. The two GET reads (GET /air/intents/{intent_id}, GET /air/orders/{order_id}) are path-addressed. If the upstream price moved between steps 2 and 3 the booking is rejected and the escrow is refunded automatically to the refund wallet frozen at intent creation.\n\nTo drill into one offer (fresh price/expiry, paid-ancillary prices such as extra bags), POST /air/offer-details with the offer_id — cheaper than re-searching. Seat maps and legal fare-rule text remain unobtainable: when a decision depends on them, say so to the customer rather than guessing."
   },
   "servers": [
     {
@@ -125,7 +125,7 @@
             "max": "5.00"
           }
         },
-        "description": "Flight search can be paid with x402 or sponsored by the BRIJ gateway.\n\nFor direct x402 clients, send a valid `PAYMENT-SIGNATURE` header. Without\npayment, the API returns `402 Payment Required` carrying the **current** price.\n\nFor BRIJ Wallet preview calls, the gateway may send `X-BRIJ-SPONSORED-*`\nheaders. Providers should treat that as a BRIJ-sponsored preview, not as a\nuser-paid x402 settlement.\n\nBase x402 price is 0.10 USDC. The price is multiplied (up to 50×) by the\ncurrent search load: completed searches in the last 60 seconds and\nany upstream rate-limit response in the last 5 minutes. Always read\nthe latest `PAYMENT-REQUIRED` challenge before signing - the price\nyour client saw a moment ago may already be stale.\n\n\nThe same flight commonly appears several times at different prices: each offer is one fare (fare_brand_name, baggage, change/refund conditions) sold by one seller (owner_name). Two offers on the same flight can share identical conditions and differ only in seller and price — compare the fare fields, never assume cheaper means more restrictive.\n\n**Data boundaries — what this response does and does not contain.**\nEach offer carries EVERYTHING the flight inventory provider discloses at search time: itinerary (legs, times with IANA timezones, durations, aircraft, terminals, technical stops), identity (comparison_key, both carriers on codeshares, flight numbers, fare_basis_code), fare content (brand, cabin, included baggage, change/refund conditions with penalties), price breakdown (base + tax), CO2 estimate, and loyalty programmes. There is no richer per-offer detail to fetch through this API.\n\nNot available here, so do not guess at it:\n- Prices of PAID ancillaries (extra checked bags, seat selection, priority boarding). If checked_bags_included is 0 and the passenger needs a bag, prefer a fare that includes one over assuming an add-on can be bought cheaply later.\n- Seat maps and specific seat availability.\n- Full legal fare-rule text. It does not exist upstream in machine form: the structured conditions object IS the complete machine-readable ruleset. For airline-side research, fare_basis_code plus the marketing carrier identifies the exact fare.\n\nEverywhere in this response, null/empty means the airline did not disclose the value — unknown, never zero or false.",
+        "description": "Flight search can be paid with x402 or sponsored by the BRIJ gateway.\n\nFor direct x402 clients, send a valid `PAYMENT-SIGNATURE` header. Without\npayment, the API returns `402 Payment Required` carrying the **current** price.\n\nFor BRIJ Wallet preview calls, the gateway may send `X-BRIJ-SPONSORED-*`\nheaders. Providers should treat that as a BRIJ-sponsored preview, not as a\nuser-paid x402 settlement.\n\nBase x402 price is 0.10 USDC. The price is multiplied (up to 50×) by the\ncurrent search load: completed searches in the last 60 seconds and\nany upstream rate-limit response in the last 5 minutes. Always read\nthe latest `PAYMENT-REQUIRED` challenge before signing - the price\nyour client saw a moment ago may already be stale.\n\n\nThe same flight commonly appears several times at different prices: each offer is one fare (fare_brand_name, baggage, change/refund conditions) sold by one seller (owner_name). Two offers on the same flight can share identical conditions and differ only in seller and price — compare the fare fields, never assume cheaper means more restrictive.\n\n**Data boundaries — what this response does and does not contain.**\nEach offer carries EVERYTHING the flight inventory provider discloses at search time: itinerary (legs, times with IANA timezones, durations, aircraft, terminals, technical stops), identity (comparison_key, both carriers on codeshares, flight numbers, fare_basis_code), fare content (brand, cabin, included baggage, change/refund conditions with penalties), price breakdown (base + tax), CO2 estimate, and loyalty programmes. To drill into ONE offer — fresh price/expiry and paid-ancillary prices — use POST /air/offer-details.\n\nNot available in SEARCH results (use POST /air/offer-details per offer):\n- Prices of paid ancillaries (extra checked bags and other extras).\n- Seat maps and specific seat availability.\n- Full legal fare-rule text. It does not exist upstream in machine form: the structured conditions object IS the complete machine-readable ruleset. For airline-side research, fare_basis_code plus the marketing carrier identifies the exact fare.\n\nEverywhere in this response, null/empty means the airline did not disclose the value — unknown, never zero or false.",
         "security": [
           {
             "x402PaymentSignature": []
@@ -703,7 +703,7 @@
         ],
         "operationId": "getAirOrder",
         "summary": "Fetch airline order status.",
-        "description": "Returns the airline PNR and order status. Not an x402-paid endpoint, but not open either: it requires the `X-Customer-Support-Code` returned at intent creation — the same code used to authorize refund requests.",
+        "description": "Returns the airline PNR and order status. Paid x402 endpoint at a token $0.01 USDC, and still gated by the X-Customer-Support-Code returned at intent creation. Refusals are never charged: a missing or wrong code (401/403) or an unknown order (404) happens before the payment settles. Note the response distinguishes an unknown order (404) from a wrong code (403).",
         "security": [
           {
             "customerSupportCode": []
@@ -731,6 +731,16 @@
               }
             }
           },
+          "402": {
+            "description": "Payment required: PAYMENT-REQUIRED header carries the x402 challenge ($0.01).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "401": {
             "description": "X-Customer-Support-Code header is missing.",
             "content": {
@@ -753,6 +763,83 @@
           },
           "404": {
             "description": "Order not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/air/offer-details": {
+      "post": {
+        "summary": "Drill into one offer: live re-fetch plus paid-ancillary prices.",
+        "description": "Paid x402 endpoint ($0.10). Re-fetches a single offer from the flight provider and returns it in the same shape as search results — with CURRENT price and expires_at — plus available_services: the purchasable extras (checked bags with weight limits and prices) on that exact fare.\n\nUse it to (1) answer \"how much is an extra bag on this fare?\" — the one ancillary question search results cannot answer — and (2) revalidate a single offer minutes after a search, which is cheaper and quota-friendlier than re-searching.\n\nA stale or unknown offer_id returns 404 and the payment is never settled: refusals cost nothing. Offers expire roughly 20–30 minutes after search; on 404, re-search.\n\nServices are informational only: this API books the fare as-is and cannot add services to the order.",
+        "operationId": "offerDetails",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfferDetailsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Offer detail.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "description": "Base64-encoded x402 settlement response.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferDetailsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing offer_id or invalid JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required: PAYMENT-REQUIRED header carries the x402 challenge.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Offer unknown or expired — the payment is never settled. Re-search to get fresh offers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Upstream rate limited; Retry-After header set.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1720,6 +1807,83 @@
           "refund_penalty_currency": {
             "type": "string",
             "example": "USD"
+          }
+        }
+      },
+      "OfferService": {
+        "type": "object",
+        "description": "One purchasable ancillary on an offer. INFORMATIONAL ONLY: services cannot be bought through this API — use these prices to compare a bare fare plus a paid bag against a fare that already includes one.",
+        "required": [
+          "type",
+          "maximum_quantity",
+          "total_amount_decimal",
+          "total_currency"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Service family, e.g. baggage.",
+            "example": "baggage"
+          },
+          "baggage_type": {
+            "type": "string",
+            "description": "For baggage services: checked or carry_on.",
+            "example": "checked"
+          },
+          "maximum_weight_kg": {
+            "type": "integer",
+            "nullable": true,
+            "example": 23
+          },
+          "maximum_quantity": {
+            "type": "integer",
+            "example": 3
+          },
+          "total_amount_decimal": {
+            "type": "string",
+            "description": "Price PER UNIT of the service.",
+            "example": "45.00"
+          },
+          "total_currency": {
+            "type": "string",
+            "example": "USD"
+          }
+        }
+      },
+      "OfferDetailsRequest": {
+        "type": "object",
+        "required": [
+          "offer_id"
+        ],
+        "properties": {
+          "offer_id": {
+            "type": "string",
+            "description": "id from POST /air/search.",
+            "example": "off_0000000000000000000000"
+          }
+        }
+      },
+      "OfferDetailsResponse": {
+        "type": "object",
+        "required": [
+          "offer",
+          "available_services"
+        ],
+        "properties": {
+          "offer": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OfferSummary"
+              }
+            ],
+            "description": "The offer re-fetched live: total_amount and expires_at are CURRENT, unlike a minutes-old search result."
+          },
+          "available_services": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfferService"
+            },
+            "description": "Purchasable extras with prices. Empty array = the airline offers none on this fare (an answer, not missing data)."
           }
         }
       }
