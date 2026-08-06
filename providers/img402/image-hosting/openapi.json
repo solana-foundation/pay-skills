@@ -1,0 +1,455 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "img402 — Image Hosting API for Agents",
+    "description": "Upload images and get public CDN URLs. Three tiers: free (1MB, 7-day retention, no auth), $0.01 USDC via x402 (5MB, 1-year retention), $1.00 USDC via x402 (5MB, permanent retention). No accounts, no API keys.",
+    "version": "1.1.0",
+    "contact": {
+      "name": "img402",
+      "url": "https://img402.dev"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://img402.dev",
+      "description": "Production"
+    }
+  ],
+  "paths": {
+    "/api/free": {
+      "post": {
+        "operationId": "freeUpload",
+        "summary": "Upload an image up to 1MB with 7-day retention (no payment)",
+        "description": "Upload an image with no authentication required. 1MB max file size, 7-day retention. Accepts multipart form-data (field 'image') or JSON body with base64-encoded image.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "image": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Image file (PNG, JPEG, GIF, or WebP). Max 1MB."
+                  }
+                },
+                "required": ["image"]
+              }
+            },
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "description": "Base64-encoded image data. Max 1MB decoded."
+                  }
+                },
+                "required": ["file"]
+              },
+              "example": {
+                "file": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=="
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Image uploaded successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UploadResponse" },
+                "example": {
+                  "url": "https://i.img402.dev/abc123.png",
+                  "id": "abc123",
+                  "contentType": "image/png",
+                  "sizeBytes": 12345,
+                  "expiresAt": "2026-02-15T00:00:00.000Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (no file, file too large, or unsupported format)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" },
+                "examples": {
+                  "no_file": {
+                    "value": { "error": "no_file", "message": "No image found in the request. Send it ONE of two ways: (1) multipart form-data with the file in a field named exactly 'image' — curl -X POST https://img402.dev/api/free -F image=@photo.png ; or (2) a JSON body {\"file\": \"<base64-encoded-image-bytes>\"} with Content-Type: application/json. The multipart field name must be 'image' — any other name is ignored." }
+                  },
+                  "file_too_large": {
+                    "value": { "error": "file_too_large", "message": "This image is 1500000 bytes (1.43MB). Free uploads are capped at 1048576 bytes (1MB). Either resize/recompress it under 1MB, or use a paid tier which accepts up to 5MB: POST /api/upload/token ($0.01 USDC, 1-year) or /api/upload/token/permanent ($1 USDC, permanent)." }
+                  },
+                  "unsupported_format": {
+                    "value": { "error": "unsupported_format", "message": "Could not recognize this as a supported image. img402 detects format from the file's leading magic bytes and accepts only PNG, JPEG, GIF, and WebP. Common causes: sending a base64 string or data: URI as multipart bytes instead of the decoded image, sending a URL or non-image file, or a truncated/corrupted upload. Send the raw image bytes (e.g. curl -F image=@photo.png) or a base64 of the raw bytes in the JSON 'file' field." }
+                  },
+                  "empty_file": {
+                    "value": { "error": "empty_file", "message": "The uploaded file is empty (0 bytes). Make sure the image data is actually attached: for multipart, point -F at a real file (curl -F image=@photo.png); for JSON, send a non-empty base64 string in the 'file' field." }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Daily upload limit reached",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" },
+                "example": {
+                  "error": "daily_limit",
+                  "message": "Free upload limit reached for today. Use the paid endpoint ($0.01) for unlimited uploads."
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error (safe to retry)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" },
+                "example": {
+                  "error": "upload_failed",
+                  "message": "Upload failed. Please try again."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/upload/token": {
+      "post": {
+        "operationId": "getUploadToken",
+        "summary": "Pay $0.01 USDC and get a 1-year upload token",
+        "description": "Pay $0.01 USDC via x402 protocol to receive a single-use upload token valid for 10 minutes. The resulting image will have 1-year retention. Use the token to upload an image via POST /api/upload with the X-Upload-Token header. This two-phase flow is recommended for images larger than a few KB, as it keeps binary data out of the payment request. No request body needed — payment is handled entirely via x402 protocol headers. For permanent retention, use /api/upload/token/permanent instead.",
+        "responses": {
+          "200": {
+            "description": "Upload token issued. If the same payment was already used to upload an image, returns the existing image instead (idempotent). Distinguish by shape: a fresh token response contains token, an idempotent replay contains url.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    { "$ref": "#/components/schemas/TokenResponse" },
+                    { "$ref": "#/components/schemas/UploadResponse" }
+                  ]
+                },
+                "examples": {
+                  "token": {
+                    "summary": "New upload token",
+                    "value": {
+                      "token": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+                      "expiresAt": "2026-02-08T01:10:00.000Z"
+                    }
+                  },
+                  "idempotent": {
+                    "summary": "Payment already used — returns existing image",
+                    "value": {
+                      "url": "https://i.img402.dev/xY9kP3mQ7n.png",
+                      "id": "xY9kP3mQ7n",
+                      "contentType": "image/png",
+                      "sizeBytes": 245891,
+                      "expiresAt": "2027-02-08T00:00:00.000Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. The response includes x402 payment instructions.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PaymentRequired" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/upload/token/permanent": {
+      "post": {
+        "operationId": "getPermanentUploadToken",
+        "summary": "Pay $1.00 USDC and get a permanent upload token",
+        "description": "Pay $1.00 USDC via x402 protocol to receive a single-use upload token valid for 10 minutes. The resulting image will have permanent retention (no expiration). Use the token to upload an image via POST /api/upload with the X-Upload-Token header. Permanent images are retained for the operational life of the service; if the service ever shuts down, a 90-day on-site notice is given before takedown. See https://img402.dev/terms Section 2A. No request body needed — payment is handled entirely via x402 protocol headers.",
+        "responses": {
+          "200": {
+            "description": "Upload token issued (image will be permanent). If the same payment was already used to upload an image, returns the existing image instead (idempotent). Distinguish by shape: a fresh token response contains token, an idempotent replay contains url.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    { "$ref": "#/components/schemas/TokenResponse" },
+                    { "$ref": "#/components/schemas/UploadResponse" }
+                  ]
+                },
+                "examples": {
+                  "token": {
+                    "summary": "New permanent upload token",
+                    "value": {
+                      "token": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+                      "expiresAt": "2026-02-08T01:10:00.000Z"
+                    }
+                  },
+                  "idempotent": {
+                    "summary": "Payment already used — returns existing permanent image",
+                    "value": {
+                      "url": "https://i.img402.dev/xY9kP3mQ7n.png",
+                      "id": "xY9kP3mQ7n",
+                      "contentType": "image/png",
+                      "sizeBytes": 245891,
+                      "expiresAt": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required ($1.00 USDC). The response includes x402 payment instructions.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PaymentRequired" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/upload": {
+      "post": {
+        "operationId": "upload",
+        "summary": "Upload an image with a token or x402 payment",
+        "description": "Upload an image using either an upload token (from POST /api/upload/token or /api/upload/token/permanent) or a direct x402 payment. 5MB max file size. Retention depends on the source: 1 year for tokens issued at /api/upload/token, permanent for tokens issued at /api/upload/token/permanent, 1 year for direct x402 payments. Accepts multipart form-data (field 'image') or JSON body with base64-encoded image. When using a token, include it in the X-Upload-Token header.",
+        "parameters": [
+          {
+            "name": "X-Upload-Token",
+            "in": "header",
+            "description": "Single-use upload token from POST /api/upload/token. If provided, no x402 payment is needed.",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "image": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Image file (PNG, JPEG, GIF, or WebP). Max 5MB."
+                  }
+                },
+                "required": ["image"]
+              }
+            },
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "description": "Base64-encoded image data. Max 5MB decoded."
+                  }
+                },
+                "required": ["file"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Image uploaded successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UploadResponse" },
+                "example": {
+                  "url": "https://i.img402.dev/xY9kP3mQ7n.png",
+                  "id": "xY9kP3mQ7n",
+                  "contentType": "image/png",
+                  "sizeBytes": 245891,
+                  "expiresAt": "2027-02-08T00:00:00.000Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or expired upload token",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" },
+                "examples": {
+                  "invalid_token": {
+                    "value": { "error": "invalid_token", "message": "Upload token is invalid or expired." }
+                  },
+                  "token_expired": {
+                    "value": { "error": "token_expired", "message": "Upload token has expired." }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (when no upload token is provided)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PaymentRequired" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/feedback": {
+      "post": {
+        "operationId": "feedback",
+        "summary": "Send feedback about the service",
+        "description": "Submit free-form feedback about img402. Free, no payment, no authentication. A person reads every submission; if a suggestion ships, it is announced in the img402.news field on later upload responses. Rate limited to 5 submissions per IP per hour.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "feedback": {
+                    "type": "string",
+                    "description": "Your feedback (free-form text, up to 2000 characters)."
+                  },
+                  "contact": {
+                    "type": "string",
+                    "description": "Optional. Any way to reach you if you'd like a reply — email, webhook URL, wallet address, handle. Format is not constrained. Up to 256 characters."
+                  }
+                },
+                "required": ["feedback"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Feedback received",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["ok"],
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "img402": {
+                      "type": "object",
+                      "properties": {
+                        "thanks": { "type": "string" }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "ok": true,
+                  "img402": { "thanks": "Got it — a person reads every one of these." }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or empty feedback",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" },
+                "example": { "error": "missing_feedback", "message": "Provide a non-empty 'feedback' string." }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (5 per IP per hour)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" },
+                "example": { "error": "rate_limited", "message": "Too many feedback submissions from here. Try again later." }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error (safe to retry)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "UploadResponse": {
+        "type": "object",
+        "required": ["url", "id", "contentType", "sizeBytes", "expiresAt"],
+        "properties": {
+          "url": { "type": "string", "format": "uri", "description": "Public CDN URL of the hosted image" },
+          "id": { "type": "string", "description": "Unique image ID (nanoid, 10 characters)" },
+          "contentType": { "type": "string", "description": "Detected MIME type (image/png, image/jpeg, image/gif, image/webp)" },
+          "sizeBytes": { "type": "integer", "description": "File size in bytes" },
+          "expiresAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "ISO 8601 expiration timestamp, or null for permanent images (those uploaded via /api/upload/token/permanent)."
+          }
+        }
+      },
+      "TokenResponse": {
+        "type": "object",
+        "required": ["token", "expiresAt"],
+        "properties": {
+          "token": { "type": "string", "description": "Single-use upload token. Valid for 10 minutes. Use as X-Upload-Token header when uploading." },
+          "expiresAt": { "type": "string", "format": "date-time", "description": "ISO 8601 token expiration timestamp" }
+        }
+      },
+      "PaymentRequired": {
+        "type": "object",
+        "properties": {
+          "x402Version": { "type": "integer", "example": 1 },
+          "error": { "type": "string", "example": "Payment required" },
+          "accepts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "scheme": { "type": "string", "example": "exact" },
+                "network": { "type": "string", "example": "base" },
+                "asset": { "type": "string", "description": "Token contract address of the payment asset (USDC)", "example": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" },
+                "payTo": { "type": "string", "description": "Recipient wallet address for the payment", "example": "0x77f3c9bCb898Ad1d30e9a336E2cC3108d88D6c09" },
+                "maxAmountRequired": { "type": "string", "example": "10000" },
+                "resource": { "type": "string", "example": "https://img402.dev/api/upload/token" },
+                "description": { "type": "string" },
+                "mimeType": { "type": "string", "example": "application/json" }
+              },
+              "required": ["scheme", "network", "maxAmountRequired", "resource", "payTo", "asset"]
+            }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": ["error", "message"],
+        "properties": {
+          "error": { "type": "string", "description": "Machine-readable error code" },
+          "message": { "type": "string", "description": "Human-readable error description" }
+        }
+      }
+    }
+  }
+}
