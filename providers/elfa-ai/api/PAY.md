@@ -45,7 +45,10 @@ endpoint that interprets them.
 
 USDC on Solana mainnet, Base, Arbitrum, Polygon and Avalanche. Every rail is
 quoted in the same 402, so pay on whichever you already hold. Solana payments are
-gasless — the facilitator acts as fee payer.
+gasless — the facilitator acts as fee payer — and settle with the `exact` scheme,
+so the price you are quoted is the price you pay.
+
+`GET https://api.elfa.ai/.well-known/x402` lists every payable resource.
 
 ## Spend-aware usage
 
@@ -57,5 +60,5 @@ gasless — the facilitator acts as fee payer.
   `/x402/v2/data/event-summary` ($0.045).
 - Cap `pageSize` / `limit` on mention feeds; the defaults return more than most
   tasks need.
-- `/x402/v2/chat` costs $0.045 at `speed: fast` and $0.162 at `speed: expert` —
-  prefer the structured endpoints when a plain lookup answers the question.
+- `/x402/v2/chat` costs $1 at `speed: fast` and $2 at `speed: expert` — prefer
+  the structured endpoints when a plain lookup answers the question.
