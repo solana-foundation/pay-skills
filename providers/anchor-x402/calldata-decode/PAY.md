@@ -6,7 +6,7 @@ use_case: "Use when an agent needs to inspect a transaction before signing, rend
 category: devtools
 service_url: https://api.anchor-x402.com
 openapi:
-  url: https://api.anchor-x402.com/openapi.json
+  path: openapi.json
 ---
 
 `POST /v1/decode/calldata` — pay $0.001 USDC, supply

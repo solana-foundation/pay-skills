@@ -6,7 +6,7 @@ use_case: "Use for entertainment posts, demo content, social engagement, roastin
 category: ai_ml
 service_url: https://api.anchor-x402.com
 openapi:
-  url: https://api.anchor-x402.com/openapi.json
+  path: openapi.json
 ---
 
 `POST /v1/roast { target }` — $0.05 USDC. Universal target input up to 8000 chars. Powered by Claude Haiku on AWS Bedrock.

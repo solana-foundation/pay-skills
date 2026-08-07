@@ -6,7 +6,7 @@ use_case: "Use for research distillation, link-rot insurance, agent reading list
 category: ai_ml
 service_url: https://api.anchor-x402.com
 openapi:
-  url: https://api.anchor-x402.com/openapi.json
+  path: openapi.json
 ---
 
 `POST /v1/tldr` — $0.01 USDC. Provide either `{ text }` or `{ url }`, not both.

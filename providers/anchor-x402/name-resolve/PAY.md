@@ -6,7 +6,7 @@ use_case: "Use for agent payment routing, vendor onboarding, cross-chain address
 category: identity
 service_url: https://api.anchor-x402.com
 openapi:
-  url: https://api.anchor-x402.com/openapi.json
+  path: openapi.json
 ---
 
 `GET /v1/resolve/name?name=<value>` — pay $0.001 USDC, get back a

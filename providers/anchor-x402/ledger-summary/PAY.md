@@ -6,7 +6,7 @@ use_case: "Use for agent budget tracking, per-service cost attribution, x402 spe
 category: finance
 service_url: https://api.anchor-x402.com
 openapi:
-  url: https://api.anchor-x402.com/openapi.json
+  path: openapi.json
 ---
 
 `POST /v1/ledger/summary` (body: `{wallet, days?}`) — pay $0.01 USDC,

@@ -1,12 +1,12 @@
 ---
 name: wallet-screen
 title: "anchor-x402: wallet risk pre-flight"
-description: "Wallet risk pre-flight for agent payments. OFAC SDN sanctions (Tornado Cash, Lazarus Group, Hydra Market, Blender.io, etc.) plus address-reputation (drainer, phishing, mixer, laundering) resolved to an allow/review/block recommendation with a 0-100 risk score and per-signal detail — for $0.02 USDC per call."
+description: "Wallet risk pre-flight for agent payments. OFAC SDN sanctions plus address-reputation signals (drainer, phishing, mixer, laundering) resolved to an allow/review/block recommendation with a 0-100 risk score and per-signal detail, for $0.02 USDC per call."
 use_case: "Use for AML pre-flight checks before any treasury transfer, KYC onboarding, vendor diligence, payroll wallet verification, marketplace counterparty checks, or any agent workflow that needs a fast risk verdict before sending funds."
 category: security
 service_url: https://api.anchor-x402.com
 openapi:
-  url: https://api.anchor-x402.com/openapi.json
+  path: openapi.json
 ---
 
 `GET /v1/screen?wallet=<address>` — pay $0.02 USDC, get a risk verdict

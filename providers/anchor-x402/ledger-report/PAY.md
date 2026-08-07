@@ -6,7 +6,7 @@ use_case: "Use when agent x402 spend needs a verifiable expense artifact: reimbu
 category: finance
 service_url: https://api.anchor-x402.com
 openapi:
-  url: https://api.anchor-x402.com/openapi.json
+  path: openapi.json
 ---
 
 `POST /v1/ledger/report` (body: `{wallet, days?}`) — pay $0.35 USDC,

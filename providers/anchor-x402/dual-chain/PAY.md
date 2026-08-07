@@ -6,7 +6,7 @@ use_case: "Use for DAO vote receipts, AI decision attestations, contract notariz
 category: security
 service_url: https://api.anchor-x402.com
 openapi:
-  url: https://api.anchor-x402.com/openapi.json
+  path: openapi.json
 ---
 
 `anchor-x402` is the simplest primitive in the agentic API economy: a single

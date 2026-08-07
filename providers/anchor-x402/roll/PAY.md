@@ -1,12 +1,12 @@
 ---
 name: roll
 title: "anchor-x402: verifiable signed RNG"
-description: "Cryptographically-random integer(s) over a caller-chosen range, signed by the anchor-x402 treasury key. Drop-in VRF for game studios, raffles, DAO voter selection, NFT minting tie-breaks, and any flow that needs provably-fair randomness. Optional caller pre-commitment binds the request inputs into the signed payload."
-use_case: "Use when an agent or app needs random outcomes that can be third-party verified after the fact: loot drops, raffles, on-chain games, DAO voter sampling, NFT trait reveals, A/B bucket assignment, tournament seeding, or any audit-trail flow that says 'we rolled honestly — here is the signature'."
+description: "Cryptographically-random integer(s) over a caller-chosen range, signed by the anchor-x402 treasury key. Drop-in VRF for game studios, raffles, DAO voter selection, and NFT minting tie-breaks, with optional pre-commitment bound into the signed payload."
+use_case: "Use when an agent or app needs random outcomes that can be third-party verified after the fact: loot drops, raffles, on-chain games, DAO voter sampling, NFT trait reveals, A/B bucket assignment, or tournament seeding."
 category: security
 service_url: https://api.anchor-x402.com
 openapi:
-  url: https://api.anchor-x402.com/openapi.json
+  path: openapi.json
 ---
 
 `POST /v1/roll` — pay $0.001 USDC, supply `{ low, high, count, label?, commitment? }`. The server:

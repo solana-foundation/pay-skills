@@ -6,7 +6,7 @@ use_case: "Use when an AI agent's decision needs a cryptographic, auditable rece
 category: security
 service_url: https://api.anchor-x402.com
 openapi:
-  url: https://api.anchor-x402.com/openapi.json
+  path: openapi.json
 ---
 
 `POST /v1/attest` — pay $0.01 USDC, supply `input_hash`,

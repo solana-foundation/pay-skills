@@ -6,7 +6,7 @@ use_case: "Use when agent-to-agent payments need counterparty vetting before set
 category: security
 service_url: https://api.anchor-x402.com
 openapi:
-  url: https://api.anchor-x402.com/openapi.json
+  path: openapi.json
 ---
 
 `risk-investigator` is the first agent-shaped offering in the anchor-x402

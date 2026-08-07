@@ -6,7 +6,7 @@ use_case: "Use for viral / shareable content, brand vibe checks, character analy
 category: ai_ml
 service_url: https://api.anchor-x402.com
 openapi:
-  url: https://api.anchor-x402.com/openapi.json
+  path: openapi.json
 ---
 
 `POST /v1/aura { target }` — $0.01 USDC. Any text up to 4000 chars. Powered by Claude Haiku on AWS Bedrock.

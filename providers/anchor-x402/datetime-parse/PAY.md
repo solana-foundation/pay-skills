@@ -6,7 +6,7 @@ use_case: "Use when an AI agent gets a user-supplied datetime in natural form an
 category: devtools
 service_url: https://api.anchor-x402.com
 openapi:
-  url: https://api.anchor-x402.com/openapi.json
+  path: openapi.json
 ---
 
 `POST /v1/parse/datetime` — pay $0.001 USDC, send `{ "input": "next

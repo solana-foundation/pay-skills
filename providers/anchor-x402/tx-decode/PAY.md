@@ -6,7 +6,7 @@ use_case: "Use when an agent needs to verify or summarize a payment, audit a con
 category: devtools
 service_url: https://api.anchor-x402.com
 openapi:
-  url: https://api.anchor-x402.com/openapi.json
+  path: openapi.json
 ---
 
 `POST /v1/decode/tx` — pay $0.001 USDC, get a normalized decode of any

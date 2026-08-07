@@ -6,7 +6,7 @@ use_case: "Use for agent-driven trading checks, treasury valuation snapshots, US
 category: finance
 service_url: https://api.anchor-x402.com
 openapi:
-  url: https://api.anchor-x402.com/openapi.json
+  path: openapi.json
 ---
 
 `GET /v1/price/token` — pay $0.001 USDC, get a USD spot price back.

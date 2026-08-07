@@ -6,7 +6,7 @@ use_case: "Use for sharp constructive feedback at low cost, prompt-engineering e
 category: ai_ml
 service_url: https://api.anchor-x402.com
 openapi:
-  url: https://api.anchor-x402.com/openapi.json
+  path: openapi.json
 ---
 
 `POST /v1/grade { target }` — $0.01 USDC. Any text up to 6000 chars. Powered by Claude Haiku on AWS Bedrock.

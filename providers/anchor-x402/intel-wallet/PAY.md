@@ -6,7 +6,7 @@ use_case: "Use for agent pre-transaction due diligence, KYC enrichment, vendor o
 category: data
 service_url: https://api.anchor-x402.com
 openapi:
-  url: https://api.anchor-x402.com/openapi.json
+  path: openapi.json
 ---
 
 `GET /v1/intel/wallet?wallet=<address>` — pay $0.005 USDC, get back a

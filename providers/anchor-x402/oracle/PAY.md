@@ -6,7 +6,7 @@ use_case: "Use for sealed prediction commits, prediction-market commitments, con
 category: ai_ml
 service_url: https://api.anchor-x402.com
 openapi:
-  url: https://api.anchor-x402.com/openapi.json
+  path: openapi.json
 ---
 
 `POST /v1/oracle { question }` — $0.05 USDC. Any yes/no question up to 1000 chars. Powered by Claude Haiku on AWS Bedrock plus dual-chain anchoring on Base + Solana mainnet.
