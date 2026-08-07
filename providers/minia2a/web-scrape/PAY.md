@@ -1,10 +1,12 @@
 ---
 name: web-scrape
 title: "minia2a Web Scrape"
-description: "Pay-per-call web scraping via x402: extract structured text from any URL with optional CSS selector targeting. Part of the minia2a M2M micropayment marketplace (173+ services)."
+description: "Pay-per-call web scraping via x402: extract structured text from any URL with optional CSS selector targeting. Part of the minia2a M2M micropayment marketplace (323+ services)."
 use_case: "Use when an AI agent needs to extract structured text content from a webpage, with optional CSS selector targeting for precise data extraction. No API key, no account, no human — your agent pays in USDC via x402."
 category: data
 service_url: https://minia2a.uk
+openapi:
+  path: openapi.json
 endpoints:
   - method: GET
     path: "/x402/proxy/x402-web-scrape"
@@ -19,7 +21,7 @@ endpoints:
             - price_usd: 0.005
 ---
 
-minia2a is the largest x402 micropayment marketplace for AI agents, with 173+
+minia2a is the largest x402 micropayment marketplace for AI agents, with 323+
 services discoverable and callable through a single platform. Every endpoint
 returns a standard HTTP 402 Payment Required response with multi-chain USDC
 payment paths (Base, Solana, Polygon, BSC, XRPL, Injective, Algorand).
@@ -30,7 +32,7 @@ payment paths (Base, Solana, Polygon, BSC, XRPL, Injective, Algorand).
 
 ### Discovery & Free Tier
 
-All 173+ minia2a services are listed at `GET /x402/preview` (free, no auth).
+All 323+ minia2a services are listed at `GET /x402/preview` (free, no auth).
 New users get 500 free credits ($2.50 value) via `POST /api/v1/register-simple`.
 
 ### Payment Flow
