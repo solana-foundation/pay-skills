@@ -1,8 +1,8 @@
 ---
 name: opportunity-preflight
-title: "SameDayDesk opportunity preflight on Solana"
-description: "Evaluate a bounty or paid work opportunity with deterministic break-even economics, acceptance gates, settlement checks, and reusable-value accounting."
-use_case: "Choose this before spending effort or money on a bounty, job, hackathon, or paid task. It turns supplied reward, cost, competition, access, acceptance, and settlement facts into attempt, verify_first, or abandon."
+title: "SameDayDesk agent preflight APIs on Solana"
+description: "Evaluate paid work economics or compare x402 and MPP payment offers before an agent authorizes effort or payment."
+use_case: "Choose work opportunity preflight before spending effort on a bounty or paid task. Choose payment offer preflight before authorizing one exact public HTTPS GET purchase."
 category: productivity
 service_url: https://solana.samedaydesk.com
 openapi:
@@ -10,8 +10,10 @@ openapi:
 ---
 
 Evaluate a bounty or paid work opportunity with deterministic break-even
-economics, acceptance gates, settlement checks, and reusable-value accounting.
-The service does not claim, bid, submit, or pay on source platforms.
+economics, acceptance gates, settlement checks, and reusable-value accounting,
+or inspect one target route's unpaid x402 and MPP challenges before buyer
+authorization. The service does not claim, bid, submit, authorize, sign, or pay
+on source platforms.
 
 ## Spend-aware usage
 
@@ -24,3 +26,5 @@ The service does not claim, bid, submit, or pay on source platforms.
   still rechecks the primary listing before acting.
 - Treat a missing selection probability as a deliberate `verify_first` result
   rather than paying for repeated guesses.
+- Use payment-offer preflight only with one complete public HTTPS GET URL. It
+  uses no target credential or target payment and reads no target response body.
