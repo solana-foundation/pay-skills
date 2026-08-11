@@ -1,8 +1,8 @@
 ---
 name: opportunity-preflight
 title: "SameDayDesk agent preflight APIs on Solana"
-description: "Evaluate paid work economics or compare x402 and MPP payment offers before an agent authorizes effort or payment."
-use_case: "Choose work opportunity preflight before spending effort on a bounty or paid task. Choose payment offer preflight before authorizing one exact public HTTPS GET purchase."
+description: "Evaluate paid work economics, compare x402 and MPP payment offers, or verify a finalized Solana SPL-token settlement."
+use_case: "Choose work opportunity preflight before spending effort on a bounty or paid task. Choose payment offer preflight before authorizing one exact public HTTPS GET purchase. Choose Solana transaction receipt after execution for finalized SPL-token evidence."
 category: productivity
 service_url: https://solana.samedaydesk.com
 openapi:
@@ -11,9 +11,10 @@ openapi:
 
 Evaluate a bounty or paid work opportunity with deterministic break-even
 economics, acceptance gates, settlement checks, and reusable-value accounting,
-or inspect one target route's unpaid x402 and MPP challenges before buyer
-authorization. The service does not claim, bid, submit, authorize, sign, or pay
-on source platforms.
+inspect one target route's unpaid x402 and MPP challenges before buyer
+authorization, or normalize and verify a finalized Solana transaction. The
+service does not claim, bid, submit, authorize, sign, broadcast, or pay on source
+platforms.
 
 ## Spend-aware usage
 
@@ -28,3 +29,6 @@ on source platforms.
   rather than paying for repeated guesses.
 - Use payment-offer preflight only with one complete public HTTPS GET URL. It
   uses no target credential or target payment and reads no target response body.
+- Use Solana transaction receipt with one finalized signature. Supply mint,
+  recipient, atomic amount, and payer only when exact settlement verification is
+  needed. The response excludes raw instructions and logs.
