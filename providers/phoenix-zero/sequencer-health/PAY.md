@@ -6,7 +6,7 @@ use_case: "Use before any DeFi transaction execution to check if the sequencer i
 category: data
 service_url: https://rtt.phoenix-ai.work
 openapi:
-  url: https://rtt.phoenix-ai.work/api/v1/openapi.json
+  path: openapi.json
 ---
 
 Real-time sequencer telemetry for L2 chains. Built on 2-second `eth_blockNumber`
