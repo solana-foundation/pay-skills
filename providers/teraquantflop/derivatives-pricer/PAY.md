@@ -1,7 +1,7 @@
 ---
 name: derivatives-pricer
 title: "Derivatives Pricer"
-description: "x402-paid Black-Scholes European option pricing, full analytic Greeks, single-premium IV, IV surfaces, price/scenario on submitted smiles, portfolio net Greeks, and scenario reprice. JSON APIs for agents; USDC on Solana mainnet or Base mainnet via PayAI facilitator."
+description: "x402-paid Black-Scholes European option pricing, full analytic Greeks, single-premium IV, IV surfaces, price/scenario on submitted smiles, portfolio net Greeks, and scenario reprice. JSON APIs for agents; USDC on Solana mainnet (PayAI) and Base mainnet (CDP)."
 use_case: "Use for option fair value, delta/vega hedging, IV from premiums, pricing on a smile, sticky surface scenarios, portfolio Greeks, scenario P&L, commodity/power/equity European risk in agent trading workflows."
 category: finance
 service_url: https://derivatives-pricer-production.up.railway.app
@@ -13,6 +13,8 @@ openapi:
 x402 pay-per-request derivatives analytics. No API keys. Settlement: **Solana mainnet (PayAI) and Base mainnet (CDP)** USDC exact. Unpaid calls return HTTP 402 with accepts for **both** networks.
 
 OpenAPI: see co-located `openapi.json` (request examples are suitable for `pay catalog` probes).
+
+MCP Streamable HTTP at `POST /mcp` (tools mirror paid HTTP routes; free `service_info`). See `/llms.txt`.
 
 ## Endpoints
 
@@ -232,7 +234,8 @@ Unpaid paid-path calls return **402**. Decode `PAYMENT-REQUIRED` (base64 JSON) f
 ## Spend-aware usage
 
 - Prefer `/v1/option/price` for single contracts; `/v1/option/implied-vol` for one-premium IV; use `/v1/volatility/surface` only for book-level IV grids.
-- Use `/v1/portfolio/greeks` for net risk; `/v1/portfolio/scenario` for what-if P&L (higher price).
-- Cap surface `options` and portfolio `positions`/`scenarios` to the smallest set that answers the task.
+- Use `/v1/option/price-from-surface` when you already have a smile; `/v1/option/scenario-from-surface` for sticky smile book reval.
+- Use `/v1/portfolio/greeks` for net risk; `/v1/portfolio/scenario` for scalar-σ what-if P&L (higher price).
+- Cap surface points/options and portfolio `positions`/`scenarios` to the smallest set that answers the task.
 - Reuse `Idempotency-Key` on retries after successful payment.
 - Keep premiums and underlyings in consistent units (e.g. USD/MWh, USD/bbl, index points).
