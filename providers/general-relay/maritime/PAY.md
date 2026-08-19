@@ -15,7 +15,7 @@ file for the hull: FCC licence and USCG record for US vessels, EU MRV verified
 emissions and deadweight, the named water body, sea conditions at the nearest
 monitored chokepoint within 200 km, and active NAVAREA warnings for the region.
 $0.005 per hit in USDC on Solana mainnet. **You are charged only when a
-position is found**: a 400, 404 or 503 settles nothing. The operator sponsors
+position is found**: a 400, 404, 500 or 503 settles nothing. The operator sponsors
 the transaction fee, so a caller needs USDC and nothing else.
 
 ## Spend-aware usage

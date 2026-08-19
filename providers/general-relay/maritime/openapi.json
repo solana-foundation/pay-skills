@@ -19,6 +19,10 @@
             "name": "mmsi",
             "required": true,
             "schema": {
+              "example": "232004521",
+              "maxLength": 9,
+              "minLength": 9,
+              "pattern": "^[0-9]{9}$",
               "type": "string"
             }
           }
@@ -599,8 +603,128 @@
             },
             "description": "Successful response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": "\"mmsi\" must be nine decimal digits, e.g. 366123456 (received 7 characters)"
+                },
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The `mmsi` parameter is missing or is not nine decimal digits. Nothing is settled; fix the request rather than retrying it."
+          },
           "402": {
             "description": "Payment Required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": "no position on file for MMSI 366123456. Coverage is a network of terrestrial VHF receivers — vessels out of range of every receiver in it, and most of the open ocean, are not covered.",
+                  "last_position_at": "2026-08-10T14:03:53Z",
+                  "mmsi": "366123456",
+                  "vessels": 37,
+                  "window_seconds": 3600
+                },
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "last_position_at": {
+                      "format": "date-time",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "mmsi": {
+                      "type": "string"
+                    },
+                    "vessels": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "window_seconds": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "mmsi",
+                    "vessels",
+                    "last_position_at",
+                    "window_seconds"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "No position on file for that MMSI. Nothing is settled. `vessels` is how many distinct MMSIs were heard in the last `window_seconds`: a positive count means this hull is out of coverage and another is worth trying, and 0 means the receivers are silent and every subsequent lookup will miss too — stop rather than working through a list. Null means the count itself could not be taken."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": "the position database returned data this service could not read; this is a defect on our side and retrying will not clear it"
+                },
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The position database answered with something this service could not read — a defect on our side. Nothing is settled, and retrying will not clear it."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": "the position database is unreachable; this is a transient fault on our side, not a statement about the vessel — retry after 5s"
+                },
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The position database is unreachable. Nothing is settled, and this says nothing about the vessel — retry after the number of seconds in `Retry-After`.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "example": 5,
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
           }
         },
         "summary": "Get one vessel's position, registry and local conditions",
