@@ -60,7 +60,9 @@ the rail. No account, no API key — the wallet is the identity.
 Trust & attestation:
 - `GET /api/buy/settlement_attestation` — $0.004. Independent signed
   observation of whether an x402 payment settled: SETTLED / NOT_FOUND /
-  PENDING_FINALITY / INSUFFICIENT_MATCH / REVERTED.
+  PENDING_FINALITY / INSUFFICIENT_MATCH / REVERTED. Takes a Base
+  transaction hash (0x + 64 hex) or a Solana transaction signature
+  (base58) — the identifier's shape selects the chain.
 - `GET /api/buy/settlement_reconciliation` — $0.006. Was the amount
   taken within the amount authorized? Reads the receipt once and signs
   both numbers together.
