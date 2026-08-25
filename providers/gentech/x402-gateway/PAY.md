@@ -121,7 +121,7 @@ endpoints:
 
 GenTech Labs runs a cross-chain agentic-treasury gateway that agents call
 pay-per-call over HTTP x402 v2, paid in USDC on Solana, Base, Avalanche,
-Arbitrum (x-layer), and Algorand. No account, no API key, no subscription — an
+Arbitrum, X Layer, and Algorand. No account, no API key, no subscription — an
 agent that calls twice pays twice; a wallet-capable agent hits an endpoint, gets
 an HTTP 402 with the exact price and accepted networks, signs with its wallet,
 and retries with `Payment-Signature`.
@@ -129,6 +129,24 @@ and retries with `Payment-Signature`.
 The service set is treasury-first and DeFi-oriented: LP pool analytics,
 token-risk/rugcheck, wallet portfolio valuation, ERC-8004 agent discovery,
 real-time market prices, airdrop/dust-token defense, and on-demand AI research.
+
+## Endpoint inputs
+
+The paid routes take path or query parameters (substituted into the path, or
+sent as query strings on `GET`):
+
+| Endpoint | Input |
+|----------|-------|
+| `/v1/defi/lp/{address}` | `address` — pool or LP position address |
+| `/v1/security/score/{address}` | `address` — token contract address |
+| `/v1/wallet/portfolio/{address}` | `address` — wallet address |
+| `/v1/agents/search` | `q` — search query |
+| `/v1/market/price/{symbol}` | `symbol` — e.g. `SOL`, `BTC` |
+| `/v1/defender/classify/{chainId}/{token}` | `chainId` — CAIP chain id; `token` — address |
+| `/v1/lineage/guard` | `urn` — dataset URN |
+| `/v1/deals/deals` | optional filters |
+| `/v1/agent/research` | `task` — research task; `topic` — topic |
+| `/v1/nft/search` | `query` — NFT collection name |
 
 ## Spend-aware usage
 
