@@ -120,8 +120,9 @@ endpoints:
 ---
 
 GenTech Labs runs a cross-chain agentic-treasury gateway that agents call
-pay-per-call over HTTP x402 v2, paid in USDC on Solana, Base, Avalanche,
-Arbitrum, X Layer, and Algorand. No account, no API key, no subscription — an
+pay-per-call over HTTP x402 v2, paid in USDC. The live 402 challenges accept
+USDC on Solana, Base (eip155:8453), Avalanche (eip155:43114), X Layer
+(eip155:196), and Algorand. No account, no API key, no subscription — an
 agent that calls twice pays twice; a wallet-capable agent hits an endpoint, gets
 an HTTP 402 with the exact price and accepted networks, signs with its wallet,
 and retries with `Payment-Signature`.
@@ -144,7 +145,7 @@ sent as query strings on `GET`):
 | `/v1/market/price/{symbol}` | `symbol` — e.g. `SOL`, `BTC` |
 | `/v1/defender/classify/{chainId}/{token}` | `chainId` — CAIP chain id; `token` — address |
 | `/v1/lineage/guard` | `urn` — dataset URN |
-| `/v1/deals/deals` | optional filters |
+| `/v1/deals/deals` | no required params — returns the tracked deal list |
 | `/v1/agent/research` | `task` — research task; `topic` — topic |
 | `/v1/nft/search` | `query` — NFT collection name |
 
