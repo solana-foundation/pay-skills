@@ -25,7 +25,20 @@
           }
         },
         "responses": {
-          "200": { "description": "Finalized transaction evidence" },
+          "200": {
+            "description": "Finalized transaction evidence",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "description": "Base64-encoded x402 V2 settlement response when this request settled a payment.",
+                "schema": { "type": "string" }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TransactionEvidenceResponse" }
+              }
+            }
+          },
           "402": {
             "description": "Solana USDC payment required",
             "headers": {
@@ -36,9 +49,62 @@
               }
             }
           },
-          "404": { "description": "Transaction not found at finalized commitment" },
-          "422": { "description": "Invalid request" },
-          "502": { "description": "Solana evidence provider unavailable" }
+          "400": {
+            "description": "Invalid JSON request body",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Transaction not found at finalized commitment",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body exceeds 4 KB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type must be application/json",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fields or transaction signature are invalid",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "502": {
+            "description": "Solana evidence provider unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "503": {
+            "description": "Transaction evidence or paid access is temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
         },
         "x-payment-info": {
           "price": { "mode": "fixed", "currency": "USD", "amount": "0.050000" },
@@ -65,6 +131,216 @@
             "type": "string",
             "description": "Solana transaction signature to inspect at finalized commitment."
           }
+        }
+      },
+      "TransactionEvidenceResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "network",
+          "signature",
+          "status",
+          "slot",
+          "block_time",
+          "fee_lamports",
+          "fee_sol",
+          "signers",
+          "program_ids",
+          "native_balance_changes",
+          "token_balance_changes",
+          "parsed_transfers",
+          "warnings",
+          "boundary"
+        ],
+        "properties": {
+          "network": {
+            "type": "string",
+            "const": "solana:mainnet",
+            "description": "Solana network on which the finalized transaction was observed."
+          },
+          "signature": {
+            "type": "string",
+            "description": "Transaction signature supplied in the request."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["finalized_success", "finalized_failed"],
+            "description": "Finalized execution outcome. A failed transaction can still contain a fee balance change."
+          },
+          "slot": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Finalized Solana slot containing the transaction."
+          },
+          "block_time": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "UTC block timestamp when supplied by the Solana RPC response."
+          },
+          "fee_lamports": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Transaction fee in lamports."
+          },
+          "fee_sol": {
+            "type": "string",
+            "pattern": "^[0-9]+(?:\\.[0-9]+)?$",
+            "description": "Transaction fee in SOL as an exact decimal string."
+          },
+          "signers": {
+            "type": "array",
+            "description": "Public keys marked as transaction signers.",
+            "items": { "type": "string" }
+          },
+          "program_ids": {
+            "type": "array",
+            "description": "Distinct invoked Solana program IDs, sorted lexicographically.",
+            "items": { "type": "string" }
+          },
+          "native_balance_changes": {
+            "type": "array",
+            "description": "Non-zero SOL balance changes for transaction accounts, including fees.",
+            "items": { "$ref": "#/components/schemas/NativeBalanceChange" }
+          },
+          "token_balance_changes": {
+            "type": "array",
+            "description": "Non-zero token balance changes reported by the finalized transaction metadata.",
+            "items": { "$ref": "#/components/schemas/TokenBalanceChange" }
+          },
+          "parsed_transfers": {
+            "type": "array",
+            "description": "Top-level and inner transfer instructions that the Solana RPC response parsed.",
+            "items": { "$ref": "#/components/schemas/ParsedTransfer" }
+          },
+          "warnings": {
+            "type": "array",
+            "description": "Evidence limitations or transaction conditions that require caller attention.",
+            "items": { "type": "string" }
+          },
+          "boundary": {
+            "type": "string",
+            "description": "Explicit limit on what the public-chain evidence establishes."
+          }
+        }
+      },
+      "NativeBalanceChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["account", "pre_lamports", "post_lamports", "change_lamports", "change_sol"],
+        "properties": {
+          "account": { "type": "string", "description": "Solana account public key." },
+          "pre_lamports": { "type": "string", "pattern": "^[0-9]+$" },
+          "post_lamports": { "type": "string", "pattern": "^[0-9]+$" },
+          "change_lamports": { "type": "string", "pattern": "^-?[0-9]+$" },
+          "change_sol": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$",
+            "description": "Signed SOL change as an exact decimal string."
+          }
+        }
+      },
+      "TokenBalanceChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "account",
+          "owner",
+          "mint",
+          "program_id",
+          "decimals",
+          "pre_amount",
+          "post_amount",
+          "change_amount"
+        ],
+        "properties": {
+          "account": { "type": "string", "description": "Token account public key." },
+          "owner": {
+            "type": ["string", "null"],
+            "description": "Token-account owner when supplied by the Solana RPC response."
+          },
+          "mint": { "type": "string", "description": "Token mint public key." },
+          "program_id": {
+            "type": ["string", "null"],
+            "description": "Token program ID when supplied by the Solana RPC response."
+          },
+          "decimals": { "type": "integer", "minimum": 0 },
+          "pre_amount": {
+            "type": "string",
+            "pattern": "^[0-9]+(?:\\.[0-9]+)?$",
+            "description": "Pre-transaction token amount in display units."
+          },
+          "post_amount": {
+            "type": "string",
+            "pattern": "^[0-9]+(?:\\.[0-9]+)?$",
+            "description": "Post-transaction token amount in display units."
+          },
+          "change_amount": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(?:\\.[0-9]+)?$",
+            "description": "Signed token balance change in display units."
+          }
+        }
+      },
+      "ParsedTransfer": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "scope",
+          "instruction_index",
+          "parent_instruction_index",
+          "program",
+          "program_id",
+          "type",
+          "source",
+          "destination",
+          "authority",
+          "mint",
+          "amount",
+          "decimals",
+          "lamports"
+        ],
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": ["top_level", "inner"],
+            "description": "Whether the transfer was a top-level or inner instruction."
+          },
+          "instruction_index": { "type": "integer", "minimum": 0 },
+          "parent_instruction_index": {
+            "type": ["integer", "null"],
+            "minimum": 0,
+            "description": "Parent top-level instruction index for an inner instruction."
+          },
+          "program": { "type": ["string", "null"] },
+          "program_id": { "type": ["string", "null"] },
+          "type": {
+            "type": "string",
+            "enum": ["transfer", "transferChecked", "transferCheckedWithFee"]
+          },
+          "source": { "type": ["string", "null"] },
+          "destination": { "type": ["string", "null"] },
+          "authority": { "type": ["string", "null"] },
+          "mint": { "type": ["string", "null"] },
+          "amount": {
+            "type": ["string", "null"],
+            "pattern": "^[0-9]+$",
+            "description": "Raw token amount when supplied by the parsed instruction."
+          },
+          "decimals": { "type": ["integer", "null"], "minimum": 0 },
+          "lamports": {
+            "type": ["string", "null"],
+            "pattern": "^[0-9]+$",
+            "description": "Lamports transferred by a parsed native SOL instruction."
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error", "message"],
+        "properties": {
+          "error": { "type": "string", "description": "Stable machine-readable error code." },
+          "message": { "type": "string", "description": "Human-readable explanation." }
         }
       }
     }
