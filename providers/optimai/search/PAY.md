@@ -11,6 +11,10 @@ openapi:
 
 OptimAI Search gives agents current, source-backed context through a paid x402 endpoint. It searches web, social, and crypto sources and returns a contextual answer with citations. The same endpoint accepts x402 payment on Base and Solana mainnet in USDC.
 
+## Request lifecycle
+
+The paid `POST /external/v1/x402/search` returns `202` with a search `id`. Poll `GET /external/v1/x402/search/{id}` with the `PAYMENT-SIGNATURE` header to read progress and retrieve the completed answer with citations. A completed result that is still verified but unsettled returns a fresh x402 payment challenge before the result is released.
+
 ## Spend-aware usage
 
 - Ask one focused question per call.

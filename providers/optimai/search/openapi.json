@@ -4,7 +4,7 @@
     "title": "OptimAI x402 API",
     "description": "OptimAI is an agent-ready decentralized search and retrieval service powered by the OptimAI Network nodes, returning real-time contextual answers with citations from web, social, and crypto sources.",
     "version": "1.0.0",
-    "x-guidance": "Use POST /external/v1/x402/search with application/json {\"query\":\"...\"}. If the response is 402, read the payment-required header, satisfy one accepted x402 v2 payment requirement, then retry with PAYMENT-SIGNATURE. A successful paid request returns an accepted OptimAI Search request for agent-ready web, social, and crypto research with cited results."
+    "x-guidance": "Use POST /external/v1/x402/search with application/json {\"query\":\"...\"}. If the response is 402, read the payment-required header, satisfy one accepted x402 v2 payment requirement, then retry with PAYMENT-SIGNATURE. A successful paid request returns an id; poll GET /external/v1/x402/search/{id} with PAYMENT-SIGNATURE for progress and the cited result. A completed result that is still verified but unsettled returns a fresh payment challenge before release."
   },
   "servers": [
     {
@@ -12,12 +12,196 @@
       "description": "Production"
     }
   ],
+  "components": {
+    "schemas": {
+      "X402SearchResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "planning",
+              "searching",
+              "processing",
+              "aggregating",
+              "completed",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "query": {
+            "type": "string"
+          },
+          "x402_payment_status": {
+            "type": "string",
+            "enum": [
+              "verified_unsettled",
+              "settled",
+              "voided",
+              "settlement_failed"
+            ]
+          },
+          "progress": {
+            "type": "object",
+            "properties": {
+              "stage": {
+                "type": "string"
+              },
+              "percent": {
+                "type": "number"
+              },
+              "current_step": {
+                "type": "string"
+              },
+              "sources_found": {
+                "type": "integer"
+              },
+              "sources_analyzed": {
+                "type": "integer"
+              },
+              "sources_relevant": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "stage"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "answer": {
+                "type": "string"
+              },
+              "summary": {
+                "type": "string"
+              },
+              "citations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "integer"
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "snippet": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "domain": {
+                      "type": "string"
+                    },
+                    "published_date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "url"
+                  ]
+                }
+              },
+              "related_questions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "sources_found": {
+                "type": "integer"
+              },
+              "sources_analyzed": {
+                "type": "integer"
+              },
+              "sources_relevant": {
+                "type": "integer"
+              },
+              "search_queries_used": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "answer",
+              "citations"
+            ]
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "query"
+        ]
+      },
+      "ExternalApiError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          },
+          "request_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      }
+    }
+  },
   "paths": {
     "/external/v1/x402/search": {
       "post": {
         "operationId": "createX402Search",
         "summary": "Create an x402-paid OptimAI Search request",
-        "description": "Submit a natural-language search or research question and receive an asynchronous OptimAI Search request.",
+        "description": "Submit a natural-language search or research question and receive an asynchronous OptimAI Search request. Use the returned id with GET /external/v1/x402/search/{id} to retrieve progress and the completed answer with citations.",
         "x-payment-info": {
           "protocols": [
             {
@@ -68,13 +252,109 @@
         },
         "responses": {
           "202": {
-            "description": "Search request accepted after x402 payment verification."
+            "description": "Search request accepted after x402 payment verification. The response body contains the request id for status and result retrieval.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402SearchResponse"
+                },
+                "example": {
+                  "id": "00000000-0000-0000-0000-000000000000",
+                  "status": "pending",
+                  "query": "What is OptimAI?",
+                  "x402_payment_status": "verified_unsettled"
+                }
+              }
+            },
+            "links": {
+              "getX402Search": {
+                "operationId": "getX402Search",
+                "parameters": {
+                  "id": "$response.body#/id"
+                },
+                "description": "Retrieve this request's progress or completed result."
+              }
+            }
           },
           "400": {
-            "description": "Invalid request body."
+            "description": "Invalid request body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalApiError"
+                }
+              }
+            }
           },
           "402": {
             "description": "Payment Required. Inspect the payment-required header for x402 requirements."
+          }
+        }
+      }
+    },
+    "/external/v1/x402/search/{id}": {
+      "get": {
+        "operationId": "getX402Search",
+        "summary": "Fetch an x402-paid OptimAI Search request",
+        "description": "Read the status and progress of a paid search, or retrieve its completed answer and citations. Send the original PAYMENT-SIGNATURE for payer-bound access. If a completed result is verified but not settled, the endpoint returns a fresh x402 payment challenge before releasing the result.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The search request id returned by the paid POST request.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current search status, progress, failure, or completed result. Completed results include citations when payment is settled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402SearchResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "A fresh result payment was accepted but settlement is still pending; retry the retrieval with the same payment context.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402SearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid search request id. Validation happens before payment checks."
+          },
+          "401": {
+            "description": "A PAYMENT-SIGNATURE is required to read this search, or the supplied signature is not valid for the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalApiError"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required. A completed but unsettled result needs a fresh x402 payment; inspect the payment-required header and retry with PAYMENT-SIGNATURE."
+          },
+          "404": {
+            "description": "Search request not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalApiError"
+                }
+              }
+            }
           }
         }
       }
