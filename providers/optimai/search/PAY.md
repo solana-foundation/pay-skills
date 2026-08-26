@@ -13,7 +13,7 @@ OptimAI Search gives agents current, source-backed context through a paid x402 e
 
 ## Request lifecycle
 
-The paid `POST /external/v1/x402/search` returns `202` with a search `id`. Poll `GET /external/v1/x402/search/{id}` with the `PAYMENT-SIGNATURE` header to read progress and retrieve the completed answer with citations. A completed result that is still verified but unsettled returns a fresh x402 payment challenge before the result is released.
+Omit `PAYMENT-SIGNATURE` on the initial `POST /external/v1/x402/search`. If it returns `402`, read the `PAYMENT-REQUIRED` header, complete one accepted x402 payment on Base or Solana mainnet USDC, and retry the POST with `PAYMENT-SIGNATURE`. The paid request returns `202` with a search `id`. Poll `GET /external/v1/x402/search/{id}` with the same `PAYMENT-SIGNATURE` header to read progress and retrieve the completed answer with citations. A completed result that is still verified but unsettled returns a fresh x402 payment challenge before the result is released.
 
 ## Spend-aware usage
 
