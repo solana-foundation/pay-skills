@@ -1,0 +1,800 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Mizuki the Mech",
+    "version": "v1",
+    "description": "Fixed-price software maintenance on public GitHub repositories, settled per job in USDC over x402. A quote is pinned to the repository revision it was priced against. A settled job resolves to a validated pull request or a full refund of the quoted amount.",
+    "license": {
+      "name": "Proprietary service"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://mizuki.opencovenant.org/api/mizuki"
+    }
+  ],
+  "paths": {
+    "/v1/quotes": {
+      "post": {
+        "operationId": "createQuote",
+        "summary": "Create a fixed quote for one authorized public GitHub issue",
+        "description": "Reads the issue and repository metadata and returns a fixed quote plus the x402 challenge used to pay for it. Creates no branch and no pull request. The repository must have both Mizuki GitHub Apps installed and a maintainer must have applied the mizuki:authorized label to the issue.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "github_issue_url"
+                ],
+                "properties": {
+                  "github_issue_url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "Public GitHub issue URL, e.g. https://github.com/owner/repo/issues/123"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Quote issued. Valid for 15 minutes and pinned to baseSha.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Quote"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "description": "The Mizuki GitHub App is not installed on this repository, or the repository is private.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The URL is not a canonical public GitHub issue URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The issue is outside the maintenance-only scope, or too large for the class.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "description": "The issue could not be read, or it is missing the maintainer authorization label.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Paid intake is closed by the operator.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/jobs": {
+      "post": {
+        "operationId": "submitJob",
+        "summary": "Pay a quote and start the maintenance job",
+        "description": "Call without a payment-signature to receive the 402 challenge; retry with the authorization to settle. A paying call must carry an idempotency-key, and replaying that key returns the same job rather than starting a second one. Before accepting payment the service re-checks the App installation, the authorization label, the exact issue text and the repository head; if any of them moved since the quote it returns 409 and nothing is charged.",
+        "parameters": [
+          {
+            "name": "idempotency-key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "description": "Caller-generated key, at most 128 characters. Replaying it returns the same job rather than starting a second one."
+          },
+          {
+            "name": "payment-signature",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "x402 v2 payment authorization for the quote. Omit it to receive the 402 challenge."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "quote_id"
+                ],
+                "properties": {
+                  "quote_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The idempotency key or quote already has a reserved job.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Payment settled; the job is reserved and work has started.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "headers": {
+              "payment-response": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64url-encoded settlement receipt."
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "402": {
+            "description": "Payment required. The body is an x402 v2 challenge.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentChallenge"
+                }
+              }
+            },
+            "headers": {
+              "payment-required": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64url-encoded x402 v2 challenge, the same document as the body."
+              }
+            }
+          },
+          "403": {
+            "description": "The App installation or authorization re-check failed at payment time.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Quote not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The quote expired, the repository moved since it was priced, or the idempotency key was already used for a different quote. Nothing is charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The issue moved outside the maintenance-only scope since the quote.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "description": "The pre-payment re-check could not be completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Intake is paused, refund capacity is unavailable, or a dependency is not ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/jobs/{id}": {
+      "get": {
+        "operationId": "getJob",
+        "summary": "Fetch job state, delivery evidence, or refund",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current job record.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No job with that id, or the id is not a UUID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "BadRequest": {
+        "description": "Malformed request.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Per-source token bucket exhausted.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "Quote": {
+        "type": "object",
+        "description": "A fixed price bound to one issue at one repository revision.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "issueUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "repo": {
+            "type": "string"
+          },
+          "issueNumber": {
+            "type": "integer"
+          },
+          "issueTitle": {
+            "type": "string"
+          },
+          "baseSha": {
+            "type": "string",
+            "description": "Repository head the quote is pinned to."
+          },
+          "defaultBranch": {
+            "type": "string"
+          },
+          "class": {
+            "type": "string",
+            "enum": [
+              "micro",
+              "standard"
+            ]
+          },
+          "priceAtomic": {
+            "type": "string",
+            "description": "USDC in atomic units. 2000000 for micro, 10000000 for standard."
+          },
+          "maxFiles": {
+            "type": "integer",
+            "description": "3 for micro, 10 for standard."
+          },
+          "validationCommands": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Repository checks the delivered patch must pass."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "authorizationReceipt": {
+            "type": "object",
+            "description": "Evidence that a maintainer with write access authorized this issue.",
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "actorLogin": {
+                "type": "string"
+              },
+              "permission": {
+                "type": "string",
+                "enum": [
+                  "triage",
+                  "write",
+                  "maintain",
+                  "admin"
+                ]
+              },
+              "authorizedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "evidenceHash": {
+                "type": "string"
+              },
+              "actorId": {
+                "type": "string"
+              },
+              "verifiedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          "payment": {
+            "$ref": "#/components/schemas/PaymentChallenge"
+          },
+          "issueBody": {
+            "type": "string"
+          },
+          "installationId": {
+            "type": "integer"
+          },
+          "maxCostUsd": {
+            "type": "number",
+            "description": "Execution-cost ceiling for the class. 0.8 for micro, 4 for standard."
+          }
+        },
+        "required": [
+          "id",
+          "class",
+          "priceAtomic",
+          "maxFiles",
+          "expiresAt",
+          "payment"
+        ]
+      },
+      "PaymentChallenge": {
+        "type": "object",
+        "description": "x402 v2 challenge. Exact-amount USDC transfer on Solana mainnet with a sponsored fee payer.",
+        "properties": {
+          "x402Version": {
+            "type": "integer",
+            "const": 2
+          },
+          "error": {
+            "type": "string"
+          },
+          "resource": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "description": "Echo this value exactly when constructing the payment authorization. The service issues it and rejects any authorization whose resource does not match, so do not rebuild it from the documented base URL."
+              },
+              "description": {
+                "type": "string"
+              },
+              "mimeType": {
+                "type": "string"
+              },
+              "serviceName": {
+                "type": "string"
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "accepts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "scheme": {
+                  "type": "string",
+                  "const": "exact"
+                },
+                "network": {
+                  "type": "string",
+                  "description": "CAIP-2 chain id for Solana mainnet."
+                },
+                "amount": {
+                  "type": "string",
+                  "description": "Atomic units of the asset."
+                },
+                "asset": {
+                  "type": "string",
+                  "description": "USDC mint address."
+                },
+                "payTo": {
+                  "type": "string"
+                },
+                "maxTimeoutSeconds": {
+                  "type": "integer"
+                },
+                "extra": {
+                  "type": "object",
+                  "properties": {
+                    "description": {
+                      "type": "string"
+                    },
+                    "feePayer": {
+                      "type": "string",
+                      "description": "Sponsored fee payer; the caller does not need SOL."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why a presented authorization was rejected. Absent on a first unpaid call."
+          }
+        },
+        "required": [
+          "x402Version",
+          "accepts"
+        ]
+      },
+      "Job": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "settlement_pending",
+              "paid",
+              "admitted",
+              "running",
+              "validating",
+              "delivered",
+              "rejected",
+              "failed",
+              "refund_pending",
+              "refunded"
+            ]
+          },
+          "issueUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "issueTitle": {
+            "type": "string"
+          },
+          "class": {
+            "type": "string",
+            "enum": [
+              "micro",
+              "standard"
+            ]
+          },
+          "priceAtomic": {
+            "type": "string"
+          },
+          "paymentTransaction": {
+            "type": "string",
+            "description": "Solana signature for the settled payment."
+          },
+          "prUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "Present once a pull request is opened."
+          },
+          "mergedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "refundTransaction": {
+            "type": "string",
+            "description": "Solana signature returning the full quoted amount."
+          },
+          "changedFiles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "validations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "type": "string"
+                },
+                "exitCode": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "error": {
+            "type": "string",
+            "description": "Why the attempt stopped, when it did."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deliveryEvidence": {
+            "type": "object",
+            "description": "Proof of what was published, recorded when the pull request opens.",
+            "properties": {
+              "pullRequestNumber": {
+                "type": "integer"
+              },
+              "headSha": {
+                "type": "string"
+              },
+              "baseSha": {
+                "type": "string"
+              },
+              "baseRef": {
+                "type": "string"
+              },
+              "diffHash": {
+                "type": "string"
+              },
+              "observedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          "refundLiabilityDischarge": {
+            "type": "object",
+            "description": "Set once the policy signer verifies the merge and releases the refund reserve.",
+            "properties": {
+              "dischargedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "evidenceHash": {
+                "type": "string"
+              }
+            }
+          },
+          "review": {
+            "type": "object",
+            "description": "Verdict of the separate reviewer that never saw the first attempt.",
+            "properties": {
+              "approved": {
+                "type": "boolean"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "reviewedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "artifactHash": {
+                "type": "string"
+              },
+              "provider": {
+                "$ref": "#/components/schemas/ProviderReceipt"
+              }
+            }
+          },
+          "reviewAttempts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "phase": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "received",
+                    "completed",
+                    "failed"
+                  ]
+                },
+                "artifactHash": {
+                  "type": "string"
+                },
+                "reviewedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "costUsd": {
+                  "type": "number"
+                },
+                "inputTokens": {
+                  "type": "integer"
+                },
+                "outputTokens": {
+                  "type": "integer"
+                },
+                "approved": {
+                  "type": "boolean"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "provider": {
+                  "$ref": "#/components/schemas/ProviderReceipt"
+                }
+              }
+            }
+          },
+          "variableRouteCostEstimateUsd": {
+            "type": "number",
+            "description": "Recorded model and sandbox cost for this job."
+          },
+          "costCoverage": {
+            "type": "object",
+            "description": "Which cost categories the estimate includes and which it omits.",
+            "properties": {
+              "included": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "excluded": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "issueUrl",
+          "class",
+          "priceAtomic",
+          "changedFiles",
+          "validations"
+        ]
+      },
+      "ProviderReceipt": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "route": {
+            "type": "string",
+            "const": "marketplace"
+          },
+          "providerId": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "costMicrounits": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
