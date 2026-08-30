@@ -2955,6 +2955,215 @@
         ]
       }
     },
+    "/api/v1/chain-events": {
+      "get": {
+        "description": "Fetch the recent all-events feed (newest first) from the chain_events lakehouse table — every raw pallet.method event, distinct from the curated account-attributed stream. ?pallet / ?method narrow by event id (1-64 ASCII identifier chars); ?block (+ optional ?extrinsic) scopes to one block or extrinsic; ?cursor is the lossless block_number.event_index keyset cursor and ?before is the legacy block_number-only cursor; ?limit caps the page (<=100, default 50). Pass ?format=csv to download the page as CSV. Each page reads one bounded block window below its ceiling, so a short page still carries a continuation rather than ending the feed. Served live, no static file.",
+        "operationId": "chainEventsFeed",
+        "parameters": [
+          {
+            "description": "Filter to events emitted by this pallet, e.g. `SubtensorModule` or `Balances`.",
+            "in": "query",
+            "name": "pallet",
+            "required": false,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter to events with this method name within the pallet, e.g. `StakeAdded`.",
+            "in": "query",
+            "name": "method",
+            "required": false,
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Inclusive first block height of the range to read. Omit for an unbounded end. Must not be later than the range's upper bound.",
+            "in": "query",
+            "name": "block",
+            "required": false,
+            "schema": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Filter to events emitted by the extrinsic at this index within its block.",
+            "in": "query",
+            "name": "extrinsic",
+            "required": false,
+            "schema": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque pagination token: pass back the `next_cursor` from the previous response verbatim. Its contents are not stable and must not be parsed or constructed. Stable across inserts, unlike a row offset.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "description": "Opaque block_number.event_index cursor returned as next_cursor; both parts are non-negative safe integers.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Inclusive first block height of the range to read. Omit for an unbounded end. Must not be later than the range's upper bound.",
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Maximum number of rows to return in one page (at most 100). A larger value, or a non-positive one, is rejected with 400 `invalid_query` -- so a short page means the result set is exhausted, not that the server quietly capped you (#9916). Omitted, the server applies 50.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer",
+              "x-serving-bound": true
+            }
+          },
+          {
+            "description": "Response format override. Use `csv` to download the route rows as text/csv; `json` keeps the default response envelope.",
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "json",
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "examples": {
+                  "ChainEventsFeedArtifactResponse": {
+                    "$ref": "#/components/examples/ChainEventsFeedArtifactResponse"
+                  }
+                },
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SuccessEnvelope"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/ChainEventsFeedArtifact"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  ]
+                }
+              },
+              "text/csv": {
+                "examples": {
+                  "ChainEventsFeedCsv": {
+                    "$ref": "#/components/examples/ChainEventsFeedCsv"
+                  }
+                },
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Canonical artifact wrapped in the Metagraphed API envelope, or route rows as text/csv when CSV is requested.",
+            "headers": {
+              "cache-control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "etag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "x-metagraph-contract-version": {
+                "$ref": "#/components/headers/ContractVersion"
+              }
+            }
+          },
+          "304": {
+            "description": "ETag matched and the cached response is still valid."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Query parameters were malformed or unsupported."
+          },
+          "402": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "A payment was presented and could not be verified or settled. The response carries a fresh x402 quote in the `accepts` array and the PAYMENT-REQUIRED header. A request with NO payment is never answered with 402 -- it is served on the anonymous tier."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Artifact or API route was not found."
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "HTTP method is not supported."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Unexpected backend error."
+          }
+        },
+        "summary": "List recent chain events",
+        "tags": [
+          "chain",
+          "analytics"
+        ],
+        "x-metagraphed-networks": [
+          "finney",
+          "mainnet",
+          "test",
+          "testnet"
+        ]
+      }
+    },
     "/api/v1/export/chain-events": {
       "get": {
         "description": "Fetch up to 25,000 chain events in one call -- the same rows, filters and ordering as /api/v1/chain-events, without the 100-row page ceiling or the cursor bookkeeping that comes with it. ?pallet / ?method narrow by event id; ?before reads down from a block number, which is how a caller walks a large range in deliberate chunks; ?limit caps the call (<=25000, default 5000). REQUIRES PAYMENT: this route answers 402 with an x402 quote when no payment is presented, on Base or Solana -- see /.well-known/x402. It is the one family that does; every other route on this API serves an unpaid caller normally. Served live, no static file.",
@@ -3064,7 +3273,7 @@
                 }
               }
             },
-            "description": "A payment was presented and could not be verified or settled. The response carries a fresh x402 quote in the `accepts` array and the PAYMENT-REQUIRED header. A request with NO payment is never answered with 402 -- it is served on the anonymous tier."
+            "description": "Payment is required for this route. An unpaid request receives this 402 response with an x402 quote in the `accepts` array and `PAYMENT-REQUIRED` header; a payment that cannot be verified or settled also returns 402 with a fresh quote."
           },
           "404": {
             "content": {
