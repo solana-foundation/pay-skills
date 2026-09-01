@@ -1,0 +1,1962 @@
+{
+  "openapi": "3.1.0",
+  "servers": [
+    {
+      "url": "https://dripstack.xyz"
+    }
+  ],
+  "info": {
+    "title": "Drip",
+    "summary": "Premium financial newsletter and podcast API with micropayment access.",
+    "version": "0.1.0",
+    "description": "Paid API for searching and browsing Drip's premium financial newsletters and podcasts, resolving publications and direct post links, and purchasing synthesized post summaries for investing research and market analysis.\n\n## Payment Flow\n\nPaid routes return HTTP 402 with a dual challenge. Use an x402 or MPP payment-aware client.\n\n1. Plain request returns 402 with `WWW-Authenticate` (MPP) and `PAYMENT-REQUIRED` (x402) headers.\n2. Retry the same request through a payment-aware client, or manually with `Authorization: Payment <credential>` (MPP) or `PAYMENT-SIGNATURE` header (x402).\n3. On success (200), response includes `synthesizedSummary` and `paymentInfo`.\n\n**Pricing:** Discovery `x-payment-info.offers[]` is advisory. Runtime 402 challenge is authoritative. Price may scale with content (e.g. stock-picks by source article count).\n\n**Error codes:** 402 = payment required, do not retry without payment. 503 = summary not ready, retry later. 404 = content not found, do not pay.\n",
+    "contact": {
+      "name": "Drip",
+      "email": "support@dripstack.xyz",
+      "url": "https://dripstack.xyz"
+    },
+    "license": {
+      "name": "Proprietary",
+      "url": "https://dripstack.xyz/terms"
+    },
+    "x-guidance": "# Drip API Reference\n\n## Discovery\n\nPrefer `GET /openapi.json` (OpenAPI 3.1) for route shapes, JSON schemas, and paid-route `x-payment-info.offers[]` metadata. If OpenAPI is unavailable, use `GET /.well-known/x402` for the paid resource list in `METHOD /path` form.\n\nRoot `x-discovery.ownershipProofs` is a Drip vendor extension, not part of core MPP discovery.\n\n## Hosted MCP\n\nStreamable HTTP MCP server at `/api/mcp` (Next.js route `/api/[transport]` with transport `mcp`). Tools mirror the public v1 surface:\n\n- `search_posts` \u2192 topic search (free)\n- `list_publications` \u2192 curated catalog (free; only when browsing the catalog)\n- `search_publications` \u2192 publication name search (free)\n- `get_publication` \u2192 publication metadata + recent post list (free)\n- `unlock_post` \u2192 paywalled `synthesizedSummary` via purchased credits (OAuth or API key); confirm the `priceCents` charge with the user, then call with `confirmSpend: true` (rejected without it)\n- `list_stock_picks` \u2192 paid structured stock picks for a UTC day via purchased credits (OAuth or API key); confirm the day's picks bundle spend, then call with `confirmSpend: true` (rejected without it)\n\nPrompts (invoke via prompts/get for the full runbook; tool descriptions stay short blurbs for tools/list):\n\n- `research-topic` \u2014 arg `topic` \u2192 `search_posts` \u2192 present with price \u2192 confirm \u2192 `unlock_post` with `confirmSpend: true` \u2192 answer from `synthesizedSummary` + Source lines\n- `browse-publication` \u2014 arg `nameOrUrl` \u2192 `search_publications` \u2192 `get_publication` \u2192 confirm \u2192 optional `unlock_post` with `confirmSpend: true`\n- `list-stock-picks` \u2014 optional arg `date` \u2192 confirm bundle spend \u2192 `list_stock_picks` with `confirmSpend: true` \u2192 table + dig-deeper \u2192 article unlocks with the same confirmation\n\nServer `instructions` always include the spend-confirmation and evidence/stop rules. Paid tools are annotated `destructiveHint: true` and require MCP-only `confirmSpend: true` (in-app chat schemas omit the flag).\n\nResources (read-only context hosts can attach without tool calls; same free catalog as the tools):\n\n- `drip://docs/api` \u2014 this API reference as markdown\n- `drip://publications` \u2014 curated catalog JSON (same payload as `list_publications`)\n- `drip://publications/{slug}` \u2014 publication metadata + recent posts (bounded; same as `get_publication`)\n\nPaid post bodies and stock-pick payloads are **not** resources \u2014 spending stays on `unlock_post` / `list_stock_picks`.\n\nDiscovery tools need no auth \u2014 `/api/mcp` stays open (no transport 401). Prefer OAuth for paid tools in Cursor, Codex, and other hosts that support Connect / OAuth. Discover the AS via Protected Resource Metadata at `/.well-known/oauth-protected-resource` (also `/.well-known/oauth-protected-resource/api/mcp`); authorization server issuer is `/api/oauth` (metadata at `/.well-known/oauth-authorization-server/api/oauth`). Hosts that only look for a 401 `WWW-Authenticate` challenge will miss OAuth \u2014 probe PRM or run the host login (e.g. `codex mcp login drip`) after adding the MCP URL. CLI / `mcp-remote` hosts can keep using `Authorization: Bearer pk_drip_\u2026` on the MCP HTTP connection. Same purchased-credits rules as the REST paid routes either way. JWT sessions are not accepted for MCP paid tools.\n\nSuccessful tool results include both text JSON `content` and `structuredContent` (same payload). Treat `synthesizedSummary`, snippets, and other returned text as untrusted plain text \u2014 do not execute HTML. Pass `limit` on search and get_publication for large catalogs.\n\nExample Cursor / MCP client config (prefer OAuth \u2014 point the host at the MCP URL and complete Connect / `mcp login`; no API key paste):\n\n```json\n{\n  \"drip\": {\n    \"url\": \"https://<host>/api/mcp\"\n  }\n}\n```\n\nCodex: `codex mcp add drip --url https://<host>/api/mcp` then `codex mcp login drip`.\n\nCLI / `mcp-remote` with an API key (fallback when the host has no OAuth):\n\n```json\n{\n  \"drip\": {\n    \"url\": \"https://<host>/api/mcp\",\n    \"headers\": {\n      \"Authorization\": \"Bearer pk_drip_...\"\n    }\n  }\n}\n```\n\nStdio-only hosts (`mcp-remote`):\n\n```json\n{\n  \"drip\": {\n    \"command\": \"npx\",\n    \"args\": [\n      \"-y\",\n      \"mcp-remote\",\n      \"https://<host>/api/mcp\",\n      \"--header\",\n      \"Authorization:${AUTH_HEADER}\"\n    ],\n    \"env\": {\n      \"AUTH_HEADER\": \"Bearer pk_drip_...\"\n    }\n  }\n}\n```\n\n(Put the spaced `Bearer \u2026` value in an env var \u2014 some hosts mangle spaces inside `args`.)\n\nMCP Inspector: discovery tools work unauthenticated; for paid tools use the host's OAuth flow when available, or paste a `pk_drip_\u2026` / `mcp_at_\u2026` bearer. Smoke: PRM + AS metadata on the app origin, anonymous `tools/list`, then OAuth \u2192 `unlock_post` with purchased credits (and confirm `pk_drip_\u2026` still unlocks).\n\n## Routes\n\n### `GET /api/v1/search`\n\nSearches imported premium financial newsletters and podcasts by topic. Use this as the default discovery route for topic browsing rather than loading the whole publication catalog.\n\nQuery parameters:\n\n- `q` (required): natural-language search query\n- `limit` (optional): number of article results to return, from 1-30; use `10` by default\n- `mode` (optional): `hybrid` by default; `fts` is lexical only\n\nResponse includes `items[]`, ranked post candidates with `publicationSlug`, `slug`, `title`, `subtitle`, `publishedAt`, `snippet`, `whyMatched`, and relevance fields. Use `publicationSlug` + `slug` from a selected item to fetch the paid article or podcast post.\n\nFor user-facing options, render `{title} ({publicationSlug}, {YYYY-MM-DD})` when `publishedAt` is present, or `{title} ({publicationSlug})` when no date is available. When `priceCents` is known, append ` \u2014 $X.XX` (`priceCents / 100`, two decimals) so the user can confirm spend. Convert ISO timestamps to date-only `YYYY-MM-DD`. Do not show `slug`, `subtitle`, `snippet`, `whyMatched`, relevance scores, or other internal metadata in user-facing menus. Treat search and catalog results as a purchase menu, not evidence. For a normal question, show options and stop for the user's selection. Answer substantive questions only from fetched `synthesizedSummary` text.\n\n### `GET /api/v1/publications`\n\nLists curated newsletters, podcasts, and publications with `slug`, `title`, `description`, `siteUrl`, and `lastSyncedAt`. Use this only when the user explicitly wants to browse the curated catalog or asks what publications are available.\n\n### `GET /api/v1/publications/search`\n\nSearches curated publications by slug, title, author, podcast show, newsletter, or site URL. Required query parameter: `q` (minimum 2 characters). Returns up to 3 matches with `publicationSlug`, `title`, `author`, and `siteUrl`.\n\n### `GET /api/v1/publications/{publicationSlug}`\n\nReturns publication metadata plus `posts`: post summaries with `slug`, `title`, `subtitle`, `publishedAt`, and `priceCents`. Works for any indexed publication by slug (not limited to the curated list). Returns `404` if the publication is not in the database.\n\nOptional post-list query parameter: `limit` (1-100).\n\n### `GET /api/v1/publications/{publicationSlug}/{postSlug}` (paid)\n\nReturns post metadata and `synthesizedSummary` after payment. Returns `404` if the publication or post is not found, `503` with code `summary_not_ready` when the summary is not ready yet (retry later; no payment challenge), and `402` if payment is required.\n\nUnpaid responses include a dual payment challenge: MPP in `WWW-Authenticate: Payment ...` and x402 v2 in `PAYMENT-REQUIRED`. Retry the same request with `Authorization: Payment ...` for MPP or `PAYMENT-SIGNATURE` for x402 v2.\n\n### `GET /api/v1/stock-picks`\n\nReturns stock-picker calls for AI-agent consumption after x402/MPP payment. This is a specialized paid route for ticker-level picks, analyst calls, recommendations, and investment ideas; it is not part of the normal newsletter/podcast search, selection, and paid-summary workflow.\n\nThis endpoint always returns one effective UTC calendar day, not a rolling date range. By default, it returns the latest day that has stock picks. Pass `date=YYYY-MM-DD` to request one effective UTC day. Optional `limit` is 1-500 and defaults to 200.\n\nThe effective day is based on article `publishedAt`; when publication time is missing, the server may use extraction time internally. Returned items do not include extraction time, so treat `publishedAt` as source article context only and omit date context when it is null.\n\nResponse includes `dateUsed`, `startDate`, `endDate`, `asOf`, `count`, and `items[]`. `dateUsed` is the canonical returned day; `startDate` and `endDate` are the same as `dateUsed` for this single-day response. Each item includes `ticker`, `tickerExchange`, `instrumentType`, `action`, `direction`, `authorConviction`, `convictionLabel`, `activePick`, `evidenceQuote`, `rationaleSnippet`, `articleTitle`, `articleUrl`, `author`, `publishedAt`, `publicationSlug`, and `postSlug`.\n\nReturns `404` when no stock picks exist for the requested or resolved day \u2014 do not pay on `404`. Plain requests return `402` only when matching paid picks exist. Runtime price is based on the number of distinct attributed source articles in the returned picks. After settlement, the server records a sale for each distinct attributed source article.\n\n## Payment\n\nPaid post routes return HTTP `402` with a dual challenge: MPP in `WWW-Authenticate: Payment ...` and x402 v2 in `PAYMENT-REQUIRED`. Use an x402 or MPP payment-aware client. If plain HTTP returns `402`, retry the same request through the payment-aware client instead of treating it as a final failure.\n\nInfer the live price from the paid endpoint response or payment challenge. OpenAPI `x-payment-info.offers[]` is advisory and may show Base or Solana USDC x402, Tempo, and Stripe charges or catalog floor prices; per-post pricing comes from the runtime challenge. Always trust the live `402` challenge over discovery offers.\n\n## Agent flows\n\n### Topic search\n\nUse when the user asks a general finance question, asks what writers or podcasts are saying, or wants article/podcast post recommendations.\n\n1. Call `GET /api/v1/search?q={query}&limit=10`.\n2. Present returned `items[]` as candidates using only title, publication slug, and date.\n3. Keep each candidate's `publicationSlug` and `slug` for the paid fetch URL.\n4. Fetch selected article summaries with `GET /api/v1/publications/{publicationSlug}/{postSlug}` through a payment-aware client.\n5. Summarize or synthesize only from fetched `synthesizedSummary` text.\n\n### Specific publication\n\nUse when the user names a publication, author, podcast show, newsletter, or shares a Substack publication URL.\n\n1. Call `GET /api/v1/publications/search?q={query}` unless the normalized slug is obvious.\n2. If one match is clearly right, call `GET /api/v1/publications/{publicationSlug}`.\n3. Present 3-5 recent post titles from `posts[]`.\n4. Fetch selected post summaries through the paid post route.\n\n### Browse catalog\n\nUse when the user asks to see available newsletters, podcasts, or publications before choosing one.\n\n1. Call `GET /api/v1/publications`.\n2. Present publications as `Publication Title (slug) \u2014 short description`.\n3. After the user chooses a publication, call `GET /api/v1/publications/{publicationSlug}`.\n4. Fetch selected post bodies through the paid post route.\n\n### Stock picks\n\nUse when the user asks for stock-picker calls, stock recommendations, recent investment picks, analyst calls, or ticker-level long/short ideas.\n\n1. Call `GET /api/v1/stock-picks` through an x402 or MPP payment-aware client for the latest UTC effective day with picks. Read `dateUsed` and `asOf` from the response.\n2. Call `GET /api/v1/stock-picks?date={YYYY-MM-DD}` when the user asks for a specific day.\n3. If the response is `404`, no picks exist for that day \u2014 do not pay; try another date or tell the user none are available.\n4. Present picks with ticker, action, direction, conviction, active/inactive status, evidence quote, rationale snippet, article title, source publication, and source URL.\n5. Treat `publishedAt` as the article publication time; if it is null, omit date context rather than inventing one.\n6. Keep `publicationSlug` and `postSlug` for optional follow-up paid article-summary fetches.\n\n### Direct article\n\nUse when the user shares a direct article URL, podcast post URL, or a specific post slug.\n\n1. Resolve `publicationSlug` and `postSlug` from the URL or context.\n2. Probe the paid endpoint first when needed to inspect the live `402` challenge and price.\n3. Call `GET /api/v1/publications/{publicationSlug}/{postSlug}` through a payment-aware client after the user has clearly asked to read, buy, summarize, or use that post.\n4. Return a curated summary by default; include raw/full content only when explicitly requested.\n\n## Fetched article response handling\n\nFor one fetched article, return a curated summary with synthesis, notable claims, caveats, implications, and source context. For multiple fetched articles, compare the relevant claims, tensions, mechanisms, caveats, and implications across sources.\n\nAppend source references for fetched articles with title, publication, date when available, and source URL when available.\n\nIf a paid fetch fails, surface the failure rather than substituting model knowledge. If some selected articles succeed and others fail, synthesize only from successfully fetched articles and name the failed fetches.\n\nRuntime pricing note: paid post challenges use the stored per-post USD price when present, else at least $0.1.\n"
+  },
+  "tags": [
+    {
+      "name": "Search",
+      "description": "Search premium newsletters and podcasts by topic."
+    },
+    {
+      "name": "Publications",
+      "description": "List, search, and import newsletters, podcasts, and publications."
+    },
+    {
+      "name": "Posts",
+      "description": "Fetch, unlock, and list individual article and podcast post content."
+    },
+    {
+      "name": "Stock Picks",
+      "description": "Daily stock-picker calls, analyst recommendations, and investment ideas."
+    }
+  ],
+  "security": [],
+  "x-service-info": {
+    "networks": [
+      "base",
+      "solana"
+    ],
+    "agenticMarket": "https://agentic.market",
+    "categories": [
+      "substack",
+      "newsletter",
+      "newsletters",
+      "podcasts",
+      "blog",
+      "article",
+      "articles",
+      "podcast",
+      "media",
+      "finance",
+      "financial-analysis",
+      "investing",
+      "investment-research",
+      "trading",
+      "markets",
+      "stocks",
+      "equities",
+      "stock-picks",
+      "research",
+      "micropayments"
+    ],
+    "docs": {
+      "homepage": "/",
+      "apiReference": "/openapi.json",
+      "llms": "/llms.txt"
+    }
+  },
+  "x-discovery": {
+    "ownershipProofs": [
+      "did:pkh:eip155:8453:0xBF22b6DdB5A08c823856A779f1004eEa60C5aB92",
+      "did:pkh:eip155:4217:0xBF22b6DdB5A08c823856A779f1004eEa60C5aB92",
+      "did:pkh:solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp:2cCuDjNEuA7QFgBiS8rYcWrxJxeYGJFGHvXaaCXBqmHF"
+    ]
+  },
+  "paths": {
+    "/api/v1/search": {
+      "get": {
+        "operationId": "searchByTopic",
+        "summary": "Search premium financial newsletter and podcast posts by topic.",
+        "tags": [
+          "Search"
+        ],
+        "security": [],
+        "x-payment-info": {
+          "authMode": "none"
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 2
+            },
+            "description": "Natural-language query string."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30,
+              "default": 10
+            },
+            "description": "Maximum number of items returned (1-30)."
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "fts",
+                "hybrid"
+              ],
+              "default": "hybrid"
+            },
+            "description": "Search mode. `fts` is lexical only; `hybrid` blends lexical and semantic."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicSearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query params.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidQueryResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Search failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/publications": {
+      "get": {
+        "operationId": "listPublications",
+        "summary": "List curated newsletters, podcasts, and publications.",
+        "tags": [
+          "Publications"
+        ],
+        "security": [],
+        "x-payment-info": {
+          "authMode": "none"
+        },
+        "responses": {
+          "200": {
+            "description": "List of publications.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListPublicationsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/publications/search": {
+      "get": {
+        "operationId": "searchPublications",
+        "summary": "Search publications, newsletters, podcasts, and authors",
+        "tags": [
+          "Publications"
+        ],
+        "security": [],
+        "x-payment-info": {
+          "authMode": "none"
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 2
+            },
+            "description": "Publication, author, podcast show, newsletter, slug, or site query."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Top publication matches.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationSearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query params.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidQueryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/publications/{publicationSlug}": {
+      "get": {
+        "operationId": "getPublication",
+        "summary": "Get one publication with recent posts.",
+        "tags": [
+          "Publications"
+        ],
+        "security": [],
+        "x-payment-info": {
+          "authMode": "none"
+        },
+        "parameters": [
+          {
+            "name": "publicationSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Publication slug, which is the normalized host."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "description": "Maximum number of posts returned."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Publication details and post titles.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query params.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidQueryResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Publication not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/publications/{publicationSlug}/{postSlug}": {
+      "get": {
+        "operationId": "getPublicationPostBySlug",
+        "summary": "Get synthesized article or podcast post summary (paid).",
+        "description": "Returns post metadata and synthesized summary after payment.",
+        "tags": [
+          "Posts"
+        ],
+        "parameters": [
+          {
+            "name": "publicationSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Publication slug, which is the normalized host."
+          },
+          {
+            "name": "postSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Post slug from the publication feed."
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP (Payment HTTP Authentication Scheme): after HTTP 402, retry with `Authorization: Payment <credential>`."
+          },
+          {
+            "name": "PAYMENT-SIGNATURE",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "x402 v2: after HTTP 402, retry with the encoded payment payload from the `PAYMENT-REQUIRED` challenge (same header name as in `@x402/core` HTTP transport)."
+          }
+        ],
+        "x-payment-info": {
+          "authMode": "required",
+          "protocols": [
+            "x402",
+            "mpp"
+          ],
+          "minPrice": "0.1",
+          "maxPrice": "10.00",
+          "price": {
+            "min": "0.1",
+            "max": "10.00",
+            "currency": "USD"
+          },
+          "offers": [
+            {
+              "amount": "100000",
+              "currency": "USDC",
+              "description": "USDC exact x402 on Base in token smallest units (floor in discovery); per-post USD follows the live 402 challenge.",
+              "intent": "charge",
+              "method": "x402",
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "recipient": "0xBF22b6DdB5A08c823856A779f1004eEa60C5aB92"
+            },
+            {
+              "amount": "100000",
+              "currency": "USDC",
+              "description": "USDC exact x402 on Solana in token smallest units (floor in discovery); per-post USD follows the live 402 challenge.",
+              "intent": "charge",
+              "method": "x402",
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "recipient": "2cCuDjNEuA7QFgBiS8rYcWrxJxeYGJFGHvXaaCXBqmHF"
+            },
+            {
+              "amount": "100000",
+              "currency": "0x20C000000000000000000000b9537d11c60E8b50",
+              "description": "Tempo TIP-20 charge in token smallest units (floor in discovery); per-post USD follows the live 402 challenge.",
+              "intent": "charge",
+              "method": "tempo",
+              "recipient": "0xBF22b6DdB5A08c823856A779f1004eEa60C5aB92"
+            },
+            {
+              "amount": "50",
+              "currency": "usd",
+              "description": "Card payment via Stripe (fixed list price for this route in discovery).",
+              "intent": "charge",
+              "method": "stripe",
+              "recipient": "profile_61Umz1FUfXxChDA5oA6Umz1EM7SQ1AjJpNQxiSGWWUSe",
+              "methodDetails": {
+                "networkId": "profile_61Umz1FUfXxChDA5oA6Umz1EM7SQ1AjJpNQxiSGWWUSe",
+                "paymentMethodTypes": [
+                  "card",
+                  "link"
+                ]
+              }
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Synthesized post summary after successful payment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaidPublicationPost"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "MPP `Payment` HTTP Authentication Scheme challenge (realm must match origin).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "PAYMENT-REQUIRED": {
+                "description": "x402 v2 encoded payment requirements (see x402 seller docs).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "description": "Problem type URI."
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Short human-readable summary."
+                    },
+                    "status": {
+                      "type": "integer",
+                      "enum": [
+                        402
+                      ],
+                      "description": "HTTP status code."
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Human-readable explanation of the payment requirement."
+                    },
+                    "challengeId": {
+                      "type": "string",
+                      "description": "Unique challenge id for payment correlation."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Publication or post not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Post exists but synthesized summary is not ready yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryNotReadyResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "accessPublicationPost",
+        "summary": "Fetch a paid post summary with credits (same as GET)",
+        "description": "Same unified payment flow as GET. Unauthenticated requests receive a 402 x402/MPP challenge. Authenticated requests (JWT or API key) pay via your credit balance.",
+        "tags": [
+          "Posts"
+        ],
+        "parameters": [
+          {
+            "name": "publicationSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Publication slug, which is the normalized host."
+          },
+          {
+            "name": "postSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Post slug from the publication feed."
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP (Payment HTTP Authentication Scheme): after HTTP 402, retry with `Authorization: Payment <credential>`."
+          },
+          {
+            "name": "PAYMENT-SIGNATURE",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "x402 v2: after HTTP 402, retry with the encoded payment payload from the `PAYMENT-REQUIRED` challenge (same header name as in `@x402/core` HTTP transport)."
+          }
+        ],
+        "x-payment-info": {
+          "authMode": "required",
+          "protocols": [
+            "x402",
+            "mpp"
+          ],
+          "minPrice": "0.1",
+          "maxPrice": "10.00",
+          "price": {
+            "min": "0.1",
+            "max": "10.00",
+            "currency": "USD"
+          },
+          "offers": [
+            {
+              "amount": "100000",
+              "currency": "USDC",
+              "description": "USDC exact x402 on Base in token smallest units (floor in discovery); per-post USD follows the live 402 challenge.",
+              "intent": "charge",
+              "method": "x402",
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "recipient": "0xBF22b6DdB5A08c823856A779f1004eEa60C5aB92"
+            },
+            {
+              "amount": "100000",
+              "currency": "USDC",
+              "description": "USDC exact x402 on Solana in token smallest units (floor in discovery); per-post USD follows the live 402 challenge.",
+              "intent": "charge",
+              "method": "x402",
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "recipient": "2cCuDjNEuA7QFgBiS8rYcWrxJxeYGJFGHvXaaCXBqmHF"
+            },
+            {
+              "amount": "100000",
+              "currency": "0x20C000000000000000000000b9537d11c60E8b50",
+              "description": "Tempo TIP-20 charge in token smallest units (floor in discovery); per-post USD follows the live 402 challenge.",
+              "intent": "charge",
+              "method": "tempo",
+              "recipient": "0xBF22b6DdB5A08c823856A779f1004eEa60C5aB92"
+            },
+            {
+              "amount": "50",
+              "currency": "usd",
+              "description": "Card payment via Stripe (fixed list price for this route in discovery).",
+              "intent": "charge",
+              "method": "stripe",
+              "recipient": "profile_61Umz1FUfXxChDA5oA6Umz1EM7SQ1AjJpNQxiSGWWUSe",
+              "methodDetails": {
+                "networkId": "profile_61Umz1FUfXxChDA5oA6Umz1EM7SQ1AjJpNQxiSGWWUSe",
+                "paymentMethodTypes": [
+                  "card",
+                  "link"
+                ]
+              }
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Synthesized post summary after successful payment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaidPublicationPost"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "MPP `Payment` HTTP Authentication Scheme challenge (realm must match origin).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "PAYMENT-REQUIRED": {
+                "description": "x402 v2 encoded payment requirements (see x402 seller docs).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "description": "Problem type URI."
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Short human-readable summary."
+                    },
+                    "status": {
+                      "type": "integer",
+                      "enum": [
+                        402
+                      ],
+                      "description": "HTTP status code."
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Human-readable explanation of the payment requirement."
+                    },
+                    "challengeId": {
+                      "type": "string",
+                      "description": "Unique challenge id for payment correlation."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient credits \u2014 your credit balance is too low.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Publication or post not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Post exists but synthesized summary is not ready yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryNotReadyResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stock-picks": {
+      "get": {
+        "operationId": "listStockPicks",
+        "summary": "List stock-picker calls for one day (paid).",
+        "description": "Returns structured stock-picker calls for AI-agent consumption. Covers one UTC effective calendar day, not a range. Defaults to the latest day with picks when `date` is omitted. Use `date=YYYY-MM-DD` for a specific day. Rows without `publishedAt` may use extraction time internally. Returns 404 when no picks exist for the resolved day \u2014 do not pay on 404.",
+        "tags": [
+          "Stock Picks"
+        ],
+        "x-payment-info": {
+          "authMode": "required",
+          "protocols": [
+            "x402",
+            "mpp"
+          ],
+          "minPrice": "0.1",
+          "maxPrice": "10.00",
+          "price": {
+            "min": "0.1",
+            "max": "10.00",
+            "currency": "USD"
+          },
+          "offers": [
+            {
+              "amount": "100000",
+              "currency": "USDC",
+              "description": "USDC exact x402 on Base in token smallest units (floor in discovery); per-post USD follows the live 402 challenge.",
+              "intent": "charge",
+              "method": "x402",
+              "scheme": "exact",
+              "network": "eip155:8453",
+              "recipient": "0xBF22b6DdB5A08c823856A779f1004eEa60C5aB92"
+            },
+            {
+              "amount": "100000",
+              "currency": "USDC",
+              "description": "USDC exact x402 on Solana in token smallest units (floor in discovery); per-post USD follows the live 402 challenge.",
+              "intent": "charge",
+              "method": "x402",
+              "scheme": "exact",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "recipient": "2cCuDjNEuA7QFgBiS8rYcWrxJxeYGJFGHvXaaCXBqmHF"
+            },
+            {
+              "amount": "100000",
+              "currency": "0x20C000000000000000000000b9537d11c60E8b50",
+              "description": "Tempo TIP-20 charge in token smallest units (floor in discovery); per-post USD follows the live 402 challenge.",
+              "intent": "charge",
+              "method": "tempo",
+              "recipient": "0xBF22b6DdB5A08c823856A779f1004eEa60C5aB92"
+            },
+            {
+              "amount": "50",
+              "currency": "usd",
+              "description": "Card payment via Stripe (fixed list price for this route in discovery).",
+              "intent": "charge",
+              "method": "stripe",
+              "recipient": "profile_61Umz1FUfXxChDA5oA6Umz1EM7SQ1AjJpNQxiSGWWUSe",
+              "methodDetails": {
+                "networkId": "profile_61Umz1FUfXxChDA5oA6Umz1EM7SQ1AjJpNQxiSGWWUSe",
+                "paymentMethodTypes": [
+                  "card",
+                  "link"
+                ]
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "MPP (Payment HTTP Authentication Scheme): after HTTP 402, retry with `Authorization: Payment <credential>`."
+          },
+          {
+            "name": "PAYMENT-SIGNATURE",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "x402 v2: after HTTP 402, retry with the encoded payment payload from the `PAYMENT-REQUIRED` challenge (same header name as in `@x402/core` HTTP transport)."
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "description": "UTC effective calendar day to return. When omitted, the server resolves the latest day with picks."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 200
+            },
+            "description": "Maximum number of stock-pick calls returned (1-500). Defaults to 200."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stock-picker calls after successful payment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicStockPicksResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query params.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicStockPicksInvalidQueryResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "MPP `Payment` HTTP Authentication Scheme challenge (realm must match origin).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "PAYMENT-REQUIRED": {
+                "description": "x402 v2 encoded payment requirements (see x402 seller docs).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "description": "Problem type URI."
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Short human-readable summary."
+                    },
+                    "status": {
+                      "type": "integer",
+                      "enum": [
+                        402
+                      ],
+                      "description": "HTTP status code."
+                    },
+                    "detail": {
+                      "type": "string",
+                      "description": "Human-readable explanation of the payment requirement."
+                    },
+                    "challengeId": {
+                      "type": "string",
+                      "description": "Unique challenge id for payment correlation."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No stock picks for the requested or resolved day.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicStockPicksNotFoundResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Stock picks failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorMessage"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "API Key",
+        "description": "Bearer token authentication. Use an API key starting with `pk_drip_` or a Privy session token."
+      }
+    },
+    "schemas": {
+      "ErrorMessage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Human-readable error message."
+          }
+        }
+      },
+      "PublicationListItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "slug",
+          "siteUrl"
+        ],
+        "properties": {
+          "slug": {
+            "type": "string",
+            "description": "Normalized publication identifier (derived from host)."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Publication display name."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Short publication description from the feed."
+          },
+          "siteUrl": {
+            "type": "string",
+            "description": "Canonical publication URL."
+          },
+          "lastSyncedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO timestamp of the last successful feed sync."
+          }
+        }
+      },
+      "ListPublicationsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "publications"
+        ],
+        "properties": {
+          "publications": {
+            "type": "array",
+            "description": "All indexed publications.",
+            "items": {
+              "$ref": "#/components/schemas/PublicationListItem"
+            }
+          }
+        },
+        "example": {
+          "publications": [
+            {
+              "slug": "stratechery",
+              "title": "Stratechery",
+              "description": "Analysis of the strategy and business of technology.",
+              "siteUrl": "https://stratechery.com",
+              "lastSyncedAt": "2026-06-15T08:30:00Z"
+            },
+            {
+              "slug": "the-pragmatic-engineer",
+              "title": "The Pragmatic Engineer",
+              "description": "Software engineering and Big Tech deep dives.",
+              "siteUrl": "https://blog.pragmaticengineer.com",
+              "lastSyncedAt": "2026-06-15T06:00:00Z"
+            }
+          ]
+        }
+      },
+      "PublicationSearchItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "publicationSlug",
+          "title",
+          "author",
+          "siteUrl"
+        ],
+        "properties": {
+          "publicationSlug": {
+            "type": "string",
+            "description": "Publication slug for follow-up API calls."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Publication display name."
+          },
+          "author": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Primary author or creator."
+          },
+          "siteUrl": {
+            "type": "string",
+            "description": "Canonical publication URL."
+          }
+        }
+      },
+      "PublicationSearchResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "query",
+          "count",
+          "items"
+        ],
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Original search query."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3,
+            "description": "Number of matches returned (max 3)."
+          },
+          "items": {
+            "type": "array",
+            "maxItems": 3,
+            "description": "Top publication matches.",
+            "items": {
+              "$ref": "#/components/schemas/PublicationSearchItem"
+            }
+          }
+        },
+        "example": {
+          "query": "macro",
+          "count": 2,
+          "items": [
+            {
+              "publicationSlug": "macro-compass",
+              "title": "The Macro Compass",
+              "author": "Alfonso Peccatiello",
+              "siteUrl": "https://macro-compass.com"
+            },
+            {
+              "publicationSlug": "macrohive",
+              "title": "Macro Hive",
+              "author": "Macro Hive",
+              "siteUrl": "https://macrohive.com"
+            }
+          ]
+        }
+      },
+      "PostSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "slug",
+          "title",
+          "subtitle",
+          "publishedAt",
+          "priceCents"
+        ],
+        "properties": {
+          "slug": {
+            "type": "string",
+            "description": "Post slug for building the paid fetch URL."
+          },
+          "title": {
+            "type": "string",
+            "description": "Post title."
+          },
+          "subtitle": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Post subtitle or teaser."
+          },
+          "publishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO publication timestamp."
+          },
+          "priceCents": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Effective access price in USD cents (per-post override when set, otherwise the platform default from POST_ACCESS_PRICE_USD)."
+          }
+        }
+      },
+      "PublicationCore": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "slug",
+          "title",
+          "description",
+          "siteUrl",
+          "imageUrl",
+          "language",
+          "authorName",
+          "authorEmail",
+          "copyright",
+          "lastSyncedAt"
+        ],
+        "properties": {
+          "slug": {
+            "type": "string",
+            "description": "Normalized publication identifier."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Publication display name."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Publication description from the feed."
+          },
+          "siteUrl": {
+            "type": "string",
+            "description": "Canonical publication URL."
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Publication avatar or logo URL."
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "BCP 47 language tag (e.g. en, es)."
+          },
+          "authorName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Primary author display name."
+          },
+          "authorEmail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Author contact email from the feed."
+          },
+          "copyright": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Copyright notice from the feed."
+          },
+          "lastSyncedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO timestamp of the last successful feed sync."
+          }
+        }
+      },
+      "PublicationDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PublicationCore"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "posts"
+            ],
+            "properties": {
+              "posts": {
+                "type": "array",
+                "description": "Recent posts for this publication.",
+                "items": {
+                  "$ref": "#/components/schemas/PostSummary"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "TopicSearchTimeWindow": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "label",
+          "startIso",
+          "endIso",
+          "days"
+        ],
+        "properties": {
+          "label": {
+            "type": "string",
+            "enum": [
+              "this_week",
+              "last_week",
+              "last_n_days",
+              "last_n_weeks",
+              "this_month",
+              "past_month",
+              "last_month",
+              "today",
+              "yesterday",
+              "latest_recent"
+            ],
+            "description": "Predefined time window label."
+          },
+          "startIso": {
+            "type": "string",
+            "description": "Window start in ISO 8601."
+          },
+          "endIso": {
+            "type": "string",
+            "description": "Window end in ISO 8601."
+          },
+          "days": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Window duration in days."
+          }
+        }
+      },
+      "TopicSearchFreshnessCoverage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "requestedWindow",
+          "rankedInWindow",
+          "researchCandidatesInWindow",
+          "staleFallbackMode"
+        ],
+        "properties": {
+          "requestedWindow": {
+            "$ref": "#/components/schemas/TopicSearchTimeWindow",
+            "description": "The time window used for the search."
+          },
+          "rankedInWindow": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Results ranked within the time window."
+          },
+          "researchCandidatesInWindow": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Research candidates found in the window."
+          },
+          "staleFallbackMode": {
+            "type": "boolean",
+            "description": "Whether the server fell back to older results due to low in-window coverage."
+          }
+        }
+      },
+      "TopicSearchPostItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "publicationSlug",
+          "slug",
+          "title",
+          "subtitle",
+          "priceCents",
+          "isScopedPublisher",
+          "relevanceScore",
+          "matchedTokenCount",
+          "totalTokenCount",
+          "whyMatched",
+          "publishedAt"
+        ],
+        "properties": {
+          "publicationSlug": {
+            "type": "string",
+            "description": "Publication slug for building the paid fetch URL."
+          },
+          "slug": {
+            "type": "string",
+            "description": "Post slug for building the paid fetch URL."
+          },
+          "title": {
+            "type": "string",
+            "description": "Post title."
+          },
+          "subtitle": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Post subtitle or teaser."
+          },
+          "priceCents": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Effective access price in USD cents (per-post override when set, otherwise the platform default from POST_ACCESS_PRICE_USD)."
+          },
+          "isScopedPublisher": {
+            "type": "boolean",
+            "description": "Whether the publication was in the user's scoped publisher set."
+          },
+          "relevanceScore": {
+            "type": "number",
+            "description": "Computed relevance to the query (higher is better)."
+          },
+          "matchedTokenCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of query tokens matched in the post."
+          },
+          "totalTokenCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total query token count."
+          },
+          "topicCoverageRatio": {
+            "type": "number",
+            "description": "Ratio of matched tokens to total tokens."
+          },
+          "whyMatched": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Short explanations of why this post matched."
+          },
+          "publishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO publication timestamp."
+          },
+          "isInTimeWindow": {
+            "type": "boolean",
+            "description": "Whether the post falls within the requested time window."
+          },
+          "snippet": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Relevant text excerpt from the post."
+          }
+        }
+      },
+      "TopicSearchResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "mode",
+          "asOf",
+          "query",
+          "normalizedQuery",
+          "matchConfidence",
+          "searchTierUsed",
+          "timeWindow",
+          "freshnessCoverage",
+          "totalCount",
+          "count",
+          "items"
+        ],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "fts",
+              "hybrid"
+            ],
+            "description": "Search mode used."
+          },
+          "asOf": {
+            "type": "string",
+            "description": "Server timestamp when the response was generated."
+          },
+          "query": {
+            "type": "string",
+            "description": "Original search query."
+          },
+          "normalizedQuery": {
+            "type": "string",
+            "description": "Normalized query after preprocessing."
+          },
+          "matchConfidence": {
+            "type": "string",
+            "enum": [
+              "strong",
+              "weak",
+              "none"
+            ],
+            "description": "Overall match confidence for the query."
+          },
+          "searchTierUsed": {
+            "type": "string",
+            "enum": [
+              "scoped",
+              "non_scoped"
+            ],
+            "description": "Whether scoped (preferred) or non-scoped publishers were used."
+          },
+          "timeWindow": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TopicSearchTimeWindow"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Resolved time window for the search, if applicable."
+          },
+          "freshnessCoverage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TopicSearchFreshnessCoverage"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Freshness and coverage metadata for the time window."
+          },
+          "totalCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total matching results before limit."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of results returned."
+          },
+          "items": {
+            "type": "array",
+            "description": "Ranked search results.",
+            "items": {
+              "$ref": "#/components/schemas/TopicSearchPostItem"
+            }
+          }
+        },
+        "example": {
+          "mode": "hybrid",
+          "asOf": "2026-06-15T10:30:00Z",
+          "query": "AI infrastructure spending",
+          "normalizedQuery": "ai infrastructure spending",
+          "matchConfidence": "strong",
+          "searchTierUsed": "scoped",
+          "timeWindow": {
+            "label": "last_week",
+            "startIso": "2026-06-08T00:00:00Z",
+            "endIso": "2026-06-15T00:00:00Z",
+            "days": 7
+          },
+          "freshnessCoverage": {
+            "requestedWindow": {
+              "label": "last_week",
+              "startIso": "2026-06-08T00:00:00Z",
+              "endIso": "2026-06-15T00:00:00Z",
+              "days": 7
+            },
+            "rankedInWindow": 4,
+            "researchCandidatesInWindow": 12,
+            "staleFallbackMode": false
+          },
+          "totalCount": 4,
+          "count": 3,
+          "items": [
+            {
+              "publicationSlug": "stratechery",
+              "slug": "the-ai-infrastructure-boom",
+              "title": "The AI Infrastructure Boom",
+              "subtitle": "Why hyperscalers are spending billions on GPU clusters",
+              "priceCents": 50,
+              "isScopedPublisher": true,
+              "relevanceScore": 0.92,
+              "matchedTokenCount": 3,
+              "totalTokenCount": 3,
+              "topicCoverageRatio": 1,
+              "whyMatched": [
+                "Title matches AI + infrastructure",
+                "Body discusses capex spending"
+              ],
+              "publishedAt": "2026-06-14T12:00:00Z",
+              "isInTimeWindow": true,
+              "snippet": "Nvidia's datacenter revenue hit $26B last quarter as hyperscalers race to build out GPU clusters..."
+            }
+          ]
+        }
+      },
+      "InvalidQueryResponse": {
+        "type": "object",
+        "required": [
+          "error",
+          "issues"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Human-readable error message."
+          },
+          "issues": {
+            "type": "object",
+            "description": "Field-level validation errors keyed by parameter name."
+          }
+        }
+      },
+      "PublicStockPickItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "callId",
+          "author",
+          "articleTitle",
+          "articleUrl",
+          "publishedAt",
+          "ticker",
+          "tickerExchange",
+          "instrumentType",
+          "action",
+          "direction",
+          "authorConviction",
+          "convictionLabel",
+          "activePick",
+          "evidenceQuote",
+          "rationaleSnippet",
+          "publicationSlug",
+          "postSlug"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Public stock-pick row id."
+          },
+          "callId": {
+            "type": "string",
+            "description": "Stable extraction call id for this pick."
+          },
+          "author": {
+            "type": "string",
+            "description": "Author or analyst attributed to the pick."
+          },
+          "articleTitle": {
+            "type": "string",
+            "description": "Source article title."
+          },
+          "articleUrl": {
+            "type": "string",
+            "description": "Source article URL."
+          },
+          "publishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Source article publication timestamp when available. If null, omit date context in user-facing output."
+          },
+          "ticker": {
+            "type": "string",
+            "description": "Ticker or symbol mentioned by the pick."
+          },
+          "tickerExchange": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Exchange when known, such as NASDAQ or NYSE."
+          },
+          "instrumentType": {
+            "type": "string",
+            "enum": [
+              "EQUITY",
+              "ETF",
+              "OPTION",
+              "OTHER"
+            ],
+            "description": "Type of instrument discussed by the pick."
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "NEW_POSITION",
+              "ADD",
+              "HOLD",
+              "RECOMMENDATION",
+              "REDUCE",
+              "EXIT"
+            ],
+            "description": "Author's action or recommendation type."
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "LONG",
+              "SHORT"
+            ],
+            "description": "Directional exposure implied by the pick."
+          },
+          "authorConviction": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5,
+            "description": "Normalized conviction score from 0-5."
+          },
+          "convictionLabel": {
+            "type": "string",
+            "description": "Human-readable conviction label."
+          },
+          "activePick": {
+            "type": "boolean",
+            "description": "Whether the source still frames this as an active pick."
+          },
+          "evidenceQuote": {
+            "type": "string",
+            "description": "Short quote supporting the extracted pick."
+          },
+          "rationaleSnippet": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Short rationale summary when available."
+          },
+          "publicationSlug": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Source publication slug for optional follow-up article fetches."
+          },
+          "postSlug": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Source post slug for optional follow-up article fetches."
+          }
+        }
+      },
+      "PublicStockPicksResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "dateUsed",
+          "startDate",
+          "endDate",
+          "asOf",
+          "count",
+          "items"
+        ],
+        "properties": {
+          "dateUsed": {
+            "type": "string",
+            "description": "Single UTC effective calendar day returned (`publishedAt`, or extraction time internally when publication time is missing)."
+          },
+          "startDate": {
+            "type": "string",
+            "description": "Same as `dateUsed` for single-day responses."
+          },
+          "endDate": {
+            "type": "string",
+            "description": "Same as `dateUsed` for single-day responses."
+          },
+          "asOf": {
+            "type": "string",
+            "description": "Server timestamp when the response was generated."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of stock-pick items returned."
+          },
+          "items": {
+            "type": "array",
+            "description": "Stock-picker calls for the resolved single day.",
+            "items": {
+              "$ref": "#/components/schemas/PublicStockPickItem"
+            }
+          }
+        },
+        "example": {
+          "dateUsed": "2026-06-14",
+          "startDate": "2026-06-14",
+          "endDate": "2026-06-14",
+          "asOf": "2026-06-15T10:30:00Z",
+          "count": 2,
+          "items": [
+            {
+              "id": "sp_abc123",
+              "callId": "call_def456",
+              "author": "Luke Gromen",
+              "articleTitle": "The Dollar Endgame",
+              "articleUrl": "https://thefr.substack.com/p/dollar-endgame",
+              "publishedAt": "2026-06-14T09:00:00Z",
+              "ticker": "GLD",
+              "tickerExchange": "NYSE",
+              "instrumentType": "ETF",
+              "action": "NEW_POSITION",
+              "direction": "LONG",
+              "authorConviction": 4,
+              "convictionLabel": "High",
+              "activePick": true,
+              "evidenceQuote": "Gold remains the only asset that balances sovereign balance sheet risk.",
+              "rationaleSnippet": "Rising fiscal deficits and de-dollarization trends support gold allocation.",
+              "publicationSlug": "the-fr",
+              "postSlug": "dollar-endgame"
+            }
+          ]
+        }
+      },
+      "PublicStockPicksNotFoundResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Human-readable error message (e.g. no picks for the requested day)."
+          }
+        }
+      },
+      "PublicStockPicksInvalidQueryResponse": {
+        "type": "object",
+        "required": [
+          "error",
+          "issues"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Human-readable error message."
+          },
+          "issues": {
+            "type": "object",
+            "description": "Field-level validation errors keyed by parameter name."
+          }
+        }
+      },
+      "SummaryNotReadyResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "error",
+          "code"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Human-readable error message."
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "summary_not_ready"
+            ],
+            "description": "Machine-readable error code for programmatic handling."
+          }
+        }
+      },
+      "PaymentInfo": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "amountUsd",
+          "protocol"
+        ],
+        "properties": {
+          "amountUsd": {
+            "type": "string",
+            "description": "Amount paid in USD."
+          },
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "x402",
+              "mpp",
+              "credits",
+              "privileged"
+            ],
+            "description": "Payment protocol used."
+          },
+          "spendSource": {
+            "type": "string",
+            "description": "Spend source for credit payments (e.g. 'purchased', 'privileged')."
+          }
+        }
+      },
+      "PaidPublicationPost": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "publicationId",
+          "publicationSlug",
+          "guid",
+          "slug",
+          "title",
+          "subtitle",
+          "description",
+          "url",
+          "author",
+          "imageUrl",
+          "publishedAt",
+          "synthesizedSummary",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Internal post id."
+          },
+          "publicationId": {
+            "type": "string",
+            "description": "Publication id."
+          },
+          "publicationSlug": {
+            "type": "string",
+            "description": "Publication slug."
+          },
+          "guid": {
+            "type": "string",
+            "description": "Feed-level globally unique identifier."
+          },
+          "slug": {
+            "type": "string",
+            "description": "Post slug."
+          },
+          "title": {
+            "type": "string",
+            "description": "Post title."
+          },
+          "subtitle": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Post subtitle."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Short description from the feed."
+          },
+          "url": {
+            "type": "string",
+            "description": "Original post URL."
+          },
+          "author": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Post author."
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Post hero or thumbnail image URL."
+          },
+          "publishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO publication timestamp."
+          },
+          "synthesizedSummary": {
+            "type": "string",
+            "description": "AI-synthesized post summary (returned after payment)."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO timestamp when the post was first imported."
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO timestamp of the last update."
+          },
+          "paymentInfo": {
+            "$ref": "#/components/schemas/PaymentInfo"
+          }
+        },
+        "example": {
+          "id": "post_xyz789",
+          "publicationId": "pub_abc123",
+          "publicationSlug": "stratechery",
+          "guid": "https://stratechery.com/p/the-ai-infrastructure-boom",
+          "slug": "the-ai-infrastructure-boom",
+          "title": "The AI Infrastructure Boom",
+          "subtitle": "Why hyperscalers are spending billions on GPU clusters",
+          "description": "A deep dive into the capex cycle driving AI infrastructure buildout.",
+          "url": "https://stratechery.com/2026/the-ai-infrastructure-boom",
+          "author": "Ben Thompson",
+          "imageUrl": "https://substackcdn.com/image/fetch/w_1200/ai-infra.jpg",
+          "publishedAt": "2026-06-14T12:00:00Z",
+          "synthesizedSummary": "Nvidia reported $26B in datacenter revenue last quarter, up 427% YoY, as hyperscalers race to build GPU clusters for AI training and inference. The article argues this capex cycle differs from past infrastructure booms because demand is driven by revenue-generating workloads (LLM inference for paying customers) rather than speculative capacity. Key risks include: (1) GPU utilization rates declining as supply catches up, (2) inference costs dropping faster than revenue grows, (3) custom silicon from Google (TPU) and Amazon (Trainium) eroding Nvidia's moat. The author remains bullish on picks-and-shovels plays through 2027.",
+          "createdAt": "2026-06-14T12:05:00Z",
+          "updatedAt": "2026-06-15T08:00:00Z",
+          "paymentInfo": {
+            "amountUsd": "0.50",
+            "protocol": "x402"
+          }
+        }
+      }
+    }
+  }
+}

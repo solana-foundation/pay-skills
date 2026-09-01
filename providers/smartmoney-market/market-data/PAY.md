@@ -15,6 +15,11 @@ signal layer: quarterly 13-F fund positioning, fund-level quarter-over-quarter
 changes, selected issuer-side Form 4 insider activity, and House PTR trading
 activity where available.
 
+During an active 13-F reporting window, ticker responses expose reporting
+coverage, distinguish reported funds from pending prior holders, and qualify
+the latest aggregate trend as projected. Completed historical quarters remain
+raw reported history.
+
 The gateway exposes free coverage-discovery endpoints and metered research
 endpoints. The free fund and insider coverage endpoints are intentionally
 limited to names, slugs, tickers, and company names. Use metered endpoints when
@@ -44,8 +49,11 @@ available.
 - Use `GET /api/insiders` for global insider activity only with fixed cached
   windows `days=7`, `days=30`, or `days=90`; unsupported windows return an
   error after payment.
-- Use `GET /api/ticker/{symbol}` first for a compact stock overview and
-  coverage flags. Follow links only when the user needs the underlying detail.
+- Use `GET /api/ticker/{symbol}` first for a compact stock overview with
+  reporting coverage and a qualified projected smart-money trend. Follow links
+  only when the user needs the underlying detail.
+- Use `GET /api/ticker/{symbol}/funds` when the task needs latest-available
+  fund rows with reported/pending status and raw/projected aggregate context.
 - Use `GET /api/funds` only when the task needs the premium all-funds overview;
   it is priced higher because it returns processed all-funds intelligence.
 - Keep `limit` parameters small where supported, especially on raw transaction

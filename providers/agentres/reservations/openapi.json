@@ -1,0 +1,4476 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Agent Restaurant Reservation API",
+    "version": "2.0.0",
+    "description": "Agent-first API for searching and booking restaurant reservations via Resy, including reservation jobs that book hard-to-get tables the moment reservations open. Supports MPP (Tempo) and x402 (Base/Solana) wallet auth, plus API-key subscription auth ($6/month, paid operations covered). Instant booking costs $0.01 USDC; a reservation job costs $3.00 USDC. Also serves live restaurant wait times (crowd/line data) at $0.01 USDC per query, and Blackbird restaurant discovery at $0.01 USDC per query \u2014 search ~2,000 restaurants by neighborhood/city with live specials. Failed paid operations are refunded \u2014 pay only for success.",
+    "contact": {
+      "name": "Agentic Reservations",
+      "url": "https://agentres.dev",
+      "email": "michaelblau21@gmail.com"
+    },
+    "x-guidance": "Agentic Reservations lets agents search Resy venues, check availability, book tables instantly, create reservation jobs that book hard-to-get tables the moment reservations open, check live and historical restaurant wait times from camera-based crowd data, discover Blackbird-network restaurants by neighborhood/city with live specials, list reservations, and cancel reservations. Choose one auth path and keep it for the whole workflow: x-agent-key (subscription, $6/month covers paid operations), MPP wallet auth, or x402 wallet auth. Wallet identity endpoints use a zero-dollar payment proof; POST /api/book charges $0.01, POST /api/reservation-jobs/create charges $3.00, GET /api/wait-times and GET /api/wait-times/history charge $0.01 each, and the GET /api/discover/restaurants endpoints charge $0.01 each (no Resy link needed for wait times or discovery). Failed paid operations are refunded \u2014 automatically for bookings, via POST /api/reservation-jobs/{id}/refund for reservation jobs. Start with POST /api/account, then GET /api/me. If resy_linked is false, call POST /api/link-resy to send and verify the Resy email OTP. Use GET /api/search to find a venue_id, GET /api/availability for fresh slots, and POST /api/book only after explicit user confirmation. Use GET /api/reservations before POST /api/cancel so the resy_token always comes from the API. For complete operational guidance, read https://agentres.dev/skill.md."
+  },
+  "x-service-info": {
+    "categories": [
+      "reservations",
+      "restaurants"
+    ],
+    "discovery": {
+      "openapi": "https://agentres.dev/openapi.json",
+      "x402scanSpec": "https://www.x402scan.com/discovery/spec"
+    }
+  },
+  "externalDocs": {
+    "description": "Agent onboarding skill",
+    "url": "https://agentres.dev/skill.md"
+  },
+  "servers": [
+    {
+      "url": "https://agentres.dev"
+    }
+  ],
+  "paths": {
+    "/api/me": {
+      "get": {
+        "operationId": "getProfile",
+        "summary": "Get user profile and Resy link status",
+        "description": "Returns the authenticated user's profile including whether their Resy account is linked. Identity-only ($0 auth).",
+        "x-guidance": "Call this after POST /api/account. If resy_linked is true, go straight to search. If resy_linked is false, continue to /api/link-resy. If a wallet caller gets 401, call POST /api/account with the user's email to link the wallet, then retry.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0"
+          },
+          "protocols": [
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20C000000000000000000000b9537d11c60E8b50"
+              }
+            },
+            {
+              "x402": {
+                "networks": [
+                  "eip155:8453",
+                  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                ]
+              }
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "User profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "account_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "email": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "email"
+                    },
+                    "wallet_address": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "pattern": "^0x[0-9a-fA-F]{40}$"
+                    },
+                    "resy_linked": {
+                      "type": "boolean"
+                    },
+                    "resy_linked_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "subscription": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "description": "Latest subscription for API-key accounts; null for wallet accounts.",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "active",
+                            "past_due",
+                            "canceled"
+                          ]
+                        },
+                        "active": {
+                          "type": "boolean"
+                        },
+                        "provider": {
+                          "type": "string",
+                          "enum": [
+                            "manual",
+                            "stripe"
+                          ]
+                        },
+                        "current_period_end": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date-time"
+                        },
+                        "cancel_at_period_end": {
+                          "type": "boolean"
+                        },
+                        "active_job_slots": {
+                          "type": "object",
+                          "description": "Reservation-job slot usage for the subscription.",
+                          "properties": {
+                            "used": {
+                              "type": "integer"
+                            },
+                            "limit": {
+                              "type": "integer"
+                            }
+                          }
+                        },
+                        "manage_url": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "Stripe customer portal login link. Present only for provider=stripe."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Wallet not linked to any account",
+            "x-error-codes": [
+              "WALLET_NOT_LINKED",
+              "UNAUTHORIZED"
+            ]
+          },
+          "402": {
+            "description": "Payment Required. Response advertises MPP and x402 payment options.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 PaymentRequired payload. Decode it to inspect x402Version, accepts, resource, and extensions.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "MPP payment challenge for Tempo clients.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "challengeId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "enum": [
+                        402
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "agentKey": []
+          },
+          {
+            "walletAuth": []
+          },
+          {
+            "x402Auth": []
+          },
+          {
+            "siwxAuth": []
+          }
+        ]
+      }
+    },
+    "/api/account": {
+      "post": {
+        "operationId": "createAccount",
+        "summary": "Create or fetch the wallet-bound account",
+        "description": "Idempotent setup endpoint. The account already exists \u2014 it was resolved or created from the verified credential (one account per API key or wallet). An optional email body sets contact metadata; email is never an identity. Identity-only ($0 auth).",
+        "x-guidance": "Call this first after choosing an auth path. API-key callers may send {} because the key carries account identity. Wallet callers must send the user's RESY email (the same one you'll pass to /api/link-resy) so a new wallet-owned account can be created and linked to the wallet. Email is not the identity key for wallet auth. If the wallet is already linked, treat the response user_id as authoritative and continue to GET /api/me. Do NOT narrate this call to the user \u2014 frame the overall setup as 'linking Resy', not 'creating an account'. A 200 response is fine \u2014 continue to GET /api/me.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0"
+          },
+          "protocols": [
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20C000000000000000000000b9537d11c60E8b50"
+              }
+            },
+            {
+              "x402": {
+                "networks": [
+                  "eip155:8453",
+                  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                ]
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Required for wallet auth as the account contact/Resy email. Optional for API-key auth; if present, it must match the key-owned account."
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Account (resolved or created from the verified credential)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "account_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "email": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "email"
+                    },
+                    "credential_kind": {
+                      "type": "string",
+                      "enum": [
+                        "api_key",
+                        "wallet"
+                      ]
+                    },
+                    "wallet_linked": {
+                      "type": "boolean",
+                      "description": "Present for wallet accounts."
+                    },
+                    "wallet_address": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-fA-F]{40}$"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required. Response advertises MPP and x402 payment options.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 PaymentRequired payload. Decode it to inspect x402Version, accepts, resource, and extensions.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "MPP payment challenge for Tempo clients.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "challengeId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "enum": [
+                        402
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "agentKey": []
+          },
+          {
+            "walletAuth": []
+          },
+          {
+            "x402Auth": []
+          },
+          {
+            "siwxAuth": []
+          }
+        ]
+      }
+    },
+    "/api/link-resy": {
+      "post": {
+        "operationId": "linkResyAccount",
+        "summary": "Link a Resy account via email OTP",
+        "description": "Two-step OTP flow. Step 1: send { em_address } to request a code. Step 2: send { em_address, code } to verify and link. Identity-only ($0 auth).",
+        "x-guidance": "Two calls required, same em_address on both. First call (no code): sends OTP to the user's Resy email. Ask the user for the 6-digit code. Second call (with code): completes linking. Use the SAME email you passed to /api/account \u2014 the user should only ever be prompted for one email across the entire setup flow. The user experiences this as 'linking Resy', not as a multi-step account flow.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0"
+          },
+          "protocols": [
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20C000000000000000000000b9537d11c60E8b50"
+              }
+            },
+            {
+              "x402": {
+                "networks": [
+                  "eip155:8453",
+                  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                ]
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "em_address"
+                ],
+                "properties": {
+                  "em_address": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Resy account email address"
+                  },
+                  "code": {
+                    "type": "string",
+                    "description": "OTP code from email (omit for step 1)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Code sent or account linked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "step": {
+                      "type": "string",
+                      "enum": [
+                        "code_sent",
+                        "linked"
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "resy_user_id": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required. Response advertises MPP and x402 payment options.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 PaymentRequired payload. Decode it to inspect x402Version, accepts, resource, and extensions.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "MPP payment challenge for Tempo clients.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "challengeId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "enum": [
+                        402
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Resy account has no payment method",
+            "x-error-codes": [
+              "RESY_NO_PAYMENT_METHOD"
+            ]
+          },
+          "502": {
+            "description": "Resy OTP request or verification failed",
+            "x-error-codes": [
+              "RESY_VERIFICATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "agentKey": []
+          },
+          {
+            "walletAuth": []
+          },
+          {
+            "x402Auth": []
+          },
+          {
+            "siwxAuth": []
+          }
+        ]
+      }
+    },
+    "/api/search": {
+      "get": {
+        "operationId": "searchVenues",
+        "summary": "Search Resy for restaurants by name",
+        "description": "Searches the Resy venue database in a given city and returns the top 5 matches with venue IDs. Results are ranked by geographic proximity to the city center, so passing the correct `city` is important when the user mentions one. Requires a linked Resy account. Identity-only ($0 auth).",
+        "x-guidance": "Use this to find venue IDs. Extract the city from the user's natural-language request ('sushi in LA' \u2192 city=los-angeles, 'dinner in SoHo' \u2192 city=nyc). If the user doesn't mention a city, city defaults to nyc. Remember the venue_id for the next steps. If city is not in the supported enum, do NOT guess lat/long \u2014 pick the closest supported city and tell the user, or ask them to clarify. If the account has no linked Resy account, you'll get 400 NO_LINKED_ACCOUNT \u2014 direct them through /api/link-resy first.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0"
+          },
+          "protocols": [
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20C000000000000000000000b9537d11c60E8b50"
+              }
+            },
+            {
+              "x402": {
+                "networks": [
+                  "eip155:8453",
+                  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                ]
+              }
+            }
+          ]
+        },
+        "security": [
+          {
+            "agentKey": []
+          },
+          {
+            "walletAuth": []
+          },
+          {
+            "x402Auth": []
+          },
+          {
+            "siwxAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Restaurant name, cuisine, or keyword to search for"
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "nyc",
+                "los-angeles",
+                "san-francisco",
+                "chicago",
+                "miami",
+                "washington-dc",
+                "boston",
+                "austin",
+                "seattle",
+                "las-vegas",
+                "philadelphia",
+                "atlanta",
+                "denver",
+                "nashville",
+                "san-diego",
+                "new-orleans",
+                "houston",
+                "dallas",
+                "cape-coral",
+                "fort-myers",
+                "naples",
+                "portland",
+                "minneapolis",
+                "detroit",
+                "charleston",
+                "oakland",
+                "phoenix",
+                "scottsdale",
+                "san-antonio",
+                "salt-lake-city",
+                "sacramento",
+                "san-jose",
+                "honolulu",
+                "charlotte",
+                "raleigh",
+                "durham",
+                "savannah",
+                "asheville",
+                "memphis",
+                "louisville",
+                "baltimore",
+                "pittsburgh",
+                "columbus",
+                "cleveland",
+                "cincinnati",
+                "indianapolis",
+                "kansas-city",
+                "st-louis",
+                "milwaukee",
+                "richmond",
+                "tampa",
+                "st-petersburg",
+                "orlando",
+                "jacksonville",
+                "fort-lauderdale",
+                "palm-beach",
+                "sarasota",
+                "hamptons",
+                "london",
+                "toronto",
+                "paris",
+                "mexico-city",
+                "sydney",
+                "amsterdam",
+                "berlin",
+                "madrid",
+                "barcelona",
+                "tokyo",
+                "dubai",
+                "montreal"
+              ],
+              "default": "nyc"
+            },
+            "description": "City slug for geo-ranked search. Extract from the user's prompt. Defaults to nyc if omitted."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "venue_id": {
+                            "type": "integer"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "neighborhood": {
+                            "type": "string"
+                          },
+                          "cuisine": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "rating": {
+                            "type": "number",
+                            "nullable": true
+                          }
+                        }
+                      }
+                    },
+                    "city": {
+                      "type": "string",
+                      "enum": [
+                        "nyc",
+                        "los-angeles",
+                        "san-francisco",
+                        "chicago",
+                        "miami",
+                        "washington-dc",
+                        "boston",
+                        "austin",
+                        "seattle",
+                        "las-vegas",
+                        "philadelphia",
+                        "atlanta",
+                        "denver",
+                        "nashville",
+                        "san-diego",
+                        "new-orleans",
+                        "houston",
+                        "dallas",
+                        "cape-coral",
+                        "fort-myers",
+                        "naples",
+                        "portland",
+                        "minneapolis",
+                        "detroit",
+                        "charleston",
+                        "oakland",
+                        "phoenix",
+                        "scottsdale",
+                        "san-antonio",
+                        "salt-lake-city",
+                        "sacramento",
+                        "san-jose",
+                        "honolulu",
+                        "charlotte",
+                        "raleigh",
+                        "durham",
+                        "savannah",
+                        "asheville",
+                        "memphis",
+                        "louisville",
+                        "baltimore",
+                        "pittsburgh",
+                        "columbus",
+                        "cleveland",
+                        "cincinnati",
+                        "indianapolis",
+                        "kansas-city",
+                        "st-louis",
+                        "milwaukee",
+                        "richmond",
+                        "tampa",
+                        "st-petersburg",
+                        "orlando",
+                        "jacksonville",
+                        "fort-lauderdale",
+                        "palm-beach",
+                        "sarasota",
+                        "hamptons",
+                        "london",
+                        "toronto",
+                        "paris",
+                        "mexico-city",
+                        "sydney",
+                        "amsterdam",
+                        "berlin",
+                        "madrid",
+                        "barcelona",
+                        "tokyo",
+                        "dubai",
+                        "montreal"
+                      ],
+                      "description": "Echo of the resolved city slug used for this search."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing query parameter, or no linked Resy account",
+            "x-error-codes": [
+              "INVALID_INPUT",
+              "NO_LINKED_ACCOUNT"
+            ]
+          },
+          "402": {
+            "description": "Payment Required. Response advertises MPP and x402 payment options.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 PaymentRequired payload. Decode it to inspect x402Version, accepts, resource, and extensions.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "MPP payment challenge for Tempo clients.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "challengeId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "enum": [
+                        402
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/availability": {
+      "get": {
+        "operationId": "checkAvailability",
+        "summary": "Check available reservation time slots",
+        "description": "Returns available reservation slots for a venue on a given day. Response includes venue_name for display. Requires a linked Resy account. Identity-only ($0 auth).",
+        "x-guidance": "Use the venue_id from /api/search. Present the results clearly to the user \u2014 show time, seating type. Remember the config_id of the slot they choose, you'll need it for /api/book. Config IDs expire \u2014 always fetch fresh availability before booking. If the account has no linked Resy account, you'll get 400 NO_LINKED_ACCOUNT \u2014 direct them through /api/link-resy first.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0"
+          },
+          "protocols": [
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20C000000000000000000000b9537d11c60E8b50"
+              }
+            },
+            {
+              "x402": {
+                "networks": [
+                  "eip155:8453",
+                  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                ]
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "venue_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Resy venue ID (from /api/search)"
+          },
+          {
+            "name": "party_size",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Number of guests"
+          },
+          {
+            "name": "day",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "description": "Date in YYYY-MM-DD format"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Available slots",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "venue_id": {
+                      "type": "string"
+                    },
+                    "venue_name": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Restaurant name for display"
+                    },
+                    "day": {
+                      "type": "string"
+                    },
+                    "party_size": {
+                      "type": "integer"
+                    },
+                    "slots": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "config_id": {
+                            "type": "string",
+                            "description": "Use this value when booking"
+                          },
+                          "type": {
+                            "type": "string"
+                          },
+                          "time_start": {
+                            "type": "string",
+                            "description": "e.g. '7:30 PM'"
+                          },
+                          "display": {
+                            "type": "string",
+                            "description": "Confirmation-ready slot summary"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input, or no linked Resy account",
+            "x-error-codes": [
+              "INVALID_INPUT",
+              "NO_LINKED_ACCOUNT"
+            ]
+          },
+          "402": {
+            "description": "Payment Required. Response advertises MPP and x402 payment options.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 PaymentRequired payload. Decode it to inspect x402Version, accepts, resource, and extensions.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "MPP payment challenge for Tempo clients.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "challengeId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "enum": [
+                        402
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Transient upstream (Resy) failure \u2014 not a statement about availability. Retry the same request in a few minutes.",
+            "x-error-codes": [
+              "UPSTREAM_ERROR"
+            ]
+          }
+        },
+        "security": [
+          {
+            "agentKey": []
+          },
+          {
+            "walletAuth": []
+          },
+          {
+            "x402Auth": []
+          },
+          {
+            "siwxAuth": []
+          }
+        ]
+      }
+    },
+    "/api/reservations": {
+      "get": {
+        "operationId": "listReservations",
+        "summary": "List the user's existing Resy reservations",
+        "description": "Returns the authenticated user's upcoming or past reservations with full venue details (name, address, neighborhood, cuisine, phone) inlined. Requires a linked Resy account. Identity-only ($0 auth).",
+        "x-guidance": "Use this when the user asks what reservations they have, wants to review an upcoming booking, or references an existing reservation. Default type=upcoming. Each reservation includes the full venue object \u2014 no extra calls needed to display restaurant details. If the user has no linked Resy account, you'll get 400 NO_LINKED_ACCOUNT \u2014 direct them through /api/link-resy first.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0"
+          },
+          "protocols": [
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20C000000000000000000000b9537d11c60E8b50"
+              }
+            },
+            {
+              "x402": {
+                "networks": [
+                  "eip155:8453",
+                  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                ]
+              }
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "upcoming",
+                "past"
+              ],
+              "default": "upcoming"
+            },
+            "description": "Which reservations to list. Defaults to upcoming."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10
+            },
+            "description": "Max reservations to return (1-50)."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "description": "Pagination offset."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User's reservations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "reservations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "reservation_id": {
+                            "type": "integer"
+                          },
+                          "resy_token": {
+                            "type": "string",
+                            "description": "Pass to POST /api/cancel to cancel this reservation"
+                          },
+                          "venue": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "cuisine": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "rating": {
+                                "type": "number",
+                                "nullable": true
+                              },
+                              "price_range_id": {
+                                "type": "integer",
+                                "nullable": true
+                              },
+                              "url_slug": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "phone": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "image_url": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "currency": {
+                                "type": "string"
+                              },
+                              "location": {
+                                "type": "object",
+                                "properties": {
+                                  "address_1": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "address_2": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "locality": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "region": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "postal_code": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "neighborhood": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "latitude": {
+                                    "type": "number",
+                                    "nullable": true
+                                  },
+                                  "longitude": {
+                                    "type": "number",
+                                    "nullable": true
+                                  },
+                                  "time_zone": {
+                                    "type": "string",
+                                    "nullable": true
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "day": {
+                            "type": "string",
+                            "format": "date"
+                          },
+                          "time_slot": {
+                            "type": "string",
+                            "description": "HH:MM:SS local time"
+                          },
+                          "when": {
+                            "type": "string",
+                            "description": "Combined datetime from Resy"
+                          },
+                          "local_date": {
+                            "type": "string",
+                            "format": "date",
+                            "description": "Reservation date in the venue's local calendar"
+                          },
+                          "local_time": {
+                            "type": "string",
+                            "description": "Human-readable venue-local time, e.g. '9:00 PM'"
+                          },
+                          "timezone": {
+                            "type": "string",
+                            "nullable": true,
+                            "description": "Venue time zone identifier as returned by Resy"
+                          },
+                          "num_seats": {
+                            "type": "integer"
+                          },
+                          "config_type": {
+                            "type": "string",
+                            "description": "e.g. 'Main Dining Room'"
+                          },
+                          "status": {
+                            "type": "object",
+                            "properties": {
+                              "finished": {
+                                "type": "boolean"
+                              },
+                              "no_show": {
+                                "type": "boolean"
+                              }
+                            }
+                          },
+                          "cancellation": {
+                            "type": "object",
+                            "properties": {
+                              "allowed": {
+                                "type": "boolean"
+                              },
+                              "refund_cutoff": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "fee_amount": {
+                                "type": "number"
+                              },
+                              "fee_applies": {
+                                "type": "boolean"
+                              }
+                            }
+                          },
+                          "change": {
+                            "type": "object",
+                            "properties": {
+                              "allowed": {
+                                "type": "boolean"
+                              },
+                              "cutoff": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            }
+                          },
+                          "price": {
+                            "type": "number"
+                          },
+                          "payment_method": {
+                            "type": "object",
+                            "nullable": true,
+                            "properties": {
+                              "card_type": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "last_4": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            }
+                          },
+                          "share_link": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "is_pickup": {
+                            "type": "boolean"
+                          },
+                          "display_summary": {
+                            "type": "string",
+                            "description": "Confirmation-ready reservation summary"
+                          },
+                          "cancel_summary": {
+                            "type": "string",
+                            "description": "Confirmation-ready cancellation prompt"
+                          },
+                          "fee_summary": {
+                            "type": "string",
+                            "description": "Human-readable cancellation fee status"
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "type": "integer"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "upcoming",
+                        "past"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or no linked Resy account",
+            "x-error-codes": [
+              "INVALID_INPUT",
+              "NO_LINKED_ACCOUNT"
+            ]
+          },
+          "402": {
+            "description": "Payment Required. Response advertises MPP and x402 payment options.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 PaymentRequired payload. Decode it to inspect x402Version, accepts, resource, and extensions.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "MPP payment challenge for Tempo clients.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "challengeId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "enum": [
+                        402
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Failed to fetch from Resy",
+            "x-error-codes": [
+              "INTERNAL_ERROR"
+            ]
+          }
+        },
+        "security": [
+          {
+            "agentKey": []
+          },
+          {
+            "walletAuth": []
+          },
+          {
+            "x402Auth": []
+          },
+          {
+            "siwxAuth": []
+          }
+        ]
+      }
+    },
+    "/api/book": {
+      "post": {
+        "operationId": "bookReservation",
+        "summary": "Book a reservation ($0.01 USDC)",
+        "description": "Book a reservation at the given venue. Requires a linked Resy account. Use a config_id from /api/availability. Costs $0.01 USDC. Covered at $0 for API keys with an active subscription. Payment settles first and is refunded automatically if the booking fails (paid rails only).",
+        "x-guidance": "CRITICAL: Before calling this endpoint, you MUST present a full booking summary (restaurant name, date, time, party size, price) and receive an EXPLICIT user confirmation ('yes', 'confirm', 'book it', 'go ahead', or an exact restatement of the offered slot after a single confirmation summary, such as 'book 9pm'). Never book on implicit intent. If the user's response is ambiguous, a question, or non-affirmative \u2014 do NOT book, clarify instead. This rule has no exceptions \u2014 real money is charged. Use a fresh config_id from /api/availability (they expire quickly). If you get 409 (already_booked), tell the user they already have a reservation there.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20C000000000000000000000b9537d11c60E8b50"
+              }
+            },
+            {
+              "x402": {
+                "networks": [
+                  "eip155:8453",
+                  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                ]
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "venue_id",
+                  "config_id",
+                  "party_size",
+                  "day"
+                ],
+                "properties": {
+                  "venue_id": {
+                    "type": "string",
+                    "description": "Resy venue ID"
+                  },
+                  "config_id": {
+                    "type": "string",
+                    "description": "Slot config token from /api/availability"
+                  },
+                  "party_size": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Number of guests"
+                  },
+                  "day": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "description": "Date in YYYY-MM-DD format"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reservation booked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "resy_token": {
+                      "type": "string"
+                    },
+                    "reservation_id": {
+                      "type": "integer"
+                    },
+                    "charge_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input, no linked Resy account, or the Resy account has no payment method on file",
+            "x-error-codes": [
+              "INVALID_INPUT",
+              "NO_LINKED_ACCOUNT",
+              "BOOKING_FAILED"
+            ]
+          },
+          "402": {
+            "description": "Payment Required. Response advertises MPP and x402 payment options.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 PaymentRequired payload. Decode it to inspect x402Version, accepts, resource, and extensions.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "MPP payment challenge for Tempo clients.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "challengeId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "enum": [
+                        402
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "API key has no active subscription",
+            "x-error-codes": [
+              "SUBSCRIPTION_REQUIRED"
+            ]
+          },
+          "409": {
+            "description": "Already booked at this venue (the duplicate payment is refunded automatically), or a replayed payment proof (DUPLICATE_PAYMENT \u2014 response carries the original charge_id and its status so a lost response can be recovered).",
+            "x-error-codes": [
+              "ALREADY_BOOKED",
+              "DUPLICATE_PAYMENT"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "reservation_id": {
+                      "type": "integer"
+                    },
+                    "charge_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "paid",
+                        "covered",
+                        "refund_pending",
+                        "refunded",
+                        "refund_failed"
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "refund": {
+                      "type": "object",
+                      "description": "Refund outcome for a paid charge. Covered (subscription) usage never has a refund.",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "refunded",
+                            "refund_failed",
+                            "already_refunded",
+                            "in_progress",
+                            "none"
+                          ]
+                        },
+                        "refund_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "tx_hash": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Booking failed upstream. Paid rails receive a refund object (automatic); covered usage gets none.",
+            "x-error-codes": [
+              "BOOKING_FAILED"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object"
+                    },
+                    "charge_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "refund": {
+                      "type": "object",
+                      "description": "Refund outcome for a paid charge. Covered (subscription) usage never has a refund.",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "refunded",
+                            "refund_failed",
+                            "already_refunded",
+                            "in_progress",
+                            "none"
+                          ]
+                        },
+                        "refund_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "tx_hash": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "agentKey": []
+          },
+          {
+            "walletAuth": []
+          },
+          {
+            "x402Auth": []
+          }
+        ]
+      }
+    },
+    "/api/cancel": {
+      "post": {
+        "operationId": "cancelReservation",
+        "summary": "Cancel an existing Resy reservation",
+        "description": "Cancels a reservation by resy_token. You MUST first call GET /api/reservations to get the resy_token for the reservation the user wants to cancel. Requires a linked Resy account. Identity-only ($0 auth).",
+        "x-guidance": "CRITICAL FLOW: (1) Call GET /api/reservations?type=upcoming to list the user's reservations, (2) Identify the reservation the user wants to cancel and extract its `resy_token` field from the response, (3) Present a confirmation summary to the user (restaurant, date, time, party size) and wait for explicit 'yes', (4) Call POST /api/cancel with { resy_token }. Never guess or fabricate resy_token \u2014 it must come from /api/reservations. Never cancel on implicit intent.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0"
+          },
+          "protocols": [
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20C000000000000000000000b9537d11c60E8b50"
+              }
+            },
+            {
+              "x402": {
+                "networks": [
+                  "eip155:8453",
+                  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                ]
+              }
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "resy_token"
+                ],
+                "properties": {
+                  "resy_token": {
+                    "type": "string",
+                    "description": "Reservation token from GET /api/reservations response (field: resy_token)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reservation cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or no linked Resy account",
+            "x-error-codes": [
+              "INVALID_INPUT",
+              "NO_LINKED_ACCOUNT"
+            ]
+          },
+          "402": {
+            "description": "Payment Required. Response advertises MPP and x402 payment options.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 PaymentRequired payload. Decode it to inspect x402Version, accepts, resource, and extensions.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "MPP payment challenge for Tempo clients.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "challengeId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "enum": [
+                        402
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Resy cancel failed upstream",
+            "x-error-codes": [
+              "INTERNAL_ERROR"
+            ]
+          }
+        },
+        "security": [
+          {
+            "agentKey": []
+          },
+          {
+            "walletAuth": []
+          },
+          {
+            "x402Auth": []
+          },
+          {
+            "siwxAuth": []
+          }
+        ]
+      }
+    },
+    "/api/wait-times": {
+      "get": {
+        "operationId": "getWaitTimes",
+        "summary": "Live restaurant wait times ($0.01 USDC)",
+        "description": "Every monitored restaurant location with its current wait time, crowd count, and open status (camera-based crowd data). One call returns all locations. Costs $0.01 USDC per query on wallet rails; covered at $0 for API keys with an active subscription. No Resy link required. Wait-time location slugs are separate from Resy venue IDs.",
+        "x-guidance": "One call answers \"how busy is X right now\" \u2014 find the restaurant by name in `locations` and read its `status`. When `is_open` is false or `wait_minutes` is null there is no current reading: report `current_count` if present, otherwise say no reading is available, and always include how fresh the reading is (`captured_at`). Slugs from this call feed /api/wait-times/history. Read-only \u2014 no user confirmation needed, but do not poll in a loop. Failed paid queries are refunded automatically.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20C000000000000000000000b9537d11c60E8b50"
+              }
+            },
+            {
+              "x402": {
+                "networks": [
+                  "eip155:8453",
+                  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                ]
+              }
+            }
+          ]
+        },
+        "security": [
+          {
+            "agentKey": []
+          },
+          {
+            "walletAuth": []
+          },
+          {
+            "x402Auth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "All monitored locations with current status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "locations": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "slug": {
+                            "type": "string",
+                            "description": "Location id for /api/wait-times/history"
+                          },
+                          "display_name": {
+                            "type": "string"
+                          },
+                          "address": {
+                            "type": "string"
+                          },
+                          "timezone": {
+                            "type": "string",
+                            "description": "IANA timezone, e.g. America/New_York"
+                          },
+                          "hours": {
+                            "type": "object",
+                            "description": "Weekly open/close hours keyed by weekday"
+                          },
+                          "status": {
+                            "type": "object",
+                            "properties": {
+                              "is_open": {
+                                "type": "boolean"
+                              },
+                              "current_count": {
+                                "type": [
+                                  "integer",
+                                  "null"
+                                ],
+                                "description": "People currently in line; null when closed or no reading"
+                              },
+                              "wait_minutes": {
+                                "type": [
+                                  "number",
+                                  "null"
+                                ],
+                                "description": "Estimated wait; null when closed or no reading"
+                              },
+                              "captured_at": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "format": "date-time",
+                                "description": "When the reading was captured (UTC); null when no reading"
+                              }
+                            }
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    },
+                    "count": {
+                      "type": "integer"
+                    },
+                    "charge_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required. Response advertises MPP and x402 payment options.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 PaymentRequired payload. Decode it to inspect x402Version, accepts, resource, and extensions.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "MPP payment challenge for Tempo clients.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "challengeId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "enum": [
+                        402
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "API key has no active subscription",
+            "x-error-codes": [
+              "SUBSCRIPTION_REQUIRED"
+            ]
+          },
+          "502": {
+            "description": "Wait-time provider failed upstream (the paid charge is refunded)",
+            "x-error-codes": [
+              "INTERNAL_ERROR"
+            ]
+          },
+          "503": {
+            "description": "Wait times are not currently available",
+            "x-error-codes": [
+              "FEATURE_DISABLED"
+            ]
+          }
+        }
+      }
+    },
+    "/api/wait-times/history": {
+      "get": {
+        "operationId": "getWaitTimeHistory",
+        "summary": "Historical wait times for a location ($0.01 USDC)",
+        "description": "Line counts for one monitored location over a time range \u2014 raw detection events or bucket aggregates (mean/min/max) via `interval`. Costs $0.01 USDC per query on wallet rails; covered at $0 for API keys with an active subscription.",
+        "x-guidance": "Get the location slug from GET /api/wait-times first. Use an aggregate interval (5m or 1h) for questions like 'when is it least busy' \u2014 raw events are verbose. since/until and bucket_start are UTC; convert to the location's timezone when reporting. Buckets exist only for times the camera captured \u2014 gaps are normal, and wait_minutes_mean can be null even when people counts are present. Read-only \u2014 no user confirmation needed.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20C000000000000000000000b9537d11c60E8b50"
+              }
+            },
+            {
+              "x402": {
+                "networks": [
+                  "eip155:8453",
+                  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                ]
+              }
+            }
+          ]
+        },
+        "security": [
+          {
+            "agentKey": []
+          },
+          {
+            "walletAuth": []
+          },
+          {
+            "x402Auth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "location",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Damnlines location slug from GET /api/wait-times"
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Range start (ISO 8601)"
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Range end (ISO 8601)"
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "raw",
+                "1m",
+                "5m",
+                "1h"
+              ]
+            },
+            "description": "raw returns detection events; 1m/5m/1h return bucket aggregates"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "description": "Maximum number of history buckets to return"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Pagination cursor from a previous response"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Line-count history: data_raw (interval=raw) or data_aggregated (1m/5m/1h buckets), with charge_id added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "interval": {
+                      "type": "string",
+                      "enum": [
+                        "raw",
+                        "1m",
+                        "5m",
+                        "1h"
+                      ]
+                    },
+                    "data_raw": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "description": "Raw detection events; null unless interval=raw",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "data_aggregated": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "description": "Bucket stats, newest first; null when interval=raw. Buckets exist only for captured periods \u2014 gaps are normal.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "bucket_start": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "Bucket start (UTC)"
+                          },
+                          "bucket_seconds": {
+                            "type": "integer"
+                          },
+                          "location": {
+                            "type": "string"
+                          },
+                          "count_samples": {
+                            "type": "integer"
+                          },
+                          "people_mean": {
+                            "type": "number"
+                          },
+                          "people_min": {
+                            "type": "number"
+                          },
+                          "people_max": {
+                            "type": "number"
+                          },
+                          "wait_minutes_mean": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "description": "Null when no wait estimate exists for the bucket"
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "next_cursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Pass as `cursor` to fetch the next page"
+                        },
+                        "has_more": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "charge_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing/invalid location, since, until, or interval (the paid charge is refunded)",
+            "x-error-codes": [
+              "INVALID_INPUT"
+            ]
+          },
+          "402": {
+            "description": "Payment Required. Response advertises MPP and x402 payment options.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 PaymentRequired payload. Decode it to inspect x402Version, accepts, resource, and extensions.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "MPP payment challenge for Tempo clients.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "challengeId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "enum": [
+                        402
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "API key has no active subscription",
+            "x-error-codes": [
+              "SUBSCRIPTION_REQUIRED"
+            ]
+          },
+          "404": {
+            "description": "Unknown location slug (the paid charge is refunded)",
+            "x-error-codes": [
+              "UNKNOWN_RESTAURANT"
+            ]
+          },
+          "502": {
+            "description": "Wait-time provider failed upstream (the paid charge is refunded)",
+            "x-error-codes": [
+              "INTERNAL_ERROR"
+            ]
+          },
+          "503": {
+            "description": "Wait times are not currently available",
+            "x-error-codes": [
+              "FEATURE_DISABLED"
+            ]
+          }
+        }
+      }
+    },
+    "/api/discover/restaurants": {
+      "get": {
+        "operationId": "discoverRestaurants",
+        "summary": "Discover Blackbird restaurants ($0.01 USDC)",
+        "description": "Search and filter the Blackbird restaurant network (~2,000 curated restaurants, mostly NYC and San Francisco) \u2014 free-text search plus city/neighborhood filters, with optional live specials per result. Costs $0.01 USDC per query on wallet rails; covered at $0 for API keys with an active subscription. No Resy link required. Blackbird restaurant IDs are separate from Resy venue IDs; to book a discovered restaurant, feed its name into GET /api/search.",
+        "x-guidance": "The recommendations endpoint: for 'recs in the West Village, mention specials' call once with neighborhood=west village&include_specials=true. `query` is full-text (name, cuisine, area); `city`/`neighborhood` are case-insensitive exact filters. With include_specials, `specials: []` means no current offers while `specials: null` means the live lookup failed \u2014 say offers are unavailable, don't report 'no offers'. Results are ordered ALPHABETICALLY, not by quality \u2014 you are the ranking layer: bake stated preferences into `query`, check `total` (a neighborhood can hold 40+; page 1 is just the A-names), page through the rest or narrow before curating, and present a short diverse shortlist rather than the raw page. Catalog data refreshes weekly (`synced_at`); specials are always live. Read-only \u2014 no user confirmation needed, but do not poll in a loop. Failed paid queries are refunded automatically.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20C000000000000000000000b9537d11c60E8b50"
+              }
+            },
+            {
+              "x402": {
+                "networks": [
+                  "eip155:8453",
+                  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                ]
+              }
+            }
+          ]
+        },
+        "security": [
+          {
+            "agentKey": []
+          },
+          {
+            "walletAuth": []
+          },
+          {
+            "x402Auth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Full-text search over name, cuisine, city, and neighborhood (e.g. 'italian west village')"
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-insensitive city filter. Accepts the same city slugs as /api/search ('nyc', 'san-francisco') or a free-text address city name ('new york', 'brooklyn')"
+          },
+          {
+            "name": "neighborhood",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-insensitive neighborhood filter, e.g. 'west village'"
+          },
+          {
+            "name": "include_specials",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "Attach live specials to each result (caps limit at 20)"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "description": "Page size; max 20 when include_specials=true"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "description": "Number of results to skip for pagination"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching restaurants with pagination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "restaurants": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "description": "Blackbird restaurant id (NOT a Resy venue_id)"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "image_url": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "cuisine": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "price": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "description": "Price tier, 1 (cheap) to 4 (expensive)"
+                          },
+                          "website_url": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "cities": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "neighborhoods": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "locations": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "name": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "address": {
+                                  "type": [
+                                    "object",
+                                    "null"
+                                  ],
+                                  "description": "street/street2/city/state/zipcode/country"
+                                },
+                                "neighborhood": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "region": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ],
+                                  "description": "e.g. 'New York, NY'"
+                                },
+                                "latitude": {
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ]
+                                },
+                                "longitude": {
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ]
+                                },
+                                "time_zone": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                }
+                              },
+                              "additionalProperties": true
+                            }
+                          },
+                          "specials": {
+                            "type": [
+                              "array",
+                              "null"
+                            ],
+                            "description": "Only when include_specials=true: [] = no current offers, null = live lookup failed",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "label": {
+                                  "type": "string"
+                                },
+                                "description": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "emoji": {
+                                  "type": [
+                                    "string",
+                                    "null"
+                                  ]
+                                },
+                                "fly_reward": {
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ]
+                                },
+                                "fly_reward_bips": {
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ],
+                                  "description": "Reward rate in basis points, e.g. 1000 = 10x Fly"
+                                },
+                                "check_in_threshold": {
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ]
+                                }
+                              }
+                            }
+                          },
+                          "synced_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "When this catalog row was last synced from Blackbird"
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "type": "integer"
+                    },
+                    "synced_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "charge_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid limit/offset (the paid charge is refunded)",
+            "x-error-codes": [
+              "INVALID_INPUT"
+            ]
+          },
+          "402": {
+            "description": "Payment Required. Response advertises MPP and x402 payment options.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 PaymentRequired payload. Decode it to inspect x402Version, accepts, resource, and extensions.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "MPP payment challenge for Tempo clients.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "challengeId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "enum": [
+                        402
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "API key has no active subscription",
+            "x-error-codes": [
+              "SUBSCRIPTION_REQUIRED"
+            ]
+          }
+        }
+      }
+    },
+    "/api/discover/restaurants/{restaurant_id}": {
+      "get": {
+        "operationId": "getDiscoverRestaurant",
+        "summary": "Blackbird restaurant detail ($0.01 USDC)",
+        "description": "Full detail for one Blackbird restaurant: locations with addresses, coordinates, time zone, and live open hours per location. Costs $0.01 USDC per query on wallet rails; covered at $0 for API keys with an active subscription. No Resy link required.",
+        "x-guidance": "Use the id from GET /api/discover/restaurants. `open_hours: null` on a location means the live hours lookup failed \u2014 not that the venue is closed. Failed paid queries (including 404s) are refunded automatically.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20C000000000000000000000b9537d11c60E8b50"
+              }
+            },
+            {
+              "x402": {
+                "networks": [
+                  "eip155:8453",
+                  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                ]
+              }
+            }
+          ]
+        },
+        "security": [
+          {
+            "agentKey": []
+          },
+          {
+            "walletAuth": []
+          },
+          {
+            "x402Auth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "restaurant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Blackbird restaurant id from GET /api/discover/restaurants"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Restaurant detail with locations and live open hours",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "restaurant": {
+                      "type": "object",
+                      "description": "Same shape as a list item, with open_hours ([{day_of_week, open_time, close_time}] or null) on each location",
+                      "additionalProperties": true
+                    },
+                    "charge_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid restaurant id (the paid charge is refunded)",
+            "x-error-codes": [
+              "INVALID_INPUT"
+            ]
+          },
+          "402": {
+            "description": "Payment Required. Response advertises MPP and x402 payment options.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 PaymentRequired payload. Decode it to inspect x402Version, accepts, resource, and extensions.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "MPP payment challenge for Tempo clients.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "challengeId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "enum": [
+                        402
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "API key has no active subscription",
+            "x-error-codes": [
+              "SUBSCRIPTION_REQUIRED"
+            ]
+          },
+          "404": {
+            "description": "Unknown or delisted restaurant (the paid charge is refunded)",
+            "x-error-codes": [
+              "UNKNOWN_RESTAURANT"
+            ]
+          }
+        }
+      }
+    },
+    "/api/discover/restaurants/{restaurant_id}/specials": {
+      "get": {
+        "operationId": "getDiscoverRestaurantSpecials",
+        "summary": "Live Blackbird specials for a restaurant ($0.01 USDC)",
+        "description": "Current specials/offers for one Blackbird restaurant, fetched live (never cached) \u2014 e.g. Fly-reward multipliers like 'Earn 10x Fly when you pay with Blackbird'. Costs $0.01 USDC per query on wallet rails; covered at $0 for API keys with an active subscription. No Resy link required.",
+        "x-guidance": "Prefer include_specials=true on the list endpoint when showing several restaurants; use this for a single restaurant the user is already looking at. An empty array means no current offers. Failed paid queries are refunded automatically.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20C000000000000000000000b9537d11c60E8b50"
+              }
+            },
+            {
+              "x402": {
+                "networks": [
+                  "eip155:8453",
+                  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                ]
+              }
+            }
+          ]
+        },
+        "security": [
+          {
+            "agentKey": []
+          },
+          {
+            "walletAuth": []
+          },
+          {
+            "x402Auth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "restaurant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Blackbird restaurant id from GET /api/discover/restaurants"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Live specials for the restaurant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "restaurant_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "specials": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "emoji": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "fly_reward": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "fly_reward_bips": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "description": "Reward rate in basis points, e.g. 1000 = 10x Fly"
+                          },
+                          "check_in_threshold": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "charge_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid restaurant id (the paid charge is refunded)",
+            "x-error-codes": [
+              "INVALID_INPUT"
+            ]
+          },
+          "402": {
+            "description": "Payment Required. Response advertises MPP and x402 payment options.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 PaymentRequired payload. Decode it to inspect x402Version, accepts, resource, and extensions.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "MPP payment challenge for Tempo clients.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "challengeId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "enum": [
+                        402
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "API key has no active subscription",
+            "x-error-codes": [
+              "SUBSCRIPTION_REQUIRED"
+            ]
+          },
+          "404": {
+            "description": "Unknown or delisted restaurant (the paid charge is refunded)",
+            "x-error-codes": [
+              "UNKNOWN_RESTAURANT"
+            ]
+          },
+          "502": {
+            "description": "Blackbird failed upstream (the paid charge is refunded)",
+            "x-error-codes": [
+              "UPSTREAM_ERROR"
+            ]
+          },
+          "503": {
+            "description": "Blackbird specials are not currently available (the paid charge is refunded)",
+            "x-error-codes": [
+              "FEATURE_DISABLED"
+            ]
+          }
+        }
+      }
+    },
+    "/api/reservation-jobs/options": {
+      "get": {
+        "operationId": "listReservationJobOptions",
+        "summary": "List restaurants that support reservation jobs",
+        "description": "Public, no auth. Returns the restaurants bookable via reservation jobs and how many days in advance each booking window opens. Exact opening times are not disclosed; the create response returns the scheduled drop_time.",
+        "x-guidance": "Call this before creating a reservation job to confirm the restaurant is supported. Only restaurants in this list support reservation jobs.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Supported restaurants",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "restaurants": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "venue_id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "drop_days_in_advance": {
+                            "type": "integer"
+                          },
+                          "closed_days": {
+                            "type": "array",
+                            "items": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 6
+                            },
+                            "description": "Weekdays the restaurant is closed (0 = Sunday)."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Reservation jobs are not currently available",
+            "x-error-codes": [
+              "FEATURE_DISABLED"
+            ]
+          }
+        }
+      }
+    },
+    "/api/reservation-jobs/create": {
+      "post": {
+        "operationId": "createReservationJob",
+        "summary": "Create a reservation job ($3.00 USDC)",
+        "description": "Create a reservation job that books the table the moment reservations open on Resy. Reservation jobs are best-effort. We attempt the booking the moment reservations open; if your preferred time is taken, we book the closest available time. A booking is not guaranteed. Costs $3.00 USDC on wallet rails; covered at $0 for API keys with an active subscription. The body is validated before payment settles. One active job per account/venue/drop day. Failed enqueues and duplicates refund the payment automatically.",
+        "x-guidance": "CRITICAL: real money is charged \u2014 present a full summary (restaurant, reservation date, preferred time, party size, drop time, price) and receive an EXPLICIT user confirmation before calling. Tell the user the job is best-effort: the exact preferred time is not guaranteed and the job books the closest available slot. Resolve the restaurant via /api/reservation-jobs/options first. On 409 ACTIVE_JOB_EXISTS the duplicate payment was already refunded \u2014 report the existing job_id, do not retry.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "3.000000"
+          },
+          "protocols": [
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20C000000000000000000000b9537d11c60E8b50"
+              }
+            },
+            {
+              "x402": {
+                "networks": [
+                  "eip155:8453",
+                  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                ]
+              }
+            }
+          ]
+        },
+        "security": [
+          {
+            "agentKey": []
+          },
+          {
+            "walletAuth": []
+          },
+          {
+            "x402Auth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "party_size",
+                  "reservation_date"
+                ],
+                "properties": {
+                  "venue_id": {
+                    "type": "string",
+                    "description": "Venue id from /api/reservation-jobs/options. Provide venue_id or restaurant."
+                  },
+                  "restaurant": {
+                    "type": "string",
+                    "description": "Restaurant name to resolve against the supported list. Provide venue_id or restaurant."
+                  },
+                  "party_size": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20,
+                    "description": "Number of guests for the reservation"
+                  },
+                  "reservation_date": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                    "description": "Desired reservation date (YYYY-MM-DD)."
+                  },
+                  "preferred_hour": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 23,
+                    "default": 18
+                  },
+                  "preferred_minute": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 59,
+                    "default": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Job queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "job_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "queued"
+                      ]
+                    },
+                    "charge_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "venue_id": {
+                      "type": "string"
+                    },
+                    "restaurant_name": {
+                      "type": "string"
+                    },
+                    "reservation_date": {
+                      "type": "string",
+                      "format": "date"
+                    },
+                    "party_size": {
+                      "type": "integer"
+                    },
+                    "drop_time": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "payment": {
+                      "type": "object",
+                      "description": "Billing state of the charge that funded this operation.",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "paid",
+                            "covered",
+                            "refund_pending",
+                            "refunded",
+                            "refund_failed"
+                          ]
+                        },
+                        "rail": {
+                          "type": "string",
+                          "enum": [
+                            "x402_base_usdc",
+                            "mpp_tempo_stablecoin",
+                            "api_key_subscription"
+                          ]
+                        },
+                        "amount_cents": {
+                          "type": "integer"
+                        },
+                        "currency": {
+                          "type": "string"
+                        },
+                        "asset_symbol": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "payer_identifier": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "settlement_tx_hash": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "next_step": {
+                          "type": "string",
+                          "description": "Present when the charge is refund_pending \u2014 the refund claim call to make."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input, unknown/ambiguous restaurant, restaurant closed or not serving at the requested time, drop time in the past, or no linked Resy account",
+            "x-error-codes": [
+              "INVALID_INPUT",
+              "UNKNOWN_RESTAURANT",
+              "AMBIGUOUS_RESTAURANT",
+              "RESTAURANT_CLOSED",
+              "OUTSIDE_SERVICE_HOURS",
+              "DROP_TIME_PASSED",
+              "NO_LINKED_ACCOUNT"
+            ]
+          },
+          "402": {
+            "description": "Payment Required. Response advertises MPP and x402 payment options.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 PaymentRequired payload. Decode it to inspect x402Version, accepts, resource, and extensions.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "MPP payment challenge for Tempo clients.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "challengeId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "enum": [
+                        402
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "API key has no active subscription",
+            "x-error-codes": [
+              "SUBSCRIPTION_REQUIRED"
+            ]
+          },
+          "409": {
+            "description": "An active job already exists for this venue and drop day (duplicate payment refunded automatically), or a replayed payment proof (DUPLICATE_PAYMENT).",
+            "x-error-codes": [
+              "ACTIVE_JOB_EXISTS",
+              "DUPLICATE_PAYMENT"
+            ],
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "error": {
+                      "type": "object"
+                    },
+                    "job_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "charge_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "refund": {
+                      "type": "object",
+                      "description": "Refund outcome for a paid charge. Covered (subscription) usage never has a refund.",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "refunded",
+                            "refund_failed",
+                            "already_refunded",
+                            "in_progress",
+                            "none"
+                          ]
+                        },
+                        "refund_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "tx_hash": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Subscription-covered enqueue with all active job slots in use. Free a slot by canceling an active job, or pay per-use with wallet auth (never slot-limited).",
+            "x-error-codes": [
+              "SLOT_LIMIT_REACHED"
+            ]
+          },
+          "500": {
+            "description": "Enqueue failed after payment \u2014 the payment is refunded automatically",
+            "x-error-codes": [
+              "JOB_CREATE_FAILED"
+            ]
+          },
+          "503": {
+            "description": "Reservation jobs are not currently available",
+            "x-error-codes": [
+              "FEATURE_DISABLED"
+            ]
+          }
+        }
+      }
+    },
+    "/api/reservation-jobs": {
+      "get": {
+        "operationId": "listReservationJobs",
+        "summary": "List this account's reservation jobs",
+        "description": "Returns the authenticated account's reservation jobs, newest first. Identity-only ($0 auth).",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0"
+          },
+          "protocols": [
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20C000000000000000000000b9537d11c60E8b50"
+              }
+            },
+            {
+              "x402": {
+                "networks": [
+                  "eip155:8453",
+                  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                ]
+              }
+            }
+          ]
+        },
+        "security": [
+          {
+            "agentKey": []
+          },
+          {
+            "walletAuth": []
+          },
+          {
+            "x402Auth": []
+          },
+          {
+            "siwxAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10
+            },
+            "description": "Maximum number of reservation jobs to return"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "queued",
+                "running",
+                "cancel_requested",
+                "succeeded",
+                "failed",
+                "canceled",
+                "timed_out"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Jobs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "jobs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "job_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "queued",
+                              "running",
+                              "cancel_requested",
+                              "succeeded",
+                              "failed",
+                              "canceled",
+                              "timed_out"
+                            ]
+                          },
+                          "venue_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "restaurant_name": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "party_size": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "reservation_date": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date"
+                          },
+                          "preferred_hour": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "preferred_minute": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "drop_time": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "queued_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "started_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "finished_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "result_json": {
+                            "type": [
+                              "object",
+                              "null"
+                            ]
+                          },
+                          "error": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "charge_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "payment": {
+                            "type": "object",
+                            "description": "Billing state of the charge that funded this operation.",
+                            "properties": {
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "paid",
+                                  "covered",
+                                  "refund_pending",
+                                  "refunded",
+                                  "refund_failed"
+                                ]
+                              },
+                              "rail": {
+                                "type": "string",
+                                "enum": [
+                                  "x402_base_usdc",
+                                  "mpp_tempo_stablecoin",
+                                  "api_key_subscription"
+                                ]
+                              },
+                              "amount_cents": {
+                                "type": "integer"
+                              },
+                              "currency": {
+                                "type": "string"
+                              },
+                              "asset_symbol": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "payer_identifier": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "settlement_tx_hash": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "next_step": {
+                                "type": "string",
+                                "description": "Present when the charge is refund_pending \u2014 the refund claim call to make."
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "count": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required. Response advertises MPP and x402 payment options.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 PaymentRequired payload. Decode it to inspect x402Version, accepts, resource, and extensions.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "MPP payment challenge for Tempo clients.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "challengeId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "enum": [
+                        402
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Reservation jobs are not currently available",
+            "x-error-codes": [
+              "FEATURE_DISABLED"
+            ]
+          }
+        }
+      }
+    },
+    "/api/reservation-jobs/{job_id}": {
+      "get": {
+        "operationId": "getReservationJob",
+        "summary": "Get a reservation job's status",
+        "description": "Returns the job with its payment state. When the job is canceled, failed, or timed_out, a paid charge shows status refund_pending and payment.next_step points at the refund claim endpoint. Identity-only ($0 auth).",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0"
+          },
+          "protocols": [
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20C000000000000000000000b9537d11c60E8b50"
+              }
+            },
+            {
+              "x402": {
+                "networks": [
+                  "eip155:8453",
+                  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                ]
+              }
+            }
+          ]
+        },
+        "security": [
+          {
+            "agentKey": []
+          },
+          {
+            "walletAuth": []
+          },
+          {
+            "x402Auth": []
+          },
+          {
+            "siwxAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "job_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "running",
+                        "cancel_requested",
+                        "succeeded",
+                        "failed",
+                        "canceled",
+                        "timed_out"
+                      ]
+                    },
+                    "venue_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "restaurant_name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "party_size": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "reservation_date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date"
+                    },
+                    "preferred_hour": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "preferred_minute": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "drop_time": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "queued_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "started_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "finished_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "result_json": {
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    },
+                    "error": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "charge_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "payment": {
+                      "type": "object",
+                      "description": "Billing state of the charge that funded this operation.",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "paid",
+                            "covered",
+                            "refund_pending",
+                            "refunded",
+                            "refund_failed"
+                          ]
+                        },
+                        "rail": {
+                          "type": "string",
+                          "enum": [
+                            "x402_base_usdc",
+                            "mpp_tempo_stablecoin",
+                            "api_key_subscription"
+                          ]
+                        },
+                        "amount_cents": {
+                          "type": "integer"
+                        },
+                        "currency": {
+                          "type": "string"
+                        },
+                        "asset_symbol": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "payer_identifier": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "settlement_tx_hash": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "next_step": {
+                          "type": "string",
+                          "description": "Present when the charge is refund_pending \u2014 the refund claim call to make."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required. Response advertises MPP and x402 payment options.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 PaymentRequired payload. Decode it to inspect x402Version, accepts, resource, and extensions.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "MPP payment challenge for Tempo clients.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "challengeId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "enum": [
+                        402
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found for this account",
+            "x-error-codes": [
+              "JOB_NOT_FOUND"
+            ]
+          },
+          "503": {
+            "description": "Reservation jobs are not currently available",
+            "x-error-codes": [
+              "FEATURE_DISABLED"
+            ]
+          }
+        }
+      }
+    },
+    "/api/reservation-jobs/{job_id}/cancel": {
+      "post": {
+        "operationId": "cancelReservationJob",
+        "summary": "Cancel a reservation job",
+        "description": "Cancels a queued job. Once the worker has claimed it (running), it can no longer be canceled (409 JOB_NOT_CANCELABLE) \u2014 the booking outcome settles the charge. Distinct from POST /api/cancel, which cancels a booked reservation. No automatic refund \u2014 the paid charge becomes refund_pending; claim it via the refund endpoint. Identity-only ($0 auth).",
+        "x-guidance": "Confirm with the user before canceling. After cancellation, tell the user the charge is refund-eligible and claim it with POST /api/reservation-jobs/{job_id}/refund.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0"
+          },
+          "protocols": [
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20C000000000000000000000b9537d11c60E8b50"
+              }
+            },
+            {
+              "x402": {
+                "networks": [
+                  "eip155:8453",
+                  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                ]
+              }
+            }
+          ]
+        },
+        "security": [
+          {
+            "agentKey": []
+          },
+          {
+            "walletAuth": []
+          },
+          {
+            "x402Auth": []
+          },
+          {
+            "siwxAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job canceled (or cancel requested)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "job_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "queued",
+                        "running",
+                        "cancel_requested",
+                        "succeeded",
+                        "failed",
+                        "canceled",
+                        "timed_out"
+                      ]
+                    },
+                    "was_already_canceled": {
+                      "type": "boolean"
+                    },
+                    "charge_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "payment": {
+                      "type": "object",
+                      "description": "Billing state of the charge that funded this operation.",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "paid",
+                            "covered",
+                            "refund_pending",
+                            "refunded",
+                            "refund_failed"
+                          ]
+                        },
+                        "rail": {
+                          "type": "string",
+                          "enum": [
+                            "x402_base_usdc",
+                            "mpp_tempo_stablecoin",
+                            "api_key_subscription"
+                          ]
+                        },
+                        "amount_cents": {
+                          "type": "integer"
+                        },
+                        "currency": {
+                          "type": "string"
+                        },
+                        "asset_symbol": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "payer_identifier": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "settlement_tx_hash": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "next_step": {
+                          "type": "string",
+                          "description": "Present when the charge is refund_pending \u2014 the refund claim call to make."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required. Response advertises MPP and x402 payment options.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 PaymentRequired payload. Decode it to inspect x402Version, accepts, resource, and extensions.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "MPP payment challenge for Tempo clients.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "challengeId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "enum": [
+                        402
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found for this account",
+            "x-error-codes": [
+              "JOB_NOT_FOUND"
+            ]
+          },
+          "409": {
+            "description": "Job is already terminal and cannot be canceled",
+            "x-error-codes": [
+              "JOB_NOT_CANCELABLE"
+            ]
+          },
+          "503": {
+            "description": "Reservation jobs are not currently available",
+            "x-error-codes": [
+              "FEATURE_DISABLED"
+            ]
+          }
+        }
+      }
+    },
+    "/api/reservation-jobs/{job_id}/refund": {
+      "post": {
+        "operationId": "claimReservationJobRefund",
+        "summary": "Claim the refund for a terminal reservation job",
+        "description": "The delayed, user-claimed refund. Claimable only once the job is canceled, failed, or timed_out. Idempotent \u2014 a double-claim returns the existing refund. A refund_failed charge can be claimed again. Subscription-covered jobs have no refund. Identity-only ($0 auth).",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0"
+          },
+          "protocols": [
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "0x20C000000000000000000000b9537d11c60E8b50"
+              }
+            },
+            {
+              "x402": {
+                "networks": [
+                  "eip155:8453",
+                  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                ]
+              }
+            }
+          ]
+        },
+        "security": [
+          {
+            "agentKey": []
+          },
+          {
+            "walletAuth": []
+          },
+          {
+            "x402Auth": []
+          },
+          {
+            "siwxAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Refund executed (or already refunded)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "job_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "charge_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "refund": {
+                      "type": "object",
+                      "description": "Refund outcome for a paid charge. Covered (subscription) usage never has a refund.",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "refunded",
+                            "refund_failed",
+                            "already_refunded",
+                            "in_progress",
+                            "none"
+                          ]
+                        },
+                        "refund_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "tx_hash": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required. Response advertises MPP and x402 payment options.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 PaymentRequired payload. Decode it to inspect x402Version, accepts, resource, and extensions.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "MPP payment challenge for Tempo clients.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "challengeId"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "enum": [
+                        402
+                      ]
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "challengeId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found for this account",
+            "x-error-codes": [
+              "JOB_NOT_FOUND"
+            ]
+          },
+          "409": {
+            "description": "Job is not refund-eligible yet, or the charge is subscription-covered",
+            "x-error-codes": [
+              "REFUND_FAILED"
+            ]
+          },
+          "502": {
+            "description": "Refund transfer failed \u2014 retryable",
+            "x-error-codes": [
+              "REFUND_FAILED"
+            ]
+          },
+          "503": {
+            "description": "Reservation jobs are not currently available",
+            "x-error-codes": [
+              "FEATURE_DISABLED"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "agentKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-agent-key",
+        "description": "Per-account API key (starts with `agentres_`). The key carries account identity \u2014 no userId parameter needed. Identity endpoints need only a valid key; paid operations (POST /api/book, POST /api/reservation-jobs/create) require the key's subscription to be active ($6/month, paid operations covered at $0). See /skill.md for setup instructions."
+      },
+      "walletAuth": {
+        "type": "http",
+        "scheme": "payment",
+        "description": "MPP wallet auth (Tempo). Server returns 402 with WWW-Authenticate challenge. Sign and retry with Authorization: Payment header. Identity endpoints: amount '0'. Booking: 0.01 USDC. Chain: Tempo Mainnet (4217). Currency: USDC (0x20C000000000000000000000b9537d11c60E8b50). Recipient: 0x66717045858D9f598e2ebd046bf42A0B1063C0Fa."
+      },
+      "x402Auth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "PAYMENT-SIGNATURE",
+        "description": "x402 wallet auth (Base/Solana). Send base64-encoded PaymentPayload via PAYMENT-SIGNATURE header. Identity endpoints: $0 payment proof (SIWX also supported and preferred, see siwxAuth). Booking: 0.01 USDC. Chain: Base (eip155:8453), asset: USDC (0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913), recipient: 0x66717045858d9f598e2ebd046bf42a0b1063c0fa. Chain: Solana (solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp), asset: USDC (EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v), recipient: FCFgb8Z63uwim2QpDJW4TGwLqZoENjckwGosLmg26zBS. Facilitator: https://api.cdp.coinbase.com/platform/v2/x402. 402 responses include PAYMENT-REQUIRED header."
+      },
+      "siwxAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "SIGN-IN-WITH-X",
+        "description": "SIWX wallet identity (CAIP-122 Sign-In-With-X \u2014 SIWE on Base, SIWS on Solana; EIP-1271/6492 smart wallets supported). The preferred wallet identity mechanism for $0 endpoints: read the `sign-in-with-x` extension from an identity endpoint's $0 402 PAYMENT-REQUIRED header, sign the CAIP-122 message with your wallet, and retry with the base64-encoded payload in the SIGN-IN-WITH-X header. Nonces are single-use and proofs expire minutes after issuedAt \u2014 fetch a fresh challenge per request. Not a payment mechanism: paid 402s do not carry the extension, and paid endpoints always settle via x402 or MPP."
+      }
+    }
+  }
+}
