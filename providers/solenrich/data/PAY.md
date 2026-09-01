@@ -17,7 +17,7 @@ context windows (`format: "llm"`), or both (`format: "both"`). All endpoints
 are POST to `/entrypoints/{key}/invoke` with a flat JSON body containing the
 parameters in the OpenAPI schema, e.g. `{ "mint": "...", "format": "llm" }`
 (a `{ "input": { ... } }` envelope is also accepted), and settle via x402
-(USDC on Solana). Prices range $0.001–$0.10 per call.
+(USDC on Solana or Base). 38 endpoints; prices range $0.001–$0.10 per call.
 
 What it offers, by task:
 
@@ -36,6 +36,12 @@ What it offers, by task:
 - **Perps** — `perps-cross-venue-funding`, `perps-venue-comparison`, and
   `perps-basis-signal` normalize funding/borrow APR, open interest, skew, and
   entry cost across Jupiter Perps, Adrena, Flash, Hyperliquid, and dYdX v4.
+- **Trenches (fresh launches)** — one trade, three calls: `runner-scan`
+  (which fresh tokens are accelerating), `trenches-check` (vet one token
+  with smart-money, runner, and attention signals), `exit-signal`
+  (EXIT/DERISK/HOLD verdict for a held token). `trenches-scan` composes
+  all three into a ranked list; `attention-momentum` reports where agent
+  attention is accelerating ahead of price.
 - **Discovery and signals** — `new-tokens`, `trending-signals`,
   `consensus-signal` (what other agents are querying right now), and
   poll-based `check-alerts` for price/whale/risk/perp-position events.
