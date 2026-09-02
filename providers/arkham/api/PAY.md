@@ -37,5 +37,5 @@ are embedded per operation in the OpenAPI (`x-payment-info`).
   need**: `{"limit": 2}` costs a tenth of the default.
 - Prefer `intelligence/address` ($0.20) for a single wallet before reaching
   for batch or enriched variants.
-- Heavy endpoints are rate-limited to 1 request/second per wallet; back off on
-  429 instead of retrying hot.
+- Heavy endpoints are rate-limited to 5 requests/second per wallet (100/second
+  elsewhere); back off on 429 instead of retrying hot.
