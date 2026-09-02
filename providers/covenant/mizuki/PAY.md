@@ -28,6 +28,13 @@ with a sponsored fee payer, so a caller needs USDC but not SOL. Echo the
 challenge's `resource.url` exactly; an authorization built from any other origin
 is rejected.
 
+## Checking a repository first
+
+`GET /x402/assess/{owner}/{repo}` reports whether a repository qualifies and which
+command Mizuki would run to validate a change, for 0.001 USDC. It reads the
+repository's root manifests. It is not a quote and reserves nothing, so it is the
+cheap way to find out whether a repository is worth quoting at all.
+
 ## Paying
 
 The 402 body and the `payment-required` header carry the same x402 v2 challenge.
