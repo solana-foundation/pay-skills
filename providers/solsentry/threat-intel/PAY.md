@@ -12,8 +12,8 @@ openapi:
 SolSentry operator-risk and threat-intelligence data via x402 payments. Where
 market-data APIs tell you *what* a token is doing, SolSentry tells you *who*
 deployed it and whether that operator has rugged before — risk scoring backed by
-83,000+ resolved predictions at 97.8% precision on CRITICAL-tier verdicts
-(auditable per-mint at /v1/predictions/{mint}).
+200,000+ recorded predictions at 94.4% CRITICAL precision (live value
+published at /v1/stats; auditable per-mint at /v1/predictions/{mint}).
 
 All paid endpoints live under the `/x402/` path prefix and return an HTTP `402`
 with a `Payment-Required` header on unauthenticated requests. The agent selects a
