@@ -3,7 +3,13 @@
   "info": {
     "title": "BRIJ Flight API",
     "version": "1.0.0",
-    "description": "Production flight API for paid flight search, escrow-backed booking intents,\nand airline order status lookup.\n\n`POST /air/search` accepts either a valid x402 `PAYMENT-SIGNATURE` or a\nBRIJ gateway sponsored-preview signature. `POST /air/intents`,\n`POST /air/intents/{intent_id}/book`, and\n`POST /air/intents/{intent_id}/refund-requests` are protected by x402.\nClients that do not send a valid `PAYMENT-SIGNATURE` header receive\n`402 Payment Required` with a `PAYMENT-REQUIRED` header and JSON payment\nrequirements body.\n"
+    "contact": {
+      "name": "BRIJ Travel support",
+      "email": "support@brij.fi",
+      "url": "https://travel.brij.fi"
+    },
+    "description": "Production flight API for paid flight search, escrow-backed booking intents,\nand airline order status lookup.\n\n`POST /air/search` accepts either a valid x402 `PAYMENT-SIGNATURE` or a\nBRIJ gateway sponsored-preview signature. `POST /air/intents`,\n`POST /air/book`, and `POST /air/refund-requests` are protected by x402.\nClients that do not send a valid `PAYMENT-SIGNATURE` header receive\n`402 Payment Required` with a `PAYMENT-REQUIRED` header and JSON payment\nrequirements body.\n\nAction endpoints (POST /air/book, POST /air/refund-requests) take intent_id\nin the request body — never in the path. The two reads are path-addressed:\nGET /air/intents/{intent_id} and GET /air/orders/{order_id}.\n",
+    "x-guidance": "Four steps, each paid per call with x402 (USDC on Solana).\n\n1. POST /air/search — find live offers. Price is dynamic: 0.10 USDC x1..50 depending on load, so always read the current PAYMENT-REQUIRED challenge rather than reusing a price you saw earlier.\n2. POST /air/intents — lock one offer_id and derive its escrow. Costs 0.10 USDC. The response carries the intent id, the customer_support_code (PERSIST BOTH — the support code cannot be re-read later and is required to read the order or request a refund) and passenger_count: how many passengers /air/book must supply.\n3. POST /air/book — send intent_id and exactly passenger_count passengers in the body, LEAD PASSENGER FIRST (the lead receives all emails and is the identity for refund requests; duplicate travellers are refused). The price is this intent's escrow amount, i.e. the ticket total for all passengers, quoted in the challenge. Booking is asynchronous: a 200 means the request was accepted, then poll GET /air/intents/{intent_id} until status is booked or refunded.\n4. POST /air/refund-requests — optional, 0.10 USDC. Needs intent_id in the body plus the X-Customer-Support-Code header and X-Passenger-Family-Name: the LEAD passenger's family name. It files a request for manual review; it does not execute a refund.\n\nAction POSTs never take an id in the path: send intent_id in the request body of POST /air/book and POST /air/refund-requests. The two GET reads (GET /air/intents/{intent_id}, GET /air/orders/{order_id}) are path-addressed. If the upstream price moved between steps 2 and 3 the booking is rejected and the escrow is refunded automatically to the refund wallet frozen at intent creation.\n\nTo drill into one offer (fresh price/expiry, paid-ancillary prices such as extra bags), POST /air/offer-details with the offer_id — cheaper than re-searching. Seat maps and legal fare-rule text remain unobtainable: when a decision depends on them, say so to the customer rather than guessing.\n\nNever answer \"no fare with property X exists\" from a truncated ungrouped search: pricier variants (refundable, with bags, higher cabin) sort to the tail and fall off. Use cheapest_per_itinerary=true and read fare_options."
   },
   "servers": [
     {
@@ -31,7 +37,8 @@
           "health"
         ],
         "operationId": "getHealth",
-        "summary": "Check API service liveness.",
+        "summary": "Check process liveness.",
+        "security": [],
         "responses": {
           "200": {
             "description": "Service is alive.",
@@ -53,6 +60,7 @@
         ],
         "operationId": "getReadiness",
         "summary": "Check database readiness.",
+        "security": [],
         "responses": {
           "200": {
             "description": "Service is ready.",
@@ -77,20 +85,21 @@
         }
       }
     },
-    "/openapi.yaml": {
+    "/openapi.json": {
       "get": {
         "tags": [
           "health"
         ],
         "operationId": "getOpenAPI",
         "summary": "Fetch this OpenAPI document.",
+        "security": [],
         "responses": {
           "200": {
-            "description": "OpenAPI YAML.",
+            "description": "OpenAPI JSON.",
             "content": {
-              "application/yaml": {
+              "application/json": {
                 "schema": {
-                  "type": "string"
+                  "type": "object"
                 }
               }
             }
@@ -105,7 +114,18 @@
         ],
         "operationId": "searchFlights",
         "summary": "Search live flight offers.",
-        "description": "Flight search can be paid with x402 or sponsored by the BRIJ gateway.\n\nFor direct x402 clients, send a valid `PAYMENT-SIGNATURE` header. Without\npayment, the API returns `402 Payment Required` carrying the **current** price.\n\nFor BRIJ Wallet preview calls, the gateway may send `X-BRIJ-SPONSORED-*`\nheaders. Providers should treat that as a BRIJ-sponsored preview, not as a\nuser-paid x402 settlement.\n\nBase x402 price is 0.10 USDC. The price is multiplied (up to 50×) by the\ncurrent search load: completed searches in the last 60 seconds and\nany upstream rate-limit response in the last 5 minutes. Always read\nthe latest `PAYMENT-REQUIRED` challenge before signing - the price\nyour client saw a moment ago may already be stale.\n",
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "dynamic",
+            "currency": "USD",
+            "min": "0.10",
+            "max": "5.00"
+          }
+        },
+        "description": "Flight search can be paid with x402 or sponsored by the BRIJ gateway.\n\nFor direct x402 clients, send a valid `PAYMENT-SIGNATURE` header. Without\npayment, the API returns `402 Payment Required` carrying the **current** price.\n\nFor BRIJ Wallet preview calls, the gateway may send `X-BRIJ-SPONSORED-*`\nheaders. Providers should treat that as a BRIJ-sponsored preview, not as a\nuser-paid x402 settlement.\n\nEvery price in the response is the price a buyer pays: total_amount / total_amount_decimal (offers, fare_options, highlights) are all-in, and max_price filters on that figure. POST /air/intents asks exactly this amount as expected_escrow_amount (a wallet enrolled in a fee-waiving cohort is asked less, never more).\n\nBase x402 price is 0.10 USDC. The price is multiplied (up to 50×) by the\ncurrent search load: completed searches in the last 60 seconds and\nany upstream rate-limit response in the last 5 minutes. Always read\nthe latest `PAYMENT-REQUIRED` challenge before signing - the price\nyour client saw a moment ago may already be stale.\n\n\nThe same flight commonly appears several times at different prices: each offer is one fare (fare_brand_name, baggage, change/refund conditions) sold by one seller (owner_name). Two offers on the same flight can share identical conditions and differ only in seller and price — compare the fare fields, never assume cheaper means more restrictive.\n\n**Data boundaries — what this response does and does not contain.**\nEach offer carries EVERYTHING the flight inventory provider discloses at search time: itinerary (legs, times with IANA timezones, durations, aircraft, terminals, technical stops), identity (comparison_key, both carriers on codeshares, flight numbers, fare_basis_code), fare content (brand, cabin, included baggage, change/refund conditions with penalties), price breakdown (base + tax), CO2 estimate, and loyalty programmes. To drill into ONE offer — fresh price/expiry and paid-ancillary prices — use POST /air/offer-details. Filters (max_stops, departure_after/before, max_price) apply before sort, grouping and limit — so limit + sort=duration + max_stops=0 means \"the fastest directs\". Offers default to cheapest first; a full response can exceed 300 KB, so LLM-driven agents should send cheapest_per_itinerary=true with a limit and drill into finalists.\n\nNot available in SEARCH results (use POST /air/offer-details per offer):\n- Prices of paid ancillaries (extra checked bags and other extras).\n- Seat maps and specific seat availability.\n- Full legal fare-rule text. It does not exist upstream in machine form: the structured conditions object IS the complete machine-readable ruleset. For airline-side research, fare_basis_code plus the marketing carrier identifies the exact fare.\n\nEverywhere in this response, null/empty means the airline did not disclose the value — unknown, never zero or false.\n\n**Anti-pattern — truncation without grouping.** cheapest_per_itinerary=false combined with a small limit returns the N cheapest fare INSTANCES, not the N cheapest itineraries. Basic/Lite fares are always cheaper than Comfort/Flex/refundable/business variants of the SAME flight, so the pricier variants sort to the tail and fall off — and their absence from a truncated response proves nothing. To answer \"is there a refundable / with-bag / higher-cabin fare?\", always use cheapest_per_itinerary=true and read fare_options; it is lossless on price, brand, refund/change conditions and checked bags.\n\n**Progressive results.** The response may carry `status: enriching` plus a `search_id`: slower, cheaper fulfiller tiers are still quoting. Poll the free POST /air/search-updates with that `search_id` (every ~`poll_after_ms`) to receive their offers as they land, until `status: complete`. If you skip polling you simply act on the fast tiers' offers — nothing else changes.",
         "security": [
           {
             "x402PaymentSignature": []
@@ -202,7 +222,17 @@
         ],
         "operationId": "createBookingIntent",
         "summary": "Create an escrow-backed booking intent from a selected offer.",
-        "description": "Paid x402 endpoint. Send a valid `PAYMENT-SIGNATURE` header to create\nthe intent. Without payment, the API returns `402 Payment Required`.\n\nCreates the local booking intent and initializes its Solana escrow.\nThis does not fund the escrow, pay the airline, or issue a ticket.\n",
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.10"
+          }
+        },
+        "description": "Paid x402 endpoint. Send a valid `PAYMENT-SIGNATURE` header to create\nthe intent. Without payment, the API returns `402 Payment Required`.\n\nOptional request field referrer: an affiliate code (see POST /affiliates) — the resolved affiliate wallet is frozen on the intent and credited a share of the platform fee once the booking captures and the journey is flown without refund; unknown or self-referring codes are silently ignored.\n\nCreates the local booking intent and initializes its Solana escrow.\nThis does not fund the escrow, pay the airline, or issue a ticket.\n\n**Lowcost (lowcost: offers).** These book through a browser-driven fulfiller, not an airline API, so a few rules differ. The escrow amount is the offer's own price (fare menus from POST /air/offer-details are bookable: an offer_id like \"lowcost:<flight>##<n>\" locks fare n and the escrow prices at that fare). A fare offer_id is only bookable while its menu is fresh (~30 min) — a stale one returns 409 fare_menu_expired, re-open the fares and retry. If the most recent fare check (POST /air/offer-details) for the offer failed within the last ~30 min, intent creation returns 409 fare_check_failed — a failed fare check temporarily blocks booking that offer; retry POST /air/offer-details in a few minutes and book once it answers. If lowcost booking is not currently open, intent creation returns 409 lowcost_booking_unavailable — book a fastbooking offer, or retry later. An unknown/expired lowcost offer_id returns 404 offer_not_found. Booking then requires the travel document at POST /air/book (see there).",
         "security": [
           {
             "x402PaymentSignature": []
@@ -267,7 +297,7 @@
             }
           },
           "409": {
-            "description": "Offer is unsupported or no longer usable, or an active intent already exists for this funding_wallet and offer_id (code `intent_already_exists`; the existing intent_id is returned in `detail.intent_id`).",
+            "description": "Offer is unsupported or no longer usable, or an active intent already exists for this funding_wallet and offer_id (code `intent_already_exists`; the existing intent_id is returned in `detail.intent_id`); for lowcost offers also lowcost_booking_unavailable, fare_check_failed (a recent fare check failed — retry POST /air/offer-details in a few minutes), fare_menu_expired, or invalid_fare_index.",
             "content": {
               "application/json": {
                 "schema": {
@@ -299,58 +329,28 @@
         }
       }
     },
-    "/air/intents/{intent_id}": {
-      "get": {
-        "tags": [
-          "intents"
-        ],
-        "operationId": "getBookingIntent",
-        "summary": "Fetch a booking intent by id.",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/IntentID"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Booking intent.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/IntentResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Booking intent not found.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/air/intents/{intent_id}/book": {
+    "/air/book": {
       "post": {
         "tags": [
           "intents"
         ],
-        "operationId": "requestBooking",
+        "operationId": "bookIntent",
         "summary": "Pay the escrow and request booking.",
-        "description": "Paid x402 endpoint. The payment challenge is dynamic for the intent:\n`payTo` is the intent escrow address, `asset` is the expected escrow\nmint, and `amount` is the expected escrow amount.\n\nAfter x402 settlement, the API records passenger details, verifies exact\nescrow funding on-chain, and enqueues the booking worker. Airline payment\nand escrow capture happen asynchronously.\n\nIf booking fails after x402 settlement, retry the same `/book` call;\nexcess funds remain refundable to `refund_wallet`.\n",
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "dynamic",
+            "currency": "USD",
+            "min": "10.00",
+            "max": "10000.00"
+          }
+        },
+        "description": "The intent id travels in the request body; the resource URL is static. Paid x402 endpoint. The payment challenge is dynamic for the intent:\n`payTo` is the intent escrow address, `asset` is the expected escrow\nmint, and `amount` is the expected escrow amount.\n\nAfter x402 settlement, the API records the passenger list (lead first), verifies exact\nescrow funding on-chain, and enqueues the booking worker. Airline payment\nand escrow capture happen asynchronously.\n\nIf booking fails after x402 settlement, retry the same `/book` call;\nexcess funds remain refundable to `refund_wallet`.\n\n**Lowcost travel document.** For an intent created on a lowcost: offer, each passenger additionally requires nationality, passport_number, and passport_expiry (YYYY-MM-DD, in the future) — the supplier's booking form demands them. Missing or expired documents are refused BEFORE payment (400 travel_document_required / travel_document_expired). Booking is asynchronous exactly like fastbooking: poll GET /air/intents/{intent_id} until booked or refunded. A lowcost booking is captured only once the airline actually issues the ticket, and auto-refunds if it never does.",
         "security": [
           {
             "x402PaymentSignature": []
-          }
-        ],
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/IntentID"
           }
         ],
         "requestBody": {
@@ -358,7 +358,21 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RequestBookingRequest"
+                "$ref": "#/components/schemas/BookRequest"
+              },
+              "example": {
+                "intent_id": "intent_0000000000000000",
+                "passengers": [
+                  {
+                    "given_name": "Jane",
+                    "family_name": "Doe",
+                    "born_on": "1990-01-01",
+                    "title": "ms",
+                    "gender": "f",
+                    "email": "jane.doe@example.com",
+                    "phone_number": "+15551234567"
+                  }
+                ]
               }
             }
           }
@@ -403,7 +417,7 @@
             }
           },
           "409": {
-            "description": "Intent is not active, escrow is missing, funding is not exact, or `booking_already_requested` if a prior /book succeeded for this intent (retry has no effect; the worker is processing it).",
+            "description": "Intent is not active, `intent_expired` if its booking window has closed (create a new intent from a fresh offer; detail carries `expired_at`), `offer_expired` if the offer has left the airline's inventory, `offer_repriced` if its live price no longer matches the intent (detail carries `expected_ticket_amount` and `current_ticket_amount`) — both checked live against the airline BEFORE settlement, so the refusal is free — escrow is missing, funding is not exact, or `booking_already_requested` if a prior /book succeeded for this intent (retry has no effect; the worker is processing it).",
             "content": {
               "application/json": {
                 "schema": {
@@ -454,23 +468,30 @@
         }
       }
     },
-    "/air/intents/{intent_id}/refund-requests": {
+    "/air/refund-requests": {
       "post": {
         "tags": [
           "intents"
         ],
-        "operationId": "requestIntentRefund",
-        "summary": "Create a manual refund request for a booked intent.",
-        "description": "Paid x402 endpoint. Send a valid `PAYMENT-SIGNATURE` header to record\nthe refund request. Without payment, the API returns `402 Payment Required`.\n\nRecords a refund request for a booked intent. The on-chain escrow has\nalready been captured by the time the intent is `booked`, so refunds at\nthis stage are processed manually by an operator. This endpoint persists\nthe request and pages the operator on Telegram; the response is\n`202 Accepted` and is **not** a guarantee of refund — eligibility and\nany applicable carrier penalties are reviewed manually.\n\nFor pre-capture states (`active`), the booking_sync worker handles\nrefunds automatically; this endpoint returns `409 use_automatic_refund`\nfor those.\n\nThe caller must include the `X-Customer-Support-Code` header matching\nthe code returned at intent creation.\n",
+        "operationId": "createRefundRequest",
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.10"
+          }
+        },
+        "summary": "Request a manual refund after the intent has been booked.",
+        "description": "The intent id travels in the request body; the resource URL is static. Paid x402 endpoint. Send a valid `PAYMENT-SIGNATURE` header to record\nthe refund request. Without payment, the API returns `402 Payment Required`.\n\nRecords a refund request for a booked intent. The on-chain escrow has\nalready been captured by the time the intent is `booked`, so refunds at\nthis stage are processed manually by an operator. This endpoint persists\nthe request and pages the operator on Telegram; the response is\n`202 Accepted` and is **not** a guarantee of refund — eligibility and\nany applicable carrier penalties are reviewed manually.\n\nFor pre-capture states (`active`), the booking_sync worker handles\nrefunds automatically; this endpoint returns `409 use_automatic_refund`\nfor those.\n\nThe caller must include the `X-Customer-Support-Code` header matching\nthe code returned at intent creation.\n\n\nFor multi-passenger bookings, X-Passenger-Family-Name is the LEAD passenger's family name (position 0 of the /air/book list).",
         "security": [
           {
             "x402PaymentSignature": []
           }
         ],
         "parameters": [
-          {
-            "$ref": "#/components/parameters/IntentID"
-          },
           {
             "name": "X-Customer-Support-Code",
             "in": "header",
@@ -497,8 +518,16 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["reason"],
+                "required": [
+                  "intent_id",
+                  "reason"
+                ],
                 "properties": {
+                  "intent_id": {
+                    "type": "string",
+                    "description": "Id returned by POST /air/intents.",
+                    "example": "intent_0000000000000000"
+                  },
                   "reason": {
                     "type": "string",
                     "maxLength": 1000,
@@ -510,6 +539,11 @@
                     "description": "Optional reply-to channel (email, phone, etc.) the operator can use to follow up."
                   }
                 }
+              },
+              "example": {
+                "intent_id": "intent_0000000000000000",
+                "reason": "Passenger can no longer travel on these dates.",
+                "contact": "jane.doe@example.com"
               }
             }
           }
@@ -529,7 +563,11 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["intent_id", "requested_at", "status"],
+                  "required": [
+                    "intent_id",
+                    "requested_at",
+                    "status"
+                  ],
                   "properties": {
                     "intent_id": {
                       "type": "string"
@@ -540,7 +578,9 @@
                     },
                     "status": {
                       "type": "string",
-                      "enum": ["received"]
+                      "enum": [
+                        "received"
+                      ]
                     }
                   }
                 }
@@ -619,6 +659,43 @@
         }
       }
     },
+    "/air/intents/{intent_id}": {
+      "get": {
+        "tags": [
+          "intents"
+        ],
+        "operationId": "getBookingIntent",
+        "summary": "Fetch a booking intent by id.",
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IntentID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Booking intent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Booking intent not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/air/orders/{order_id}": {
       "get": {
         "tags": [
@@ -626,7 +703,13 @@
         ],
         "operationId": "getAirOrder",
         "summary": "Fetch airline order status.",
-        "description": "Returns the airline PNR and order status. Requires the `X-Customer-Support-Code` returned at intent creation — the same code used to authorize refund requests.",
+        "description": "Returns the booking reference and order status for ANY fulfiller — a Duffel ticket is read from Duffel, a partner-tier booking (lowcost, ryanair) from the marketplace's own record: the supplier reference, the airline PNR the settlement oracle extracted from the confirmation email, and the engaged amount. Paid x402 endpoint at a token $0.01 USDC, and still gated by the X-Customer-Support-Code returned at intent creation. Refusals are never charged: a missing or wrong code (401/403) or an unknown order (404) happens before the payment settles. Note the response distinguishes an unknown order (404) from a wrong code (403).",
+        "security": [
+          {
+            "x402PaymentSignature": [],
+            "customerSupportCode": []
+          }
+        ],
         "parameters": [
           {
             "name": "order_id",
@@ -636,15 +719,6 @@
               "type": "string"
             },
             "example": "ord_0000000000000000000000"
-          },
-          {
-            "name": "X-Customer-Support-Code",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "example": "BRIJ-K7MQ-T9RV"
           }
         ],
         "responses": {
@@ -654,6 +728,24 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required: PAYMENT-REQUIRED header carries the x402 challenge ($0.01).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 payment requirements.",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -688,6 +780,734 @@
               }
             }
           }
+        },
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          }
+        }
+      }
+    },
+    "/air/offer-details": {
+      "post": {
+        "summary": "Drill into one offer: live re-fetch, paid-ancillary prices, and (lowcost) the full fare menu.",
+        "description": "Paid x402 endpoint: $0.01 USDC for fastbooking: offers, $0.10 USDC for offers from a browser tier (lowcost:, ryanair:) — reading their fare menu costs a real browser session at the supplier — the PAYMENT-REQUIRED challenge always quotes the applicable price.\n\nfastbooking: offers — re-fetches the offer from the flight provider and returns it in the same shape as search results, with CURRENT price and expires_at, plus available_services: the purchasable extras (checked bags with weight limits and prices) on that exact fare. fare_options lists EVERY fare of this flight (same aircraft, every brand: Basic, Standard, Flex…), fresh from the supplier and price-ascending, each with its own bookable offer_id — including fares the search left out of its page. Pick the row you want and pass its offer_id to POST /air/intents.\n\nbrowser-tier offers (lowcost:, ryanair:) — return the offer with fare_options filled from the supplier's own fare menu: per fare, the price, cabin, seats_left, and conditions[] (the supplier's verbatim wording for baggage allowances and refund policy — {type, text} pairs such as CARRY_ON, CONSIGN, UN_REFUND). Each fare row carries its own bookable offer_id ('<tier>:<flight>##<n>', e.g. 'lowcost:2026-11-07T20:35|2026-11-07T21:55|FR##1') and fare_index: create the intent on that offer_id to book THAT fare - the escrow prices at the fare, and the fulfiller selects the same menu index at the supplier. The fare menu must be fresh (re-drill after ~30 min: 409 fare_menu_expired). Expect 20-45s on a cold read; 504 fares_pending means the menu is still being fetched — retry the same request in ~15s and it returns the cached result. Results are cached ~5 min per offer_id, so repeats are instant and free of supplier load.\n\nUse it to (1) answer \"how much is an extra bag on this fare?\" or \"is this lowcost fare refundable?\" — the ancillary/conditions questions search results cannot answer — and (2) revalidate a single offer minutes after a search, which is cheaper and quota-friendlier than re-searching.\n\nA stale or unknown offer_id returns 404 and the payment is never settled: refusals cost nothing. Offers expire roughly 20-30 minutes after search; on 404, re-search.\n\nServices are informational only: this API books the fare as-is and cannot add services to the order.",
+        "operationId": "offerDetails",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OfferDetailsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Offer detail.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "description": "Base64-encoded x402 settlement response.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OfferDetailsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing offer_id or invalid JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required: PAYMENT-REQUIRED header carries the x402 challenge.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 payment requirements.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Offer unknown or expired — the payment is never settled. Re-search to get fresh offers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Upstream rate limited; Retry-After header set.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "lowcost only: the fare menu is still being fetched at the supplier. Retry the same request in ~15s — it picks up the cached result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "lowcost only: the supplier no longer shows this offer. Re-search.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "x402PaymentSignature": []
+          }
+        ],
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01",
+            "note": "lowcost: offers cost 0.10 — always read the live PAYMENT-REQUIRED challenge"
+          }
+        }
+      }
+    },
+    "/air/search-updates": {
+      "post": {
+        "tags": [
+          "flights"
+        ],
+        "operationId": "searchUpdates",
+        "summary": "Poll a progressive search for offers still arriving (free).",
+        "description": "Free companion to POST /air/search — no x402 payment: the search was already paid, and the unguessable `search_id` is the authorization.\n\nA search answers within seconds with the fast tiers' offers and `status: enriching` when slower, cheaper fulfiller tiers are still working. Poll this endpoint (respecting `poll_after_ms`, ~5s) until `status: complete`. Each poll returns the full merged-and-deduplicated offer list so far — idempotent reads, safe to retry.\n\nThe `search_id` expires ~5 minutes after the search; after that this endpoint returns 410 and a new search is needed. The rest of the purchase tunnel (offer-details, intents, book) is unchanged — offers gained here are used exactly like offers from the initial response.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchUpdatesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Merged offers so far, plus progress.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchUpdatesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or malformed search_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown search_id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "This search_id has expired; run a new search.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recipes": {
+      "get": {
+        "summary": "The recipe catalog with settlement stats",
+        "description": "Free. The pinned fulfiller-recipe registry: one entry per supplier domain (discovery facts: flow, kind, regions, cabins, trip types, currency cap, partner, primary, protocol_version) plus settlement-truth stats per domain (orders assigned, booked, captured — ticket actually issued —, refund classes, booking_rate, capture_rate, avg minutes to ticket, per-task run telemetry with an exit-code taxonomy) over last_30d and all_time windows, the pinned recipes_sha, the pinned recipe_spec_sha (the recipe-spec commit whose SDK production runs — an author develops against that public repo, whose main can be ahead of it), and supported_protocol_versions. Infra failures are attributed to the platform, never to a recipe.",
+        "responses": {
+          "200": {
+            "description": "The catalog. Human version at /fulfillers; the full machine guide (buying, fulfilling, authoring) at /docs/llms.txt."
+          }
+        }
+      }
+    },
+    "/recipes/submissions": {
+      "post": {
+        "summary": "Submit a fulfiller recipe (paid x402: 1 USDC)",
+        "description": "Paid x402 endpoint, 1 USDC all-inclusive. Submit {author_wallet, domain, manifest_yaml, recipe_js, supersedes?}. The paying wallet is the author's durable identity (payout, stake, reputation). Pipeline: static contract review (denylist: no subprocesses, no runtime-built code, no unreviewable encoded blobs; plus the executable contract — protocol_version 1, capabilities naming all three tasks with their input schemas, and author.wallet equal to the submitting wallet) → sandboxed dry-run against the live supplier with runner-collected evidence (a dry run that clicks Pay is refused unconditionally) → structured AI judge (evidence vs manifest vs code; low-confidence pass is not a pass; judge outage escalates to a human). Response is 200 whether queued or rejected — the findings are what the fee buys. An external recipe books with the real card once its commit is reviewed and pinned — what authorizes the card is the pin, not the author. Authoring guide: /docs/recipes; contract: https://github.com/brij-digital/recipe-spec.",
+        "responses": {
+          "200": {
+            "description": "{submission_id, status, findings[]} — poll GET /recipes/submissions/{submission_id}"
+          },
+          "402": {
+            "description": "x402 payment required (1 USDC)"
+          }
+        }
+      }
+    },
+    "/recipes/submissions/{submission_id}": {
+      "get": {
+        "summary": "Submission status",
+        "description": "Free. Status of a recipe submission: payment_pending (fee not yet settled — never runs; unpaid if the settle fails; a settle that never returns pages the operator for manual review) → pending_dryrun or rejected → judged (pass/fail + findings) → awaiting_activation → activated (registry merge + pin landed). Every response carries next_step naming whose move it is. ACTIVATION POLICY: findings-clean or nothing — open block/warn findings send the ball back to the author (fix and resubmit via supersedes); note-severity findings are observations and gate nothing.",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{status, next_step, findings, …}"
+          }
+        }
+      }
+    },
+    "/recipes/submissions/{submission_id}/evidence": {
+      "get": {
+        "summary": "Submission dry-run evidence",
+        "description": "Free. The author's read-back of their own dry-run: per-task outcome (exit code, duration, summary, transcript tail, Browserbase session_id, phases timeline + failure_phase from the recipe's emitPhase calls) as collected by the marketplace's runner, plus the judge's verdict when one exists. Failing tasks may carry screenshots — fetch each at …/evidence/screenshots/{name}. The submission id is the capability: it is returned only to the submitter. Iterate on this, fix, resubmit.",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{status, dry_run: {route, tasks[], passed}, judge, findings}"
+          }
+        }
+      }
+    },
+    "/recipes/submissions/{submission_id}/evidence/screenshots/{name}": {
+      "get": {
+        "summary": "Submission failure screenshot",
+        "description": "Free. One failure screenshot harvested from the dry-run sandbox before teardown (failing tasks only, bounded, 7-day retention). Names come from the evidence's tasks[].screenshots.",
+        "parameters": [
+          {
+            "name": "submission_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "image/png"
+          }
+        }
+      }
+    },
+    "/recipes/oracles": {
+      "get": {
+        "summary": "Settlement-oracle readiness per tier",
+        "description": "Free. Each browser tier's email-settlement oracle state: domain, template label, and ready (true = patterns loaded and the tier can capture; false = bootstrap — sender-only declaration, nothing settles until the first real confirmation email writes the patterns). Fulfiller instances in a paying purchase mode check this at boot.",
+        "responses": {
+          "200": {
+            "description": "{\"<tier>\": {domain, template, ready}}"
+          }
+        }
+      }
+    },
+    "/affiliates": {
+      "post": {
+        "summary": "Get your referral code (free, idempotent)",
+        "description": "Free. {wallet} → {code, link}. One short code per Solana wallet — share app.brij.fi/?ref=<code> (or pass referrer on POST /air/intents). Referred bookings credit 20% of the platform fee to your wallet — earned when the booking captures (ticket actually issued), vested only once the journey has been flown with no refund issued (pending until then). Statement: GET /affiliates/{code}. Payouts are periodic USDC transfers once the balance clears the minimum.",
+        "responses": {
+          "200": {
+            "description": "{code, link}"
+          }
+        }
+      }
+    },
+    "/affiliates/{code}": {
+      "get": {
+        "summary": "Affiliate statement",
+        "description": "Free, public, self-serve: referred captured bookings, referred vested bookings (flown, unrefunded), accrued (vested), pending (not flown yet), paid, balance (micros USDC) and the share_bps.",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The statement"
+          },
+          "404": {
+            "description": "unknown code"
+          }
+        }
+      }
+    },
+    "/recipes/session-challenge": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "operationId": "authorSessionChallenge",
+        "summary": "Bytes to sign to open an author session.",
+        "description": "Free. Returns the exact message to sign with the recipe author's wallet: prefix, wallet and timestamp on three lines. Sign it verbatim — the server compares the canonical message, not a substring of it.",
+        "parameters": [
+          {
+            "name": "wallet",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "9a6pGJsb9gUoYJVWvrBDGxm2Yvqti9AKs6tEL9maZBG7"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The message to sign.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "wallet is required."
+          }
+        }
+      }
+    },
+    "/recipes/session": {
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "operationId": "authorSession",
+        "summary": "Open an author session (24h bearer token).",
+        "description": "Free. Post the signed challenge; get a bearer token scoped to recipe authorship — an app or fulfiller token cannot be used in its place, and this one cannot be used in theirs. A session is only an authenticated name: ownership is checked per read, against the manifest, at that moment. The signature is the ed25519 signature of the challenge message, BASE64-encoded (standard, padded) — not base58; a base58 signature is refused as invalid_proof.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "wallet",
+                  "message",
+                  "signature"
+                ],
+                "properties": {
+                  "wallet": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "signature": {
+                    "type": "string",
+                    "description": "base64 ed25519 signature of the exact challenge"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token issued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string"
+                    },
+                    "expires_in": {
+                      "type": "integer"
+                    },
+                    "wallet": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The signature does not match, or the challenge expired."
+          }
+        }
+      }
+    },
+    "/recipes/source/{domain}": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "operationId": "recipeSource",
+        "summary": "Read back the recipe you authored.",
+        "description": "Free, and scoped: the session wallet must equal the domain's author.wallet in the pinned manifest. Returns the pinned recipe.mjs and manifest.yaml, plus the registry SHA they came from — what you need to submit an update with `supersedes`. Ownership is re-read on every call, so authorship that moved bites immediately rather than at token expiry. A domain naming no wallet is owned by nobody. Response is never cached (private, no-store).",
+        "security": [
+          {
+            "authorSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "ryanair.com"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pinned source.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "domain": {
+                      "type": "string"
+                    },
+                    "recipes_sha": {
+                      "type": "string"
+                    },
+                    "recipe_js": {
+                      "type": "string"
+                    },
+                    "manifest_yaml": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No author session."
+          },
+          "403": {
+            "description": "This wallet is not that domain's author."
+          },
+          "404": {
+            "description": "No such domain in the pinned registry."
+          }
+        }
+      }
+    },
+    "/recipes/canary/{domain}": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "operationId": "recipeCanary",
+        "summary": "Last daily canary run of the recipe you authored.",
+        "description": "Free, author-scoped like /recipes/source. Once a day the marketplace runs the same walk-only dry-run a submission gets (search → offer-details → book, no card, Pay never clicked) on every activated recipe, so a supplier site that moved is found before a customer's order. Returns the last run: ran_at, passed (the guichet's own rule: a guest-flow recipe reaches a priced checkout with payReachable:true; an ephemeral-account recipe stops cleanly at the signup wall), a one-line summary, and the full dry_run evidence in the same shape as /recipes/submissions/{id}/evidence. Screenshots of that run at …/canary/{domain}/screenshots/{name}. 404 canary_not_run until the first run. Never cached. Each task carries the Browserbase session_id of its run; fetch the video replay at …/canary/{domain}/replays/{task} (HLS), or watch it in the dashboard session inspector at https://www.browserbase.com/sessions/{session_id}.",
+        "security": [
+          {
+            "authorSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "ryanair.com"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The last run.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "domain": {
+                      "type": "string"
+                    },
+                    "ran_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "passed": {
+                      "type": "boolean"
+                    },
+                    "summary": {
+                      "type": "string"
+                    },
+                    "evidence_id": {
+                      "type": "string"
+                    },
+                    "dry_run": {
+                      "type": "object",
+                      "description": "{route, tasks[], passed} — same shape as a submission evidence"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No author session."
+          },
+          "403": {
+            "description": "This wallet is not that domain's author."
+          },
+          "404": {
+            "description": "Unknown domain, or canary_not_run."
+          }
+        }
+      }
+    },
+    "/recipes/canary/{domain}/screenshots/{name}": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "operationId": "recipeCanaryScreenshot",
+        "summary": "A screenshot of the last canary run.",
+        "description": "Author-scoped (same session as /recipes/canary/{domain}). image/png, names as listed in dry_run.tasks[].screenshots. Only the LAST run is served.",
+        "security": [
+          {
+            "authorSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "ryanair.com"
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "image/png"
+          },
+          "401": {
+            "description": "No author session."
+          },
+          "403": {
+            "description": "Not the author."
+          },
+          "404": {
+            "description": "No such screenshot."
+          }
+        }
+      }
+    },
+    "/recipes/canary/{domain}/replays/{task}": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "operationId": "recipeCanaryReplay",
+        "summary": "Video replay of a canary task.",
+        "description": "Author-scoped (same session as /recipes/canary/{domain}). Returns the HLS playlist (.m3u8) of the named task's browser session in the LAST canary run — task is one of search, offer-details, book. The playlist's fragmented-MP4 segment URLs are self-authorizing CDN links valid ~6 h; download init.mp4 + segments and concatenate for a plain .mp4 a video-capable model can watch, or re-request this endpoint for fresh URLs.",
+        "security": [
+          {
+            "authorSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "ryanair.com"
+          },
+          {
+            "name": "task",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "search",
+                "offer-details",
+                "book"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "application/vnd.apple.mpegurl playlist"
+          },
+          "401": {
+            "description": "No author session."
+          },
+          "403": {
+            "description": "Not the author."
+          },
+          "404": {
+            "description": "No run, or no session for that task."
+          },
+          "502": {
+            "description": "Browserbase did not return the replay."
+          }
+        }
+      }
+    },
+    "/air/airlines": {
+      "get": {
+        "tags": [
+          "air"
+        ],
+        "operationId": "listAirlines",
+        "summary": "Supported airlines (free).",
+        "description": "Free, no auth. Aggregate carrier catalog over every fulfiller tier: source \"api\" is the API-settled (Duffel) catalog, refreshed at most daily; a tier name (\"lowcost\" = trip.com OTA, \"ryanair\" = ryanair.com) means that fulfiller has actually QUOTED the carrier — observed coverage that grows with searches and understates an OTA's true span. Presence is recognition, not a bookability promise: what is bookable for a route is what POST /air/search returns.",
+        "responses": {
+          "200": {
+            "description": "The catalog.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "airlines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "iata_code": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "sources": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "\"api\" and/or fulfiller tier names that quoted the carrier"
+                          }
+                        }
+                      }
+                    },
+                    "count": {
+                      "type": "integer"
+                    },
+                    "refreshed_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "coverage": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -700,11 +1520,22 @@
         "name": "PAYMENT-SIGNATURE",
         "description": "Base64-encoded x402 payment payload."
       },
+      "customerSupportCode": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Customer-Support-Code",
+        "description": "Per-intent support code returned at intent creation (for example `BRIJ-K7MQ-T9RV`). Authorizes reading the airline order and filing a refund request. Not a payment credential."
+      },
       "brijSponsoredPreview": {
         "type": "apiKey",
         "in": "header",
         "name": "X-BRIJ-SPONSORED-SIGNATURE",
         "description": "BRIJ gateway Ed25519 signature for sponsored preview calls. The signature covers version, timestamp, wallet address, method, host, path, and request body hash."
+      },
+      "authorSession": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Bearer token from POST /recipes/session, scoped to recipe authorship."
       }
     },
     "parameters": {
@@ -715,7 +1546,7 @@
         "schema": {
           "type": "string"
         },
-        "example": "intent_8aa7f866bcc25a42"
+        "example": "intent_0000000000000000"
       }
     },
     "schemas": {
@@ -775,10 +1606,70 @@
             "format": "date",
             "example": "2026-06-10"
           },
+          "return_date": {
+            "type": "string",
+            "format": "date",
+            "description": "Optional. Adds the inbound slice (destination back to origin on this date). Round-trip offers cover both directions and are booked in ONE /air/book — the escrow amount is the round-trip total.",
+            "example": "2026-08-22"
+          },
           "adults": {
             "type": "integer",
             "minimum": 1,
-            "default": 1
+            "maximum": 9,
+            "description": "Adult passengers, 1 to 9 (the airline maximum per booking). The offer is priced for this many travellers, and /air/book must later supply exactly this many passengers."
+          },
+          "cabin_class": {
+            "type": "string",
+            "enum": [
+              "economy",
+              "premium_economy",
+              "business",
+              "first"
+            ],
+            "description": "Optional, defaults to economy."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Optional. Cap the number of offers returned; 0 or absent returns every match. Offers are sorted per `sort` (cheapest first by default), so a limit keeps the best ones under that order — and `highlights` still names the cheapest, fastest and cheapest nonstop of everything that matched, so a small page never hides that a direct exists."
+          },
+          "cheapest_per_itinerary": {
+            "type": "boolean",
+            "description": "Optional. Return only the cheapest fare of each physical itinerary (comparison_key); the folded fares stay visible in each offer's fare_options (offer_id, brand, price, refundable, changeable, checked bags), so refundability questions are answerable from the grouped data itself. Recommended for LLM-driven agents together with limit."
+          },
+          "sort": {
+            "type": "string",
+            "enum": [
+              "price",
+              "duration",
+              "departure",
+              "emissions",
+              "nonstop_first"
+            ],
+            "description": "Ordering, ascending only. Default price. duration = fastest first, departure = earliest local departure first, emissions = lowest CO2 first (unknown values sort last). nonstop_first = every nonstop itinerary (price-ascending) before any connection — with a limit, directs survive the cut."
+          },
+          "max_stops": {
+            "type": "integer",
+            "minimum": 0,
+            "nullable": true,
+            "description": "Maximum plane changes PER DIRECTION: 0 keeps directs only (a round trip qualifies only if both legs are direct). Absent = any. Technical stops without a plane change do not count."
+          },
+          "departure_after": {
+            "type": "string",
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+            "description": "Outbound departs at or after this time, LOCAL to the departure airport, HH:MM.",
+            "example": "12:00"
+          },
+          "departure_before": {
+            "type": "string",
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+            "description": "Outbound departs at or before this time, local HH:MM. Combine with departure_after for a window: afternoon = after 12:00, before 18:00.",
+            "example": "18:00"
+          },
+          "max_price": {
+            "type": "string",
+            "description": "Decimal cap on total_amount in the offer currency, e.g. \"250.00\".",
+            "example": "250.00"
           }
         }
       },
@@ -809,6 +1700,101 @@
             "items": {
               "$ref": "#/components/schemas/OfferSummary"
             }
+          },
+          "search_id": {
+            "type": "string",
+            "description": "Capability token for POST /air/search-updates. The search answers fast with the quick fulfillers' offers; slower tiers keep adding offers for a couple of minutes, and this token reads them as they land. Unguessable; expires ~5 minutes after the search. Treat it like a secret.",
+            "example": "srch_2f7c1de09ab34455ee01aa8b90c2d711"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "enriching"
+            ],
+            "description": "\"complete\" when every fulfiller tier has finished quoting; \"enriching\" while slower tiers are still adding offers — poll /air/search-updates to receive them."
+          },
+          "fulfillers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "complete",
+                "running"
+              ]
+            },
+            "description": "Per-tier quoting state, e.g. {\"fastbooking\": \"complete\", \"lowcost\": \"running\"}."
+          },
+          "poll_after_ms": {
+            "type": "integer",
+            "description": "Suggested delay before the next /air/search-updates poll. Absent when the search is complete."
+          },
+          "matched_count": {
+            "type": "integer",
+            "description": "How many offers survived the filters and grouping BEFORE the limit cut — what a full listing would hold."
+          },
+          "highlights": {
+            "$ref": "#/components/schemas/SearchHighlights"
+          }
+        }
+      },
+      "SearchHighlights": {
+        "type": "object",
+        "description": "The three offers an agent asks about first — cheapest, fastest, cheapest nonstop — each taken from EVERYTHING that matched, before the limit cut. A page of the 15 cheapest is only honest if it says what it left out: on a long-haul route every one of the 15 cheapest can be a connection while a direct exists at a higher price. Read cheapest_nonstop before concluding a route has no direct flight. A field is absent when no offer qualifies (no nonstop on the route, or none within max_stops / the time window).",
+        "properties": {
+          "cheapest": {
+            "$ref": "#/components/schemas/SearchHighlight"
+          },
+          "fastest": {
+            "$ref": "#/components/schemas/SearchHighlight"
+          },
+          "cheapest_nonstop": {
+            "$ref": "#/components/schemas/SearchHighlight"
+          }
+        }
+      },
+      "SearchHighlight": {
+        "type": "object",
+        "required": [
+          "offer_id",
+          "total_amount_decimal",
+          "total_currency",
+          "duration",
+          "stops",
+          "departing_at"
+        ],
+        "properties": {
+          "offer_id": {
+            "type": "string",
+            "description": "Bookable like any other offer (POST /air/offer-details, then /air/intents), whether or not it appears in offers.",
+            "example": "fastbooking:off_0000B9nB2EOrQ54IWMWb3F"
+          },
+          "total_amount_decimal": {
+            "type": "string",
+            "description": "The price a buyer pays for this offer — what POST /air/intents asks as expected_escrow_amount.",
+            "example": "1300.97"
+          },
+          "total_currency": {
+            "type": "string",
+            "example": "USD"
+          },
+          "duration": {
+            "type": "string",
+            "description": "Whole journey, every direction summed, ISO 8601.",
+            "example": "PT23H30M"
+          },
+          "stops": {
+            "type": "integer",
+            "description": "Total plane changes across every direction; 0 = nonstop both ways."
+          },
+          "carrier_name": {
+            "type": "string",
+            "example": "British Airways"
+          },
+          "departing_at": {
+            "type": "string",
+            "description": "Local departure of the first segment.",
+            "example": "2026-11-12T18:00:00"
           }
         }
       },
@@ -821,6 +1807,20 @@
           "destination_iata",
           "departing_at",
           "arriving_at",
+          "origin_time_zone",
+          "destination_time_zone",
+          "stops",
+          "technical_stops",
+          "duration",
+          "comparison_key",
+          "fare_brand_name",
+          "cabin_class",
+          "checked_bags_included",
+          "carry_on_bags_included",
+          "conditions",
+          "slices",
+          "total_emissions_kg",
+          "identity_documents_required",
           "total_amount",
           "total_amount_decimal",
           "total_currency",
@@ -829,7 +1829,7 @@
         "properties": {
           "id": {
             "type": "string",
-            "example": "off_0000B5xGbDG4ifAoeDTtG9"
+            "example": "fastbooking:off_0000B5xGbDG4ifAoeDTtG9"
           },
           "owner_name": {
             "type": "string",
@@ -837,19 +1837,144 @@
           },
           "origin_iata": {
             "type": "string",
+            "description": "Start of the whole journey (first leg's origin).",
             "example": "MAD"
           },
           "destination_iata": {
             "type": "string",
+            "description": "End of the whole journey (last leg's destination), NOT the first connection point.",
             "example": "LIS"
           },
           "departing_at": {
             "type": "string",
-            "format": "date-time"
+            "description": "Journey departure, airport-local time with no UTC offset.",
+            "example": "2026-08-02T14:42:00"
           },
           "arriving_at": {
             "type": "string",
-            "format": "date-time"
+            "description": "FINAL arrival at the journey destination, airport-local time with no UTC offset.",
+            "example": "2026-08-02T21:10:00"
+          },
+          "origin_time_zone": {
+            "type": "string",
+            "description": "IANA timezone of the journey origin.",
+            "example": "America/New_York"
+          },
+          "destination_time_zone": {
+            "type": "string",
+            "description": "IANA timezone of the journey destination.",
+            "example": "America/Los_Angeles"
+          },
+          "stops": {
+            "type": "integer",
+            "description": "Number of connections. 0 means a direct flight.",
+            "example": 1
+          },
+          "technical_stops": {
+            "type": "integer",
+            "description": "Refuelling-type stops across all legs, without plane change. Truly non-stop = stops 0 and technical_stops 0."
+          },
+          "segments": {
+            "type": "array",
+            "description": "Every leg of the itinerary, in order.",
+            "items": {
+              "$ref": "#/components/schemas/OfferSegment"
+            }
+          },
+          "duration": {
+            "type": "string",
+            "description": "Whole-journey duration, ISO 8601.",
+            "example": "PT7H28M"
+          },
+          "comparison_key": {
+            "type": "string",
+            "description": "Identifies the physical itinerary: offers with the SAME comparison_key are the same flights at different fares or sellers. Group by it to deduplicate results (a search commonly returns 100+ offers for a few dozen itineraries).",
+            "example": "cmp_abc123"
+          },
+          "fare_brand_name": {
+            "type": "string",
+            "description": "Airline's name for this fare (e.g. \"Basic\", \"Flexible Balearic\"). The SAME flight is listed once per fare and per seller: use this plus conditions, baggage and owner_name to tell same-flight offers apart. Empty when the airline did not name the fare.",
+            "example": "Flexible Balearic"
+          },
+          "cabin_class": {
+            "type": "string",
+            "description": "Normalized cabin: economy, premium_economy, business, first. Empty when unknown.",
+            "example": "economy"
+          },
+          "cabin_class_marketing_name": {
+            "type": "string",
+            "description": "The airline's own name for the cabin.",
+            "example": "ECONOMY"
+          },
+          "checked_bags_included": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Checked bags included for the WHOLE journey (minimum across legs). null = the airline did not say — do not assume 0."
+          },
+          "carry_on_bags_included": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Carry-on bags included for the whole journey. null = unknown."
+          },
+          "conditions": {
+            "nullable": true,
+            "description": "Change/refund permissions for this fare; null when the airline disclosed nothing.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FareConditions"
+              }
+            ]
+          },
+          "fare_options_count": {
+            "type": "integer",
+            "description": "Present only on cheapest_per_itinerary searches: how many fares of this same itinerary were collapsed into this cheapest one."
+          },
+          "fare_options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfferFareOption"
+            },
+            "description": "Present on cheapest_per_itinerary searches: EVERY fare of this itinerary (this offer included), cheapest first. The grouped view is lossless on price, brand, refund/change conditions and checked bags — never claim such a fare does not exist without reading this list."
+          },
+          "slices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfferSlice"
+            },
+            "description": "Each direction of the journey: one entry for a one-way, two for a round trip (outbound then inbound). The journey-level fields above describe the OUTBOUND for compatibility; slices is the canonical and only complete view for round trips. comparison_key joins all directions, so two round trips sharing an outbound but not a return stay distinct."
+          },
+          "total_emissions_kg": {
+            "type": "string",
+            "description": "Estimated CO2 for the journey, decimal kilograms. Empty when the provider does not report it. Varies several-fold between offers on the same route.",
+            "example": "21"
+          },
+          "identity_documents_required": {
+            "type": "boolean",
+            "description": "true = this fare demands passenger identity documents, which this API cannot collect: POST /air/intents refuses such offers with 409 identity_documents_not_supported. Filter them out before choosing."
+          },
+          "supported_loyalty_programmes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "IATA codes of airline loyalty programmes this offer can credit miles to (e.g. BA, AF, UA). Empty when none or unknown."
+          },
+          "base_amount_decimal": {
+            "type": "string",
+            "description": "Fare before tax; total = base + tax.",
+            "example": "65.00"
+          },
+          "base_currency": {
+            "type": "string",
+            "example": "USD"
+          },
+          "tax_amount_decimal": {
+            "type": "string",
+            "example": "24.50"
+          },
+          "tax_currency": {
+            "type": "string",
+            "example": "USD"
           },
           "total_amount": {
             "type": "integer",
@@ -904,8 +2029,7 @@
             "description": "Optional Solana wallet for refunds. Defaults to funding_wallet."
           },
           "offer_id": {
-            "type": "string",
-            "description": "Identifier of the offer to lock in, as returned by POST /air/search."
+            "type": "string"
           }
         }
       },
@@ -942,7 +2066,7 @@
         "properties": {
           "id": {
             "type": "string",
-            "example": "intent_8aa7f866bcc25a42"
+            "example": "intent_0000000000000000"
           },
           "funding_wallet": {
             "type": "string"
@@ -971,6 +2095,10 @@
           "fee_amount": {
             "type": "integer",
             "format": "int64"
+          },
+          "passenger_count": {
+            "type": "integer",
+            "description": "How many passengers the offer was priced for; /air/book must supply exactly this many."
           },
           "status": {
             "type": "string",
@@ -1072,7 +2200,7 @@
         "properties": {
           "id": {
             "type": "string",
-            "example": "intent_8aa7f866bcc25a42"
+            "example": "intent_0000000000000000"
           },
           "customer_support_code": {
             "type": "string",
@@ -1105,6 +2233,10 @@
           "fee_amount": {
             "type": "integer",
             "format": "int64"
+          },
+          "passenger_count": {
+            "type": "integer",
+            "description": "How many passengers the offer was priced for; /air/book must supply exactly this many."
           },
           "passenger_given_name": {
             "type": "string"
@@ -1206,23 +2338,6 @@
           }
         }
       },
-      "RequestBookingRequest": {
-        "type": "object",
-        "required": [
-          "passengers"
-        ],
-        "properties": {
-          "passengers": {
-            "type": "array",
-            "description": "Passenger details for the booking. Exactly one passenger per intent.",
-            "minItems": 1,
-            "maxItems": 1,
-            "items": {
-              "$ref": "#/components/schemas/PassengerInput"
-            }
-          }
-        }
-      },
       "PassengerInput": {
         "type": "object",
         "description": "Passenger details. Field constraints mirror the upstream airline contract; values the airline would reject (e.g. gender other than 'm'/'f') are rejected by this API before settling x402, so funds stay in the agent's wallet on validation failure.",
@@ -1255,13 +2370,22 @@
           "title": {
             "type": "string",
             "description": "Honorific. Lowercase, exactly one of the allowed values.",
-            "enum": ["mr", "mrs", "ms", "miss", "dr"],
+            "enum": [
+              "mr",
+              "mrs",
+              "ms",
+              "miss",
+              "dr"
+            ],
             "example": "mr"
           },
           "gender": {
             "type": "string",
             "description": "Biological sex as recorded on the travel document. Lowercase, exactly 'm' or 'f' (the airline does not accept other values).",
-            "enum": ["m", "f"],
+            "enum": [
+              "m",
+              "f"
+            ],
             "example": "m"
           },
           "email": {
@@ -1275,6 +2399,19 @@
             "description": "Phone number in E.164 format (leading '+', country code, no spaces or punctuation).",
             "pattern": "^\\+[1-9]\\d{6,14}$",
             "example": "+447400123456"
+          },
+          "nationality": {
+            "type": "string",
+            "description": "REQUIRED for lowcost: offers, ignored otherwise. Passenger nationality as a country name in English, e.g. \"France\" — the supplier's booking form demands the travel document up front."
+          },
+          "passport_number": {
+            "type": "string",
+            "description": "REQUIRED for lowcost: offers, ignored otherwise. Passport or national ID number."
+          },
+          "passport_expiry": {
+            "type": "string",
+            "format": "date",
+            "description": "REQUIRED for lowcost: offers, ignored otherwise. Document expiry, YYYY-MM-DD, must be in the future. Missing/expired documents are refused BEFORE payment (400 travel_document_required / travel_document_expired)."
           }
         }
       },
@@ -1380,6 +2517,475 @@
           "created_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "BookRequest": {
+        "type": "object",
+        "required": [
+          "intent_id",
+          "passengers"
+        ],
+        "properties": {
+          "intent_id": {
+            "type": "string",
+            "description": "Id returned by POST /air/intents.",
+            "example": "intent_0000000000000000"
+          },
+          "passengers": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 9,
+            "items": {
+              "$ref": "#/components/schemas/PassengerInput"
+            },
+            "description": "Exactly as many passengers as the intent's passenger_count (= adults searched), LEAD PASSENGER FIRST. Positions map to the offer's travellers. The lead passenger receives all emails, and refund requests authenticate against the LEAD passenger's family name. Duplicate travellers (same name and birth date) are refused with 400 duplicate_passenger. All refunds are all-or-nothing: one booking = one escrow, there is no per-passenger cancellation."
+          }
+        }
+      },
+      "OfferSegment": {
+        "type": "object",
+        "description": "One flight leg of an offer. Times are in the airport's local timezone and carry no UTC offset.",
+        "required": [
+          "origin_iata",
+          "destination_iata",
+          "departing_at",
+          "arriving_at",
+          "origin_time_zone",
+          "destination_time_zone",
+          "technical_stops"
+        ],
+        "properties": {
+          "origin_iata": {
+            "type": "string",
+            "example": "JFK"
+          },
+          "destination_iata": {
+            "type": "string",
+            "example": "DFW"
+          },
+          "departing_at": {
+            "type": "string",
+            "description": "Airport-local time, no UTC offset.",
+            "example": "2026-08-02T14:42:00"
+          },
+          "arriving_at": {
+            "type": "string",
+            "description": "Airport-local time, no UTC offset.",
+            "example": "2026-08-02T17:44:00"
+          },
+          "origin_time_zone": {
+            "type": "string",
+            "description": "IANA timezone of the origin airport; combine with departing_at for an absolute instant.",
+            "example": "America/New_York"
+          },
+          "destination_time_zone": {
+            "type": "string",
+            "description": "IANA timezone of the destination airport; combine with arriving_at for an absolute instant.",
+            "example": "America/Chicago"
+          },
+          "duration": {
+            "type": "string",
+            "description": "Leg duration, ISO 8601 (e.g. PT1H15M). Precomputed — never subtract the naive local timestamps.",
+            "example": "PT1H15M"
+          },
+          "carrier_name": {
+            "type": "string",
+            "example": "American Airlines"
+          },
+          "flight_number": {
+            "type": "string",
+            "example": "1953"
+          },
+          "marketing_carrier_name": {
+            "type": "string",
+            "description": "Airline SELLING this leg. Differs from carrier_name (the operating airline) on codeshares — e.g. sold by British Airways, operated by Iberia Express. Explains same-flight offers priced differently by seller.",
+            "example": "British Airways"
+          },
+          "carrier_iata": {
+            "type": "string",
+            "description": "IATA code of the operating airline (carrier_name) — the stable identifier where the name is a display string.",
+            "example": "IB"
+          },
+          "marketing_carrier_iata": {
+            "type": "string",
+            "description": "IATA code of the selling airline (marketing_carrier_name).",
+            "example": "BA"
+          },
+          "operating_flight_number": {
+            "type": "string",
+            "description": "Operating carrier's own flight number; flight_number is the marketed one shown on the boarding pass.",
+            "example": "1692"
+          },
+          "aircraft_name": {
+            "type": "string",
+            "example": "Airbus A320"
+          },
+          "origin_terminal": {
+            "type": "string",
+            "example": "1"
+          },
+          "destination_terminal": {
+            "type": "string",
+            "example": "4"
+          },
+          "fare_basis_code": {
+            "type": "string",
+            "description": "Airline fare basis identifier for this leg.",
+            "example": "ADYO5L"
+          },
+          "technical_stops": {
+            "type": "integer",
+            "description": "Refuelling-type stops on this leg WITHOUT a plane change. A leg with technical stops is still one segment; truly non-stop means stops == 0 AND technical_stops == 0."
+          },
+          "technical_stop_airports": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "IATA codes of the technical-stop airports, in order."
+          }
+        }
+      },
+      "FareConditions": {
+        "type": "object",
+        "description": "What the fare permits before departure. Every field of the parent offer is emitted; null on an *_allowed field means the airline did not disclose it — treat as unknown, do NOT assume false. Penalty amounts are decimal strings in the given currency; \"0\" means free.",
+        "properties": {
+          "change_allowed": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "true = changeable (see penalty), false = not changeable, null = airline did not say."
+          },
+          "change_penalty_amount": {
+            "type": "string",
+            "description": "Decimal fee to change, \"0\" = free change. Absent when unknown.",
+            "example": "0"
+          },
+          "change_penalty_currency": {
+            "type": "string",
+            "example": "USD"
+          },
+          "refund_allowed": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "true = refundable before departure (see penalty), false = non-refundable, null = airline did not say."
+          },
+          "refund_penalty_amount": {
+            "type": "string",
+            "description": "Decimal fee to refund, \"0\" = free refund. Absent when unknown.",
+            "example": "0"
+          },
+          "refund_penalty_currency": {
+            "type": "string",
+            "example": "USD"
+          }
+        }
+      },
+      "OfferService": {
+        "type": "object",
+        "description": "One purchasable ancillary on an offer. INFORMATIONAL ONLY: services cannot be bought through this API — use these prices to compare a bare fare plus a paid bag against a fare that already includes one.",
+        "required": [
+          "type",
+          "maximum_quantity",
+          "total_amount_decimal",
+          "total_currency"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Service family, e.g. baggage.",
+            "example": "baggage"
+          },
+          "baggage_type": {
+            "type": "string",
+            "description": "For baggage services: checked or carry_on.",
+            "example": "checked"
+          },
+          "maximum_weight_kg": {
+            "type": "integer",
+            "nullable": true,
+            "example": 23
+          },
+          "maximum_quantity": {
+            "type": "integer",
+            "example": 3
+          },
+          "total_amount_decimal": {
+            "type": "string",
+            "description": "Price PER UNIT of the service.",
+            "example": "45.00"
+          },
+          "total_currency": {
+            "type": "string",
+            "example": "USD"
+          }
+        }
+      },
+      "OfferDetailsRequest": {
+        "type": "object",
+        "required": [
+          "offer_id"
+        ],
+        "properties": {
+          "offer_id": {
+            "type": "string",
+            "description": "id from POST /air/search.",
+            "example": "fastbooking:off_0000000000000000000000"
+          }
+        }
+      },
+      "OfferDetailsResponse": {
+        "type": "object",
+        "required": [
+          "offer",
+          "available_services"
+        ],
+        "properties": {
+          "offer": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OfferSummary"
+              }
+            ],
+            "description": "The offer re-fetched live: total_amount and expires_at are CURRENT, unlike a minutes-old search result."
+          },
+          "available_services": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfferService"
+            },
+            "description": "Purchasable extras with prices. Empty array = the airline offers none on this fare (an answer, not missing data)."
+          }
+        }
+      },
+      "OfferSlice": {
+        "type": "object",
+        "description": "One direction of the journey: the outbound, and for round trips the inbound. Same semantics as the journey-level fields (whole-direction endpoints, airport-local times, stops = plane changes).",
+        "required": [
+          "origin_iata",
+          "destination_iata",
+          "departing_at",
+          "arriving_at",
+          "origin_time_zone",
+          "destination_time_zone",
+          "stops",
+          "segments"
+        ],
+        "properties": {
+          "origin_iata": {
+            "type": "string",
+            "example": "MAD"
+          },
+          "destination_iata": {
+            "type": "string",
+            "example": "LIS"
+          },
+          "departing_at": {
+            "type": "string",
+            "description": "Airport-local, no UTC offset.",
+            "example": "2026-08-07T10:20:00"
+          },
+          "arriving_at": {
+            "type": "string",
+            "example": "2026-08-07T11:35:00"
+          },
+          "origin_time_zone": {
+            "type": "string",
+            "example": "Europe/Madrid"
+          },
+          "destination_time_zone": {
+            "type": "string",
+            "example": "Europe/Lisbon"
+          },
+          "duration": {
+            "type": "string",
+            "example": "PT1H15M"
+          },
+          "stops": {
+            "type": "integer"
+          },
+          "technical_stops": {
+            "type": "integer"
+          },
+          "fare_brand_name": {
+            "type": "string"
+          },
+          "checked_bags_included": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Checked bags included on THIS direction (minimum across its legs; null when a leg does not report it). A round trip can mix brands per direction, and the journey-level checked_bags_included is then the minimum of the two."
+          },
+          "segments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfferSegment"
+            }
+          }
+        }
+      },
+      "OfferFareOption": {
+        "type": "object",
+        "description": "Compact form of one fare inside a grouped result: enough to answer refundability, changeability, baggage and price questions without another search, and to act on the fare via its offer_id. refundable/changeable keep the null-means-undisclosed semantics.",
+        "required": [
+          "offer_id",
+          "total_amount_decimal",
+          "total_currency",
+          "refundable",
+          "changeable",
+          "checked_bags_included"
+        ],
+        "properties": {
+          "offer_id": {
+            "type": "string"
+          },
+          "fare_brand_name": {
+            "type": "string",
+            "example": "Comfort Balearic"
+          },
+          "total_amount_decimal": {
+            "type": "string",
+            "example": "265.30"
+          },
+          "total_currency": {
+            "type": "string",
+            "example": "USD"
+          },
+          "refundable": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "null = airline did not say."
+          },
+          "changeable": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "checked_bags_included": {
+            "type": "integer",
+            "nullable": true
+          },
+          "change_penalty_amount": {
+            "type": "string",
+            "description": "Fee the airline states for a change before departure, when changeable = true and a fee is disclosed (e.g. \"190.00\"). Absent when free, unknown, or not changeable.",
+            "example": "190.00"
+          },
+          "change_penalty_currency": {
+            "type": "string",
+            "example": "USD"
+          },
+          "refund_penalty_amount": {
+            "type": "string",
+            "description": "Fee the airline states for a refund before departure, when refundable = true and a fee is disclosed. Absent when free, unknown, or non-refundable."
+          },
+          "refund_penalty_currency": {
+            "type": "string"
+          },
+          "directions": {
+            "type": "array",
+            "description": "Round trips only: the brand and checked allowance of each direction in order (outbound, inbound). This is what differs between \"Standard Economy / Basic Economy\" and \"Basic Economy / Standard Economy\" at the same price — the journey-level checked_bags_included is the minimum of the two. Absent on one-ways and on browser-tier menus.",
+            "items": {
+              "type": "object",
+              "required": [
+                "fare_brand_name",
+                "checked_bags_included"
+              ],
+              "properties": {
+                "fare_brand_name": {
+                  "type": "string",
+                  "example": "Standard Economy"
+                },
+                "checked_bags_included": {
+                  "type": "integer",
+                  "nullable": true
+                }
+              }
+            }
+          },
+          "cabin": {
+            "type": "string",
+            "description": "lowcost only: cabin label from the supplier's fare menu."
+          },
+          "seats_left": {
+            "type": "integer",
+            "nullable": true,
+            "description": "lowcost only: seats remaining at this fare, when the supplier discloses it."
+          },
+          "conditions": {
+            "type": "array",
+            "description": "lowcost only: the supplier's verbatim condition notes (baggage, refund policy).",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "fare_index": {
+            "type": "integer",
+            "description": "lowcost only: the fare's position in the supplier's menu - the index the book flow selects. The row's offer_id embeds it."
+          }
+        }
+      },
+      "SearchUpdatesRequest": {
+        "type": "object",
+        "required": [
+          "search_id"
+        ],
+        "properties": {
+          "search_id": {
+            "type": "string",
+            "description": "The search_id returned by POST /air/search.",
+            "example": "srch_2f7c1de09ab34455ee01aa8b90c2d711"
+          }
+        }
+      },
+      "SearchUpdatesResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "enriching"
+            ],
+            "description": "\"complete\" once no further offers can arrive."
+          },
+          "offers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OfferSummary"
+            },
+            "description": "The FULL merged offer list so far (not a delta), deduplicated across fulfiller tiers, shaped exactly like the original search request."
+          },
+          "fulfillers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "complete",
+                "running"
+              ]
+            },
+            "description": "Per-tier quoting state."
+          },
+          "matched_count": {
+            "type": "integer",
+            "description": "How many offers survived the filters and grouping BEFORE the limit cut — what a full listing would hold."
+          },
+          "highlights": {
+            "$ref": "#/components/schemas/SearchHighlights"
+          },
+          "new_since_last_poll": {
+            "type": "integer",
+            "description": "How many offers landed since the previous poll (all of them on the first poll)."
+          },
+          "poll_after_ms": {
+            "type": "integer",
+            "description": "Suggested delay before the next poll. Absent when complete."
           }
         }
       }
