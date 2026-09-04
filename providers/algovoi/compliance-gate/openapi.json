@@ -1,0 +1,141 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AlgoVoi Compliance Gate",
+    "version": "1.0.0",
+    "description": "Public, no-auth, agent-callable compliance surface. Pre-payment recipient screening with SAMLA-2018-tipping-off-compliant verdicts, plus a free transparency-attestation endpoint. Productisation of AlgoVoi's compliance-from-day-one thesis.",
+    "contact": {
+      "name": "AlgoVoi",
+      "email": "chopmob@gmail.com",
+      "url": "https://algovoi.co.uk"
+    },
+    "license": {
+      "name": "Public — free in v1",
+      "url": "https://docs.algovoi.co.uk/compliance"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.algovoi.co.uk",
+      "description": "Production gateway"
+    }
+  ],
+  "paths": {
+    "/compliance/attestation": {
+      "get": {
+        "summary": "Gateway compliance posture",
+        "description": "Returns AlgoVoi's verifiable compliance posture: frameworks asserted (UK MLRs 2017, SAMLA 2018 s.20, UK GDPR, FCA PS19/22 self-assessment, SOC 2 targets), active sanctions sources, URL/IP threat-intel feeds, audit-chain head + last shipment, KYB classes, risk-tier definitions, tipping-off policy statement.",
+        "operationId": "compliance_attestation",
+        "responses": {
+          "200": {
+            "description": "Compliance posture JSON",
+            "headers": {
+              "Cache-Control": {
+                "schema": { "type": "string" },
+                "description": "public, max-age=300"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AttestationResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/compliance/screen": {
+      "post": {
+        "summary": "Pre-payment recipient screen",
+        "description": "Returns a SAMLA-compliant verdict (allow / block / flag) for a proposed recipient address against UK / EU / US / UN sanctions lists, AlgoVoi-tenant KYB status, and risk-tier classification. Reasons are intentionally generic — we never disclose which sanctions list (if any) matched. SAMLA 2018 s.20 tipping-off compliance.",
+        "operationId": "compliance_screen",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ScreenRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Screen verdict",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ScreenResponse" }
+              }
+            }
+          },
+          "422": { "description": "Malformed request body" },
+          "429": { "description": "Rate limit exceeded — defaults to 60 requests / minute / IP" }
+        },
+        "x-x402": {
+          "scheme": "free-with-rate-limit",
+          "limit": "60/minute/IP",
+          "future_paid_tier": "USDC on Base — subject to demand"
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AttestationResponse": {
+        "type": "object",
+        "properties": {
+          "operator":         { "type": "object" },
+          "frameworks":       { "type": "object" },
+          "active_screening": { "type": "object" },
+          "audit_chain":      { "type": "object" },
+          "kyb_classes":      { "type": "object" },
+          "risk_tiers":       { "type": "object" },
+          "version":          { "type": "integer" },
+          "as_of":            { "type": "string", "format": "date-time" },
+          "tipping_off_policy": { "type": "string" }
+        }
+      },
+      "ScreenRequest": {
+        "type": "object",
+        "required": ["recipient_address", "network"],
+        "properties": {
+          "recipient_address": {
+            "type": "string", "minLength": 4, "maxLength": 128,
+            "description": "Destination wallet address. Format depends on network."
+          },
+          "network": {
+            "type": "string", "minLength": 4, "maxLength": 64,
+            "description": "CAIP-2, dash, or underscore style. e.g. 'base-mainnet', 'eip155:8453', 'algorand-mainnet', 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp'.",
+            "examples": [
+              "base-mainnet",
+              "eip155:8453",
+              "algorand-mainnet",
+              "stellar-mainnet"
+            ]
+          },
+          "amount_microunits": { "type": "integer", "minimum": 0, "nullable": true },
+          "asset": { "type": "string", "maxLength": 128, "nullable": true }
+        }
+      },
+      "ScreenResponse": {
+        "type": "object",
+        "required": ["verdict", "sanctions_clear", "recipient_kyb_status", "risk_tier", "reasons", "screened_at", "verdict_id", "network_normalised"],
+        "properties": {
+          "verdict": {
+            "type": "string", "enum": ["allow", "block", "flag"],
+            "description": "Aggregate verdict. `allow`: safe to proceed. `block`: do not transmit. `flag`: human-in-the-loop review."
+          },
+          "sanctions_clear":      { "type": "boolean" },
+          "recipient_kyb_status": { "type": "string", "enum": ["unknown", "trial", "approved", "rejected"] },
+          "risk_tier":            { "type": "string", "enum": ["low", "medium", "high", "restricted", "unknown"] },
+          "reasons": {
+            "type": "array", "items": { "type": "string" },
+            "description": "Generic machine-readable reason codes. Never names a sanctions list (SAMLA 2018 s.20 tipping-off compliance)."
+          },
+          "screened_at":          { "type": "string", "format": "date-time" },
+          "verdict_id":           { "type": "string", "format": "uuid" },
+          "network_normalised":   { "type": "string" },
+          "tipping_off_notice":   { "type": "string" }
+        }
+      }
+    }
+  }
+}
