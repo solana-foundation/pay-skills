@@ -1,0 +1,452 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "anchor-x402",
+    "description": "18 pay-per-call x402 services for AI agents \u2014 on-chain anchoring & attestation, wallet/address security screening, Web3 data (tx & calldata decode, ENS, token prices), x402 spend accounting, content analysis, and verifiable randomness. No API keys or accounts; settle per request in USDC on Base or Solana. $0.001\u2013$1.77 per call.",
+    "version": "0.3.0",
+    "x-guidance": "Pay-per-call x402 services for AI agents \u2014 no API keys or accounts. Each paid route returns HTTP 402 with x402 payment requirements; pay in USDC on Base or Solana (select routes also settle JPYC on Polygon) and retry with the payment header. Prices are $0.001\u2013$1.77 per call. POST routes take a JSON body per each operation's requestBody schema.",
+    "contact": {
+      "email": "hypeprinter007@gmail.com"
+    },
+    "x-logo": {
+      "url": "https://api.anchor-x402.com/icon.png",
+      "altText": "anchor-x402"
+    }
+  },
+  "paths": {
+    "/v1/attest": {
+      "post": {
+        "summary": "Create a signed, anchored receipt for an AI decision",
+        "operationId": "attest_v1_attest_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttestRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        },
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        }
+      }
+    },
+    "/v1/attest/verify": {
+      "post": {
+        "summary": "Verify a previously anchored decision attestation",
+        "operationId": "attest_verify_v1_attest_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttestVerifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttestVerifyResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AttestRequest": {
+        "properties": {
+          "input_hash": {
+            "type": "string",
+            "title": "Input Hash",
+            "description": "64-char hex SHA-256 of the agent's input."
+          },
+          "output_hash": {
+            "type": "string",
+            "title": "Output Hash",
+            "description": "64-char hex SHA-256 of the agent's output / decision payload."
+          },
+          "decision": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Decision",
+            "description": "Free-form short label, e.g. \"APPROVED\", \"REJECTED\", \"CONFIDENCE=0.93\"."
+          },
+          "scheme": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "eip191",
+                  "ed25519"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheme",
+            "description": "Signature scheme when you supply a `signature`: \"eip191\" (EVM) or \"ed25519\" (Solana)."
+          },
+          "signature": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signature",
+            "description": "0x-prefixed hex (eip191) or base58 (ed25519). Omit to have the anchor-x402 treasury sign for you (hosted-signer mode, for wallet-less agents)."
+          },
+          "signer_pubkey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signer Pubkey",
+            "description": "Required for ed25519 (Solana base58 pubkey). Ignored for eip191 \u2014 address is recovered."
+          }
+        },
+        "type": "object",
+        "required": [
+          "input_hash",
+          "output_hash",
+          "decision"
+        ],
+        "title": "AttestRequest"
+      },
+      "AttestResponse": {
+        "properties": {
+          "merkle_root": {
+            "type": "string",
+            "title": "Merkle Root",
+            "description": "SHA-256 over the domain-separated (input_hash, output_hash, decision) \u2014 this is what gets anchored."
+          },
+          "signer_verified": {
+            "type": "boolean",
+            "title": "Signer Verified"
+          },
+          "signer": {
+            "type": "string",
+            "title": "Signer",
+            "description": "Recovered EVM address (eip191) or supplied Solana pubkey (ed25519)."
+          },
+          "base": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChainAnchor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "solana": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChainAnchor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decision": {
+            "type": "string",
+            "title": "Decision"
+          },
+          "signed_at": {
+            "type": "integer",
+            "title": "Signed At"
+          },
+          "signed_by": {
+            "type": "string",
+            "title": "Signed By",
+            "description": "\"caller\" (you supplied the signature) or \"treasury\" (hosted-signer mode).",
+            "default": "caller"
+          },
+          "verify_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verify Url",
+            "description": "Free endpoint a relying party POSTs this receipt to for independent re-verification."
+          }
+        },
+        "type": "object",
+        "required": [
+          "merkle_root",
+          "signer_verified",
+          "signer",
+          "decision",
+          "signed_at"
+        ],
+        "title": "AttestResponse"
+      },
+      "AttestVerifyRequest": {
+        "properties": {
+          "input_hash": {
+            "type": "string",
+            "title": "Input Hash",
+            "description": "64-char hex SHA-256 of the agent's input."
+          },
+          "output_hash": {
+            "type": "string",
+            "title": "Output Hash",
+            "description": "64-char hex SHA-256 of the agent's output / decision payload."
+          },
+          "decision": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Decision"
+          },
+          "scheme": {
+            "type": "string",
+            "enum": [
+              "eip191",
+              "ed25519"
+            ],
+            "title": "Scheme",
+            "description": "\"eip191\" or \"ed25519\" \u2014 matches the receipt."
+          },
+          "signature": {
+            "type": "string",
+            "title": "Signature",
+            "description": "The signature from the receipt."
+          },
+          "signer_pubkey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signer Pubkey",
+            "description": "Required for ed25519."
+          },
+          "base_tx": {
+            "type": "string",
+            "title": "Base Tx",
+            "description": "0x-prefixed Base tx hash returned by the mint."
+          }
+        },
+        "type": "object",
+        "required": [
+          "input_hash",
+          "output_hash",
+          "decision",
+          "scheme",
+          "signature",
+          "base_tx"
+        ],
+        "title": "AttestVerifyRequest",
+        "description": "A minted receipt submitted for free re-verification: the signed tuple plus\nthe signature and the Base tx that should carry the anchored root."
+      },
+      "AttestVerifyResponse": {
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "title": "Valid",
+            "description": "True iff signature verified AND the Base tx confirms the exact root."
+          },
+          "merkle_root": {
+            "type": "string",
+            "title": "Merkle Root"
+          },
+          "signature_valid": {
+            "type": "boolean",
+            "title": "Signature Valid"
+          },
+          "signer": {
+            "type": "string",
+            "title": "Signer"
+          },
+          "anchor_confirmed": {
+            "type": "boolean",
+            "title": "Anchor Confirmed"
+          },
+          "root_matches": {
+            "type": "boolean",
+            "title": "Root Matches"
+          },
+          "anchored_at_block": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchored At Block"
+          },
+          "anchored_at_time": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchored At Time"
+          },
+          "notes": {
+            "type": "string",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "valid",
+          "merkle_root",
+          "signature_valid",
+          "signer",
+          "anchor_confirmed",
+          "root_matches",
+          "notes"
+        ],
+        "title": "AttestVerifyResponse"
+      },
+      "ChainAnchor": {
+        "properties": {
+          "tx": {
+            "type": "string",
+            "title": "Tx"
+          },
+          "explorer_url": {
+            "type": "string",
+            "title": "Explorer Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tx",
+          "explorer_url"
+        ],
+        "title": "ChainAnchor"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
