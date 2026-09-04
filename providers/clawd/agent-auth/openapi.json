@@ -1,0 +1,490 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Clawd Agent Auth — CAAP/1.0",
+    "version": "v1",
+    "description": "Solana-native agent authentication, on-chain identity (Metaplex Agent Registry / EIP-8004), SIWS sign-in, CLAWD token attestation, Helius DAS NFT verification, subscription tier gating, Genesis token launch, and execution delegation for AI agents.",
+    "contact": {
+      "name": "Clawd Labs",
+      "url": "https://x402.wtf/agentauth"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://x402.wtf/agentauth",
+      "description": "CAAP/1.0 API server"
+    }
+  ],
+  "paths": {
+    "/caap/discovery": {
+      "get": {
+        "operationId": "getDiscovery",
+        "summary": "Fetch the CAAP/1.0 protocol discovery document",
+        "description": "Returns the CAAP/1.0 protocol discovery document with version, network, tiers, endpoints, and documentation links.",
+        "tags": ["Discovery"],
+        "responses": {
+          "200": {
+            "description": "Discovery document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "protocol": { "type": "string", "example": "CAAP/1.0" },
+                    "version": { "type": "string", "example": "1.0" },
+                    "network": { "type": "string", "example": "solana-mainnet" },
+                    "tiers": { "type": "object" },
+                    "endpoints": { "type": "object" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/caap/attest": {
+      "post": {
+        "operationId": "attestAgent",
+        "summary": "Create an agent identity attestation on Solana",
+        "description": "Runs full CAAP attestation for a given agent: Helius DAS NFT verification, CLAWD token balance check, wallet snapshot, and subscription tier computation.",
+        "tags": ["Attestation"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["agentId", "walletAddress"],
+                "properties": {
+                  "agentId": {
+                    "type": "string",
+                    "description": "Agent identifier (on-chain address or registry ID)"
+                  },
+                  "walletAddress": {
+                    "type": "string",
+                    "description": "Solana wallet public key in base58 encoding"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Attestation result with tier and wallet snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "caapVersion": { "type": "string" },
+                    "agentId": { "type": "string" },
+                    "walletAddress": { "type": "string" },
+                    "attestation": {
+                      "type": "object",
+                      "properties": {
+                        "verified": { "type": "boolean" },
+                        "agentNftAddress": { "type": "string" },
+                        "tokenBalance": { "type": "number" },
+                        "attestationHash": { "type": "string" }
+                      }
+                    },
+                    "snapshot": {
+                      "type": "object",
+                      "properties": {
+                        "solBalance": { "type": "number" },
+                        "clawdBalance": { "type": "number" },
+                        "tokenAccounts": { "type": "array" }
+                      }
+                    },
+                    "tier": {
+                      "type": "object",
+                      "properties": {
+                        "tier": { "type": "string" },
+                        "label": { "type": "string" },
+                        "nextTier": { "type": "string" },
+                        "clawdToNextTier": { "type": "number" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/caap/status/{agentId}": {
+      "get": {
+        "operationId": "getAgentStatus",
+        "summary": "Fetch the attestation status of an agent",
+        "description": "Quick verified/unverified check for an agent. Requires a wallet query parameter.",
+        "tags": ["Attestation"],
+        "parameters": [
+          {
+            "name": "agentId",
+            "in": "path",
+            "required": true,
+            "description": "Agent identifier (on-chain address, registry ID, or Metaplex asset public key)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "wallet",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Solana wallet public key in base58 encoding"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agent attestation status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "caapVersion": { "type": "string" },
+                    "agentId": { "type": "string" },
+                    "walletAddress": { "type": "string" },
+                    "status": { "type": "string", "enum": ["verified", "unverified"] },
+                    "attestationHash": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/identity/register": {
+      "post": {
+        "operationId": "registerAgentIdentity",
+        "summary": "Register an agent identity on the Metaplex Agent Registry",
+        "description": "Builds an EIP-8004-compliant registration document and registerIdentityV1 instruction parameters for on-chain agent identity registration via the Metaplex Agent Registry.",
+        "tags": ["Identity"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["agentId", "asset", "identityConfig"],
+                "properties": {
+                  "agentId": {
+                    "type": "string",
+                    "description": "Agent identifier used across CAAP protocol"
+                  },
+                  "asset": {
+                    "type": "string",
+                    "description": "MPL Core asset public key in base58 encoding"
+                  },
+                  "collection": {
+                    "type": "string",
+                    "description": "Asset collection public key in base58 encoding (optional but recommended)"
+                  },
+                  "identityConfig": {
+                    "type": "object",
+                    "description": "Agent identity configuration for the EIP-8004 registration document",
+                    "required": ["name", "description", "image"],
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "description": "Human-readable agent name"
+                      },
+                      "description": {
+                        "type": "string",
+                        "description": "Natural language description of what the agent does"
+                      },
+                      "image": {
+                        "type": "string",
+                        "description": "Avatar or logo URI — Arweave or IPFS permanent storage recommended"
+                      },
+                      "services": {
+                        "type": "array",
+                        "description": "Service endpoints the agent exposes (A2A, MCP, web, etc.)"
+                      },
+                      "supportedTrust": {
+                        "type": "array",
+                        "description": "Trust models the agent supports (reputation, crypto-economic, tee-attestation)"
+                      },
+                      "x402Support": {
+                        "type": "boolean",
+                        "description": "Whether the agent accepts HTTP 402 stablecoin payments"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Registration parameters with EIP-8004 document and instruction params",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "agentId": { "type": "string" },
+                    "asset": { "type": "string" },
+                    "identityPda": { "type": "string" },
+                    "assetSignerPda": { "type": "string" },
+                    "eip8004Document": { "type": "object" },
+                    "registerParams": { "type": "object" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/identity/verify/{asset}": {
+      "get": {
+        "operationId": "verifyAgentIdentity",
+        "summary": "Verify on-chain agent registration status",
+        "description": "Checks whether an MPL Core asset has a registered identity on the Metaplex Agent Registry and optionally fetches the EIP-8004 registration document.",
+        "tags": ["Identity"],
+        "parameters": [
+          {
+            "name": "asset",
+            "in": "path",
+            "required": true,
+            "description": "MPL Core asset public key in base58 encoding",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verification result with registration status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "asset": { "type": "string" },
+                    "registered": { "type": "boolean" },
+                    "identityPda": { "type": "string" },
+                    "registrationDoc": { "type": "object" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/identity/delegate": {
+      "post": {
+        "operationId": "delegateAgentExecution",
+        "summary": "Create an execution delegation for an agent asset",
+        "description": "Builds delegateExecutionV1 instruction parameters to authorize an off-chain executive to sign transactions on behalf of the agent through Core's Execute lifecycle hook.",
+        "tags": ["Identity"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["agentAsset", "executiveAuthority"],
+                "properties": {
+                  "agentAsset": {
+                    "type": "string",
+                    "description": "Agent's MPL Core asset public key in base58 encoding"
+                  },
+                  "executiveAuthority": {
+                    "type": "string",
+                    "description": "Executive wallet public key in base58 encoding"
+                  },
+                  "payer": {
+                    "type": "string",
+                    "description": "Payer public key in base58 encoding (must be asset owner)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Delegation parameters with PDA addresses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "agentAsset": { "type": "string" },
+                    "agentIdentity": { "type": "string" },
+                    "executiveProfile": { "type": "string" },
+                    "delegateRecord": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/token/set": {
+      "post": {
+        "operationId": "setAgentToken",
+        "summary": "Create a permanent token binding for an agent identity",
+        "description": "Builds setAgentTokenV1 instruction parameters for permanently binding a Genesis token to the agent. WARNING: this operation is irreversible — once set, the token binding cannot be changed, replaced, or unset.",
+        "tags": ["Token"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["agentAsset", "agentCollection", "genesisAccount"],
+                "properties": {
+                  "agentAsset": {
+                    "type": "string",
+                    "description": "Agent's MPL Core asset public key in base58 encoding"
+                  },
+                  "agentCollection": {
+                    "type": "string",
+                    "description": "Collection public key in base58 encoding"
+                  },
+                  "genesisAccount": {
+                    "type": "string",
+                    "description": "Genesis bonding curve account public key in base58 encoding"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Set token parameters with irreversible binding warning",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "agentAsset": { "type": "string" },
+                    "assetSignerPda": { "type": "string" },
+                    "identityPda": { "type": "string" },
+                    "warning": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agent/token/launch": {
+      "post": {
+        "operationId": "launchAgentToken",
+        "summary": "Create a Genesis bonding curve token launch for an agent",
+        "description": "Builds and validates a Genesis bonding curve launch input for creating an agent token from the Asset Signer PDA with creator fees routed automatically to the agent's wallet. Supports optional fee-free first buy.",
+        "tags": ["Token"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["agentAsset", "payer", "tokenName", "tokenSymbol", "tokenImage"],
+                "properties": {
+                  "agentAsset": {
+                    "type": "string",
+                    "description": "Agent's MPL Core asset public key in base58 encoding"
+                  },
+                  "setToken": {
+                    "type": "boolean",
+                    "description": "Permanently bind this token to the agent identity (default: true, IRREVERSIBLE once confirmed)"
+                  },
+                  "payer": {
+                    "type": "string",
+                    "description": "Payer wallet public key in base58 encoding for transaction fees"
+                  },
+                  "tokenName": {
+                    "type": "string",
+                    "description": "Token name (1–32 characters)",
+                    "maxLength": 32
+                  },
+                  "tokenSymbol": {
+                    "type": "string",
+                    "description": "Token symbol (1–10 characters)",
+                    "maxLength": 10
+                  },
+                  "tokenImage": {
+                    "type": "string",
+                    "description": "Irys gateway URL for the token image (must start with https://gateway.irys.xyz/)"
+                  },
+                  "tokenDescription": {
+                    "type": "string",
+                    "description": "Optional token description (max 250 characters)",
+                    "maxLength": 250
+                  },
+                  "firstBuyAmount": {
+                    "type": "number",
+                    "description": "SOL amount for fee-free first buy by the agent PDA (e.g., 0.1)"
+                  },
+                  "network": {
+                    "type": "string",
+                    "enum": ["solana-mainnet", "solana-devnet"],
+                    "description": "Target Solana network"
+                  },
+                  "creatorFeeWallet": {
+                    "type": "string",
+                    "description": "Override creator fee wallet (defaults to agent's Asset Signer PDA)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Validated launch input ready for Genesis API submission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "agentAsset": { "type": "string" },
+                    "setToken": { "type": "boolean" },
+                    "launchInput": { "type": "object" },
+                    "warnings": { "type": "array" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed with list of errors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": { "type": "string" },
+                    "validationErrors": { "type": "array" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    { "name": "Discovery", "description": "Protocol discovery and documentation" },
+    { "name": "Attestation", "description": "Agent attestation, verification, and tier gating" },
+    { "name": "Identity", "description": "On-chain identity registration and execution delegation" },
+    { "name": "Token", "description": "Token launch and permanent agent-token binding" }
+  ],
+  "x-pricing": {
+    "model": "free_tier",
+    "description": "CAAP/1.0 attestation is free. Token launch and identity registration route through on-chain programs (Metaplex Agent Registry, Genesis) which have their own Solana transaction fees."
+  }
+}
