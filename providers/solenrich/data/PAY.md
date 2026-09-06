@@ -1,8 +1,8 @@
 ---
 name: data
 title: "SolEnrich"
-description: "Solana onchain intelligence for agents: wallet risk scoring, token due-diligence and rug detection, smart-money tracking across spot, perps, and fresh launches, cross-venue perps funding, and LLM-ready briefings. Pay per call in USDC via x402."
-use_case: "Use when an agent needs Solana ground truth before acting: is this token safe, is this wallet risky, where is smart money moving, which perps venue has the best funding or entry cost."
+description: "Solana onchain intelligence for agents: wallet risk scoring, token due-diligence, smart-money tracking across spot, perps, and fresh launches, cross-venue perps funding, StonkFun reward-coin gems and payout status, LLM-ready briefings. USDC via x402."
+use_case: "Use when an agent needs Solana ground truth before acting: is this token safe, is this wallet risky, where is smart money moving, which perps venue has the best funding, which StonkFun coins are paying holders."
 category: finance
 service_url: https://api.solenrich.com
 version: v1
@@ -17,7 +17,7 @@ context windows (`format: "llm"`), or both (`format: "both"`). All endpoints
 are POST to `/entrypoints/{key}/invoke` with a flat JSON body containing the
 parameters in the OpenAPI schema, e.g. `{ "mint": "...", "format": "llm" }`
 (a `{ "input": { ... } }` envelope is also accepted), and settle via x402
-(USDC on Solana or Base). 38 endpoints; prices range $0.001–$0.10 per call.
+(USDC on Solana or Base). 44 paid endpoints plus one free; prices range $0.001–$0.25 per call.
 
 What it offers, by task:
 
@@ -45,6 +45,13 @@ What it offers, by task:
 - **Discovery and signals** — `new-tokens`, `trending-signals`,
   `consensus-signal` (what other agents are querying right now), and
   poll-based `check-alerts` for price/whale/risk/perp-position events.
+- **StonkFun reward coins** — quote-paired coins that pay holders a transfer
+  tax in the quote asset (xStocks, pre-stocks, ZEC). `stonk-gems` ranks every
+  reward coin on recent payout, holders, turnover, and quote strength;
+  `stonk-reward-risk` returns payout status (PAYING/STALE/NEVER) and the
+  round-trip tax cost; `stonk-screener` filters by live/paying; `stonk-launch-intel`
+  says which quote asset to launch against; `stonk-launch-preflight` diffs a
+  self-built LaunchLab transaction before broadcast; `stonk-pairs` is free.
 - **Natural language** — `query` routes a plain-English question to the right
   enricher(s) and returns a unified answer.
 
