@@ -5,7 +5,7 @@ description: "CriptoNous x402 crypto market intelligence — whale flow, wallet 
 use_case: "Use for crypto whale-flow reads, smart-money wallet intel, narrative/sentiment pulse, regime timing, structured oracle signals, and multi-source confluence. Prefer hermes.pulse ($0.02) as first paid probe."
 category: finance
 service_url: https://app.criptonous.com
-version: "1.17.5"
+version: "1.18.3"
 openapi:
   path: openapi.json
 ---
@@ -38,14 +38,14 @@ Contact: `oraculo@criptonous.app`
 | $0.05 | `poseidon.flow` | On-chain whale / smart-money flow |
 | $0.12 | `swarm.pulse` | Multi-source confluence snapshot |
 | $0.25 | `delfos.signal` | Structured oracle signal (pack ceiling) |
-| $9.00 | `session.24h` | 12 metered reads ≤ $0.25 (agent loop pack) |
+| $9.00 | `session.24h` | 12 metered reads of SKUs ≤ $1.00 (spendingCap 12 USDC; up to $12 catalog value) |
 
 Full table lives in live OpenAPI + `GET /.well-known/x402`.
 
 ## Spend-aware usage
 
 - **Start with `hermes.pulse` ($0.02)** before buying confluence or oracle SKUs — validates wallet + facilitator path with minimal spend.
-- **Do not buy `session.24h` ($9) to save money.** 12 unit buys at the $0.25 ceiling cost **$3**; cheap probes (`hermes.pulse` $0.02) are even lower. Use `session.24h` only if you want **one payment + one AccessPass** for up to 12 metered reads in 24h (less signing friction), not cheaper unit economics.
+- **`session.24h` ($9)** unlocks 12 consumes of SKUs ≤ **$1.00** with spendingCap **12 USDC** (up to **$12** catalog value). Prefer it for multi-read days / less signing friction. For a single probe, buy `hermes.pulse` ($0.02) — do not open a $9 pack for one call.
 - **Call `temple.catalog` once** to refresh prices/tags; do not re-buy catalog every turn.
 - **Pass `?symbol=SOL` (or similar)** only when the SKU is symbol-scoped; omit for pantheon/session packs.
 - **NFA boundary:** responses are intelligence/context. Never treat payloads as trade tickets, custody instructions, or guaranteed returns.
