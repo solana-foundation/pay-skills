@@ -1,0 +1,3329 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "2s",
+    "version": "1",
+    "description": "Unified JSON REST API for AI agents — an ever-expanding catalog of endpoints, pay per call in USDC on Base or Solana via x402, no accounts, no API keys. Fund a wallet on either chain with USDC, hit any endpoint, and your client signs an EIP-3009 authorization (Base) or a partial SPL transfer (Solana) to settle the call. Try before you buy: add ?trial=1 (or header X-2s-Trial: 1) to any endpoint for one free real call per endpoint per hour — no wallet needed — to verify it works before paying. 2s is an open-ended experiment in maximally-comprehensive agent infrastructure — new endpoints land regularly.",
+    "contact": {
+      "name": "2s",
+      "url": "https://2s.io",
+      "email": "alley@2s.io"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://2s.io"
+    }
+  ],
+  "components": {
+    "parameters": {
+      "TrialMode": {
+        "name": "trial",
+        "in": "query",
+        "required": false,
+        "description": "Try before you buy. Set to 1 for one free real call per endpoint per hour — no wallet or payment needed — to verify the endpoint before paying. Equivalent to sending the \"X-2s-Trial: 1\" request header. Works on every endpoint.",
+        "schema": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        }
+      }
+    },
+    "securitySchemes": {
+      "x402Payment": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "PAYMENT-SIGNATURE",
+        "description": "x402 protocol v2: base64-encoded PaymentPayload. Call any paid endpoint without auth to receive a 402 with a multi-network PaymentRequirements envelope. Sign for either rail: EIP-3009 transferWithAuthorization (Base USDC) OR a partial SPL token transfer (Solana USDC). Retry with PAYMENT-SIGNATURE header. X-PAYMENT is also accepted for v1 buyer clients. See https://x402.org."
+      }
+    },
+    "schemas": {
+      "X402PaymentRequiredV2": {
+        "type": "object",
+        "description": "x402 v2 PaymentRequired envelope. Pick any entry from accepts[], sign for that rail, retry with the PAYMENT-SIGNATURE header.",
+        "required": [
+          "x402Version",
+          "accepts"
+        ],
+        "properties": {
+          "x402Version": {
+            "type": "integer",
+            "const": 2
+          },
+          "error": {
+            "type": "string",
+            "description": "Human-readable reason payment is required."
+          },
+          "resource": {
+            "type": "string",
+            "description": "The resource URL being purchased."
+          },
+          "accepts": {
+            "type": "array",
+            "description": "Payment requirement options, one per supported network (Base USDC, Solana USDC).",
+            "items": {
+              "type": "object",
+              "required": [
+                "scheme",
+                "network",
+                "amount",
+                "asset",
+                "payTo",
+                "maxTimeoutSeconds"
+              ],
+              "properties": {
+                "scheme": {
+                  "type": "string",
+                  "enum": [
+                    "exact"
+                  ]
+                },
+                "network": {
+                  "type": "string",
+                  "description": "CAIP-2 network id, e.g. \"eip155:8453\" (Base) or \"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp\"."
+                },
+                "amount": {
+                  "type": "string",
+                  "description": "Price in atomic asset units (USDC has 6 decimals)."
+                },
+                "asset": {
+                  "type": "string",
+                  "description": "Asset contract address / mint."
+                },
+                "payTo": {
+                  "type": "string",
+                  "description": "Treasury address to pay."
+                },
+                "maxTimeoutSeconds": {
+                  "type": "integer"
+                },
+                "extra": {
+                  "type": "object",
+                  "description": "Rail-specific extras (EVM: EIP-712 domain name/version; Solana: feePayer).",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "extensions": {
+            "type": "object",
+            "description": "Optional discovery metadata (e.g. bazaar input/output schemas).",
+            "additionalProperties": true
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/clinical/trial-search": {
+      "get": {
+        "tags": [
+          "clinical"
+        ],
+        "summary": "Search ClinicalTrials.gov - every registered US (and many...",
+        "description": "Search ClinicalTrials.gov — every registered US (and many international) clinical study (~500k trials). Free-text query matches title + condition + intervention; or direct lookup by NCT ID. Optional filters: recruitment status, lead sponsor, phase (PHASE1..PHASE4), country. Each record includes NCT ID, brief + official title, status, phases, study type, conditions list, interventions (with type + name), enrollment count + type, key dates (start / primary completion / completion / first posted / last update), lead sponsor + class (INDUSTRY/NIH/OTHER), hasResults flag, brief summary, and canonical clinicaltrials.gov URL. Public-domain NIH NLM data.",
+        "operationId": "clinical_trial-search",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = ClinicalTrials.gov studies; total = null (upstream paginates by opaque token, no true count); meta.nextPageToken for the next page; meta.query echoes the search.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "nctId": {
+                                "type": "string"
+                              },
+                              "briefTitle": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "officialTitle": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "status": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "phases": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "studyType": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "conditions": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "interventions": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string",
+                                      "nullable": true
+                                    },
+                                    "name": {
+                                      "type": "string",
+                                      "nullable": true
+                                    }
+                                  },
+                                  "required": [
+                                    "type",
+                                    "name"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "enrollmentCount": {
+                                "type": "integer",
+                                "nullable": true
+                              },
+                              "enrollmentType": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "startDate": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "primaryCompletionDate": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "completionDate": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "leadSponsor": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "leadSponsorClass": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "hasResults": {
+                                "type": "boolean"
+                              },
+                              "studyFirstPostedDate": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "lastUpdatePostedDate": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "briefSummary": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "url": {
+                                "type": "string",
+                                "format": "uri"
+                              }
+                            },
+                            "required": [
+                              "nctId",
+                              "briefTitle",
+                              "officialTitle",
+                              "status",
+                              "phases",
+                              "studyType",
+                              "conditions",
+                              "interventions",
+                              "enrollmentCount",
+                              "enrollmentType",
+                              "startDate",
+                              "primaryCompletionDate",
+                              "completionDate",
+                              "leadSponsor",
+                              "leadSponsorClass",
+                              "hasResults",
+                              "studyFirstPostedDate",
+                              "lastUpdatePostedDate",
+                              "briefSummary",
+                              "url"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "query": {
+                              "type": "object",
+                              "properties": {
+                                "query": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "nctId": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "sponsor": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "phase": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "country": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "pageSize": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "query",
+                                "nctId",
+                                "status",
+                                "sponsor",
+                                "phase",
+                                "country",
+                                "pageSize"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "nextPageToken": {
+                              "type": "string",
+                              "nullable": true
+                            }
+                          },
+                          "required": [
+                            "query",
+                            "nextPageToken"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0012 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "clinical.trial-search",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0012,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001200"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "description": "Free-text search query.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 300
+            }
+          },
+          {
+            "name": "nctId",
+            "in": "query",
+            "required": false,
+            "description": "Nct ID.",
+            "schema": {
+              "type": "string",
+              "pattern": "^NCT\\d{8}$"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter results by status.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "RECRUITING",
+                "ACTIVE_NOT_RECRUITING",
+                "COMPLETED",
+                "TERMINATED",
+                "WITHDRAWN",
+                "NOT_YET_RECRUITING",
+                "SUSPENDED"
+              ]
+            }
+          },
+          {
+            "name": "sponsor",
+            "in": "query",
+            "required": false,
+            "description": "Sponsor.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "phase",
+            "in": "query",
+            "required": false,
+            "description": "Phase.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 40
+            }
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "description": "Country name or ISO country code.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 80
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "description": "Number of results to return per page.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10
+            }
+          },
+          {
+            "name": "pageToken",
+            "in": "query",
+            "required": false,
+            "description": "Page token.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/food/barcode-lookup": {
+      "get": {
+        "tags": [
+          "food"
+        ],
+        "summary": "Resolve a food product barcode (UPC, EAN-13, EAN-8, etc.)...",
+        "description": "Resolve a food product barcode (UPC, EAN-13, EAN-8, etc.) to structured product metadata via Open Food Facts — the CC0 community-maintained database of >3M food products. Returns product name, brand, ingredient list, allergens, nutriments (per-100g + per-serving), Nutri-Score grade (a-e), NOVA processing classification (1-4), Eco-Score, categories, manufacturing origin, packaging, and product image URLs.",
+        "operationId": "food_barcode-lookup",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = [product] when the barcode resolves (total 1), else [] (total 0); meta.found flags whether Open Food Facts had the product.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "barcode": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "brands": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "categories": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "quantity": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "servingSize": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "ingredientsText": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "allergens": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "imageUrl": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "nutriscoreGrade": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "novaGroup": {
+                                "type": "integer",
+                                "nullable": true
+                              },
+                              "ecoscoreGrade": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "nutrientLevels": {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "type": "string"
+                                }
+                              },
+                              "nutriments": {
+                                "type": "object",
+                                "additionalProperties": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "string"
+                                    }
+                                  ]
+                                }
+                              },
+                              "countries": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "labels": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "manufacturingPlaces": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "origins": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "packaging": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "required": [
+                              "barcode",
+                              "name",
+                              "brands",
+                              "categories",
+                              "quantity",
+                              "servingSize",
+                              "ingredientsText",
+                              "allergens",
+                              "imageUrl",
+                              "nutriscoreGrade",
+                              "novaGroup",
+                              "ecoscoreGrade",
+                              "nutrientLevels",
+                              "nutriments",
+                              "countries",
+                              "labels",
+                              "manufacturingPlaces",
+                              "origins",
+                              "packaging"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "found": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "found"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0012 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "food.barcode-lookup",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0012,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001200"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "barcode",
+            "in": "query",
+            "required": true,
+            "description": "Barcode.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{6,14}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/health/hospital-lookup": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Fetch CMS Care Compare lookup for every CMS-certified US",
+        "description": "CMS Care Compare lookup for every CMS-certified US hospital (~5k). Lookup by 6-digit CMS Facility ID for direct match, or fuzzy by name + state + city + hospital type, with optional minimum overall rating (1-5) filter. Each record includes facility ID, name, full address, phone, hospital type (Acute Care / Critical Access / Psychiatric / etc.), ownership category, emergency services flag, birthing-friendly designation, CMS overall star rating, and per-measure-group counts (mortality, safety, readmission, patient experience, effectiveness, timeliness, medical imaging). Public-domain federal data.",
+        "operationId": "health_hospital-lookup",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = CMS-certified hospital records; total = upstream match count; meta.query echoes the search.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "facilityId": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "address": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "city": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "state": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "zipcode": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "county": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "phone": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "hospitalType": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "ownership": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "hasEmergencyServices": {
+                                "type": "boolean",
+                                "nullable": true
+                              },
+                              "meetsBirthingFriendlyCriteria": {
+                                "type": "boolean",
+                                "nullable": true
+                              },
+                              "overallRating": {
+                                "type": "integer",
+                                "nullable": true
+                              },
+                              "mortalityGroupCount": {
+                                "type": "integer",
+                                "nullable": true
+                              },
+                              "safetyGroupCount": {
+                                "type": "integer",
+                                "nullable": true
+                              },
+                              "readmissionGroupCount": {
+                                "type": "integer",
+                                "nullable": true
+                              },
+                              "experienceGroupCount": {
+                                "type": "integer",
+                                "nullable": true
+                              },
+                              "effectivenessGroupCount": {
+                                "type": "integer",
+                                "nullable": true
+                              },
+                              "timelinessGroupCount": {
+                                "type": "integer",
+                                "nullable": true
+                              },
+                              "imagingGroupCount": {
+                                "type": "integer",
+                                "nullable": true
+                              }
+                            },
+                            "required": [
+                              "facilityId",
+                              "name",
+                              "address",
+                              "city",
+                              "state",
+                              "zipcode",
+                              "county",
+                              "phone",
+                              "hospitalType",
+                              "ownership",
+                              "hasEmergencyServices",
+                              "meetsBirthingFriendlyCriteria",
+                              "overallRating",
+                              "mortalityGroupCount",
+                              "safetyGroupCount",
+                              "readmissionGroupCount",
+                              "experienceGroupCount",
+                              "effectivenessGroupCount",
+                              "timelinessGroupCount",
+                              "imagingGroupCount"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "query": {
+                              "type": "object",
+                              "properties": {
+                                "facilityId": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "name": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "city": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "state": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "hospitalType": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "minRating": {
+                                  "type": "integer",
+                                  "nullable": true
+                                },
+                                "limit": {
+                                  "type": "integer"
+                                },
+                                "offset": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "facilityId",
+                                "name",
+                                "city",
+                                "state",
+                                "hospitalType",
+                                "minRating",
+                                "limit",
+                                "offset"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "returned": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "query",
+                            "returned"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0012 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "health.hospital-lookup",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0012,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001200"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "facilityId",
+            "in": "query",
+            "required": false,
+            "description": "Facility ID.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{6}$"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "description": "Name to search for.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "required": false,
+            "description": "City name to filter by.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "description": "US state — two-letter postal abbreviation (e.g. CA) or full name.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 2,
+              "pattern": "^[A-Za-z]{2}$"
+            }
+          },
+          {
+            "name": "hospitalType",
+            "in": "query",
+            "required": false,
+            "description": "Hospital type.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 80
+            }
+          },
+          {
+            "name": "minRating",
+            "in": "query",
+            "required": false,
+            "description": "Min rating.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of results to return.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Number of results to skip before returning (pagination offset).",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000,
+              "default": 0
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/health/hospital-quality": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Fetch CMS Care Compare hospital quality ratings - the data",
+        "description": "CMS Care Compare hospital quality ratings — the data behind medicare.gov hospital ratings, for all ~5,300 Medicare-certified US hospitals. Look up by facilityId (CMS certification number), or filter by state, city, and name (partial match). Each row: facility id/name/address/phone, hospital type + ownership, emergency services, overall star rating (1-5), and per-domain measure summaries (mortality, safety of care, readmission, patient experience, timeliness, effectiveness) showing whether the hospital performs better/same/worse than the national average. Rows returned with CMS's documented column names. Public-domain federal data.",
+        "operationId": "health_hospital-quality",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = CMS Care Compare hospital rows (CMS's documented column names, incl. hospital_overall_rating); total = upstream match count (null if CMS omits it).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": {}
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.00288 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "health.hospital-quality",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.00288,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.002880"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "facilityId",
+            "in": "query",
+            "required": false,
+            "description": "Facility ID.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9A-Za-z]{6}$"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "description": "US state — two-letter postal abbreviation (e.g. CA) or full name.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 2
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "required": false,
+            "description": "City name to filter by.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 60
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "description": "Name to search for.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 120
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of results to return.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Number of results to skip before returning (pagination offset).",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/health/medicare-provider": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Fetch Medicare utilization + payments by provider (CMS",
+        "description": "Medicare utilization + payments by provider (CMS 'Physician & Other Practitioners - by Provider' annual dataset). Look up by npi, or filter by lastName (exact last/organization name) + state. Each row: provider NPI, name, credentials, entity type, full address, provider type/specialty, Medicare participation, beneficiary counts, total services, submitted charges, Medicare allowed/payment amounts, plus beneficiary demographic + chronic-condition aggregates — CMS's documented column names (Rndrng_NPI, Tot_Srvcs, Tot_Mdcr_Pymt_Amt, etc). Complements /api/health/open-payments (industry payments to the same NPIs). KYC, healthcare-fraud research, and provider due diligence. For a provider 360 (identity + industry payments + this) by NPI in one call, see /api/health/provider-profile. Public-domain federal data.",
+        "operationId": "health_medicare-provider",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = CMS Medicare provider utilization rows (CMS's documented column names: Rndrng_NPI, Tot_Srvcs, Tot_Mdcr_Pymt_Amt, …); total = null (CMS data-api returns no match count).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": {}
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.00288 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "health.medicare-provider",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.00288,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.002880"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "npi",
+            "in": "query",
+            "required": false,
+            "description": "NPI.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{10}$"
+            }
+          },
+          {
+            "name": "lastName",
+            "in": "query",
+            "required": false,
+            "description": "Last name to filter by.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 80
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "description": "US state — two-letter postal abbreviation (e.g. CA) or full name.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 2
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of results to return.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Number of results to skip before returning (pagination offset).",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/health/mortality-stats": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Fetch US mortality statistics from CDC NCHS.",
+        "description": "US mortality statistics from CDC NCHS. dataset=leading-causes (default): annual deaths + age-adjusted death rate per 100k by state and top-10 cause of death, 1999-2017 — filter by state (full name, e.g. \"California\", or \"United States\"), year, cause (e.g. \"Heart disease\", \"Cancer\", \"Suicide\"). dataset=weekly-counts: provisional weekly death counts by jurisdiction with per-cause columns (all-cause, natural, COVID-19, heart disease, cancer, etc.), 2020-2023 — filter by state and mmwrYear. Rows returned raw from CDC with documented column names. Public-domain federal data.",
+        "operationId": "health_mortality-stats",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = raw CDC NCHS rows (documented column names); total = null (Socrata page, no upstream count); meta.dataset echoes which dataset was queried.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": {}
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "dataset": {
+                              "type": "string",
+                              "enum": [
+                                "leading-causes",
+                                "weekly-counts"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "dataset"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0024 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "health.mortality-stats",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0024,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.002400"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "dataset",
+            "in": "query",
+            "required": false,
+            "description": "Dataset.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "leading-causes",
+                "weekly-counts"
+              ],
+              "default": "leading-causes"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "description": "US state — two-letter postal abbreviation (e.g. CA) or full name.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 40
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "description": "Four-digit calendar year.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1999,
+              "maximum": 2023
+            }
+          },
+          {
+            "name": "cause",
+            "in": "query",
+            "required": false,
+            "description": "Cause.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 80
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of results to return.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 25
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Number of results to skip before returning (pagination offset).",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/health/open-payments": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Search CMS Open Payments - every payment from a drug/device...",
+        "description": "Search CMS Open Payments — every payment from a drug/device manufacturer or GPO to a US physician or teaching hospital under the Sunshine Act (~10M records per year). Lookup by 10-digit NPI for the recipient (most precise), by last/first name + state, or by payer (manufacturer) name. Each record includes recipient (NPI, name, specialty, location), payer (manufacturer name + state/country), payment (amount USD, date, nature of payment such as 'Consulting Fee'/'Food and Beverage'/'Travel'/'Royalty', form of payment), and associated product (drug/device name + therapeutic area). Investigative journalism + KYC + healthcare conflict-of-interest research. Public-domain federal data.",
+        "operationId": "health_open-payments",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = CMS Open Payments records matching the query; total = upstream match count; meta carries the query echo + program year. For a provider 360 (identity + this + Medicare billing) by NPI in one call, see /api/health/provider-profile.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "recordId": {
+                                "type": "string"
+                              },
+                              "recipient": {
+                                "type": "object",
+                                "properties": {
+                                  "npi": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "firstName": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "lastName": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "type": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "primarySpecialty": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "city": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "state": {
+                                    "type": "string",
+                                    "nullable": true
+                                  }
+                                },
+                                "required": [
+                                  "npi",
+                                  "firstName",
+                                  "lastName",
+                                  "type",
+                                  "primarySpecialty",
+                                  "city",
+                                  "state"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "payer": {
+                                "type": "object",
+                                "properties": {
+                                  "name": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "state": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "country": {
+                                    "type": "string",
+                                    "nullable": true
+                                  }
+                                },
+                                "required": [
+                                  "name",
+                                  "state",
+                                  "country"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "payment": {
+                                "type": "object",
+                                "properties": {
+                                  "amountUsd": {
+                                    "type": "number",
+                                    "nullable": true
+                                  },
+                                  "date": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "natureOfPayment": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "formOfPayment": {
+                                    "type": "string",
+                                    "nullable": true
+                                  }
+                                },
+                                "required": [
+                                  "amountUsd",
+                                  "date",
+                                  "natureOfPayment",
+                                  "formOfPayment"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "associatedProduct": {
+                                "type": "object",
+                                "properties": {
+                                  "type": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "name": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "therapeuticArea": {
+                                    "type": "string",
+                                    "nullable": true
+                                  }
+                                },
+                                "required": [
+                                  "type",
+                                  "name",
+                                  "therapeuticArea"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "programYear": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            },
+                            "required": [
+                              "recordId",
+                              "recipient",
+                              "payer",
+                              "payment",
+                              "associatedProduct",
+                              "programYear"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "query": {
+                              "type": "object",
+                              "properties": {
+                                "npi": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "lastName": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "firstName": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "payerName": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "state": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "minAmount": {
+                                  "type": "number",
+                                  "nullable": true
+                                },
+                                "limit": {
+                                  "type": "integer"
+                                },
+                                "offset": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "npi",
+                                "lastName",
+                                "firstName",
+                                "payerName",
+                                "state",
+                                "minAmount",
+                                "limit",
+                                "offset"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "programYear": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "query",
+                            "programYear"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0012 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "health.open-payments",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0012,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001200"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "npi",
+            "in": "query",
+            "required": false,
+            "description": "NPI.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{10}$"
+            }
+          },
+          {
+            "name": "firstName",
+            "in": "query",
+            "required": false,
+            "description": "First name to filter by.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            }
+          },
+          {
+            "name": "lastName",
+            "in": "query",
+            "required": false,
+            "description": "Last name to filter by.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            }
+          },
+          {
+            "name": "payerName",
+            "in": "query",
+            "required": false,
+            "description": "Payer name.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "description": "US state — two-letter postal abbreviation (e.g. CA) or full name.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 2,
+              "pattern": "^[A-Za-z]{2}$"
+            }
+          },
+          {
+            "name": "minAmount",
+            "in": "query",
+            "required": false,
+            "description": "Minimum amount to include (USD).",
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 10000000
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of results to return.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Number of results to skip before returning (pagination offset).",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000,
+              "default": 0
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/health/provider-profile": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Fetch Provider 360 - everything we know about a US",
+        "description": "Provider 360 — everything we know about a US healthcare provider, merged on their 10-digit NPI in one call. Combines three federal datasets: identity (NPPES registry: name, specialty/taxonomy, practice address, licenses), industry payments (CMS Open Payments: what drug & device makers paid them), and Medicare billing (CMS Physician & Other Practitioners: services, charges, and Medicare payment amounts). Each section reports found/error independently — a provider with no Open Payments or Medicare record still returns identity. KYC, healthcare-fraud research, investigative journalism, provider due diligence. Pass npi (required). For the individual sources see /api/license/medical, /api/health/open-payments, /api/health/medicare-provider.",
+        "operationId": "health_provider-profile",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "npi": {
+                          "type": "string"
+                        },
+                        "identity": {
+                          "type": "object",
+                          "properties": {
+                            "found": {
+                              "type": "boolean"
+                            },
+                            "error": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "provider": {
+                              "type": "object",
+                              "additionalProperties": {},
+                              "nullable": true
+                            }
+                          },
+                          "required": [
+                            "found",
+                            "error",
+                            "provider"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "openPayments": {
+                          "type": "object",
+                          "properties": {
+                            "found": {
+                              "type": "boolean"
+                            },
+                            "error": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "totalCount": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "payments": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "additionalProperties": {}
+                              }
+                            }
+                          },
+                          "required": [
+                            "found",
+                            "error",
+                            "totalCount",
+                            "payments"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "medicare": {
+                          "type": "object",
+                          "properties": {
+                            "found": {
+                              "type": "boolean"
+                            },
+                            "error": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "record": {
+                              "type": "object",
+                              "additionalProperties": {},
+                              "nullable": true
+                            }
+                          },
+                          "required": [
+                            "found",
+                            "error",
+                            "record"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "sources": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": {}
+                          }
+                        }
+                      },
+                      "required": [
+                        "npi",
+                        "identity",
+                        "openPayments",
+                        "medicare",
+                        "sources"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.00576 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "health.provider-profile",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.00576,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "legacy",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.005760"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "npi",
+            "in": "query",
+            "required": true,
+            "description": "NPI.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{10}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/medical/icd10": {
+      "get": {
+        "tags": [
+          "medical"
+        ],
+        "summary": "Verify and search ICD-10-CM diagnosis codes against the...",
+        "description": "Verify and search ICD-10-CM diagnosis codes against the official US code set (FY2026, ~98k entries). Pass code (with or without the dot, e.g. E11.9 or E119) to confirm the code exists and list its more-specific child codes, or q to keyword-search code descriptions (e.g. \"type 2 diabetes neuropathy\"). Optional billable_only=true restricts results to codes valid for claim submission; limit caps results (1-50, default 10). Returns a verified flag, the exact match if any, and matched codes with billable status plus short and long descriptions. Data: CMS/NCHS ICD-10-CM (public domain), refreshed each US fiscal year. Use to confirm diagnosis codes are real and current before placing them in claims, prior authorizations, or clinical documents.",
+        "operationId": "medical_icd10",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = matched ICD-10-CM codes (verify mode: the exact code + child codes; keyword mode: billable matches first); total = 1 when an exact code is verified, else null. meta.mode flags verify vs keyword and carries verified/exactMatch.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Storage form without the dot, e.g. E119."
+                              },
+                              "codeDotted": {
+                                "type": "string",
+                                "description": "Conventional display form, e.g. E11.9."
+                              },
+                              "billable": {
+                                "type": "boolean",
+                                "description": "True when valid for claim submission (leaf code); false for category headers."
+                              },
+                              "shortDescription": {
+                                "type": "string"
+                              },
+                              "longDescription": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "codeDotted",
+                              "billable",
+                              "shortDescription",
+                              "longDescription"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "verify",
+                                "keyword"
+                              ],
+                              "description": "verify = code lookup; keyword = q search."
+                            },
+                            "query": {
+                              "type": "object",
+                              "properties": {
+                                "code": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "q": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "billableOnly": {
+                                  "type": "boolean"
+                                },
+                                "limit": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "code",
+                                "q",
+                                "billableOnly",
+                                "limit"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "verified": {
+                              "type": "boolean",
+                              "nullable": true,
+                              "description": "Verify mode: true iff the exact code exists in the official set. null in keyword mode."
+                            },
+                            "exactMatch": {
+                              "type": "object",
+                              "properties": {
+                                "code": {
+                                  "type": "string",
+                                  "description": "Storage form without the dot, e.g. E119."
+                                },
+                                "codeDotted": {
+                                  "type": "string",
+                                  "description": "Conventional display form, e.g. E11.9."
+                                },
+                                "billable": {
+                                  "type": "boolean",
+                                  "description": "True when valid for claim submission (leaf code); false for category headers."
+                                },
+                                "shortDescription": {
+                                  "type": "string"
+                                },
+                                "longDescription": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "code",
+                                "codeDotted",
+                                "billable",
+                                "shortDescription",
+                                "longDescription"
+                              ],
+                              "additionalProperties": false,
+                              "nullable": true,
+                              "description": "The exact code when verified, else null."
+                            },
+                            "fiscalYear": {
+                              "type": "integer",
+                              "description": "US fiscal year of the loaded code set."
+                            }
+                          },
+                          "required": [
+                            "mode",
+                            "query",
+                            "verified",
+                            "exactMatch",
+                            "fiscalYear"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.001 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "medical.icd10",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.001,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "description": "ICD-10-CM code to verify, with or without the dot (e.g. E11.9 or E119). Returns the exact match plus more-specific child codes. Provide either code or q, not both.",
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 9,
+              "pattern": "^[A-Za-z][0-9][0-9A-Za-z](\\.?[0-9A-Za-z]{0,4})$"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Keyword search over official code descriptions (e.g. \"type 2 diabetes neuropathy\"). Every word must match. Provide either code or q, not both.",
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 120
+            }
+          },
+          {
+            "name": "billable_only",
+            "in": "query",
+            "required": false,
+            "description": "When true, only return codes valid for claim submission (excludes category headers).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum codes returned (1-50, default 10).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/medical/rxnorm": {
+      "get": {
+        "tags": [
+          "medical"
+        ],
+        "summary": "Parse and verify drug names against RxNorm, the...",
+        "description": "Normalize and verify drug names against RxNorm, the canonical US drug vocabulary from the NIH. Two modes: term (\"tylenol 500mg\", brand or generic, typos tolerated) returns ranked RxCUI candidates with normalized names and match scores; rxcui returns the canonical concept (name, term type like IN=ingredient / SBD=branded drug / SCD=clinical drug, suppression flag) plus related concepts — active ingredients, brand names, and available dose forms. Use before writing prescriptions data, drug interactions queries, or pharmacy integrations: verify the drug exists and get its stable identifier instead of trusting model memory. Sibling: /api/medical/icd10 (diagnosis codes). Public-domain NIH data.",
+        "operationId": "medical_rxnorm",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = ranked RxCUI candidates (term/search mode) or [the one canonical concept] (rxcui/detail mode); total = null in search mode, 1 or 0 in detail mode. meta.mode flags search vs detail; meta.concept + meta.related carry detail-mode extras.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": {}
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "search",
+                                "detail"
+                              ]
+                            },
+                            "concept": {
+                              "type": "object",
+                              "properties": {
+                                "rxcui": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "synonym": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "termType": {
+                                  "type": "string",
+                                  "nullable": true,
+                                  "description": "IN=ingredient, BN=brand, SBD=branded drug, SCD=clinical drug, …"
+                                },
+                                "suppressed": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "rxcui",
+                                "name",
+                                "synonym",
+                                "termType",
+                                "suppressed"
+                              ],
+                              "additionalProperties": false,
+                              "nullable": true,
+                              "description": "Canonical concept (detail mode). Null when the rxcui does not exist."
+                            },
+                            "related": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "termType": {
+                                    "type": "string"
+                                  },
+                                  "concepts": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "rxcui": {
+                                          "type": "string"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "rxcui",
+                                        "name"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "termType",
+                                  "concepts"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "nullable": true,
+                              "description": "Related concepts by term type: IN (ingredients), BN (brands), DF (dose forms). Detail mode only."
+                            }
+                          },
+                          "required": [
+                            "mode",
+                            "concept",
+                            "related"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0012 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "medical.rxnorm",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0012,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001200"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "term",
+            "in": "query",
+            "required": false,
+            "description": "Free-text drug name. Provide term or rxcui, not both.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "rxcui",
+            "in": "query",
+            "required": false,
+            "description": "RXCUI.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,8}$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of results to return.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20,
+              "default": 5
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/nutrition/food": {
+      "get": {
+        "tags": [
+          "nutrition"
+        ],
+        "summary": "Fetch USDA FoodData Central nutrition lookup.",
+        "description": "USDA FoodData Central nutrition lookup. Two modes: search (query=cheddar cheese) returns matching foods with fdcId, description, data type, category, and brand; detail (fdcId=328637) returns the full analyzed nutrient profile — energy, protein, fats, carbohydrates, vitamins, minerals — with USDA nutrient numbers, amounts, and units (per 100 g/ml unless serving fields indicate otherwise), plus ingredients for branded foods. Filter search by dataType: Foundation and SR Legacy are lab-analyzed generic foods, Branded is the packaged-food label corpus, Survey (FNDDS) is as-consumed dishes. Authoritative USDA data covering ~400k foods — use real analyzed values instead of model-estimated nutrition facts.",
+        "operationId": "nutrition_food",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = food search hits (meta.mode=\"search\", total = totalHits) OR one food’s full nutrient profile (meta.mode=\"detail\", total = 1) from USDA FoodData Central.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "fdcId": {
+                                    "type": "number"
+                                  },
+                                  "description": {
+                                    "type": "string"
+                                  },
+                                  "dataType": {
+                                    "type": "string"
+                                  },
+                                  "foodCategory": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "brandOwner": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "brandName": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "servingSize": {
+                                    "type": "number",
+                                    "nullable": true
+                                  },
+                                  "servingSizeUnit": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "publishedDate": {
+                                    "type": "string",
+                                    "nullable": true
+                                  }
+                                },
+                                "required": [
+                                  "fdcId",
+                                  "description",
+                                  "dataType",
+                                  "foodCategory",
+                                  "brandOwner",
+                                  "brandName",
+                                  "servingSize",
+                                  "servingSizeUnit",
+                                  "publishedDate"
+                                ],
+                                "additionalProperties": false,
+                                "description": "Search-mode hit (meta.mode = \"search\")."
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "fdcId": {
+                                    "type": "number"
+                                  },
+                                  "description": {
+                                    "type": "string"
+                                  },
+                                  "dataType": {
+                                    "type": "string"
+                                  },
+                                  "foodCategory": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "brandOwner": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "ingredients": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "servingSize": {
+                                    "type": "number",
+                                    "nullable": true
+                                  },
+                                  "servingSizeUnit": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "publicationDate": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "nutrients": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "number": {
+                                          "type": "string",
+                                          "description": "USDA nutrient number, e.g. \"208\" = Energy (kcal)."
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "amount": {
+                                          "type": "number"
+                                        },
+                                        "unitName": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "number",
+                                        "name",
+                                        "amount",
+                                        "unitName"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "fdcId",
+                                  "description",
+                                  "dataType",
+                                  "foodCategory",
+                                  "brandOwner",
+                                  "ingredients",
+                                  "servingSize",
+                                  "servingSizeUnit",
+                                  "publicationDate",
+                                  "nutrients"
+                                ],
+                                "additionalProperties": false,
+                                "description": "Detail-mode full nutrient profile (meta.mode = \"detail\"). Values per 100 g/ml unless serving fields indicate otherwise."
+                              }
+                            ]
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "search",
+                                "detail"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "mode"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0012 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "nutrition.food",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0012,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001200"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "description": "Food name to search, e.g. \"cheddar cheese\". Provide query or fdcId, not both.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 120
+            }
+          },
+          {
+            "name": "fdcId",
+            "in": "query",
+            "required": false,
+            "description": "FDC food id — returns the full nutrient profile.",
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": true,
+              "minimum": 0
+            }
+          },
+          {
+            "name": "dataType",
+            "in": "query",
+            "required": false,
+            "description": "Restrict search to one data type. Foundation/SR Legacy = analyzed generic foods, Branded = packaged labels, Survey (FNDDS) = as-consumed dishes.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Foundation",
+                "SR Legacy",
+                "Survey (FNDDS)",
+                "Branded"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of results to return.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number (1-based) for paginated results.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,300 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "2s",
+    "version": "1",
+    "description": "Unified JSON REST API for AI agents — an ever-expanding catalog of endpoints, pay per call in USDC on Base or Solana via x402, no accounts, no API keys. Fund a wallet on either chain with USDC, hit any endpoint, and your client signs an EIP-3009 authorization (Base) or a partial SPL transfer (Solana) to settle the call. Try before you buy: add ?trial=1 (or header X-2s-Trial: 1) to any endpoint for one free real call per endpoint per hour — no wallet needed — to verify it works before paying. 2s is an open-ended experiment in maximally-comprehensive agent infrastructure — new endpoints land regularly.",
+    "contact": {
+      "name": "2s",
+      "url": "https://2s.io",
+      "email": "alley@2s.io"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://2s.io"
+    }
+  ],
+  "components": {
+    "parameters": {
+      "TrialMode": {
+        "name": "trial",
+        "in": "query",
+        "required": false,
+        "description": "Try before you buy. Set to 1 for one free real call per endpoint per hour — no wallet or payment needed — to verify the endpoint before paying. Equivalent to sending the \"X-2s-Trial: 1\" request header. Works on every endpoint.",
+        "schema": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        }
+      }
+    },
+    "securitySchemes": {
+      "x402Payment": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "PAYMENT-SIGNATURE",
+        "description": "x402 protocol v2: base64-encoded PaymentPayload. Call any paid endpoint without auth to receive a 402 with a multi-network PaymentRequirements envelope. Sign for either rail: EIP-3009 transferWithAuthorization (Base USDC) OR a partial SPL token transfer (Solana USDC). Retry with PAYMENT-SIGNATURE header. X-PAYMENT is also accepted for v1 buyer clients. See https://x402.org."
+      }
+    },
+    "schemas": {
+      "X402PaymentRequiredV2": {
+        "type": "object",
+        "description": "x402 v2 PaymentRequired envelope. Pick any entry from accepts[], sign for that rail, retry with the PAYMENT-SIGNATURE header.",
+        "required": [
+          "x402Version",
+          "accepts"
+        ],
+        "properties": {
+          "x402Version": {
+            "type": "integer",
+            "const": 2
+          },
+          "error": {
+            "type": "string",
+            "description": "Human-readable reason payment is required."
+          },
+          "resource": {
+            "type": "string",
+            "description": "The resource URL being purchased."
+          },
+          "accepts": {
+            "type": "array",
+            "description": "Payment requirement options, one per supported network (Base USDC, Solana USDC).",
+            "items": {
+              "type": "object",
+              "required": [
+                "scheme",
+                "network",
+                "amount",
+                "asset",
+                "payTo",
+                "maxTimeoutSeconds"
+              ],
+              "properties": {
+                "scheme": {
+                  "type": "string",
+                  "enum": [
+                    "exact"
+                  ]
+                },
+                "network": {
+                  "type": "string",
+                  "description": "CAIP-2 network id, e.g. \"eip155:8453\" (Base) or \"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp\"."
+                },
+                "amount": {
+                  "type": "string",
+                  "description": "Price in atomic asset units (USDC has 6 decimals)."
+                },
+                "asset": {
+                  "type": "string",
+                  "description": "Asset contract address / mint."
+                },
+                "payTo": {
+                  "type": "string",
+                  "description": "Treasury address to pay."
+                },
+                "maxTimeoutSeconds": {
+                  "type": "integer"
+                },
+                "extra": {
+                  "type": "object",
+                  "description": "Rail-specific extras (EVM: EIP-712 domain name/version; Solana: feePayer).",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "extensions": {
+            "type": "object",
+            "description": "Optional discovery metadata (e.g. bazaar input/output schemas).",
+            "additionalProperties": true
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/security/cve": {
+      "get": {
+        "tags": [
+          "security"
+        ],
+        "summary": "Look up a CVE by id (e.g.",
+        "description": "Look up a CVE by id (e.g. CVE-2021-44228) across three authoritative vulnerability feeds in one call. Query: cve (CVE-YYYY-NNNN). Returns the canonical record — description, CVSS base score + severity + vector, CWE weakness ids, published/modified dates, reference links — plus whether it is on the US CISA Known Exploited Vulnerabilities catalog (with remediation due date and known-ransomware flag) and its EPSS exploit-probability score and percentile. The exploited and EPSS sections report independently, so one feed being unavailable does not fail the call. 404 if the CVE id is unknown. For triage, prioritization, and anti-hallucination on vulnerability claims.",
+        "operationId": "security_cve",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "cve": {
+                          "type": "string"
+                        },
+                        "published": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "lastModified": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "vulnStatus": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "description": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "cvss": {
+                          "type": "object",
+                          "additionalProperties": {},
+                          "nullable": true
+                        },
+                        "cwes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "references": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": {}
+                          }
+                        },
+                        "knownExploited": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "knownExploitedError": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "epss": {
+                          "type": "object",
+                          "additionalProperties": {},
+                          "nullable": true
+                        },
+                        "epssError": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "sources": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": {}
+                          }
+                        }
+                      },
+                      "required": [
+                        "cve",
+                        "published",
+                        "lastModified",
+                        "vulnStatus",
+                        "description",
+                        "cvss",
+                        "cwes",
+                        "references",
+                        "knownExploited",
+                        "knownExploitedError",
+                        "epss",
+                        "epssError",
+                        "sources"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0018 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "security.cve",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0018,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "legacy",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001800"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "cve",
+            "in": "query",
+            "required": true,
+            "description": "CVE identifier in the form CVE-YYYY-NNNN (e.g. CVE-2021-44228).",
+            "schema": {
+              "type": "string",
+              "minLength": 6,
+              "maxLength": 40
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    }
+  }
+}
