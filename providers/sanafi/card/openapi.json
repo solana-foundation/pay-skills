@@ -1,0 +1,401 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Sanafi Card API",
+    "version": "1.0.0",
+    "description": "Agent-driven crypto card onboarding + operations, plus public token prices. Account + API keys are free (email-OTP gated); the only payment is a one-time 10 USDC card-creation fee over x402."
+  },
+  "servers": [{ "url": "https://api.sana.bot" }],
+  "paths": {
+    "/assets": {
+      "get": {
+        "operationId": "listAssets",
+        "summary": "Fetch live Solana token prices",
+        "responses": { "200": { "description": "Tokens + live USDC prices" } }
+      }
+    },
+    "/card/register/otp": {
+      "post": {
+        "operationId": "cardRegisterOtp",
+        "summary": "Send a one-time email verification code",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email"],
+                "properties": { "email": { "type": "string", "format": "email" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OTP sent" },
+          "400": { "description": "Invalid email" }
+        }
+      }
+    },
+    "/card/register/verify": {
+      "post": {
+        "operationId": "cardRegisterVerify",
+        "summary": "Verify the email code and issue an API key",
+        "description": "Verifies the emailed code, auto-creates the account if new, and returns a one-time API key. Up to 3 keys per user (one per agent).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "otp", "wallet"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "otp": { "type": "string", "description": "the one-time code emailed to the user", "example": "123456" },
+                  "wallet": { "type": "string", "description": "the agent's own Solana wallet (owner)" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "API key issued (shown once)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "api_key": { "type": "string", "description": "sana_live_… — shown once; save it" },
+                        "note": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Invalid or expired code" }
+        }
+      }
+    },
+    "/card/create": {
+      "post": {
+        "operationId": "cardCreate",
+        "summary": "Create a crypto card and start KYC",
+        "description": "x402-gated. With no X-Payment header, returns HTTP 402 with a Solana USDC challenge for the 10 USDC card fee. The payment transaction MUST include the challenge `memo` as an on-chain SPL memo (this binds the payment to your account; a payment without the matching memo is rejected). Pay and replay with the proof in X-Payment; on success Sanafi starts KYC and returns a kyc_link.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "X-Payment",
+            "in": "header",
+            "required": false,
+            "description": "x402 payment proof for the 10 USDC card fee. Omit to receive the 402 challenge.",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "KYC consent + the user's KYC details (collected by the agent). isTermsOfServiceAccepted is auto-true for the agent flow; email/wallet come from the account. Send the same body on both the 402 and the paid call.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["kyc_consent", "firstName", "lastName", "birthDate", "occupation", "annualSalary", "accountPurpose", "expectedMonthlyVolume", "countryOfIssue", "address"],
+                "properties": {
+                  "kyc_consent": { "type": "boolean", "enum": [true], "description": "must be true — the agent confirms its user agreed to complete KYC", "example": true },
+                  "firstName": { "type": "string", "example": "John" },
+                  "lastName": { "type": "string", "example": "Doe" },
+                  "birthDate": { "type": "string", "format": "date", "example": "1990-05-20" },
+                  "occupation": {
+                    "type": "string",
+                    "enum": ["SELFEMP", "OTHERXX", "UNEMPLO", "STUDENT", "RETIRED", "11-1011", "15-1121", "15-1131", "15-1132", "15-1133", "15-1134", "15-1141", "15-1199", "13-2099", "17-2199", "27-1019"],
+                    "description": "code → label: SELFEMP Self-Employee · UNEMPLO Unemployed · STUDENT · RETIRED · OTHERXX Other · 11-1011 Chief Executives · 15-1132 Software Developers · 17-2199 Engineers · 27-1019 Artists …",
+                    "example": "15-1132"
+                  },
+                  "annualSalary": { "type": "string", "enum": ["0-10000", "10001-50000", "50001-100000", ">100000"], "example": "50001-100000" },
+                  "accountPurpose": { "type": "string", "enum": ["personal", "business", "saving", "investment", "other"], "example": "personal" },
+                  "expectedMonthlyVolume": { "type": "string", "description": "expected monthly USD volume", "example": "5000" },
+                  "countryOfIssue": { "type": "string", "description": "ISO 3166-1 alpha-3", "example": "USA" },
+                  "nationalId": { "type": "string", "example": "A1234567" },
+                  "address": {
+                    "type": "object",
+                    "description": "the user's residential address",
+                    "required": ["line1", "city", "region", "postalCode", "countryCode"],
+                    "properties": {
+                      "line1": { "type": "string", "example": "123 Main St" },
+                      "line2": { "type": "string", "example": "Apt 4B" },
+                      "city": { "type": "string", "example": "New York" },
+                      "region": { "type": "string", "description": "state/province", "example": "NY" },
+                      "postalCode": { "type": "string", "example": "10001" },
+                      "countryCode": { "type": "string", "description": "ISO 3166-1 alpha-3", "example": "USA" }
+                    }
+                  },
+                  "phoneCountryCode": { "type": "string", "description": "digits only, no +", "example": "1" },
+                  "phoneNumber": { "type": "string", "example": "5551234567" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Card creation started; KYC link returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "status": { "type": "string", "example": "kyc_pending" },
+                        "kyc_link": { "type": "string" },
+                        "note": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required — Solana USDC x402 challenge for the 10 USDC card fee",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": false },
+                    "challenge": {
+                      "type": "object",
+                      "properties": {
+                        "scheme": { "type": "string", "example": "x402" },
+                        "network": { "type": "string", "example": "solana-mainnet" },
+                        "asset": { "type": "string", "example": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" },
+                        "amount": { "type": "string", "example": "10" },
+                        "pay_to": { "type": "string" },
+                        "currency": { "type": "string", "example": "USDC" },
+                        "reference": { "type": "integer", "description": "Account reference; equals memo." },
+                        "memo": { "type": "string", "description": "REQUIRED: include this exact value as an SPL memo instruction in the payment transaction. Verification rejects a payment whose on-chain memo does not match — this binds the payment to your account so it can't be claimed by another.", "example": "42" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/card/status": {
+      "get": {
+        "operationId": "cardStatus",
+        "summary": "Fetch the card onboarding status",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Onboarding state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": ["registered", "kyc_pending", "issuing", "card_active", "failed"]
+                        },
+                        "kyc_link": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/card": {
+      "get": {
+        "operationId": "getCard",
+        "summary": "Fetch the card details and metadata",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "The user's cards (PAN/CVV never included)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": { "type": "string", "example": "virtual" },
+                          "status": { "type": "string", "example": "active" },
+                          "last4": { "type": "string", "example": "4242" },
+                          "expirationMonth": { "type": "string", "example": "08" },
+                          "expirationYear": { "type": "string", "example": "2028" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/card/balance": {
+      "get": {
+        "operationId": "getCardBalance",
+        "summary": "Fetch the card balance and spending power",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Card balance, limits, and spending power (USD)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "type": { "type": "string", "example": "virtual" },
+                        "status": { "type": "string", "example": "active" },
+                        "last4": { "type": "string", "example": "4242" },
+                        "expirationMonth": { "type": "string", "example": "08" },
+                        "expirationYear": { "type": "string", "example": "2028" },
+                        "depositAddress": { "type": "string", "description": "Solana address that funds the card" },
+                        "creditLimitUsd": { "type": "string", "example": "100" },
+                        "pendingChargesUsd": { "type": "string", "example": "0" },
+                        "postedChargesUsd": { "type": "string", "example": "0" },
+                        "balanceDueUsd": { "type": "string", "example": "0" },
+                        "spendingPowerUsd": { "type": "string", "description": "Amount available to spend right now", "example": "100" },
+                        "tokens": { "type": "array", "description": "Per-token balances backing the card", "items": { "type": "object" } }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/card/transactions": {
+      "get": {
+        "operationId": "getCardTransactions",
+        "summary": "Fetch recent card transactions",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Card transactions grouped by date, with pagination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "transactions": {
+                          "type": "array",
+                          "description": "Transactions grouped by date (most recent first)",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "date": { "type": "string", "example": "5 Jun 2026" },
+                              "transactions": {
+                                "type": "array",
+                                "items": { "type": "object", "description": "A single transaction (amount, description, status, etc.)" }
+                              }
+                            }
+                          }
+                        },
+                        "pagination": {
+                          "type": "object",
+                          "properties": {
+                            "page": { "type": "integer", "example": 1 },
+                            "limit": { "type": "integer", "example": 20 },
+                            "totalCount": { "type": "integer", "example": 0 },
+                            "totalPages": { "type": "integer", "example": 0 },
+                            "hasNextPage": { "type": "boolean", "example": false }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/card/deposit": {
+      "post": {
+        "operationId": "cardDeposit",
+        "summary": "Create a USDC deposit to the card",
+        "description": "Moves USDC from the user's Sanafi custodial wallet onto the card's on-chain deposit address. This is NOT x402-gated: the funds come from the user's own custodial wallet, signed server-side via the user's agent-signing delegation (which must be enabled for the account), and the amount is subject to the API key's spending limits. Returns the broadcast Solana transaction signature.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["amount"],
+                "properties": { "amount": { "type": "number", "description": "USDC amount to move from the user's custodial wallet onto the card", "example": 25 } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Deposit transaction broadcast to Solana",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "status": { "type": "string", "example": "submitted" },
+                        "signature": { "type": "string", "description": "Solana transaction signature of the USDC transfer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": { "description": "Agent signing not enabled for this user" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "description": "Issued sana_live_ API key" }
+    }
+  }
+}
