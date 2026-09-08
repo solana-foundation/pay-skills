@@ -1,0 +1,247 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Meanwhile Ads",
+    "version": "v1",
+    "description": "Buy attention-verified ad campaigns across Claude, ChatGPT and VS Code. POST an ad spec and pay with x402 (USDC on Solana or Base); the campaign goes live on settlement. 1 block = 1,000 impressions, default 50c per block. The exact price is returned in the HTTP 402 challenge."
+  },
+  "servers": [
+    {
+      "url": "https://meanwhile-api.fly.dev"
+    }
+  ],
+  "paths": {
+    "/v1/agent/ads": {
+      "post": {
+        "operationId": "createAdCampaign",
+        "summary": "Create and pay for an ad campaign via x402",
+        "description": "Two ways to pay. (1) x402: POST the ad spec with no X-PAYMENT header to get a 402 quote (one entry per chain in `accepts`), pay one and retry with the X-PAYMENT header. (2) Pay-by-tx (for agents that can't build the x402 payload): transfer USDC to the chosen chain's `payTo` from the 402, then POST again with `paymentTxHash` set \u2014 we verify the transfer on-chain. Either way the campaign is created live and 201 is returned. Price = bidCpmCents x blocks.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentAdCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Campaign created live.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body."
+          },
+          "402": {
+            "description": "Payment required \u2014 x402 challenge.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequired"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AgentAdCreate": {
+        "type": "object",
+        "required": [
+          "headline",
+          "destinationUrl",
+          "brandName"
+        ],
+        "properties": {
+          "headline": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 80,
+            "description": "Ad copy shown to viewers.",
+            "example": "Try Linear \u2014 issue tracking built for speed"
+          },
+          "destinationUrl": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://",
+            "description": "Where clicks go (must be https).",
+            "example": "https://linear.app"
+          },
+          "brandName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 48,
+            "example": "Linear"
+          },
+          "cta": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 32,
+            "default": "Learn more"
+          },
+          "brandIconUrl": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://",
+            "maxLength": 512,
+            "description": "Optional https brand icon URL."
+          },
+          "blocks": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 1,
+            "description": "Campaign size. 1 block = 1,000 impressions."
+          },
+          "bidCpmCents": {
+            "type": "integer",
+            "minimum": 50,
+            "description": "Bid per 1,000 impressions, in cents. Higher = higher queue priority. Defaults to the 50c rate card."
+          },
+          "showOnLeaderboard": {
+            "type": "boolean",
+            "default": true
+          },
+          "recallQuestion": {
+            "type": "string",
+            "maxLength": 140,
+            "description": "Optional attention-recall question."
+          },
+          "payerWalletAddress": {
+            "type": "string",
+            "maxLength": 160,
+            "description": "Optional. Normally derived from the x402 payment, not supplied."
+          },
+          "paymentReference": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Optional idempotency key."
+          },
+          "paymentTxHash": {
+            "type": "string",
+            "maxLength": 160,
+            "description": "Pay-by-tx alternative to the x402 handshake: transfer USDC to the 402's payTo, then POST the transfer's tx hash here. We verify it on-chain (amount + recipient) and create the campaign."
+          },
+          "paymentNetwork": {
+            "type": "string",
+            "enum": [
+              "base",
+              "solana"
+            ],
+            "description": "Chain of paymentTxHash. Inferred from the hash format (0x\u2026 = base) if omitted."
+          }
+        }
+      },
+      "CampaignCreated": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "campaign_created"
+          },
+          "campaign": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "headline": {
+                "type": "string"
+              },
+              "brandName": {
+                "type": "string"
+              },
+              "destinationUrl": {
+                "type": "string"
+              },
+              "purchasedBlocks": {
+                "type": "integer"
+              },
+              "purchasedImpressions": {
+                "type": "integer"
+              }
+            }
+          },
+          "payment": {
+            "type": "object",
+            "properties": {
+              "network": {
+                "type": "string"
+              },
+              "transaction": {
+                "type": "string"
+              },
+              "amountCents": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "PaymentRequired": {
+        "type": "object",
+        "description": "x402 payment challenge. Pay one entry in `accepts` and retry with the X-PAYMENT header.",
+        "properties": {
+          "x402Version": {
+            "type": "integer",
+            "example": 1
+          },
+          "error": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string",
+            "description": "Guidance for agents, including the pay-by-tx fallback when you can't build the x402 payload."
+          },
+          "accepts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "scheme": {
+                  "type": "string",
+                  "example": "exact"
+                },
+                "network": {
+                  "type": "string",
+                  "example": "solana"
+                },
+                "maxAmountRequired": {
+                  "type": "string",
+                  "description": "Atomic token units (USDC = 6 decimals)."
+                },
+                "payTo": {
+                  "type": "string"
+                },
+                "asset": {
+                  "type": "string",
+                  "description": "Token contract / mint address."
+                },
+                "resource": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
