@@ -8,17 +8,16 @@
 # 1. Fork + clone
 git clone git@github.com:<you>/pay-skills && cd pay-skills
 
-# 2. Scaffold a new provider (or hand-edit a PAY.md if you prefer)
-pay catalog scaffold <operator>/<name> https://api.example.com/openapi.json
+# 2. Scaffold a new provider from the upstream API's OpenAPI document
+pay catalog scaffold --output-dir providers <operator>/<name> https://api.example.com/openapi.json
 
 # 3. Edit providers/<operator>/<name>/PAY.md — replace the TODO placeholders
-#    on `category` and `use_case`, and refine the body if needed.
+#    for `category` and `use_case`, then refine the prose.
 
-# 4. Validate locally — same checks that PR CI runs
+# 4. Validate the provider locally
 pay catalog check providers/<operator>/<name>/PAY.md
 
-# 5. (Optional) Walk the whole registry to confirm you haven't broken
-#    anything else
+# 5. Optional: run the static registry-wide check
 pay catalog check . --no-probe
 
 # 6. Open a PR
@@ -36,9 +35,14 @@ providers/
   <operator>/<origin>/<name>/PAY.md     ← FQN: <operator>/<origin>/<name> (proxied)
 ```
 
-Use the two-level layout when you operate the API directly. Use the three-level layout when your gateway proxies another provider's API.
+Use the two-level layout when you operate the API directly. Use the three-level layout when your gateway proxies another provider's API:
 
-Sidecar files (e.g. `openapi.json`, request schemas) live in the same directory as `PAY.md`. The public registry **requires** the OpenAPI document to be committed alongside `PAY.md` — reference it with `openapi: { path: openapi.json }`. Pointing at a remote URL with `openapi: { url: ... }` is no longer accepted: CI fetches it once at PR time, so the spec is effectively a build-time artifact, but committing it gives reviewers a reviewable diff, keeps the published dist deterministic, and prevents downstream consumers from depending on a provider's uptime.
+- `providers/acme/search` means Acme operates the API.
+- `providers/acme/google/translate` means Acme operates a gateway for Google's Translate API.
+
+Sidecar files, including `openapi.json` and request schemas, live in the same directory as `PAY.md`. The public registry requires the OpenAPI document to be committed next to `PAY.md` and referenced with `openapi: { path: openapi.json }`.
+
+Do not use `openapi: { url: ... }` in `PAY.md`. Remote specs are not accepted in registry entries because reviewers need a stable diff and the published catalog must not depend on an upstream server at build time.
 
 Naming rules:
 
@@ -126,12 +130,23 @@ Use the narrowest category that matches the user's task:
 | `translation` | Translation, localization, language detection, transliteration, and glossary-controlled language workflows. |
 | `other` | Only when none of the categories above is a truthful fit. |
 
+### OpenAPI provenance
+
+The committed `openapi.json` should come from the upstream API that defines the product you are listing.
+
+- For a native API, the upstream API is your own production API.
+- For a proxied API, the upstream API is the provider you proxy, such as Google, Alibaba, Perplexity, or another third-party API.
+- If your gateway exposes only a subset of the upstream API, commit that subset and say so in `PAY.md`.
+- If your gateway changes paths, schemas, auth, or behavior, the OpenAPI file must describe the public surface callers actually use and `PAY.md` must explain the difference.
+
+Do not invent capabilities, include endpoints you do not expose, or commit an unrelated SDK-generated spec. Reviewers should be able to trace the file back to the upstream API docs, source repo, or OpenAPI endpoint.
+
 ### `openapi:` source variants
 
-Exactly one variant per provider. The public registry requires the spec to be committed in the repo — `openapi.url` is rejected by CI.
+Exactly one variant per provider. The public registry requires the spec to be committed in the repo; `openapi.url` is rejected by CI.
 
 ```yaml
-# Co-located file — read relative to PAY.md. This is the standard choice.
+# Co-located upstream spec snapshot, read relative to PAY.md.
 openapi:
   path: openapi.json
 
@@ -141,13 +156,13 @@ openapi:
     { "openapi": "3.1.0", "paths": { ... } }
 ```
 
-If your spec lives behind a URL today, fetch it once and commit the snapshot next to `PAY.md`:
+If the upstream spec lives at a URL, fetch it once and commit the snapshot next to `PAY.md`:
 
 ```bash
 curl -fsSL https://api.example.com/openapi.json -o providers/<fqn>/openapi.json
 ```
 
-Refresh the committed snapshot in a follow-up PR whenever you ship API changes; the diff lets reviewers see what moved.
+Refresh the committed snapshot whenever the upstream API changes. The diff lets reviewers see what moved.
 
 The build inlines the parsed document into the published per-provider detail JSON, so downstream consumers can introspect schemas/types without a follow-up HTTP round-trip.
 
@@ -261,13 +276,13 @@ Probe behavior:
 
 | Command | What it does |
 |---|---|
-| `pay catalog scaffold <fqn> <url>` | Fetch the OpenAPI doc and write `<fqn>/PAY.md` with frontmatter pre-filled. Inserts `TODO` for `category` / `use_case` so unfinished scaffolds fail validation. |
-| `pay catalog check <PAY.md>` | One provider: frontmatter + OpenAPI resolution + live probe + Solana verdict. Use this most. |
-| `pay catalog check <PAY.md> --no-probe` | Frontmatter shape + OpenAPI fetch only. Fast offline-ish smoke test. |
+| `pay catalog scaffold --output-dir providers <fqn> <openapi_url>` | Fetch the upstream OpenAPI doc and write `providers/<fqn>/PAY.md` with frontmatter pre-filled. Inserts `TODO` for `category` / `use_case` so unfinished scaffolds fail validation. |
+| `pay catalog check <PAY.md>` | One provider: frontmatter + OpenAPI path/content resolution + live probe + Solana verdict. Use this most. |
+| `pay catalog check <PAY.md> --no-probe` | Frontmatter shape + OpenAPI path/content resolution only. Fast smoke test. |
 | `pay catalog check <PAY.md> -v` | Same as `check`, with the per-endpoint probe + verdict tables printed before the summary. |
 | `pay catalog check <PAY.md> --strict` | Upgrade non-Solana warnings to blocking errors. |
 | `pay catalog check . --no-probe` | Whole registry, frontmatter-only. |
-| `pay catalog check . --changed-from origin/main` | Probe + verdict only on providers changed since `origin/main`. Mirrors PR CI exactly. |
+| `pay catalog check . --changed-from origin/main` | Probe + verdict only on providers changed since `origin/main`. Useful before opening a PR. |
 | `pay catalog build .` | Full registry build (`dist/skills.json` + per-provider details). Used by main-branch CI; not needed for local dev. |
 
 `--probe-timeout`, `--probe-concurrency`, `--currencies` are knobs on every probe-driven command.
@@ -276,8 +291,8 @@ Probe behavior:
 
 ### Pull requests (`.github/workflows/validate.yml`)
 
-1. **Static check** across the entire registry: every `PAY.md` parses, frontmatter is shape-validated, every `openapi:` resolves. No probe.
-2. **Probe + Solana-compat gate** on the diff (resolved via `git diff origin/<base>...HEAD`). `--format github` emits `::warning::` / `::error::` annotations inline. A change to a sidecar like `openapi.json` correctly triggers a re-probe of the owning provider.
+1. **Static check** across the entire registry: every `PAY.md` parses, frontmatter is shape-validated, and every committed `openapi:` path/content resolves. No live probe.
+2. **Probe + Solana-compat gate** on the changed providers. CI resolves the changed `PAY.md` files with `git diff origin/<base>...HEAD`, then passes them to `pay catalog check . --files ...`. A sidecar change like `openapi.json` triggers a re-probe of the owning provider.
 3. **Verdict summary** (`always()`): `--format json` is rendered into a markdown table on the PR Step Summary so reviewers see verdicts at a glance.
 
 ### Merges to `main` (`.github/workflows/build-skills.yml`)
@@ -286,7 +301,7 @@ Probe behavior:
 2. Re-run the Solana-compat gate (so a bypassed PR can't slip through).
 3. Pull the previously-published `dist/` from GCS.
 4. Build incrementally: `--only <changed-fqns> --previous-dist prev-dist`. Unchanged providers are copied through verbatim; only the diff is re-probed.
-5. Publish `dist/` to `gs://pay-skills/v1/` via Workload Identity Federation (no long-lived secrets).
+5. Publish `dist/` to `gs://pay-skills/v1/` via Workload Identity Federation (no long-lived secrets). Within minutes, the API is available in `pay skills search` and at `https://pay.sh/api/<fqn>`.
 
 `workflow_dispatch` with `mode: rebuild` does a full re-resolve + re-probe of every provider — use after image / pipeline changes that affect cached providers.
 
@@ -295,7 +310,8 @@ Probe behavior:
 Before opening a PR:
 
 - [ ] `pay catalog check providers/<fqn>/PAY.md` is green locally.
-- [ ] OpenAPI spec is committed as a sidecar (`openapi: { path: openapi.json }` or inline `content:`), not referenced by URL.
+- [ ] OpenAPI spec comes from the upstream API and is committed as a sidecar (`openapi: { path: openapi.json }`) or inline `content:`, not referenced by URL.
+- [ ] Any gateway-specific subset or behavior difference is explained in `PAY.md`.
 - [ ] The `name:` field matches the parent directory name.
 - [ ] `description` is 64–255 chars and summarizes capabilities + result shapes (not use cases).
 - [ ] `use_case` is 32–255 chars and lists concrete agent trigger tasks.
