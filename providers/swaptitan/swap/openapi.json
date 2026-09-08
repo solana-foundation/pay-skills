@@ -1,0 +1,268 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "SwapTitan Swap API",
+    "version": "1.0.0",
+    "description": "Non-custodial cross-chain crypto swap API. 1288+ assets, no KYC, no wallet required. Available at swaptitan.net and terafabpay.de.",
+    "contact": {
+      "email": "support@terafabpay.de",
+      "url": "https://swaptitan.net/developers"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.swaptitan.net",
+      "description": "Primary (Global)"
+    },
+    {
+      "url": "https://api.terafabpay.de",
+      "description": "EU Mirror"
+    }
+  ],
+  "paths": {
+    "/v1/prices": {
+      "get": {
+        "operationId": "getPrices",
+        "summary": "Get real-time crypto prices",
+        "description": "Returns current USD prices for BTC, SOL, ETH and XMR aggregated from Kraken, Binance and Coinbase.",
+        "responses": {
+          "200": {
+            "description": "Current prices in USD",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "btc":     { "type": "string", "example": "69373.80" },
+                    "sol":     { "type": "string", "example": "79.20" },
+                    "eth":     { "type": "string", "example": "1973.65" },
+                    "xmr":    { "type": "string", "example": "342.49" },
+                    "updated": { "type": "integer", "description": "Unix timestamp milliseconds" }
+                  },
+                  "required": ["btc", "sol", "eth", "xmr", "updated"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/assets": {
+      "get": {
+        "operationId": "getAssets",
+        "summary": "List all supported swap assets",
+        "description": "Returns the full list of 1288+ supported cryptocurrencies with ticker, network and display name. Cache this per session.",
+        "responses": {
+          "200": {
+            "description": "Asset list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "count": { "type": "integer", "example": 1290 },
+                    "assets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ticker":   { "type": "string", "example": "btc" },
+                          "network":  { "type": "string", "example": "btc" },
+                          "name":     { "type": "string", "example": "Bitcoin" },
+                          "image":    { "type": "string", "description": "Logo URL" },
+                          "isStable": { "type": "boolean" }
+                        },
+                        "required": ["ticker", "network", "name"]
+                      }
+                    }
+                  },
+                  "required": ["count", "assets"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/swap/quote": {
+      "get": {
+        "operationId": "getSwapQuote",
+        "summary": "Get swap quote",
+        "description": "Returns estimated output amount and minimum deposit amount for a given asset pair. Uses automatic best-rate routing between ChangeNOW and SimpleSwap providers.",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "description": "Source asset ticker. Use network suffixes for multi-chain assets: usdtsol, usdttrc20, usdceth, etharb, ethbase",
+            "schema": { "type": "string", "example": "btc" }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "description": "Destination asset ticker",
+            "schema": { "type": "string", "example": "sol" }
+          },
+          {
+            "name": "amount",
+            "in": "query",
+            "required": true,
+            "description": "Input amount in source asset units",
+            "schema": { "type": "number", "example": 0.01 }
+          },
+          {
+            "name": "fromNet",
+            "in": "query",
+            "required": false,
+            "description": "Override source network (e.g. sol, trx, eth, bsc, base, arbitrum)",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "toNet",
+            "in": "query",
+            "required": false,
+            "description": "Override destination network",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Quote result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "estimatedAmount": { "type": "number", "example": 8.650462, "description": "Expected output amount in destination asset" },
+                    "minAmount":       { "type": "number", "example": 0.0005, "description": "Minimum input amount accepted; compare numerically to input `amount`" },
+                    "from":            { "type": "string", "example": "btc" },
+                    "to":              { "type": "string", "example": "sol" },
+                    "provider":        { "type": "string", "enum": ["changenow", "simpleswap"], "description": "Routing provider selected" }
+                  },
+                  "required": ["estimatedAmount", "minAmount", "from", "to", "provider"]
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid parameters", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "429": { "description": "Rate limit exceeded", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/v1/swap/create": {
+      "post": {
+        "operationId": "createSwap",
+        "summary": "Create a swap order",
+        "description": "Creates a non-custodial swap order. Returns a deposit address (payinAddress) where the user sends source funds. The destination asset is automatically delivered to the provided address. No wallet connection required.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "from":          { "type": "string", "example": "btc", "description": "Source asset ticker" },
+                  "to":            { "type": "string", "example": "sol", "description": "Destination asset ticker" },
+                  "amount":        { "type": "number", "example": 0.01, "description": "Input amount (must be >= minAmount from quote)" },
+                  "address":       { "type": "string", "example": "7uZqe...", "description": "User destination address — receives the output asset" },
+                  "refundAddress": { "type": "string", "description": "Refund address for failed swaps (recommended)" },
+                  "provider":      { "type": "string", "enum": ["changenow", "simpleswap"], "description": "Force provider (default: auto best-rate selection)" },
+                  "fromNet":       { "type": "string", "description": "Override source network" },
+                  "toNet":         { "type": "string", "description": "Override destination network" }
+                },
+                "required": ["from", "to", "amount", "address"]
+              },
+              "example": {
+                "from": "btc",
+                "to": "sol",
+                "amount": 0.01,
+                "address": "7uZqehZaRiANgaFkSDvB625TPF78EG6HkAuxanE8ZTjZ",
+                "refundAddress": "bc1qexamplerefundaddress"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Swap order created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "orderId":         { "type": "string", "description": "Order ID — pass as `id` to /v1/swap/status" },
+                    "payinAddress":    { "type": "string", "description": "Send source funds to this address" },
+                    "estimatedAmount": { "type": "number", "description": "Estimated output amount in destination asset" },
+                    "provider":        { "type": "string", "enum": ["changenow", "simpleswap"] },
+                    "trackUrl":        { "type": "string", "description": "Provider tracking URL for manual status lookup" }
+                  },
+                  "required": ["orderId", "payinAddress", "estimatedAmount", "provider"]
+                }
+              }
+            }
+          },
+          "400": { "description": "Missing or invalid parameters", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "429": { "description": "Rate limit exceeded", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/v1/swap/status": {
+      "get": {
+        "operationId": "getSwapStatus",
+        "summary": "Get swap order status",
+        "description": "Poll every 20–30 seconds after creating a swap. Status lifecycle: waiting → confirming → exchanging → done (success) or failed (refund to refundAddress) or unknown (provider mismatch, stop polling). Terminal states: done, failed, unknown.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "description": "Order ID returned by /v1/swap/create",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "provider",
+            "in": "query",
+            "required": false,
+            "description": "Provider used when creating the swap (from create response)",
+            "schema": { "type": "string", "enum": ["changenow", "simpleswap"] }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current swap status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id":            { "type": "string" },
+                    "status":        { "type": "string", "enum": ["waiting", "confirming", "exchanging", "done", "failed", "unknown"], "description": "Normalized status. Terminal states: done (success), failed (refund pending), unknown (provider mismatch — stop polling)" },
+                    "raw":           { "type": "string", "description": "Provider-native status string" },
+                    "payoutHash":    { "type": "string", "nullable": true, "description": "Outgoing TX hash (set when status=done)" },
+                    "toCurrency":    { "type": "string", "nullable": true },
+                    "amountReceive": { "type": "number", "nullable": true, "description": "Actual received amount (set when status=done)" },
+                    "error":         { "type": "string", "description": "Error message when status=unknown" }
+                  },
+                  "required": ["id", "status"]
+                }
+              }
+            }
+          },
+          "400": { "description": "Missing id parameter", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string", "example": "Invalid parameters." }
+        },
+        "required": ["error"]
+      }
+    }
+  }
+}
