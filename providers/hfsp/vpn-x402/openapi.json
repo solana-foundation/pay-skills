@@ -1,0 +1,314 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "HFSP VPN x402",
+    "description": "Anonymous WireGuard VPN passes and ephemeral Ubuntu VPS servers. Pay USDC on Solana. No account, no logs, no identity. Servers auto-destroy at expiry.",
+    "version": "2.0.0",
+    "contact": {
+      "name": "HFSP",
+      "url": "https://hfsp.xyz",
+      "email": "info@hfsp.xyz"
+    }
+  },
+  "servers": [
+    { "url": "https://vpn.hfsp.cloud" }
+  ],
+  "x-x402": {
+    "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+    "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "recipient": "GdAWRcvrVabFi6QtciGJNYsS8cykJkZTNZ3cFea6ywfY",
+    "paymentHeader": "X-Solana-Tx",
+    "discovery": "/.well-known/x402.json"
+  },
+  "components": {
+    "schemas": {
+      "Region": {
+        "type": "string",
+        "enum": ["DE_NBG", "FI_HEL", "US_HIL", "SG_SIN"],
+        "description": "DE_NBG=Nuremberg Germany, FI_HEL=Helsinki Finland, US_HIL=Hillsboro Oregon USA, SG_SIN=Singapore"
+      },
+      "PaymentRequired": {
+        "type": "object",
+        "properties": {
+          "ok":    { "type": "boolean", "example": false },
+          "error": { "type": "string",  "example": "Payment required" },
+          "pay": {
+            "type": "object",
+            "properties": {
+              "amount":    { "type": "integer", "description": "Atomic USDC units (6 decimals)", "example": 2990000 },
+              "amountUsd": { "type": "string",  "example": "2.9900" },
+              "mint":      { "type": "string",  "example": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" },
+              "payTo":     { "type": "string",  "example": "GdAWRcvrVabFi6QtciGJNYsS8cykJkZTNZ3cFea6ywfY" },
+              "network":   { "type": "string",  "example": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" },
+              "description":{ "type": "string" }
+            }
+          },
+          "instructions": {
+            "type": "string",
+            "example": "Send Solana mainnet USDC, then retry with X-Solana-Tx: <signature>"
+          }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "ok":     { "type": "boolean", "example": false },
+          "code":   { "type": "string" },
+          "error":  { "type": "string" },
+          "detail": { "type": "string" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/.well-known/x402.json": {
+      "get": {
+        "summary": "Fetch service discovery manifest",
+        "operationId": "getDiscovery",
+        "description": "Returns the x402 discovery manifest listing all endpoints, prices, and supported networks.",
+        "responses": {
+          "200": {
+            "description": "Discovery manifest",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vpn/regions": {
+      "get": {
+        "summary": "List available VPN regions",
+        "operationId": "listVpnRegions",
+        "responses": {
+          "200": {
+            "description": "Available regions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok":      { "type": "boolean" },
+                    "regions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id":        { "$ref": "#/components/schemas/Region" },
+                          "city":      { "type": "string" },
+                          "continent": { "type": "string" }
+                        }
+                      }
+                    },
+                    "default": { "$ref": "#/components/schemas/Region" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vpn/hour": {
+      "post": {
+        "summary": "Buy a 1-hour WireGuard VPN pass - $0.20 USDC",
+        "operationId": "vpnHour",
+        "x-x402-amount": "200000",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["clientWgPublicKey"],
+                "properties": {
+                  "region":            { "$ref": "#/components/schemas/Region", "default": "DE_NBG" },
+                  "clientWgPublicKey": { "type": "string", "description": "Base64-encoded X25519 WireGuard public key, generated client-side." }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          { "in": "header", "name": "X-Solana-Tx", "required": false, "schema": { "type": "string" }, "description": "Confirmed Solana transaction signature proving USDC payment." }
+        ],
+        "responses": {
+          "200": {
+            "description": "VPN provisioned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok":    { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ip":             { "type": "string", "example": "1.2.3.4", "description": "Server public IP — use as Endpoint host in WireGuard [Peer]." },
+                        "serverWgPubKey": { "type": "string", "description": "Server X25519 public key — use as PublicKey in WireGuard [Peer]." },
+                        "wgPort":         { "type": "integer", "example": 51820, "description": "WireGuard UDP port — use as Endpoint port in WireGuard [Peer]." },
+                        "clientTunnelIp": { "type": "string", "example": "10.8.0.2", "description": "Your assigned tunnel IP — use as Address in WireGuard [Interface]." }
+                      }
+                    },
+                    "expiresAt": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          },
+          "402": { "description": "Payment required", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PaymentRequired" } } } }
+        }
+      }
+    },
+    "/api/vpn/day": {
+      "post": {
+        "summary": "Buy a 24-hour WireGuard VPN pass - $0.79 USDC",
+        "operationId": "vpnDay",
+        "x-x402-amount": "790000",
+        "requestBody": { "$ref": "#/paths/~1api~1vpn~1hour/post/requestBody" },
+        "parameters": [ { "in": "header", "name": "X-Solana-Tx", "required": false, "schema": { "type": "string" }, "description": "Confirmed Solana transaction signature proving USDC payment." } ],
+        "responses": {
+          "200": { "$ref": "#/paths/~1api~1vpn~1hour/post/responses/200" },
+          "402": { "$ref": "#/paths/~1api~1vpn~1hour/post/responses/402" }
+        }
+      }
+    },
+    "/api/vpn/week": {
+      "post": {
+        "summary": "Buy a 7-day WireGuard VPN pass - $2.99 USDC",
+        "operationId": "vpnWeek",
+        "x-x402-amount": "2990000",
+        "requestBody": { "$ref": "#/paths/~1api~1vpn~1hour/post/requestBody" },
+        "parameters": [ { "in": "header", "name": "X-Solana-Tx", "required": false, "schema": { "type": "string" }, "description": "Confirmed Solana transaction signature proving USDC payment." } ],
+        "responses": {
+          "200": { "$ref": "#/paths/~1api~1vpn~1hour/post/responses/200" },
+          "402": { "$ref": "#/paths/~1api~1vpn~1hour/post/responses/402" }
+        }
+      }
+    },
+    "/api/vpn/month": {
+      "post": {
+        "summary": "Buy a 30-day WireGuard VPN pass - $7.99 USDC",
+        "operationId": "vpnMonth",
+        "x-x402-amount": "7990000",
+        "requestBody": { "$ref": "#/paths/~1api~1vpn~1hour/post/requestBody" },
+        "parameters": [ { "in": "header", "name": "X-Solana-Tx", "required": false, "schema": { "type": "string" }, "description": "Confirmed Solana transaction signature proving USDC payment." } ],
+        "responses": {
+          "200": { "$ref": "#/paths/~1api~1vpn~1hour/post/responses/200" },
+          "402": { "$ref": "#/paths/~1api~1vpn~1hour/post/responses/402" }
+        }
+      }
+    },
+    "/api/vps/regions": {
+      "get": {
+        "summary": "List available VPS regions",
+        "operationId": "listVpsRegions",
+        "responses": {
+          "200": {
+            "description": "Available regions with geo info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok":      { "type": "boolean" },
+                    "regions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id":        { "$ref": "#/components/schemas/Region" },
+                          "city":      { "type": "string" },
+                          "continent": { "type": "string" }
+                        }
+                      }
+                    },
+                    "default": { "$ref": "#/components/schemas/Region" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vps/hour": {
+      "post": {
+        "summary": "Provision a 1-hour ephemeral Ubuntu VPS - $0.25 USDC",
+        "operationId": "vpsHour",
+        "x-x402-amount": "250000",
+        "description": "Returns the server IP and a base64 WireGuard client config template. Server is SSH-accessible ~60s after provisioning. Private key never leaves the client.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["sshPublicKey"],
+                "properties": {
+                  "region":       { "$ref": "#/components/schemas/Region", "default": "DE_NBG" },
+                  "sshPublicKey": { "type": "string", "description": "OpenSSH Ed25519 public key (ssh-ed25519 AAAA...). Generate client-side — private key never sent." }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          { "in": "header", "name": "X-Solana-Tx", "required": false, "schema": { "type": "string" }, "description": "Confirmed Solana transaction signature proving USDC payment." }
+        ],
+        "responses": {
+          "200": {
+            "description": "VPS provisioned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok":    { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ip":                  { "type": "string", "example": "5.6.7.8", "description": "Use: ssh -i key.pem root@<ip>" },
+                        "wireguardClientConf": { "type": "string", "description": "Base64-encoded WireGuard config template. Contains the server public key and endpoint pre-filled. You must: (1) generate your own WireGuard keypair, (2) replace the PrivateKey placeholder, (3) SSH into the VPS and add your public key as a peer with `wg set wg0 peer <your-pubkey> allowed-ips 10.9.0.2/32`." }
+                      }
+                    },
+                    "expiresAt": { "type": "string", "format": "date-time", "description": "Server is destroyed at this time." }
+                  }
+                }
+              }
+            }
+          },
+          "402": { "description": "Payment required", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PaymentRequired" } } } }
+        }
+      }
+    },
+    "/api/vps/day": {
+      "post": {
+        "summary": "Provision a 24-hour ephemeral Ubuntu VPS - $0.99 USDC",
+        "operationId": "vpsDay",
+        "x-x402-amount": "990000",
+        "requestBody": { "$ref": "#/paths/~1api~1vps~1hour/post/requestBody" },
+        "parameters": [ { "in": "header", "name": "X-Solana-Tx", "required": false, "schema": { "type": "string" }, "description": "Confirmed Solana transaction signature proving USDC payment." } ],
+        "responses": {
+          "200": { "$ref": "#/paths/~1api~1vps~1hour/post/responses/200" },
+          "402": { "$ref": "#/paths/~1api~1vps~1hour/post/responses/402" }
+        }
+      }
+    },
+    "/api/vps/week": {
+      "post": {
+        "summary": "Provision a 7-day ephemeral Ubuntu VPS - $3.99 USDC",
+        "operationId": "vpsWeek",
+        "x-x402-amount": "3990000",
+        "requestBody": { "$ref": "#/paths/~1api~1vps~1hour/post/requestBody" },
+        "parameters": [ { "in": "header", "name": "X-Solana-Tx", "required": false, "schema": { "type": "string" }, "description": "Confirmed Solana transaction signature proving USDC payment." } ],
+        "responses": {
+          "200": { "$ref": "#/paths/~1api~1vps~1hour/post/responses/200" },
+          "402": { "$ref": "#/paths/~1api~1vps~1hour/post/responses/402" }
+        }
+      }
+    }
+  }
+}
