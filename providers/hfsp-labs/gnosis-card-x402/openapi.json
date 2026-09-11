@@ -1,0 +1,193 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Gnosis Pay Safe Top-Up via x402",
+    "version": "0.1.0",
+    "description": "Bridge USDC from Solana or Base to a Gnosis Pay Safe in ~1–3 minutes via x402 + Relay.link.",
+    "contact": { "email": "info@hfsp.xyz" }
+  },
+  "servers": [{ "url": "https://card.hfsp.cloud" }],
+  "paths": {
+    "/api/card/topup/quote": {
+      "get": {
+        "summary": "Get bridge quote",
+        "description": "Returns fee breakdown, estimated arrival time, and payTo address. No payment required — call this first to get the exact amount and destination before paying.",
+        "parameters": [
+          {
+            "name": "amount",
+            "in": "query",
+            "required": true,
+            "description": "Amount of USDC to bridge (1–10000)",
+            "schema": { "type": "number", "minimum": 1, "maximum": 10000, "example": 50 }
+          },
+          {
+            "name": "safeAddress",
+            "in": "query",
+            "required": true,
+            "description": "Gnosis Pay Safe address",
+            "schema": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$", "example": "0xabc123..." }
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "required": false,
+            "description": "Destination token on Gnosis Chain",
+            "schema": { "type": "string", "enum": ["USDC", "EURe", "GBPe"], "default": "USDC" }
+          },
+          {
+            "name": "sourceChain",
+            "in": "query",
+            "required": false,
+            "description": "Source chain to pay from",
+            "schema": { "type": "string", "enum": ["solana", "base"], "default": "solana" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Quote with fee breakdown and payTo address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "quote": {
+                      "type": "object",
+                      "properties": {
+                        "youPay": { "type": "string", "example": "50 USDC (Solana)" },
+                        "youReceive": { "type": "string", "example": "49.7200 USDC (Gnosis Chain)" },
+                        "bridgeFee": { "type": "string", "example": "$0.0800 USDC" },
+                        "serviceFee": { "type": "string", "example": "$0.2500 USDC (0.5%)" },
+                        "estimatedTime": { "type": "string", "example": "~2 min" },
+                        "safeAddress": { "type": "string" },
+                        "dstTokenAddress": { "type": "string" }
+                      }
+                    },
+                    "payment": {
+                      "type": "object",
+                      "description": "Where to send payment before calling POST /api/card/topup",
+                      "properties": {
+                        "payTo": { "type": "string" },
+                        "asset": { "type": "string" },
+                        "network": { "type": "string", "example": "solana-mainnet" },
+                        "amount": { "type": "string", "example": "50.000000" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid parameters" },
+          "502": { "description": "Bridge quote unavailable" }
+        }
+      }
+    },
+    "/api/card/topup": {
+      "post": {
+        "summary": "Submit payment and top up Safe",
+        "description": "Submit Solana tx signature (or Base tx hash) in X-Payment header. Service verifies payment on-chain, then bridges USDC to the Gnosis Pay Safe via Relay.link.",
+        "parameters": [
+          {
+            "name": "X-Payment",
+            "in": "header",
+            "required": true,
+            "description": "Solana tx signature (base58) or Base tx hash (0x...) for the USDC transfer to payTo address",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "X-Payment-Chain",
+            "in": "header",
+            "required": false,
+            "description": "Source chain — auto-detected from signature format if omitted",
+            "schema": { "type": "string", "enum": ["solana", "base"] }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["amount", "safeAddress"],
+                "properties": {
+                  "amount": { "type": "number", "minimum": 1, "maximum": 10000, "example": 50 },
+                  "safeAddress": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+                  "currency": { "type": "string", "enum": ["USDC", "EURe", "GBPe"], "default": "USDC" },
+                  "sourceChain": { "type": "string", "enum": ["solana", "base"], "default": "solana" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Bridge order submitted — poll /api/card/topup/:orderId for status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "orderId": { "type": "string" },
+                    "status": { "type": "string" },
+                    "srcTxHash": { "type": "string" },
+                    "safeAddress": { "type": "string" },
+                    "currency": { "type": "string" },
+                    "message": { "type": "string" },
+                    "poll": { "type": "string", "example": "/api/card/topup/abc123" }
+                  }
+                }
+              }
+            }
+          },
+          "402": { "description": "Payment invalid, insufficient amount, or payTo address mismatch" },
+          "409": { "description": "Payment signature already used" },
+          "502": { "description": "Bridge submission failed" }
+        }
+      }
+    },
+    "/api/card/topup/{orderId}": {
+      "get": {
+        "summary": "Poll bridge order status",
+        "description": "Poll until status is 'fulfilled'. Typically resolves in 1–3 minutes.",
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current bridge order status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": { "type": "boolean" },
+                    "orderId": { "type": "string" },
+                    "status": { "type": "string", "enum": ["pending", "in_progress", "fulfilled", "failed"] },
+                    "srcTxHash": { "type": "string" },
+                    "dstTxHash": { "type": ["string", "null"] },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "responses": {
+          "200": { "description": "Service is up" }
+        }
+      }
+    }
+  }
+}
