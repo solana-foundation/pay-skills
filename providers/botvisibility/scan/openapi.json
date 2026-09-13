@@ -1,0 +1,309 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "BotVisibility — AI Agent Readiness Scan & Answer Gateway",
+    "description": "Pay-per-call AI-agent readiness audits and grounded Q&A. POST a URL to get a scored 58-check readiness report, or POST a URL plus a question to get a grounded, excerpt-cited answer that never fabricates. Paid per call via x402 (USDC on Solana mainnet); only useful results bill.",
+    "version": "v1"
+  },
+  "servers": [
+    { "url": "https://pay.botvisibility.com" }
+  ],
+  "paths": {
+    "/api/v1/scan-gateway": {
+      "post": {
+        "tags": ["Scan"],
+        "summary": "Generate an AI agent readiness report for a URL",
+        "description": "Run the full BotVisibility audit on a URL: 58 checks across 5 levels (Discoverable, Usable, Optimized, Indexable, Agent-Native). Returns a scored, prioritized readiness report as Markdown. With no payment attached, the endpoint answers HTTP 402 with x402 payment requirements (USDC on Solana mainnet); your wallet settles and retries, then the gateway returns the report.",
+        "operationId": "scanUrl",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ScanRequest" },
+              "example": { "url": "https://example.com" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Scored agent-readiness report (Markdown).",
+            "content": {
+              "text/markdown": { "schema": { "type": "string" } }
+            }
+          },
+          "400": {
+            "description": "Invalid or missing url.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "402": {
+            "description": "Payment Required — x402 challenge (USDC or USDT on Solana mainnet).",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PaymentRequired" } }
+            }
+          },
+          "502": {
+            "description": "Scan failed or did not complete in time; payment is not settled.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          }
+        },
+        "x-payment-info": {
+          "protocols": ["x402", "mpp"],
+          "pricingMode": "fixed",
+          "price": "$0.10"
+        }
+      }
+    },
+    "/api/v1/answer-gateway": {
+      "post": {
+        "tags": ["Answer"],
+        "summary": "Fetch a grounded, excerpt-cited answer from any website",
+        "description": "Ask a question about any URL and get back a grounded answer at a fraction of the tokens of scraping the page yourself (typically 95-99% fewer). A deterministic grounding verifier requires every excerpt to be a verbatim substring of the fetched source and the answer to be fully covered by those excerpts, so it never fabricates — if the answer is not on the page you get an honest not_found. robots.txt and no-AI signals are always honored. Billing is enforced on-chain: HTTP 200 (settling the x402 payment) is returned only for state=answered; not_found, already_efficient, payment_required, and unreachable come back as 422 with the full result body and cost nothing.",
+        "operationId": "answerQuestion",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AnswerRequest" },
+              "example": {
+                "url": "https://docs.stripe.com/webhooks",
+                "question": "how long does Stripe retry failed webhooks?"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Grounded answer (state=answered) with verbatim excerpts, sources, and a token-economics receipt. This is the only response that settles the payment.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/AnswerResponse" } }
+            }
+          },
+          "400": {
+            "description": "Invalid or missing url/question.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Error" } }
+            }
+          },
+          "402": {
+            "description": "Payment Required — x402 challenge (USDC or USDT on Solana mainnet).",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PaymentRequired" } }
+            }
+          },
+          "422": {
+            "description": "Terminal non-answered result (not_found, already_efficient, payment_required, or unreachable) with the full result body. The payment is not settled — these outcomes are free.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/AnswerResponse" } }
+            }
+          }
+        },
+        "x-payment-info": {
+          "protocols": ["x402", "mpp"],
+          "pricingMode": "fixed",
+          "price": "$0.01"
+        }
+      }
+    },
+    "/api/v1/answer-keys": {
+      "post": {
+        "tags": ["Answer"],
+        "summary": "Create a prepaid Answer Gateway API key",
+        "description": "One x402 payment of $5.00 returns a Bearer key with 1,000 answered-question credits ($0.005 per answer — half the pay-per-request rate). Use the key as `Authorization: Bearer bvag_...` against POST https://botvisibility.com/api/answer. Only answered responses consume credits. The raw key is shown once in this response and only its SHA-256 hash is stored, so save it immediately.",
+        "operationId": "createAnswerKey",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AnswerKeyRequest" },
+              "example": { "label": "my agent" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The new prepaid API key and its credit balance. The key is shown only once.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/AnswerKeyResponse" } }
+            }
+          },
+          "402": {
+            "description": "Payment Required — x402 challenge (USDC or USDT on Solana mainnet).",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PaymentRequired" } }
+            }
+          }
+        },
+        "x-payment-info": {
+          "protocols": ["x402", "mpp"],
+          "pricingMode": "fixed",
+          "price": "$5.00"
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ScanRequest": {
+        "type": "object",
+        "required": ["url"],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "The site to scan, e.g. https://stripe.com",
+            "example": "https://example.com"
+          }
+        }
+      },
+      "AnswerRequest": {
+        "type": "object",
+        "required": ["url", "question"],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "The page to answer from, e.g. https://docs.stripe.com/webhooks. Redirects are re-validated per hop; robots.txt and no-AI signals are always honored.",
+            "example": "https://docs.stripe.com/webhooks"
+          },
+          "question": {
+            "type": "string",
+            "description": "The natural-language question to answer from that page, e.g. \"how long does Stripe retry failed webhooks?\"",
+            "example": "how long does Stripe retry failed webhooks?"
+          }
+        }
+      },
+      "AnswerResponse": {
+        "type": "object",
+        "description": "One response shape for all terminal states; branch on `state`.",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": ["answered", "not_found", "already_efficient", "payment_required", "unreachable"],
+            "description": "Terminal state. `answered`: grounded answer or verified excerpts. `not_found`: the answer is not in the source within the 3-fetch cap. `already_efficient`: the page is already token-lean — fetch `direct_url` yourself. `payment_required`: the source page itself returned HTTP 402; its x402 quote is in `payment`. `unreachable`: policy block, HTTP error, or timeout (see `reason`). Only `answered` bills.",
+            "example": "answered"
+          },
+          "confidence": {
+            "type": "string",
+            "enum": ["high", "medium"],
+            "description": "`high`: composed answer fully covered by verbatim excerpts. `medium`: verified excerpts only, no composed answer."
+          },
+          "answer": {
+            "type": "string",
+            "description": "The grounded answer, present when state=answered with high confidence.",
+            "example": "Stripe retries failed webhook deliveries for up to three days with exponential backoff."
+          },
+          "excerpts": {
+            "type": "array",
+            "description": "Verbatim substrings of the fetched source that ground the answer.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "text": { "type": "string", "description": "Verbatim excerpt text from the source." },
+                "source": { "type": "integer", "description": "Index into `sources`." },
+                "lines": { "type": "string", "description": "Line range in the distilled source, e.g. \"142-145\".", "example": "142-145" }
+              }
+            }
+          },
+          "sources": {
+            "type": "array",
+            "description": "Pages fetched to produce the answer (hard cap: 3 fetches per request).",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": { "type": "string", "format": "uri", "description": "Fetched page URL." },
+                "fetched_at": { "type": "string", "format": "date-time", "description": "Fetch timestamp." },
+                "sha256": { "type": "string", "description": "SHA-256 of the fetched content." },
+                "route": { "type": "string", "description": "Fetch route used: llms_txt, markdown, openapi, or html_distill.", "example": "html_distill" }
+              }
+            }
+          },
+          "receipt": {
+            "type": "object",
+            "description": "Per-call token-economics receipt (the Agent Tax, measured).",
+            "properties": {
+              "raw_tokens_at_source": { "type": "integer", "description": "Tokens the raw page(s) would have cost to read directly.", "example": 48213 },
+              "tokens_delivered": { "type": "integer", "description": "Tokens actually returned to you.", "example": 512 },
+              "reduction": { "type": "string", "description": "Token reduction as a percentage string.", "example": "98.9%" },
+              "est_tax_avoided_usd": { "type": "number", "description": "Estimated dollar value of tokens you did not have to read." },
+              "fetches_used": { "type": "integer", "description": "Number of page fetches used (max 3)." },
+              "cache": { "type": "string", "description": "Cache outcome: hit or miss.", "example": "miss" },
+              "fee_usd": { "type": "number", "description": "What this call charged you.", "example": 0.01 },
+              "source_cost_usd": { "type": "number", "description": "What the source page itself charged (paid web via buy-side x402), 0 for free pages." }
+            }
+          },
+          "direct_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Present when state=already_efficient: fetch this token-lean URL yourself."
+          },
+          "payment": {
+            "type": "object",
+            "description": "Present when state=payment_required: the source page's own x402 quote (a price, not a block)."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Present when state=unreachable: policy, HTTP error, or timeout detail."
+          }
+        }
+      },
+      "AnswerKeyRequest": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Optional human-readable label for the key, e.g. \"my agent\".",
+            "example": "my agent"
+          }
+        }
+      },
+      "AnswerKeyResponse": {
+        "type": "object",
+        "properties": {
+          "api_key": {
+            "type": "string",
+            "description": "The prepaid Bearer key (prefix bvag_). Shown once; only its SHA-256 hash is stored.",
+            "example": "bvag_..."
+          },
+          "credits": {
+            "type": "integer",
+            "description": "Answered-question credits on the key.",
+            "example": 1000
+          }
+        }
+      },
+      "PaymentRequired": {
+        "type": "object",
+        "description": "x402 payment challenge returned before payment.",
+        "properties": {
+          "error": { "type": "string", "example": "payment_required" },
+          "accepts": {
+            "type": "array",
+            "description": "x402 payment options. Solana mainnet, USDC or USDT.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "scheme": { "type": "string", "example": "exact" },
+                "network": { "type": "string", "example": "solana-mainnet" },
+                "maxAmountRequired": { "type": "string", "example": "100000" },
+                "payTo": { "type": "string" },
+                "asset": { "type": "string", "description": "Token mint address (USDC or USDT)" },
+                "maxTimeoutSeconds": { "type": "integer", "example": 300 }
+              }
+            }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "description": "Error response body.",
+        "properties": {
+          "error": { "type": "string", "example": "invalid_url" }
+        }
+      }
+    }
+  }
+}
