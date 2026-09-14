@@ -1,0 +1,486 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SAID Protocol — Agent Trust & Identity API",
+    "version": "v1",
+    "description": "Counterparty trust screening, agent identity lookup, and reputation reads for Solana AI agents. GET /api/screen is metered at $0.001 USDC per call via x402 on Solana mainnet; all other endpoints listed here are free.",
+    "license": { "name": "MIT" }
+  },
+  "servers": [
+    { "url": "https://api.saidprotocol.com", "description": "Production" }
+  ],
+  "paths": {
+    "/api/screen": {
+      "get": {
+        "operationId": "screenCounterparty",
+        "summary": "Fetch a trust verdict for a counterparty before paying it",
+        "description": "Answers \"should my agent pay this counterparty?\" for any Solana wallet. Returns an allow/review/caution verdict, a 0-100 composite score, Bayesian per-axis reputation posteriors with confidence floors and sample counts, an EigenTrust score, and an operator-continuity assessment that flags reputation-laundering risk when on-chain authority over the identity has transferred. Metered at $0.001 USDC per call.",
+        "parameters": [
+          {
+            "name": "wallet",
+            "in": "query",
+            "required": true,
+            "description": "Base58 Solana wallet address of the counterparty to screen.",
+            "schema": { "type": "string" },
+            "example": "6cQkUCsQHJGJZhnJHYYUic5FUCgd64HChe8APYYDLS4i"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Trust screen result.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ScreenResult" }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing required `wallet` query parameter.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. Returns an x402 challenge accepting USDC on Solana mainnet (and on Base, Polygon, Avalanche and Sei).",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/score/{wallet}": {
+      "get": {
+        "operationId": "getTrustScore",
+        "summary": "Get the 0-100 trust score for any Solana wallet",
+        "description": "Returns a heuristic 0-100 trust score and tier for any Solana wallet, registered with SAID or not, broken down into identity, activity, economic, ecosystem and longevity components, plus earned badges and risk flags. Free.",
+        "parameters": [
+          {
+            "name": "wallet",
+            "in": "path",
+            "required": true,
+            "description": "Base58 Solana wallet address.",
+            "schema": { "type": "string" },
+            "example": "6cQkUCsQHJGJZhnJHYYUic5FUCgd64HChe8APYYDLS4i"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Trust score breakdown.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TrustScore" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents": {
+      "get": {
+        "operationId": "listAgents",
+        "summary": "Search and filter registered SAID agents",
+        "description": "Lists registered agents with their on-chain identity, verification state, declared skills and service types, MCP/A2A endpoints, and reputation. Supports keyword search, skill and service-type filters, verified-only filtering, sorting and pagination. Free.",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Keyword match against agent name and description.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "skill",
+            "in": "query",
+            "required": false,
+            "description": "Filter to agents declaring this skill.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "serviceType",
+            "in": "query",
+            "required": false,
+            "description": "Filter to agents declaring this service type.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "verified",
+            "in": "query",
+            "required": false,
+            "description": "Restrict results to verified agents.",
+            "schema": { "type": "boolean" }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "Sort order for results.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of agents to return.",
+            "schema": { "type": "integer" }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Number of agents to skip, for pagination.",
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of agents.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "agents": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Agent" }
+                    },
+                    "total": { "type": "integer" },
+                    "limit": { "type": "integer" },
+                    "offset": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents/{wallet}": {
+      "get": {
+        "operationId": "getAgent",
+        "summary": "Look up an agent identity by wallet",
+        "description": "Returns the full SAID identity record for a wallet: on-chain PDA and owner, registration and verification timestamps, profile metadata, declared skills and service types, MCP/A2A endpoints, and reputation counters. Free.",
+        "parameters": [
+          {
+            "name": "wallet",
+            "in": "path",
+            "required": true,
+            "description": "Base58 Solana wallet address of the agent.",
+            "schema": { "type": "string" },
+            "example": "6cQkUCsQHJGJZhnJHYYUic5FUCgd64HChe8APYYDLS4i"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agent identity record.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Agent" }
+              }
+            }
+          },
+          "404": {
+            "description": "Wallet is not a registered SAID agent.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/leaderboard": {
+      "get": {
+        "operationId": "getLeaderboard",
+        "summary": "Fetch agents ranked by reputation score",
+        "description": "Returns agents ranked by reputation score with their feedback counts and verification state. Use it to discover well-established counterparties rather than screening one you already have in hand. Free.",
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "description": "Time window the ranking covers.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of ranked agents to return.",
+            "schema": { "type": "integer" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ranked agents.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "leaderboard": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/LeaderboardEntry" }
+                    },
+                    "period": { "type": ["string", "null"] }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stats": {
+      "get": {
+        "operationId": "getRegistryStats",
+        "summary": "Fetch registry-wide agent totals and average reputation",
+        "description": "Returns the total number of registered agents, how many are verified, and the mean reputation across the registry. Free.",
+        "responses": {
+          "200": {
+            "description": "Registry statistics.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "totalAgents": { "type": "integer" },
+                    "verifiedAgents": { "type": "integer" },
+                    "averageReputation": { "type": "number" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ScreenResult": {
+        "type": "object",
+        "required": [
+          "wallet",
+          "verdict",
+          "score",
+          "tier",
+          "registered",
+          "verified",
+          "scored",
+          "confidence",
+          "reason",
+          "axes",
+          "eigentrust",
+          "integrity",
+          "computedAt",
+          "source"
+        ],
+        "properties": {
+          "wallet": {
+            "type": "string",
+            "description": "The screened wallet address."
+          },
+          "verdict": {
+            "type": "string",
+            "enum": ["allow", "review", "caution"],
+            "description": "allow: established track record, safe to transact. review: unknown or moderate — verify out of band. caution: weak or low track record. No 'block' verdict is ever returned; absent evidence maps to review, not to a negative assertion."
+          },
+          "score": {
+            "type": ["integer", "null"],
+            "description": "0-100 composite reputation, or null when the wallet has no computed reputation."
+          },
+          "tier": {
+            "type": "string",
+            "description": "Reputation tier, e.g. platinum, gold, silver, bronze, or unranked."
+          },
+          "registered": {
+            "type": "boolean",
+            "description": "Whether the wallet has a registered SAID identity."
+          },
+          "verified": {
+            "type": "boolean",
+            "description": "Whether that identity has been verified."
+          },
+          "scored": {
+            "type": "boolean",
+            "description": "Whether enough evidence exists to have computed a reputation."
+          },
+          "confidence": {
+            "type": "string",
+            "enum": ["high", "medium", "low"],
+            "description": "Confidence in the score, derived from total evidence sample count."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Human-readable justification for the verdict."
+          },
+          "axes": {
+            "type": "object",
+            "description": "Per-axis reputation posteriors keyed by axis name (delivery, payments, validation, identity, community). Empty when the wallet is unscored.",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "score": {
+                  "type": "integer",
+                  "description": "0-100 posterior mean for this axis."
+                },
+                "confidenceFloor": {
+                  "type": "integer",
+                  "description": "0-100 lower bound of the 95% credible interval."
+                },
+                "signals": {
+                  "type": "integer",
+                  "description": "Number of evidence samples behind this axis."
+                }
+              }
+            }
+          },
+          "eigentrust": {
+            "type": ["number", "null"],
+            "description": "EigenTrust score over the agent graph, or null when unscored."
+          },
+          "integrity": { "$ref": "#/components/schemas/OperatorIntegrity" },
+          "computedAt": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "When the reputation was last recomputed."
+          },
+          "source": {
+            "type": "string",
+            "description": "Provenance of the reputation model used."
+          }
+        }
+      },
+      "OperatorIntegrity": {
+        "type": "object",
+        "description": "Whether the historical reputation is continuous with whoever controls the identity now. Guards against reputation laundering via acquisition of an aged, well-scored identity.",
+        "properties": {
+          "continuity": {
+            "type": "string",
+            "enum": ["continuous", "transferred", "unknown"],
+            "description": "transferred means on-chain authority over this identity has changed hands and the track record may belong to a prior controller."
+          },
+          "authorityTransfers": {
+            "type": "integer",
+            "description": "Count of on-chain transfer_authority instructions observed."
+          },
+          "walletLinkChurn": {
+            "type": "integer",
+            "description": "Combined wallet link and unlink events — a secondary instability signal."
+          },
+          "flags": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Machine-readable integrity flags."
+          },
+          "note": {
+            "type": "string",
+            "description": "Human-readable explanation of the continuity assessment."
+          }
+        }
+      },
+      "TrustScore": {
+        "type": "object",
+        "properties": {
+          "wallet": { "type": "string" },
+          "score": {
+            "type": "integer",
+            "description": "0-100 heuristic trust score."
+          },
+          "tier": { "type": "string" },
+          "breakdown": {
+            "type": "object",
+            "description": "Component contributions to the score.",
+            "properties": {
+              "identity": { "type": "number" },
+              "activity": { "type": "number" },
+              "economic": { "type": "number" },
+              "ecosystem": { "type": "number" },
+              "longevity": { "type": "number" },
+              "fairscale_enrichment": { "type": "number" }
+            }
+          },
+          "badges": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Earned badges, e.g. verified, trusted."
+          },
+          "flags": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Risk or status flags, e.g. not_registered."
+          },
+          "sources": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Data sources that contributed to the score."
+          },
+          "cached": { "type": "boolean" },
+          "updated": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Agent": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "wallet": { "type": "string", "description": "Agent wallet address." },
+          "pda": { "type": "string", "description": "On-chain SAID identity account." },
+          "owner": { "type": "string", "description": "Current on-chain authority." },
+          "metadataUri": { "type": ["string", "null"] },
+          "registeredAt": { "type": ["string", "null"], "format": "date-time" },
+          "isVerified": { "type": "boolean" },
+          "verifiedAt": { "type": ["string", "null"], "format": "date-time" },
+          "sponsored": { "type": "boolean" },
+          "name": { "type": ["string", "null"] },
+          "description": { "type": ["string", "null"] },
+          "twitter": { "type": ["string", "null"] },
+          "website": { "type": ["string", "null"] },
+          "image": { "type": ["string", "null"] },
+          "mcpEndpoint": { "type": ["string", "null"], "description": "MCP server endpoint the agent exposes." },
+          "a2aEndpoint": { "type": ["string", "null"], "description": "A2A protocol endpoint the agent exposes." },
+          "x402Wallet": { "type": ["string", "null"], "description": "Wallet the agent receives x402 payments on." },
+          "serviceTypes": { "type": "array", "items": { "type": "string" } },
+          "skills": { "type": "array", "items": { "type": "string" } },
+          "layer2Verified": { "type": "boolean", "description": "Whether a live endpoint challenge has been passed." },
+          "layer2VerifiedAt": { "type": ["string", "null"], "format": "date-time" },
+          "verifiedEndpointUrl": { "type": ["string", "null"] },
+          "l2AttestationMethod": { "type": ["string", "null"] },
+          "registrationSource": { "type": ["string", "null"] },
+          "activityCount": { "type": "integer" },
+          "lastActiveAt": { "type": ["string", "null"], "format": "date-time" },
+          "reputationScore": { "type": "number" },
+          "feedbackCount": { "type": "integer" },
+          "trustScore": { "description": "Cached trust score, when available." },
+          "reputation": { "description": "Computed reputation detail, when available." },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "LeaderboardEntry": {
+        "type": "object",
+        "properties": {
+          "rank": { "type": "integer" },
+          "wallet": { "type": "string" },
+          "pda": { "type": ["string", "null"] },
+          "name": { "type": ["string", "null"] },
+          "twitter": { "type": ["string", "null"] },
+          "reputationScore": { "type": "number" },
+          "feedbackCount": { "type": "integer" },
+          "isVerified": { "type": "boolean" }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" }
+        }
+      }
+    }
+  }
+}
