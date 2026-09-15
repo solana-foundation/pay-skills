@@ -1,0 +1,285 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ClawdDarkPrivateX402",
+    "version": "1.0.0",
+    "description": "Privacy-first x402 payments on Solana using Dark-DeFi shielded infrastructure. Extends the standard x402 scheme with a 'dark-shielded' variant: USDC transfers routed through Zcash Sapling-derived shielded notes, breaking the payment graph between caller and API operator. AI inference runs inside TEE (SGX/SEV) enclaves attested on-chain via SAS — prompts and completions never appear in plaintext on the Solana ledger."
+  },
+  "servers": [
+    { "url": "https://x402.wtf/dark", "description": "Dark-shielded x402 gateway (Solana mainnet)" }
+  ],
+  "paths": {
+    "/shielded/challenge": {
+      "post": {
+        "operationId": "shieldedChallenge",
+        "summary": "Get a dark-shielded payment challenge",
+        "description": "Returns a 402-style payment challenge using the 'dark-shielded' x402 scheme. The payTo address is a one-time diversified Sapling address generated fresh per request — unlinkable to the operator's on-chain identity. The caller funds a shielded note; the operator's scanning key detects it without exposing the graph.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["resource"],
+                "properties": {
+                  "resource": { "type": "string", "description": "API endpoint being requested" },
+                  "amount_hint": { "type": "string", "description": "Suggested USDC amount in base units — server may override" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "402": {
+            "description": "Dark-shielded payment challenge",
+            "headers": {
+              "X-Payment-Required": {
+                "schema": { "type": "string" },
+                "description": "Base64-encoded dark-shielded PaymentRequiredResponse"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "x402Version": { "type": "integer", "example": 1 },
+                    "scheme": { "type": "string", "enum": ["dark-shielded"] },
+                    "accepts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "scheme": { "type": "string", "enum": ["dark-shielded"] },
+                          "network": { "type": "string", "enum": ["solana-mainnet"] },
+                          "maxAmountRequired": { "type": "string" },
+                          "payTo": { "type": "string", "description": "Diversified Sapling address (one-time, unlinkable to operator)" },
+                          "token": { "type": "string", "description": "USDC mint" },
+                          "ephemeral_key": { "type": "string", "description": "ECDH ephemeral key for note encryption" },
+                          "commitment_tree_root": { "type": "string", "description": "Current Merkle root for proof verification" }
+                        }
+                      }
+                    },
+                    "nonce": { "type": "string" },
+                    "expiresAt": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/shielded/verify": {
+      "post": {
+        "operationId": "shieldedVerify",
+        "summary": "Verify a shielded payment without settling",
+        "description": "Verifies a dark-shielded payment proof. Checks: note commitment exists in the Merkle tree, nullifier has not been spent, ZK ownership proof is valid, amount meets the requirement. Does not submit on-chain.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ShieldedPaymentProof" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verification result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "valid": { "type": "boolean" },
+                    "error": { "type": "string" },
+                    "amount_verified": { "type": "string" },
+                    "nullifier_fresh": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/shielded/settle": {
+      "post": {
+        "operationId": "shieldedSettle",
+        "summary": "Settle a shielded payment and grant access",
+        "description": "Verifies the shielded proof, marks the nullifier as spent on the Dark Protocol Anchor program (program ID: 4753b1cCrPzwr7taWWD8yrcM8dc98fTR7wCFdv1TsAbg), and returns a signed access token scoped to the requested resource and nonce.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ShieldedPaymentProof" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Settlement result with access token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "access_token": { "type": "string", "description": "Short-lived signed token — present as X-Dark-Access header on the resource request" },
+                    "nullifier_tx": { "type": "string", "description": "On-chain tx signature registering the spent nullifier" },
+                    "expires_at": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          },
+          "402": { "description": "Proof invalid or nullifier already spent" }
+        }
+      }
+    },
+    "/tee/inference": {
+      "post": {
+        "operationId": "teeInference",
+        "summary": "Privacy-preserving AI inference in a TEE enclave",
+        "description": "Chat completion inside an SGX/SEV trusted execution environment attested via the Solana Attestation Service (SAS). Prompts are encrypted client-side before entering the enclave; completions are encrypted before leaving. Neither the operator nor the network sees plaintext. Requires a dark-shielded payment settled via /shielded/settle.",
+        "security": [{ "darkAccess": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["encrypted_messages", "model"],
+                "properties": {
+                  "model": { "type": "string", "description": "Model ID (e.g. claude-sonnet-4-6, grok-4)" },
+                  "encrypted_messages": {
+                    "type": "array",
+                    "description": "ChaCha20-Poly1305 encrypted message objects. Encrypt with the enclave's public key from /tee/pubkey.",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "ciphertext": { "type": "string", "description": "Base64 ciphertext" },
+                        "nonce": { "type": "string", "description": "12-byte nonce (Base64)" },
+                        "role": { "type": "string", "enum": ["user", "assistant", "system"] }
+                      }
+                    }
+                  },
+                  "max_tokens": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Encrypted completion from TEE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "encrypted_content": { "type": "string", "description": "Base64 ChaCha20-Poly1305 ciphertext of the completion, encrypted with caller's ephemeral key" },
+                    "nonce": { "type": "string" },
+                    "attestation": { "type": "string", "description": "Base64 SAS attestation quote proving the enclave produced this response" },
+                    "tokens_used": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tee/pubkey": {
+      "get": {
+        "operationId": "teePublicKey",
+        "summary": "Get TEE enclave encryption public key",
+        "description": "Returns the current ChaCha20-Poly1305 / X25519 public key for the active TEE enclave, along with its SAS attestation. Use to encrypt messages before sending to /tee/inference.",
+        "responses": {
+          "200": {
+            "description": "Enclave public key and attestation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pubkey": { "type": "string", "description": "X25519 public key (Base64)" },
+                    "attestation": { "type": "string", "description": "SAS on-chain attestation signature" },
+                    "enclave_type": { "type": "string", "enum": ["sgx", "sev", "dstack"] },
+                    "valid_until": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wallet/generate": {
+      "post": {
+        "operationId": "generateShieldedWallet",
+        "summary": "Generate a Sapling shielded wallet address",
+        "description": "Derives a Zcash Sapling-compatible shielded address from a ZIP-32 HD seed for use as a private payer identity. Call client-side via @openclawdsol/dark-protocol-sdk; this endpoint is for demo/test flows only.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "account_index": { "type": "integer", "default": 0 },
+                  "diversifier_index": { "type": "integer", "default": 0 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Generated shielded address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "shielded_address": { "type": "string", "description": "43-byte Sapling address (zs1... format)" },
+                    "viewing_key": { "type": "string", "description": "Incoming viewing key for scanning notes" },
+                    "diversifier": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ShieldedPaymentProof": {
+        "type": "object",
+        "required": ["scheme", "network", "nullifier", "commitment", "proof", "amount", "resource", "nonce"],
+        "properties": {
+          "scheme": { "type": "string", "enum": ["dark-shielded"] },
+          "network": { "type": "string", "enum": ["solana-mainnet"] },
+          "nullifier": { "type": "string", "description": "32-byte nullifier (Base64) — derived from the spent note" },
+          "commitment": { "type": "string", "description": "32-byte note commitment (Base64) — proves the note exists in the Merkle tree" },
+          "merkle_path": { "type": "array", "items": { "type": "string" }, "description": "Merkle authentication path from leaf to root" },
+          "proof": { "type": "string", "description": "ZK-SNARK spending proof (Base64)" },
+          "amount": { "type": "string", "description": "USDC base units — must meet the challenge maxAmountRequired" },
+          "resource": { "type": "string" },
+          "nonce": { "type": "string" },
+          "payer_ephemeral_pk": { "type": "string", "description": "Payer's X25519 ephemeral public key for response encryption" }
+        }
+      }
+    },
+    "securitySchemes": {
+      "darkAccess": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Dark-Access",
+        "description": "Short-lived access token returned by POST /shielded/settle after successful ZK proof verification."
+      }
+    }
+  }
+}
