@@ -1,0 +1,380 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Clawd Official API",
+    "version": "v1",
+    "description": "x402.wtf paid AI, DeFi data, and agent platform. USDC payments via x402/pay.sh on Solana mainnet. Payment recipient: EFH1ouVP6ikYgyHm9zaLXSPHJDXsfVcaVLFPjtzw6BbF"
+  },
+  "servers": [
+    { "url": "https://x402.wtf", "description": "Official Clawd API" },
+    { "url": "https://backroom-3d.fly.dev", "description": "Backroom FastAPI (API key auth)" }
+  ],
+  "paths": {
+    "/api/x402/catalog": {
+      "get": {
+        "operationId": "getX402Catalog",
+        "summary": "List all paid Clawd routes",
+        "description": "Returns every live paid endpoint with current USDC price, CLAWD token overlay price, and supported settlement protocols. Call this first before any paid request.",
+        "responses": {
+          "200": {
+            "description": "Catalog of paid routes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "products": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "path": { "type": "string" },
+                          "method": { "type": "string" },
+                          "description": { "type": "string" },
+                          "priceUsd": { "type": "number" },
+                          "clawdPrice": { "type": "number" },
+                          "protocols": { "type": "array", "items": { "type": "string" } }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents": {
+      "get": {
+        "operationId": "listAgents",
+        "summary": "Browse the 124-agent Clawd catalog",
+        "description": "Returns agent definitions with metadata, capabilities, pricing, and Metaplex registration info.",
+        "parameters": [
+          { "name": "category", "in": "query", "schema": { "type": "string", "enum": ["defi", "payments", "trading", "analytics", "security", "nft", "dev-tools", "research", "governance", "education", "infrastructure"] } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agent list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "agents": { "type": "array", "items": { "$ref": "#/components/schemas/Agent" } },
+                    "total": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/x402/agents/catalog": {
+      "get": {
+        "operationId": "getBundledAgentsCatalog",
+        "summary": "List agents available via /api/x402/agents/chat",
+        "responses": {
+          "200": {
+            "description": "Bundled agent list with agentIds for routing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "agentId": { "type": "string" },
+                      "name": { "type": "string" },
+                      "description": { "type": "string" },
+                      "capabilities": { "type": "array", "items": { "type": "string" } }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dex/token-data": {
+      "get": {
+        "operationId": "getDexTokenData",
+        "summary": "Free Solana DEX token snapshot",
+        "description": "Returns price, 24h volume, liquidity, and pair metadata from DexScreener for any Solana token.",
+        "parameters": [
+          { "name": "mint", "in": "query", "required": true, "schema": { "type": "string" }, "description": "SPL token mint address" }
+        ],
+        "responses": {
+          "200": { "description": "Token data snapshot" }
+        }
+      }
+    },
+    "/api/x402/clawd": {
+      "post": {
+        "operationId": "clawdOperatorSession",
+        "summary": "Private Clawd operator session — $1.50 USDC",
+        "description": "Stream a private Claude operator session for multi-step research, routing, or execution. Highest compute allocation. Requires x402/pay.sh payment of $1.50 USDC.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["prompt"],
+                "properties": {
+                  "prompt": { "type": "string", "description": "Task prompt for the operator session" },
+                  "sessionId": { "type": "string", "description": "Optional session ID for continuity" },
+                  "model": { "type": "string", "description": "Claude model override" },
+                  "maxSteps": { "type": "integer", "default": 20, "description": "Max agentic steps" },
+                  "maxCostUsd": { "type": "number", "description": "Spend cap in USD" },
+                  "enableShell": { "type": "boolean", "default": false, "description": "Enable shell tool access" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "SSE stream of agent events" },
+          "402": { "description": "Payment required — $1.50 USDC via x402 on Solana" }
+        }
+      }
+    },
+    "/api/x402/agent/chat": {
+      "post": {
+        "operationId": "premiumAgentChat",
+        "summary": "Premium agent chat (SSE) — $0.69420 USDC",
+        "description": "Stream premium agent chat events. Private compute lane with higher allocation. Supports iterative multi-turn sessions. Requires $0.69420 USDC payment or 1,000 CLAWD app-native access.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["messages"],
+                "properties": {
+                  "messages": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "role": { "type": "string", "enum": ["user", "assistant", "system"] },
+                        "content": { "type": "string" }
+                      }
+                    }
+                  },
+                  "sessionId": { "type": "string" },
+                  "userPublicKey": { "type": "string", "description": "Solana wallet for CLAWD balance check" },
+                  "canTrade": { "type": "boolean", "default": false },
+                  "thinking": { "type": "boolean", "default": false, "description": "Enable extended thinking" },
+                  "effort": { "type": "string", "enum": ["low", "medium", "high"], "default": "medium" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "SSE stream of chat events" },
+          "402": { "description": "Payment required — $0.69420 USDC or 1,000 CLAWD" }
+        }
+      }
+    },
+    "/api/x402/agents/chat": {
+      "post": {
+        "operationId": "bundledAgentChat",
+        "summary": "Bundled Solana/DeFi agent chat — $0.25 USDC",
+        "description": "Route to a specialized bundled agent by agentId. Covers DeFi analyst, trading agent, payment agent, wallet advisor, and 40+ more from the catalog. Requires $0.25 USDC per request.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["messages", "agentId"],
+                "properties": {
+                  "agentId": { "type": "string", "description": "Agent ID from /api/x402/agents/catalog" },
+                  "messages": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "role": { "type": "string", "enum": ["user", "assistant"] },
+                        "content": { "type": "string" }
+                      }
+                    }
+                  },
+                  "sessionId": { "type": "string" },
+                  "userPublicKey": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "SSE stream of agent response events" },
+          "402": { "description": "Payment required — $0.25 USDC" }
+        }
+      }
+    },
+    "/api/store/agents/wallet-brief": {
+      "post": {
+        "operationId": "walletBrief",
+        "summary": "Solana wallet intelligence brief — $0.10 USDC",
+        "description": "Helius-indexed wallet brief with SPL token balances, NFT holdings, staking positions, and asset summary. Cheapest paid endpoint — use first for wallet context before higher-cost sessions.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["wallet"],
+                "properties": {
+                  "wallet": { "type": "string", "description": "Base58 Solana wallet address" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Wallet intelligence brief",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sol": { "type": "number" },
+                    "tokens": { "type": "array", "items": { "type": "object" } },
+                    "nfts": { "type": "array", "items": { "type": "object" } },
+                    "summary": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "402": { "description": "Payment required — $0.10 USDC" }
+        }
+      }
+    },
+    "/api/x402/stocks/data": {
+      "post": {
+        "operationId": "stocksData",
+        "summary": "Realtime stock data — $0.15 USDC",
+        "description": "Proxy to Financial Datasets API. Returns price, earnings, balance sheet, income statement, and analyst data for any ticker.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["endpoint", "params"],
+                "properties": {
+                  "endpoint": { "type": "string", "description": "Financial Datasets API endpoint path" },
+                  "params": { "type": "object", "description": "Query parameters for the endpoint" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Stock data response" },
+          "402": { "description": "Payment required — $0.15 USDC" }
+        }
+      }
+    },
+    "/api/x402/backroom-pump/data": {
+      "post": {
+        "operationId": "backroomPumpData",
+        "summary": "Pump.fun token intelligence — $4.20 USDC",
+        "description": "Premium Pump.fun token data: holder distributions, launch metadata, bonding curve state, migration status, and trend signals.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["mint"],
+                "properties": {
+                  "mint": { "type": "string", "description": "Pump.fun token mint address" },
+                  "includeHolders": { "type": "boolean", "default": true },
+                  "includeTrades": { "type": "boolean", "default": false }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Pump.fun token intelligence payload" },
+          "402": { "description": "Payment required — $4.20 USDC" }
+        }
+      }
+    },
+    "/api/x402/backroom-pump/analyze": {
+      "post": {
+        "operationId": "backroomPumpAnalyze",
+        "summary": "AI analysis over Pump.fun data — $4.20 USDC",
+        "description": "Claude-powered analysis combining Pump.fun token intelligence with narrative scoring, sentiment analysis, and risk assessment.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["mint"],
+                "properties": {
+                  "mint": { "type": "string", "description": "Pump.fun token mint address" },
+                  "prompt": { "type": "string", "description": "Optional analysis focus prompt" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "AI analysis with narrative, sentiment score, and risk assessment" },
+          "402": { "description": "Payment required — $4.20 USDC" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Agent": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "category": { "type": "string" },
+          "capabilities": { "type": "array", "items": { "type": "string" } },
+          "metaplexEnabled": { "type": "boolean" },
+          "tradingCapable": { "type": "boolean" },
+          "pricing": {
+            "type": "object",
+            "properties": {
+              "priceUsd": { "type": "number" },
+              "clawdPrice": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "x402": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-PAYMENT",
+        "description": "x402 payment proof — base64-encoded signed Solana USDC transfer. See https://x402.wtf/docs/x402 for the payment flow."
+      },
+      "paysh": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Payment",
+        "description": "pay.sh payment header for the WWW-Authenticate: Payment flow."
+      }
+    }
+  }
+}
