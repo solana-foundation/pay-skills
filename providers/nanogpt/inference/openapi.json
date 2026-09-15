@@ -1,0 +1,1257 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "NanoGPT accountless API",
+    "version": "1.0.0",
+    "description": "Stable accountless chat, Responses, image generation and JSON editing, web search, and URL scraping. Each URL opts into x402 payment quoting."
+  },
+  "servers": [
+    {
+      "url": "https://nano-gpt.com"
+    }
+  ],
+  "paths": {
+    "/api/x402/v1/chat/completions": {
+      "post": {
+        "operationId": "createChatCompletion",
+        "summary": "Generate a non-streaming chat completion",
+        "description": "Request an x402 quote without an API key or opt-in header, then replay the identical request and URL with a signed Solana USDC payment in X-PAYMENT.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "model",
+                  "messages"
+                ],
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "description": "NanoGPT model identifier.",
+                    "example": "gpt-4.1-nano"
+                  },
+                  "messages": {
+                    "type": "array",
+                    "description": "Conversation messages.",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "role",
+                        "content"
+                      ],
+                      "properties": {
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "system",
+                            "user",
+                            "assistant"
+                          ]
+                        },
+                        "content": {
+                          "type": "string",
+                          "description": "Message text."
+                        }
+                      }
+                    }
+                  },
+                  "stream": {
+                    "type": "boolean",
+                    "enum": [
+                      false
+                    ],
+                    "description": "Use a non-streaming response."
+                  }
+                }
+              },
+              "example": {
+                "model": "gpt-4.1-nano",
+                "messages": [
+                  {
+                    "role": "user",
+                    "content": "Say ok"
+                  }
+                ],
+                "stream": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Chat completion response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatCompletion"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment quote with available rails including Solana USDC."
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-PAYMENT",
+            "required": false,
+            "description": "Base64-encoded x402 payment proof. Omit on the initial request to receive a quote.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/x402/v1/images/generations": {
+      "post": {
+        "operationId": "generateImage",
+        "summary": "Generate an image from a text prompt",
+        "description": "Request a payment quote without an API key or opt-in header. Replay the same URL and request with X-PAYMENT after signing the Solana USDC challenge.",
+        "security": [],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-PAYMENT",
+            "required": false,
+            "description": "Base64-encoded x402 proof; omit on the initial request.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "model",
+                  "prompt"
+                ],
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "description": "NanoGPT image model identifier.",
+                    "example": "gpt-image-1"
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "description": "Describe the image to generate or edit."
+                  },
+                  "size": {
+                    "type": "string",
+                    "description": "Output dimensions supported by the model.",
+                    "example": "1024x1024"
+                  },
+                  "n": {
+                    "type": "integer",
+                    "description": "Number of images to generate.",
+                    "minimum": 1,
+                    "default": 1
+                  }
+                }
+              },
+              "example": {
+                "model": "gpt-image-1",
+                "prompt": "A small ceramic robot",
+                "size": "1024x1024",
+                "n": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Generated image URLs or base64 image data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment quote including enabled Solana USDC payment requirements."
+          }
+        }
+      }
+    },
+    "/api/x402/v1/images/edits": {
+      "post": {
+        "operationId": "editImage",
+        "summary": "Generate an edited image from a JSON reference",
+        "description": "Request a payment quote without an API key or opt-in header. Replay the same URL and request with X-PAYMENT after signing the Solana USDC challenge.",
+        "security": [],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-PAYMENT",
+            "required": false,
+            "description": "Base64-encoded x402 proof; omit on the initial request.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "model",
+                  "prompt",
+                  "image"
+                ],
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "description": "NanoGPT image model identifier.",
+                    "example": "gpt-image-1"
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "description": "Describe the image to generate or edit."
+                  },
+                  "size": {
+                    "type": "string",
+                    "description": "Output dimensions supported by the model.",
+                    "example": "1024x1024"
+                  },
+                  "n": {
+                    "type": "integer",
+                    "description": "Number of images to generate.",
+                    "minimum": 1,
+                    "default": 1
+                  },
+                  "image": {
+                    "type": "string",
+                    "description": "Reference image URL or data URL. This accountless contract accepts JSON only.",
+                    "example": "https://nano-gpt.com/social/banner.png"
+                  }
+                }
+              },
+              "example": {
+                "model": "gpt-image-1",
+                "prompt": "Make a minimalist sketch",
+                "image": "https://nano-gpt.com/social/banner.png",
+                "size": "1024x1024",
+                "n": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Edited image URLs or base64 image data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment quote including enabled Solana USDC payment requirements."
+          }
+        }
+      }
+    },
+    "/api/x402/v1/responses": {
+      "post": {
+        "operationId": "createResponse",
+        "summary": "Generate a non-streaming model response",
+        "description": "Request a payment quote without an API key or opt-in header. Replay the same URL and request with X-PAYMENT after signing the Solana USDC challenge.",
+        "security": [],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-PAYMENT",
+            "required": false,
+            "description": "Base64-encoded x402 proof; omit on the initial request.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "model",
+                  "input"
+                ],
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "description": "NanoGPT text model identifier.",
+                    "example": "gpt-4.1-nano"
+                  },
+                  "input": {
+                    "type": "string",
+                    "description": "Input text for the model."
+                  },
+                  "stream": {
+                    "type": "boolean",
+                    "enum": [
+                      false
+                    ],
+                    "default": false,
+                    "description": "Use a non-streaming response."
+                  },
+                  "background": {
+                    "type": "boolean",
+                    "enum": [
+                      false
+                    ],
+                    "default": false,
+                    "description": "Run synchronously for accountless access."
+                  }
+                }
+              },
+              "example": {
+                "model": "gpt-4.1-nano",
+                "input": "Say ok",
+                "stream": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Responses API output items and token usage.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment quote including enabled Solana USDC payment requirements."
+          }
+        }
+      }
+    },
+    "/api/x402/v1/data/web/search": {
+      "post": {
+        "operationId": "searchWeb",
+        "summary": "Search the web for relevant pages",
+        "description": "Request a payment quote without an API key or opt-in header. Replay the same URL and request with X-PAYMENT after signing the Solana USDC challenge.",
+        "security": [],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-PAYMENT",
+            "required": false,
+            "description": "Base64-encoded x402 proof; omit on the initial request.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "query"
+                ],
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "Search query."
+                  },
+                  "maxResults": {
+                    "type": "integer",
+                    "description": "Maximum number of search results.",
+                    "minimum": 1,
+                    "example": 3
+                  }
+                }
+              },
+              "example": {
+                "query": "NanoGPT x402",
+                "maxResults": 3
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Search results with titles, URLs, and available snippets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebSearchResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment quote including enabled Solana USDC payment requirements."
+          }
+        }
+      }
+    },
+    "/api/x402/v1/data/url/scrape": {
+      "post": {
+        "operationId": "scrapeUrls",
+        "summary": "Extract content from URLs",
+        "description": "Request a payment quote without an API key or opt-in header. Replay the same URL and request with X-PAYMENT after signing the Solana USDC challenge.",
+        "security": [],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-PAYMENT",
+            "required": false,
+            "description": "Base64-encoded x402 proof; omit on the initial request.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "urls"
+                ],
+                "properties": {
+                  "urls": {
+                    "type": "array",
+                    "description": "Public web pages to retrieve.",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  }
+                }
+              },
+              "example": {
+                "urls": [
+                  "https://nano-gpt.com"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Extracted page content and per-URL results.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScrapeResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment quote including enabled Solana USDC payment requirements."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ChatCompletion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "chat.completion"
+            ]
+          },
+          "created": {
+            "type": "integer",
+            "description": "Unix timestamp in seconds."
+          },
+          "model": {
+            "type": "string"
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer"
+                },
+                "finish_reason": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "message": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "reasoning_content": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "reasoning": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "tool_calls": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "function"
+                            ]
+                          },
+                          "function": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "arguments": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "arguments"
+                            ],
+                            "additionalProperties": true
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type",
+                          "function"
+                        ],
+                        "additionalProperties": true
+                      }
+                    }
+                  },
+                  "required": [
+                    "role"
+                  ],
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "index",
+                "message"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "prompt_tokens": {
+                "type": "integer"
+              },
+              "completion_tokens": {
+                "type": "integer"
+              },
+              "total_tokens": {
+                "type": "integer"
+              },
+              "prompt_tokens_details": {
+                "type": "object",
+                "properties": {
+                  "cached_tokens": {
+                    "type": "integer"
+                  }
+                },
+                "additionalProperties": true
+              },
+              "completion_tokens_details": {
+                "type": "object",
+                "properties": {
+                  "reasoning_tokens": {
+                    "type": "integer"
+                  }
+                },
+                "additionalProperties": true
+              }
+            },
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "created",
+          "model",
+          "choices"
+        ],
+        "additionalProperties": true
+      },
+      "ModelResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "response"
+            ]
+          },
+          "created_at": {
+            "type": "number"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "Inspect this field for completed, incomplete, or failed execution."
+          },
+          "output": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "message"
+                      ]
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "assistant"
+                      ]
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "array",
+                      "items": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "output_text"
+                                ]
+                              },
+                              "text": {
+                                "type": "string"
+                              },
+                              "annotations": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {},
+                                  "additionalProperties": true
+                                }
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "text"
+                            ],
+                            "additionalProperties": true
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "refusal"
+                                ]
+                              },
+                              "refusal": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "refusal"
+                            ],
+                            "additionalProperties": true
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "content"
+                  ],
+                  "additionalProperties": true
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "reasoning"
+                      ]
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "summary": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string"
+                          },
+                          "text": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "text"
+                        ],
+                        "additionalProperties": true
+                      }
+                    },
+                    "content": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string"
+                          },
+                          "text": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "text"
+                        ],
+                        "additionalProperties": true
+                      }
+                    },
+                    "encrypted_content": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": true
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "function_call"
+                      ]
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "call_id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "arguments": {
+                      "type": "string",
+                      "description": "JSON-encoded function arguments."
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "call_id",
+                    "name",
+                    "arguments"
+                  ],
+                  "additionalProperties": true
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "not": {
+                        "enum": [
+                          "message",
+                          "reasoning",
+                          "function_call"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": true
+                }
+              ]
+            }
+          },
+          "output_text": {
+            "type": "string",
+            "description": "Convenience concatenation of output_text parts, when present."
+          },
+          "usage": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "input_tokens": {
+                    "type": "integer"
+                  },
+                  "output_tokens": {
+                    "type": "integer"
+                  },
+                  "total_tokens": {
+                    "type": "integer"
+                  },
+                  "input_tokens_details": {
+                    "type": "object",
+                    "properties": {
+                      "cached_tokens": {
+                        "type": "integer"
+                      }
+                    },
+                    "additionalProperties": true
+                  },
+                  "output_tokens_details": {
+                    "type": "object",
+                    "properties": {
+                      "reasoning_tokens": {
+                        "type": "integer"
+                      }
+                    },
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "input_tokens",
+                  "output_tokens",
+                  "total_tokens"
+                ],
+                "additionalProperties": true
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "message"
+                ],
+                "additionalProperties": true
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "incomplete_details": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": true
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "created_at",
+          "model",
+          "status",
+          "output"
+        ],
+        "additionalProperties": true
+      },
+      "ImageResponse": {
+        "type": "object",
+        "properties": {
+          "created": {
+            "type": "integer",
+            "description": "Creation timestamp supplied by the image endpoint; units may vary by model."
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "description": "URL from which the image can be retrieved."
+                },
+                "b64_json": {
+                  "type": "string",
+                  "description": "Base64-encoded image bytes."
+                },
+                "revised_prompt": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": true,
+              "anyOf": [
+                {
+                  "required": [
+                    "url"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "description": "URL from which the image can be retrieved."
+                    }
+                  }
+                },
+                {
+                  "required": [
+                    "b64_json"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "b64_json": {
+                      "type": "string",
+                      "description": "Base64-encoded image bytes."
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": true
+      },
+      "WebSearchResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "text",
+                    "image"
+                  ]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": "string",
+                  "description": "Available page text or search snippet."
+                },
+                "imageUrl": {
+                  "type": "string"
+                },
+                "score": {
+                  "type": "number"
+                },
+                "rawContent": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "cost": {
+                "type": "number",
+                "description": "Search cost in USD."
+              }
+            },
+            "required": [
+              "query",
+              "timestamp",
+              "cost"
+            ],
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "data",
+          "metadata"
+        ],
+        "additionalProperties": true,
+        "description": "Result envelope for the search request fields documented by this operation. Optional result fields depend on availability."
+      },
+      "ScrapeResponse": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    },
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "string"
+                    },
+                    "markdown": {
+                      "type": "string"
+                    },
+                    "contextProof": {
+                      "type": "string",
+                      "description": "Opaque proof associated with the extracted content."
+                    }
+                  },
+                  "required": [
+                    "url",
+                    "success",
+                    "content",
+                    "markdown"
+                  ],
+                  "additionalProperties": true
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    },
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "unsupportedService": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "url",
+                    "success",
+                    "error"
+                  ],
+                  "additionalProperties": true
+                }
+              ]
+            }
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "requested": {
+                "type": "integer"
+              },
+              "processed": {
+                "type": "integer"
+              },
+              "successful": {
+                "type": "integer"
+              },
+              "failed": {
+                "type": "integer"
+              },
+              "actualCost": {
+                "type": "number",
+                "description": "Amount in USD."
+              },
+              "upfrontCost": {
+                "type": "number",
+                "description": "Amount in USD."
+              },
+              "additionalCost": {
+                "type": "number",
+                "description": "Amount in USD."
+              },
+              "refundCost": {
+                "type": "number",
+                "description": "Amount in USD."
+              },
+              "creditsUsed": {
+                "type": "number"
+              },
+              "refundProcessed": {
+                "type": "boolean"
+              },
+              "refundRateLimited": {
+                "type": "boolean"
+              },
+              "stealthModeUsed": {
+                "type": "boolean"
+              },
+              "containedPDFs": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "requested",
+              "processed",
+              "successful",
+              "failed"
+            ],
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "results",
+          "summary"
+        ],
+        "additionalProperties": true,
+        "description": "A successful HTTP response may include failed URLs alongside successfully extracted pages. Inspect each result success flag."
+      }
+    }
+  }
+}
