@@ -1,7 +1,7 @@
 ---
 name: agentfeed
 title: "AgentFeed"
-description: "45 pay-per-call JSON endpoints for live crypto market state: spot prices, perp funding and open interest, a complete Bybit liquidation tape across ~600 USDT perps, cascade and squeeze scores, orderbook imbalance, plus Solana token-risk and peg data."
+description: "48 pay-per-call JSON endpoints for live crypto market state: spot prices, perp funding and open interest, a complete Bybit liquidation tape across ~600 USDT perps, cascade and squeeze scores, orderbook imbalance, plus Solana token-risk and peg data."
 use_case: "Use when an agent needs current derivatives or liquidation state before acting: what is liquidating now, where funding and open interest sit, whether a cascade is building. Also for Solana token-risk and wallet holdings without an API key."
 category: data
 service_url: https://x402.ochinimus.app
