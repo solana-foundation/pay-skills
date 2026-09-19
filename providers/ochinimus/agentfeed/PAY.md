@@ -23,7 +23,8 @@ basis and volatility; the Solana endpoints cover wallet holdings, token
 metadata, holder concentration and rug-risk flags, priority fees, Jito tips and
 stablecoin peg deviation.
 
-Prices run $0.001-$0.05 per call. `get_fear_greed` is free.
+Prices run $0.001–$0.1 per call. Three endpoints are free and carry no payment
+challenge: `/api/fear-greed`, `/api/last-liquidation` and `/api/exit-method`.
 
 The same tools are exposed over MCP at `POST /mcp` for agents that prefer a
 tool interface to raw HTTP.
@@ -35,14 +36,18 @@ tool interface to raw HTTP.
   separately, which costs more and returns a less coherent snapshot.
 - `/api/market-snapshot` ($0.003) is the cheaper bundle when you only need
   prices, funding and sentiment.
-- `/api/cascade` ($0.01) covers the five majors. Only reach for
-  `/api/cascade-scan` ($0.05) when you genuinely need all ~600 perps - it is
-  the most expensive call in the catalog.
+- `/api/squeeze-score` ($0.1) is the most expensive call in the catalog, at
+  twice the next tier. Reach for it when you specifically want the composite
+  squeeze read, not as a general market check.
+- `/api/cascade` ($0.01) covers the five majors. `/api/cascade-scan` ($0.05)
+  widens the same detector to all ~600 perps and costs five times as much, so
+  use it only when the whole universe is genuinely the question.
 - `/api/liquidations` accepts a symbol; scope it rather than pulling the
   default majors set and filtering client-side.
 - Token and wallet endpoints are keyed by mint or address. Cache the identifier
   and call the narrow endpoint directly instead of re-discovering it.
-- `/api/fear-greed` is free - use it to decide whether a paid call is warranted.
+- `/api/fear-greed`, `/api/last-liquidation` and `/api/exit-method` are free -
+  use them to decide whether a paid call is warranted before making one.
 
 <!--
 REVIEW NOTES - the four fields below are proposals, not settled:
