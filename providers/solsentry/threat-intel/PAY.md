@@ -22,9 +22,9 @@ rail, signs a USDC payment on Solana mainnet, and replays the request with an
 metered and are out of scope for this listing.
 
 Per-call pricing (USDC on Solana mainnet; the authoritative price is returned in
-the live `402` challenge): operator $0.002 · token $0.003 · predictions $0.002 ·
-contract-analysis $0.01 · lookalike-check $0.003 · tx-preview $0.008 ·
-holders $0.005 · drain-trace $0.05 · dossier $0.50.
+the live `402` challenge): operator $0.008 · token $0.008 · predictions $0.004 ·
+contract-analysis $0.01 · lookalike-check $0.004 · tx-preview $0.008 ·
+holders $0.007 · drain-trace $0.05 · dossier $0.50 · xwatch $5.00.
 
 ## Spend-aware usage
 
