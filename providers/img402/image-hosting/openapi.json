@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "img402 — Image Hosting API for Agents",
-    "description": "Upload images and get public CDN URLs. Three tiers: free (1MB, 7-day retention, no auth), $0.01 USDC via x402 (5MB, 1-year retention), $1.00 USDC via x402 (5MB, permanent retention). No accounts, no API keys.",
-    "version": "1.1.0",
+    "description": "Upload images and get public CDN URLs. Images 1MB or under: free and permanent, no auth. Up to 10MB: free for 30 days, or permanent for $0.01 USDC via x402. No accounts, no API keys.",
+    "version": "1.2.0",
     "contact": {
       "name": "img402",
       "url": "https://img402.dev"
@@ -15,12 +15,16 @@
       "description": "Production"
     }
   ],
+  "externalDocs": {
+    "description": "Human-readable API documentation and examples",
+    "url": "https://img402.dev/docs"
+  },
   "paths": {
     "/api/free": {
       "post": {
         "operationId": "freeUpload",
-        "summary": "Upload an image up to 1MB with 7-day retention (no payment)",
-        "description": "Upload an image with no authentication required. 1MB max file size, 7-day retention. Accepts multipart form-data (field 'image') or JSON body with base64-encoded image.",
+        "summary": "Free upload: permanent for images 1MB or under, 30 days up to 10MB (no payment)",
+        "description": "Upload an image with no authentication required. 10MB max file size. Images 1MB or under are hosted permanently (expiresAt: null); larger images are retained 30 days. Accepts multipart form-data (field 'image') or JSON body with base64-encoded image.",
         "requestBody": {
           "required": true,
           "content": {
@@ -31,7 +35,7 @@
                   "image": {
                     "type": "string",
                     "format": "binary",
-                    "description": "Image file (PNG, JPEG, GIF, or WebP). Max 1MB."
+                    "description": "Image file (PNG, JPEG, GIF, or WebP). Max 10MB."
                   }
                 },
                 "required": ["image"]
@@ -43,7 +47,7 @@
                 "properties": {
                   "file": {
                     "type": "string",
-                    "description": "Base64-encoded image data. Max 1MB decoded."
+                    "description": "Base64-encoded image data. Max 10MB decoded."
                   }
                 },
                 "required": ["file"]
@@ -65,7 +69,7 @@
                   "id": "abc123",
                   "contentType": "image/png",
                   "sizeBytes": 12345,
-                  "expiresAt": "2026-02-15T00:00:00.000Z"
+                  "expiresAt": null
                 }
               }
             }
@@ -80,7 +84,7 @@
                     "value": { "error": "no_file", "message": "No image found in the request. Send it ONE of two ways: (1) multipart form-data with the file in a field named exactly 'image' — curl -X POST https://img402.dev/api/free -F image=@photo.png ; or (2) a JSON body {\"file\": \"<base64-encoded-image-bytes>\"} with Content-Type: application/json. The multipart field name must be 'image' — any other name is ignored." }
                   },
                   "file_too_large": {
-                    "value": { "error": "file_too_large", "message": "This image is 1500000 bytes (1.43MB). Free uploads are capped at 1048576 bytes (1MB). Either resize/recompress it under 1MB, or use a paid tier which accepts up to 5MB: POST /api/upload/token ($0.01 USDC, 1-year) or /api/upload/token/permanent ($1 USDC, permanent)." }
+                    "value": { "error": "file_too_large", "message": "This image is 11500000 bytes (10.97MB). Free uploads are capped at 10485760 bytes (10MB). Resize or recompress it under 10MB. (Tip: free images 1MB or under are hosted permanently; 1-10MB free images last 30 days, or become permanent for $0.01 via POST /api/upload/token.)" }
                   },
                   "unsupported_format": {
                     "value": { "error": "unsupported_format", "message": "Could not recognize this as a supported image. img402 detects format from the file's leading magic bytes and accepts only PNG, JPEG, GIF, and WebP. Common causes: sending a base64 string or data: URI as multipart bytes instead of the decoded image, sending a URL or non-image file, or a truncated/corrupted upload. Send the raw image bytes (e.g. curl -F image=@photo.png) or a base64 of the raw bytes in the JSON 'file' field." }
@@ -122,8 +126,8 @@
     "/api/upload/token": {
       "post": {
         "operationId": "getUploadToken",
-        "summary": "Pay $0.01 USDC and get a 1-year upload token",
-        "description": "Pay $0.01 USDC via x402 protocol to receive a single-use upload token valid for 10 minutes. The resulting image will have 1-year retention. Use the token to upload an image via POST /api/upload with the X-Upload-Token header. This two-phase flow is recommended for images larger than a few KB, as it keeps binary data out of the payment request. No request body needed — payment is handled entirely via x402 protocol headers. For permanent retention, use /api/upload/token/permanent instead.",
+        "summary": "Pay $0.01 USDC and get a permanent upload token",
+        "description": "Pay $0.01 USDC via x402 protocol to receive a single-use upload token valid for 10 minutes. The resulting image is PERMANENT (no expiration), backed by a 90-day on-site shutdown notice — see https://img402.dev/terms Section 2A. Use the token to upload an image via POST /api/upload with the X-Upload-Token header. This two-phase flow is recommended for images larger than a few KB, as it keeps binary data out of the payment request. No request body needed — payment is handled entirely via x402 protocol headers.",
         "responses": {
           "200": {
             "description": "Upload token issued. If the same payment was already used to upload an image, returns the existing image instead (idempotent). Distinguish by shape: a fresh token response contains token, an idempotent replay contains url.",
@@ -171,8 +175,8 @@
     "/api/upload/token/permanent": {
       "post": {
         "operationId": "getPermanentUploadToken",
-        "summary": "Pay $1.00 USDC and get a permanent upload token",
-        "description": "Pay $1.00 USDC via x402 protocol to receive a single-use upload token valid for 10 minutes. The resulting image will have permanent retention (no expiration). Use the token to upload an image via POST /api/upload with the X-Upload-Token header. Permanent images are retained for the operational life of the service; if the service ever shuts down, a 90-day on-site notice is given before takedown. See https://img402.dev/terms Section 2A. No request body needed — payment is handled entirely via x402 protocol headers.",
+        "summary": "Legacy: $1.00 USDC permanent token (use /api/upload/token instead — same product, $0.01)",
+        "description": "LEGACY route kept for backward compatibility: POST /api/upload/token now provides identical permanent hosting for $0.01 — use that instead. This route still works ($1.00 USDC, permanent image, 90-day shutdown notice per https://img402.dev/terms Section 2A).",
         "responses": {
           "200": {
             "description": "Upload token issued (image will be permanent). If the same payment was already used to upload an image, returns the existing image instead (idempotent). Distinguish by shape: a fresh token response contains token, an idempotent replay contains url.",
@@ -221,7 +225,7 @@
       "post": {
         "operationId": "upload",
         "summary": "Upload an image with a token or x402 payment",
-        "description": "Upload an image using either an upload token (from POST /api/upload/token or /api/upload/token/permanent) or a direct x402 payment. 5MB max file size. Retention depends on the source: 1 year for tokens issued at /api/upload/token, permanent for tokens issued at /api/upload/token/permanent, 1 year for direct x402 payments. Accepts multipart form-data (field 'image') or JSON body with base64-encoded image. When using a token, include it in the X-Upload-Token header.",
+        "description": "Upload an image using either an upload token or a direct x402 payment. 10MB max file size. Every paid upload is permanent (expiresAt: null). Accepts multipart form-data (field 'image') or JSON body with base64-encoded image. When using a token, include it in the X-Upload-Token header.",
         "parameters": [
           {
             "name": "X-Upload-Token",
@@ -240,7 +244,7 @@
                   "image": {
                     "type": "string",
                     "format": "binary",
-                    "description": "Image file (PNG, JPEG, GIF, or WebP). Max 5MB."
+                    "description": "Image file (PNG, JPEG, GIF, or WebP). Max 10MB."
                   }
                 },
                 "required": ["image"]
@@ -252,7 +256,7 @@
                 "properties": {
                   "file": {
                     "type": "string",
-                    "description": "Base64-encoded image data. Max 5MB decoded."
+                    "description": "Base64-encoded image data. Max 10MB decoded."
                   }
                 },
                 "required": ["file"]
@@ -406,8 +410,9 @@
             "type": "string",
             "nullable": true,
             "format": "date-time",
-            "description": "ISO 8601 expiration timestamp, or null for permanent images (those uploaded via /api/upload/token/permanent)."
-          }
+            "description": "ISO 8601 expiration timestamp, or null for permanent images (all paid uploads, and free uploads 1MB or under)."
+          },
+          "img402": { "$ref": "#/components/schemas/Img402Metadata" }
         }
       },
       "TokenResponse": {
@@ -415,7 +420,8 @@
         "required": ["token", "expiresAt"],
         "properties": {
           "token": { "type": "string", "description": "Single-use upload token. Valid for 10 minutes. Use as X-Upload-Token header when uploading." },
-          "expiresAt": { "type": "string", "format": "date-time", "description": "ISO 8601 token expiration timestamp" }
+          "expiresAt": { "type": "string", "format": "date-time", "description": "ISO 8601 token expiration timestamp" },
+          "img402": { "$ref": "#/components/schemas/Img402Metadata" }
         }
       },
       "PaymentRequired": {
@@ -447,7 +453,17 @@
         "required": ["error", "message"],
         "properties": {
           "error": { "type": "string", "description": "Machine-readable error code" },
-          "message": { "type": "string", "description": "Human-readable error description" }
+          "message": { "type": "string", "description": "Human-readable error description" },
+          "img402": { "$ref": "#/components/schemas/Img402Metadata" }
+        }
+      },
+      "Img402Metadata": {
+        "type": "object",
+        "description": "Agent-facing service messages. Clients should ignore unknown fields for forward compatibility.",
+        "properties": {
+          "news": { "type": "string", "description": "Optional product or pricing announcement." },
+          "thanks": { "type": "string", "description": "Optional attribution request." },
+          "feedback": { "type": "string", "description": "How to send feedback about the service." }
         }
       }
     }
