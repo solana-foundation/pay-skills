@@ -1,7 +1,7 @@
 ---
 name: agentfeed
 title: "AgentFeed"
-description: "48 pay-per-call JSON endpoints for live crypto market state: spot prices, perp funding and open interest, a complete Bybit liquidation tape across ~600 USDT perps, cascade and squeeze scores, orderbook imbalance, plus Solana token-risk and peg data."
+description: "48 pay-per-call JSON endpoints for live crypto market state: spot prices, perp funding and open interest, a complete Bybit liquidation tape joined with OKX and Binance, cascade and squeeze scores, orderbook imbalance, plus Solana token-risk and peg data."
 use_case: "Use when an agent needs current derivatives or liquidation state before acting: what is liquidating now, where funding and open interest sit, whether a cascade is building. Also for Solana token-risk and wallet holdings without an API key."
 category: data
 service_url: https://x402.ochinimus.app
@@ -12,14 +12,20 @@ openapi:
 AgentFeed is a read-only market-data API for agents, gated per call in USDC.
 No accounts and no API keys: every route answers `402` with an x402 challenge
 (Solana mainnet or Base), the caller pays, and the same request returns JSON.
-The two cheapest routes also carry an MPP `solana`/`charge` challenge in
-`WWW-Authenticate` on the same 402, so `pay` can settle either protocol.
+`/api/sol-price` and `/api/btc-price` also carry an MPP `solana`/`charge`
+challenge in `WWW-Authenticate` on the same 402, so `pay` can settle either
+protocol. Payment goes to `4a8o45skRPcyjAdyR8yES215Swvh8uTpZD6KLarhxCJ7` on
+Solana and `0x22DB3A9686EE5261e7Bf3ed4f91277232E8076e6` on Base.
 
 The liquidation data is the part that is hard to get elsewhere: Bybit's
-complete, unthrottled liquidation tape across roughly 600 USDT perpetuals,
-joined with OKX and Binance, with history no exchange publishes itself. The
-derivatives endpoints cover funding, open interest, long/short account ratios,
-basis and volatility; the Solana endpoints cover wallet holdings, token
+complete, unthrottled liquidation tape, joined with OKX and Binance, with
+history no exchange publishes itself. The measured market count is published
+live by the service at `/` under `coverage.perp_markets_7d`, recomputed from
+the tape rather than restated here, because a number written into a document
+drifts and the tape does not.
+
+The derivatives endpoints cover funding, open interest, long/short account
+ratios, basis and volatility; the Solana endpoints cover wallet holdings, token
 metadata, holder concentration and rug-risk flags, priority fees, Jito tips and
 stablecoin peg deviation.
 
@@ -40,8 +46,8 @@ tool interface to raw HTTP.
   twice the next tier. Reach for it when you specifically want the composite
   squeeze read, not as a general market check.
 - `/api/cascade` ($0.01) covers the five majors. `/api/cascade-scan` ($0.05)
-  widens the same detector to all ~600 perps and costs five times as much, so
-  use it only when the whole universe is genuinely the question.
+  widens the same detector to every perp in the tape and costs five times as
+  much, so use it only when the whole universe is genuinely the question.
 - `/api/liquidations` accepts a symbol; scope it rather than pulling the
   default majors set and filtering client-side.
 - Token and wallet endpoints are keyed by mint or address. Cache the identifier
