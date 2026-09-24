@@ -1,0 +1,1448 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "LimitGuard.ai",
+        "version": "1.0",
+        "description": "Free sandbox key, no wallet. $0.65-0.85 fresh; $0.10 cached when available. Trust Intelligence API: entity verification, risk scoring, KYB and compliance, paid per call with x402 (USDC on Base or Solana).",
+        "contact": {
+            "name": "LimitGuard support",
+            "email": "support@limitguard.ai",
+            "url": "https://limitguard.ai"
+        },
+        "x-guidance": "Free sandbox key, no wallet: POST https://api.limitguard.ai/v1/keys/create with {\"email\": \"you@example.com\", \"tier\": \"sandbox\"} returns an lg_sandbox_ key; send it as X-API-Key for mock data at no charge.\nPaying per call: call a priced operation with no credentials. It answers 402 with an x402 v2 challenge in the base64 PAYMENT-REQUIRED header and the JSON body. Pay in USDC on Base or Solana and retry with the PAYMENT-SIGNATURE header.\nPrepaid: an lg_live_ key sent as X-API-Key is debited per call at the same prices instead. Buy balance with POST /v1/keys/upgrade/{tier}.\nOperations with a dynamic price accept X-Response-Quality: cached, fresh or enhanced; fresh is the default, and an endpoint without a cached tier charges fresh.\nFull guide: https://api.limitguard.ai/llms.txt"
+    },
+    "servers": [
+        {
+            "url": "https://api.limitguard.ai"
+        }
+    ],
+    "externalDocs": {
+        "url": "https://docs.limitguard.ai/x402-protocol"
+    },
+    "x-agentcash-guidance": {
+        "llmsTxtUrl": "https://api.limitguard.ai/llms.txt"
+    },
+    "paths": {
+        "/v1/entity/check": {
+            "post": {
+                "summary": "Verify an entity across registries, sanctions and risk layers",
+                "description": "Full entity trust check across multiple verification layers: KVK/CBE registry, OpenSanctions, country risk (CPI/FATF), domain WHOIS, IBAN validation and EU VAT/VIES. Returns trust score 0-100 with cluster and recommendation.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "entity_name": {
+                                        "type": "string",
+                                        "description": "Legal entity name"
+                                    },
+                                    "country": {
+                                        "type": "string",
+                                        "description": "ISO 3166-1 alpha-2 country code"
+                                    },
+                                    "kvk_number": {
+                                        "type": "string",
+                                        "description": "Dutch KVK number (8 digits)"
+                                    },
+                                    "cbe_number": {
+                                        "type": "string",
+                                        "description": "Belgian CBE number (0XXX.XXX.XXX)"
+                                    },
+                                    "domain": {
+                                        "type": "string",
+                                        "description": "Entity website domain"
+                                    },
+                                    "iban": {
+                                        "type": "string",
+                                        "description": "IBAN for financial validation"
+                                    },
+                                    "vat_number": {
+                                        "type": "string",
+                                        "description": "EU VAT number"
+                                    },
+                                    "wallet_address": {
+                                        "type": "string",
+                                        "description": "Crypto wallet address (format check only; no on-chain lookup)"
+                                    },
+                                    "wallet_chain": {
+                                        "type": "string",
+                                        "description": "Blockchain the address is checked against (eth, base, polygon, arbitrum, btc, sol). Defaults to eth when omitted, so send btc or sol with a Bitcoin or Solana address"
+                                    }
+                                },
+                                "required": [
+                                    "entity_name",
+                                    "country"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ApiKey": []
+                    },
+                    {}
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "dynamic",
+                        "currency": "USD",
+                        "min": "0.10",
+                        "max": "1.50"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "trust_score": 87,
+                                    "cluster": "verified",
+                                    "recommendation": "APPROVE",
+                                    "sources_checked": 7,
+                                    "entity_name": "Acme Corp BV",
+                                    "country": "NL",
+                                    "risk_factors": []
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment required. The x402 v2 challenge is in the base64 PAYMENT-REQUIRED header and the JSON body; pay and retry with PAYMENT-SIGNATURE, or send X-API-Key with prepaid balance.",
+                        "headers": {
+                            "PAYMENT-REQUIRED": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "x402Version": {
+                                            "type": "integer"
+                                        },
+                                        "accepts": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
+                                            }
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/risk/score": {
+            "post": {
+                "summary": "Score an entity's risk (0-100) from name and country",
+                "description": "Quick risk score (0-100) for entity name + country. Lightweight check without full data source scan.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "entity_name": {
+                                        "type": "string",
+                                        "description": "Legal entity name"
+                                    },
+                                    "country": {
+                                        "type": "string",
+                                        "description": "ISO 3166-1 alpha-2 country code"
+                                    }
+                                },
+                                "required": [
+                                    "entity_name",
+                                    "country"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ApiKey": []
+                    },
+                    {}
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "dynamic",
+                        "currency": "USD",
+                        "min": "0.10",
+                        "max": "1.00"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "risk_score": 23,
+                                    "risk_level": "low",
+                                    "entity_name": "Acme Corp BV",
+                                    "country": "NL"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment required. The x402 v2 challenge is in the base64 PAYMENT-REQUIRED header and the JSON body; pay and retry with PAYMENT-SIGNATURE, or send X-API-Key with prepaid balance.",
+                        "headers": {
+                            "PAYMENT-REQUIRED": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "x402Version": {
+                                            "type": "integer"
+                                        },
+                                        "accepts": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
+                                            }
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/reputation/score": {
+            "post": {
+                "summary": "Score an entity's reputation with Bayesian trust decay",
+                "description": "Reputation scoring with Bayesian trust decay analysis. Tracks entity trust over time with confidence intervals.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "entity_name": {
+                                        "type": "string",
+                                        "description": "Legal entity name"
+                                    },
+                                    "country": {
+                                        "type": "string",
+                                        "description": "ISO 3166-1 alpha-2 country code. Required unless trust_score and cluster are both sent; the score is then computed from sanctions and jurisdiction"
+                                    },
+                                    "trust_score": {
+                                        "type": "integer",
+                                        "description": "Latest trust score (0-100). Send with cluster to skip auto-computation"
+                                    },
+                                    "cluster": {
+                                        "type": "string",
+                                        "description": "Current cluster assignment. Send with trust_score to skip auto-computation"
+                                    },
+                                    "last_verified_at": {
+                                        "type": "number",
+                                        "description": "Unix timestamp of last verification (defaults to now)"
+                                    },
+                                    "verification_count": {
+                                        "type": "integer",
+                                        "description": "Times entity verified"
+                                    },
+                                    "agent_id": {
+                                        "type": "string",
+                                        "description": "ERC-8004 agent ID for verification"
+                                    }
+                                },
+                                "required": [
+                                    "entity_name"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ApiKey": []
+                    },
+                    {}
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "dynamic",
+                        "currency": "USD",
+                        "min": "0.10",
+                        "max": "1.00"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "reputation_score": 92,
+                                    "trend": "stable",
+                                    "confidence": 0.87,
+                                    "verification_count": 12
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment required. The x402 v2 challenge is in the base64 PAYMENT-REQUIRED header and the JSON body; pay and retry with PAYMENT-SIGNATURE, or send X-API-Key with prepaid balance.",
+                        "headers": {
+                            "PAYMENT-REQUIRED": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "x402Version": {
+                                            "type": "integer"
+                                        },
+                                        "accepts": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
+                                            }
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/wallet/balance": {
+            "get": {
+                "summary": "Get an ERC-8004 agent's USDC balance on Base",
+                "description": "ERC-8004 agent wallet balance check. Returns the on-chain USDC balance (Base mainnet) for a registered ERC-8004 agent wallet.",
+                "parameters": [
+                    {
+                        "name": "agent_id",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Agent wallet address (EVM 0x + 40 hex chars, Base mainnet); must be registered in the ERC-8004 Identity Registry"
+                    }
+                ],
+                "security": [
+                    {
+                        "ApiKey": []
+                    },
+                    {}
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.10"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "agent_id": "0x1234567890abcdef1234567890abcdef12345678",
+                                    "chain": "base",
+                                    "currency": "USDC",
+                                    "balance_usdc": 150.5,
+                                    "balance_raw": 150500000,
+                                    "last_updated": 1757894400.0
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment required. The x402 v2 challenge is in the base64 PAYMENT-REQUIRED header and the JSON body; pay and retry with PAYMENT-SIGNATURE, or send X-API-Key with prepaid balance.",
+                        "headers": {
+                            "PAYMENT-REQUIRED": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "x402Version": {
+                                            "type": "integer"
+                                        },
+                                        "accepts": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
+                                            }
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/kyb/check": {
+            "post": {
+                "summary": "Run a KYB check: registry, sanctions, VAT/VIES and domain",
+                "description": "Know Your Business verification: company registration, sanctions screening, VAT/VIES, and domain analysis in one call.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "entity_id": {
+                                        "type": "string",
+                                        "description": "Internal entity identifier"
+                                    },
+                                    "registration_number": {
+                                        "type": "string",
+                                        "description": "Company registration number"
+                                    },
+                                    "country": {
+                                        "type": "string",
+                                        "description": "ISO 3166-1 alpha-2 country code"
+                                    },
+                                    "entity_name": {
+                                        "type": "string",
+                                        "description": "Legal entity name (optional)"
+                                    },
+                                    "vat_number": {
+                                        "type": "string",
+                                        "description": "VAT number for VIES verification"
+                                    },
+                                    "domain": {
+                                        "type": "string",
+                                        "description": "Company domain for web presence check"
+                                    }
+                                },
+                                "required": [
+                                    "entity_id",
+                                    "registration_number",
+                                    "country"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ApiKey": []
+                    },
+                    {}
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "dynamic",
+                        "currency": "USD",
+                        "min": "0.25",
+                        "max": "3.00"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "verified": true,
+                                    "registration_valid": true,
+                                    "sanctions_clear": true,
+                                    "vat_valid": true,
+                                    "trust_score": 91
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment required. The x402 v2 challenge is in the base64 PAYMENT-REQUIRED header and the JSON body; pay and retry with PAYMENT-SIGNATURE, or send X-API-Key with prepaid balance.",
+                        "headers": {
+                            "PAYMENT-REQUIRED": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "x402Version": {
+                                            "type": "integer"
+                                        },
+                                        "accepts": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
+                                            }
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/entity/deep-check": {
+            "post": {
+                "summary": "Check an entity for PEP ties, insolvency and adverse media",
+                "description": "Extended screening in two tiers. fresh ($0.75): politically exposed person and relative/close-associate (role.pep / role.rca) matches from OpenSanctions, with the match detail the standard entity check does not return, plus a Dutch Centraal Insolventieregister screen (NL only). enhanced ($1.50): the same plus adverse media screening against a global news index. If a source of the requested tier cannot be reached the call returns 503 and is not charged.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "entity_name": {
+                                        "type": "string",
+                                        "description": "Legal entity or person name"
+                                    },
+                                    "country": {
+                                        "type": "string",
+                                        "description": "ISO 3166-1 alpha-2 country code"
+                                    },
+                                    "kvk_number": {
+                                        "type": "string",
+                                        "description": "Dutch KVK number (8 digits), optional; exact insolvency-register lookup"
+                                    }
+                                },
+                                "required": [
+                                    "entity_name",
+                                    "country"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ApiKey": []
+                    },
+                    {}
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "dynamic",
+                        "currency": "USD",
+                        "min": "0.75",
+                        "max": "1.50"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "entity_name": "Jan de Vries",
+                                    "country": "NL",
+                                    "quality": "deep",
+                                    "sources_returned": [
+                                        "pep_extended",
+                                        "insolvency_records"
+                                    ],
+                                    "pep_extended": {
+                                        "screened": true,
+                                        "pep_exposure": true,
+                                        "match_count": 1,
+                                        "matches": [
+                                            {
+                                                "caption": "Jan de Vries",
+                                                "schema_type": "Person",
+                                                "topics": [
+                                                    "role.pep"
+                                                ],
+                                                "datasets": [
+                                                    "everypolitician"
+                                                ],
+                                                "score": 0.88,
+                                                "countries": [
+                                                    "nl"
+                                                ],
+                                                "birth_date": "1965-04-12"
+                                            }
+                                        ],
+                                        "truncated": false,
+                                        "retrieved_at": "2026-01-01T00:00:00+00:00"
+                                    },
+                                    "insolvency_records": {
+                                        "screened": true,
+                                        "applicable": true,
+                                        "jurisdiction": "NL",
+                                        "query_by": "name",
+                                        "found": false,
+                                        "match_count": 0,
+                                        "records": [],
+                                        "truncated": false,
+                                        "retrieved_at": "2026-01-01T00:00:00+00:00"
+                                    },
+                                    "processing_time_ms": 420
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment required. The x402 v2 challenge is in the base64 PAYMENT-REQUIRED header and the JSON body; pay and retry with PAYMENT-SIGNATURE, or send X-API-Key with prepaid balance.",
+                        "headers": {
+                            "PAYMENT-REQUIRED": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "x402Version": {
+                                            "type": "integer"
+                                        },
+                                        "accepts": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
+                                            }
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/mcp/check-entity": {
+            "post": {
+                "summary": "Verify an entity (MCP tool form of the entity check)",
+                "description": "MCP tool: entity trust check for LLM agents. Runs the /v1/entity/check engine on entity_name, country, kvk_number and domain only, so up to 5 sources (no IBAN, VAT or wallet).",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "entity_name": {
+                                        "type": "string",
+                                        "description": "Full legal name of the entity"
+                                    },
+                                    "country": {
+                                        "type": "string",
+                                        "description": "ISO country code (NL, BE, etc.)"
+                                    },
+                                    "kvk_number": {
+                                        "type": "string",
+                                        "description": "Dutch KVK number"
+                                    },
+                                    "domain": {
+                                        "type": "string",
+                                        "description": "Entity website domain"
+                                    }
+                                },
+                                "required": [
+                                    "entity_name",
+                                    "country"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ApiKey": []
+                    },
+                    {}
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.85"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "trust_score": 87,
+                                    "cluster": "verified",
+                                    "recommendation": "APPROVE"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment required. The x402 v2 challenge is in the base64 PAYMENT-REQUIRED header and the JSON body; pay and retry with PAYMENT-SIGNATURE, or send X-API-Key with prepaid balance.",
+                        "headers": {
+                            "PAYMENT-REQUIRED": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "x402Version": {
+                                            "type": "integer"
+                                        },
+                                        "accepts": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
+                                            }
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/mcp/risk-score": {
+            "post": {
+                "summary": "Score an entity's risk (MCP tool form of the risk score)",
+                "description": "MCP tool: quick risk score for entity name + country pair.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "entity_name": {
+                                        "type": "string",
+                                        "description": "Full legal name"
+                                    },
+                                    "country": {
+                                        "type": "string",
+                                        "description": "ISO country code"
+                                    }
+                                },
+                                "required": [
+                                    "entity_name",
+                                    "country"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ApiKey": []
+                    },
+                    {}
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.65"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "risk_score": 23,
+                                    "risk_level": "low"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment required. The x402 v2 challenge is in the base64 PAYMENT-REQUIRED header and the JSON body; pay and retry with PAYMENT-SIGNATURE, or send X-API-Key with prepaid balance.",
+                        "headers": {
+                            "PAYMENT-REQUIRED": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "x402Version": {
+                                            "type": "integer"
+                                        },
+                                        "accepts": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
+                                            }
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/keys/upgrade/indie": {
+            "post": {
+                "summary": "Add $29 of prepaid balance to an API key (Indie)",
+                "description": "Credit $29 of prepaid balance to your API key and set the Indie label. Each priced call is debited at the price in the table. Pay via x402 USDC.",
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {},
+                                "description": "No body. Send X-API-Key to name the key to credit.",
+                                "additionalProperties": false
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ApiKey": []
+                    }
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "29.00"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "ok"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment required. The x402 v2 challenge is in the base64 PAYMENT-REQUIRED header and the JSON body; pay and retry with PAYMENT-SIGNATURE. Prepaid balance cannot pay for a purchase.",
+                        "headers": {
+                            "PAYMENT-REQUIRED": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "x402Version": {
+                                            "type": "integer"
+                                        },
+                                        "accepts": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
+                                            }
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/keys/upgrade/starter": {
+            "post": {
+                "summary": "Add $99 of prepaid balance to an API key (Starter)",
+                "description": "Credit $99 of prepaid balance to your API key and set the Starter label. Each priced call is debited at the price in the table. Pay via x402 USDC.",
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {},
+                                "description": "No body. Send X-API-Key to name the key to credit.",
+                                "additionalProperties": false
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ApiKey": []
+                    }
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "99.00"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "ok"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment required. The x402 v2 challenge is in the base64 PAYMENT-REQUIRED header and the JSON body; pay and retry with PAYMENT-SIGNATURE. Prepaid balance cannot pay for a purchase.",
+                        "headers": {
+                            "PAYMENT-REQUIRED": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "x402Version": {
+                                            "type": "integer"
+                                        },
+                                        "accepts": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
+                                            }
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/keys/upgrade/growth": {
+            "post": {
+                "summary": "Add $299 of prepaid balance to an API key (Growth)",
+                "description": "Credit $299 of prepaid balance to your API key and set the Growth label. Each priced call is debited at the price in the table. Pay via x402 USDC.",
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {},
+                                "description": "No body. Send X-API-Key to name the key to credit.",
+                                "additionalProperties": false
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ApiKey": []
+                    }
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "299.00"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "ok"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment required. The x402 v2 challenge is in the base64 PAYMENT-REQUIRED header and the JSON body; pay and retry with PAYMENT-SIGNATURE. Prepaid balance cannot pay for a purchase.",
+                        "headers": {
+                            "PAYMENT-REQUIRED": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "x402Version": {
+                                            "type": "integer"
+                                        },
+                                        "accepts": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
+                                            }
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/keys/upgrade/pro": {
+            "post": {
+                "summary": "Add $999 of prepaid balance to an API key (Pro)",
+                "description": "Credit $999 of prepaid balance to your API key and set the Pro label. Each priced call is debited at the price in the table. Pay via x402 USDC.",
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {},
+                                "description": "No body. Send X-API-Key to name the key to credit.",
+                                "additionalProperties": false
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "ApiKey": []
+                    }
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "999.00"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "status": "ok"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment required. The x402 v2 challenge is in the base64 PAYMENT-REQUIRED header and the JSON body; pay and retry with PAYMENT-SIGNATURE. Prepaid balance cannot pay for a purchase.",
+                        "headers": {
+                            "PAYMENT-REQUIRED": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "x402Version": {
+                                            "type": "integer"
+                                        },
+                                        "accepts": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
+                                            }
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/compliance/readiness/{id}": {
+            "get": {
+                "summary": "Get EU AI Act readiness and gaps for an AI system",
+                "description": "EU AI Act compliance readiness assessment for AI systems. Returns readiness score with gap analysis.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Entity identifier"
+                    },
+                    {
+                        "name": "system_type",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "AI system type (trust_scoring, credit_scoring)"
+                    },
+                    {
+                        "name": "completed_items",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "description": "Completed readiness checklist items (repeat the parameter per item)"
+                    }
+                ],
+                "security": [
+                    {
+                        "ApiKey": []
+                    },
+                    {}
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.10"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "readiness_score": 78,
+                                    "gaps": [
+                                        "transparency_documentation"
+                                    ],
+                                    "system_type": "trust_scoring"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment required. The x402 v2 challenge is in the base64 PAYMENT-REQUIRED header and the JSON body; pay and retry with PAYMENT-SIGNATURE, or send X-API-Key with prepaid balance.",
+                        "headers": {
+                            "PAYMENT-REQUIRED": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "x402Version": {
+                                            "type": "integer"
+                                        },
+                                        "accepts": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
+                                            }
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/reputation/history/{id}": {
+            "get": {
+                "summary": "Get an entity's reputation score timeline",
+                "description": "Historical reputation trend data. Returns trust score timeline with change events and decay curves.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Entity hash identifier"
+                    }
+                ],
+                "security": [
+                    {
+                        "ApiKey": []
+                    },
+                    {}
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.10"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "history": [
+                                        {
+                                            "date": "2026-01-15",
+                                            "score": 85
+                                        },
+                                        {
+                                            "date": "2026-02-15",
+                                            "score": 92
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment required. The x402 v2 challenge is in the base64 PAYMENT-REQUIRED header and the JSON body; pay and retry with PAYMENT-SIGNATURE, or send X-API-Key with prepaid balance.",
+                        "headers": {
+                            "PAYMENT-REQUIRED": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "x402Version": {
+                                            "type": "integer"
+                                        },
+                                        "accepts": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
+                                            }
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/keys/create": {
+            "post": {
+                "summary": "Create an API key (tier=sandbox returns mock data)",
+                "description": "Free sandbox key, no wallet. Send tier=sandbox for an lg_sandbox_ key that returns mock data at no charge, or omit it for a free key that pays per call. Free, no payment.",
+                "security": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "additionalProperties": false,
+                                "description": "Request to create a new API key.",
+                                "properties": {
+                                    "email": {
+                                        "description": "Email address for key owner",
+                                        "maxLength": 254,
+                                        "minLength": 3,
+                                        "title": "Email",
+                                        "type": "string"
+                                    },
+                                    "tier": {
+                                        "default": "free",
+                                        "description": "Pricing tier",
+                                        "title": "Tier",
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "email"
+                                ],
+                                "title": "KeyCreateRequest",
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Key created"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "ApiKey": {
+                "type": "apiKey",
+                "in": "header",
+                "name": "X-API-Key",
+                "description": "lg_live_ key with prepaid balance; debited per call instead of an x402 payment."
+            }
+        }
+    }
+}
