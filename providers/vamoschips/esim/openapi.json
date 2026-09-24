@@ -1,0 +1,537 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "CHIPS eSIM x402 API",
+        "version": "1.0.0",
+        "summary": "Buy prepaid travel data eSIMs with USDC over x402 (Solana or Base).",
+        "description": "An autonomous agent can buy an eSIM without an account: POST an order, receive a 402 with an x402 v2 offer, repeat the same request with a PAYMENT-SIGNATURE header, then fetch the activation code with the returned delivery grant.",
+        "contact": {
+            "url": "https://vamoschips.com"
+        },
+        "x-guidance": "To buy a travel data eSIM: GET /api/v1/destinations/{slug}/plans to pick a planSlug (for example mx-country for Mexico), then POST /api/v1/x402/orders with an Idempotency-Key header (32-128 chars) and {\"quote\":{\"planSlug\":\"<slug>\"},\"acceptTerms\":true}. Pay the 402 in USDC on Solana or Base and repeat the identical request with PAYMENT-SIGNATURE. Use delivery.grantToken as a Bearer token on POST /api/v1/x402/orders/{publicId}/install to get the eSIM activation code.",
+        "termsOfService": "https://vamoschips.com/legal/terms"
+    },
+    "servers": [
+        {
+            "url": "https://vamoschips.com"
+        }
+    ],
+    "externalDocs": {
+        "description": "llms.txt",
+        "url": "https://vamoschips.com/llms.txt"
+    },
+    "components": {
+        "securitySchemes": {
+            "deliveryGrant": {
+                "type": "http",
+                "scheme": "bearer",
+                "description": "grantToken returned in delivery.grantToken after payment"
+            }
+        }
+    },
+    "paths": {
+        "/api/v1/destinations": {
+            "get": {
+                "operationId": "listDestinations",
+                "security": [],
+                "summary": "List destinations (countries and regions) with plan counts",
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, 1-100",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Number of items to skip for pagination",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Destinations page"
+                    }
+                }
+            }
+        },
+        "/api/v1/destinations/{slug}/plans": {
+            "get": {
+                "operationId": "listDestinationPlans",
+                "security": [],
+                "summary": "List a destination's plans and the planSlug used to order",
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "examples": {
+                            "mexico": {
+                                "value": "mx-country"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Plans page"
+                    }
+                }
+            }
+        },
+        "/api/v1/x402/discovery/resources": {
+            "get": {
+                "operationId": "x402Discovery",
+                "security": [],
+                "summary": "Fetch purchasable x402 resources and their current offers",
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, 1-100",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Number of items to skip for pagination",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Discovery document with items and pagination"
+                    }
+                }
+            }
+        },
+        "/api/v1/x402/orders": {
+            "post": {
+                "operationId": "createX402Order",
+                "tags": [
+                    "eSIM"
+                ],
+                "security": [],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "dynamic",
+                        "currency": "USD",
+                        "min": "0.60",
+                        "max": "100.00"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                },
+                "summary": "Create an eSIM order: 402 with an offer, then 200 once paid",
+                "description": "Send the identical request twice: first without payment to receive the PAYMENT-REQUIRED header (base64 JSON, x402Version 2, scheme exact, USDC on solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp and eip155:8453), then with PAYMENT-SIGNATURE carrying the signed payment.",
+                "parameters": [
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "minLength": 32,
+                            "maxLength": 128,
+                            "pattern": "^[A-Za-z0-9._~-]+$"
+                        }
+                    },
+                    {
+                        "name": "PAYMENT-SIGNATURE",
+                        "in": "header",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "base64 x402 v2 payment payload; omit on the first call"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "quote",
+                                    "acceptTerms"
+                                ],
+                                "properties": {
+                                    "quote": {
+                                        "type": "object",
+                                        "description": "The plan to buy, by planSlug from the destinations API",
+                                        "required": [
+                                            "planSlug"
+                                        ],
+                                        "properties": {
+                                            "planSlug": {
+                                                "type": "string",
+                                                "examples": [
+                                                    "mexico-3gb-30days-p8dkzk30q"
+                                                ]
+                                            },
+                                            "startDate": {
+                                                "type": "string",
+                                                "format": "date",
+                                                "description": "Only for daily plans; sets the number of days"
+                                            },
+                                            "endDate": {
+                                                "type": "string",
+                                                "format": "date",
+                                                "description": "Only for daily plans"
+                                            }
+                                        }
+                                    },
+                                    "acceptTerms": {
+                                        "type": "boolean",
+                                        "const": true,
+                                        "description": "Must be true: accepts https://vamoschips.com/legal/terms"
+                                    }
+                                }
+                            },
+                            "example": {
+                                "quote": {
+                                    "planSlug": "mexico-500mb-7days-pgf5f40e7"
+                                },
+                                "acceptTerms": true
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Paid. Order accepted; delivery grant included. Header PAYMENT-RESPONSE carries the settlement.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "x402Version": {
+                                            "type": "integer",
+                                            "const": 2
+                                        },
+                                        "order": {
+                                            "type": "object",
+                                            "properties": {
+                                                "publicId": {
+                                                    "type": "string",
+                                                    "format": "uuid"
+                                                },
+                                                "quoteId": {
+                                                    "type": "string",
+                                                    "format": "uuid"
+                                                },
+                                                "currency": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "USD"
+                                                    ]
+                                                },
+                                                "subtotalMinor": {
+                                                    "type": "integer",
+                                                    "description": "US cents"
+                                                },
+                                                "totalMinor": {
+                                                    "type": "integer",
+                                                    "description": "US cents"
+                                                },
+                                                "status": {
+                                                    "type": "string",
+                                                    "examples": [
+                                                        "payment_authorization_pending",
+                                                        "provider_ordering",
+                                                        "delivered"
+                                                    ]
+                                                },
+                                                "createdAt": {
+                                                    "type": "string",
+                                                    "format": "date-time"
+                                                },
+                                                "updatedAt": {
+                                                    "type": "string",
+                                                    "format": "date-time"
+                                                }
+                                            }
+                                        },
+                                        "delivery": {
+                                            "type": "object",
+                                            "properties": {
+                                                "grantToken": {
+                                                    "type": "string"
+                                                },
+                                                "expiresAt": {
+                                                    "type": "string",
+                                                    "format": "date-time"
+                                                },
+                                                "orderUrl": {
+                                                    "type": "string",
+                                                    "format": "uri"
+                                                },
+                                                "installUrl": {
+                                                    "type": "string",
+                                                    "format": "uri"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "correlationId": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment required. See the PAYMENT-REQUIRED header for the x402 offer."
+                    },
+                    "503": {
+                        "description": "Lane temporarily not accepting payments",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "correlationId": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/x402/orders/{publicId}": {
+            "get": {
+                "operationId": "getX402Order",
+                "summary": "Fetch order status with the delivery grant",
+                "security": [
+                    {
+                        "deliveryGrant": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "publicId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Order status",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "order": {
+                                            "type": "object",
+                                            "properties": {
+                                                "publicId": {
+                                                    "type": "string",
+                                                    "format": "uuid"
+                                                },
+                                                "quoteId": {
+                                                    "type": "string",
+                                                    "format": "uuid"
+                                                },
+                                                "currency": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "USD"
+                                                    ]
+                                                },
+                                                "subtotalMinor": {
+                                                    "type": "integer",
+                                                    "description": "US cents"
+                                                },
+                                                "totalMinor": {
+                                                    "type": "integer",
+                                                    "description": "US cents"
+                                                },
+                                                "status": {
+                                                    "type": "string",
+                                                    "examples": [
+                                                        "payment_authorization_pending",
+                                                        "provider_ordering",
+                                                        "delivered"
+                                                    ]
+                                                },
+                                                "createdAt": {
+                                                    "type": "string",
+                                                    "format": "date-time"
+                                                },
+                                                "updatedAt": {
+                                                    "type": "string",
+                                                    "format": "date-time"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/x402/orders/{publicId}/install": {
+            "post": {
+                "operationId": "revealX402Install",
+                "summary": "Fetch the eSIM activation code once the order is delivered",
+                "security": [
+                    {
+                        "deliveryGrant": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "publicId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Installation data",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "order": {
+                                            "type": "object",
+                                            "properties": {
+                                                "publicId": {
+                                                    "type": "string",
+                                                    "format": "uuid"
+                                                },
+                                                "quoteId": {
+                                                    "type": "string",
+                                                    "format": "uuid"
+                                                },
+                                                "currency": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "USD"
+                                                    ]
+                                                },
+                                                "subtotalMinor": {
+                                                    "type": "integer",
+                                                    "description": "US cents"
+                                                },
+                                                "totalMinor": {
+                                                    "type": "integer",
+                                                    "description": "US cents"
+                                                },
+                                                "status": {
+                                                    "type": "string",
+                                                    "examples": [
+                                                        "payment_authorization_pending",
+                                                        "provider_ordering",
+                                                        "delivered"
+                                                    ]
+                                                },
+                                                "createdAt": {
+                                                    "type": "string",
+                                                    "format": "date-time"
+                                                },
+                                                "updatedAt": {
+                                                    "type": "string",
+                                                    "format": "date-time"
+                                                }
+                                            }
+                                        },
+                                        "activationUri": {
+                                            "type": "string",
+                                            "examples": [
+                                                "LPA:1$smdp.example$ACTIVATIONCODE"
+                                            ]
+                                        },
+                                        "activationCode": {
+                                            "type": "string"
+                                        },
+                                        "smdpAddress": {
+                                            "type": "string"
+                                        },
+                                        "iccidLast4": {
+                                            "type": "string"
+                                        },
+                                        "revealCount": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
