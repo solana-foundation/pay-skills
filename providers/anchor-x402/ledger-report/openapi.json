@@ -1,0 +1,392 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "anchor-x402",
+    "description": "18 pay-per-call x402 services for AI agents \u2014 on-chain anchoring & attestation, wallet/address security screening, Web3 data (tx & calldata decode, ENS, token prices), x402 spend accounting, content analysis, and verifiable randomness. No API keys or accounts; settle per request in USDC on Base or Solana. $0.001\u2013$1.77 per call.",
+    "version": "0.3.0",
+    "x-guidance": "Pay-per-call x402 services for AI agents \u2014 no API keys or accounts. Each paid route returns HTTP 402 with x402 payment requirements; pay in USDC on Base or Solana (select routes also settle JPYC on Polygon) and retry with the payment header. Prices are $0.001\u2013$1.77 per call. POST routes take a JSON body per each operation's requestBody schema.",
+    "contact": {
+      "email": "hypeprinter007@gmail.com"
+    },
+    "x-logo": {
+      "url": "https://api.anchor-x402.com/icon.png",
+      "altText": "anchor-x402"
+    }
+  },
+  "paths": {
+    "/v1/ledger/report": {
+      "post": {
+        "summary": "Create a full accounting report job for a wallet ledger",
+        "description": "Accept payment, record job, async-dispatch the report build to this\nsame Lambda (self-invoke \u2014 see the ledger_job branch in handler()).",
+        "operationId": "ledger_report_dispatch_v1_ledger_report_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LedgerReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerReportAccepted"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        },
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.350000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        }
+      }
+    },
+    "/v1/ledger/report/{job_id}": {
+      "get": {
+        "summary": "Check a ledger report job and fetch the finished report",
+        "description": "Poll endpoint \u2014 free, no x402 (deliberately omitted from x402_routes).",
+        "operationId": "ledger_report_status_v1_ledger_report__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerReportStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "LedgerReportAccepted": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id",
+            "description": "Unique job id; poll /v1/ledger/report/{job_id}."
+          },
+          "status": {
+            "type": "string",
+            "const": "accepted",
+            "title": "Status",
+            "default": "accepted"
+          },
+          "status_url": {
+            "type": "string",
+            "title": "Status Url",
+            "description": "Absolute URL to poll for completion."
+          },
+          "eta_seconds": {
+            "type": "integer",
+            "title": "Eta Seconds",
+            "description": "Approximate wait until DELIVERED.",
+            "default": 120
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "status_url"
+        ],
+        "title": "LedgerReportAccepted"
+      },
+      "LedgerReportRequest": {
+        "properties": {
+          "wallet": {
+            "type": "string",
+            "title": "Wallet",
+            "description": "EVM address (Base) whose x402 spend to reconstruct."
+          },
+          "from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From",
+            "description": "ISO date or datetime, start of range. Default: 30 days before `to`."
+          },
+          "to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To",
+            "description": "ISO date or datetime, end of range. Default: now."
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "outbound",
+              "inbound",
+              "both"
+            ],
+            "title": "Direction",
+            "description": "outbound = spend, inbound = revenue.",
+            "default": "outbound"
+          },
+          "min_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Amount",
+            "description": "Minimum USDC per transfer, e.g. 0.001."
+          },
+          "group_by": {
+            "type": "string",
+            "enum": [
+              "service",
+              "recipient",
+              "day"
+            ],
+            "title": "Group By",
+            "default": "service"
+          },
+          "include_unfiltered": {
+            "type": "boolean",
+            "title": "Include Unfiltered",
+            "description": "Include non-x402 USDC transfers as category=other_transfer.",
+            "default": false
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "markdown",
+              "csv",
+              "both"
+            ],
+            "title": "Format",
+            "default": "both"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "Report title; appears in the markdown header."
+          },
+          "prepared_for": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prepared For",
+            "description": "Optional client name for the report header."
+          }
+        },
+        "type": "object",
+        "required": [
+          "wallet"
+        ],
+        "title": "LedgerReportRequest"
+      },
+      "LedgerReportStatus": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "DISPATCHING | IN_PROGRESS | DELIVERED | FAILED | UNKNOWN"
+          },
+          "deliverable": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverable",
+            "description": "On DELIVERED: report URLs, sha256, eip191 signature, dual-chain anchor txs."
+          },
+          "eta_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eta Seconds"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "refund_tx": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refund Tx"
+          },
+          "refund_pending": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refund Pending"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "status"
+        ],
+        "title": "LedgerReportStatus"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
