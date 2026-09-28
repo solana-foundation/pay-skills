@@ -1,7 +1,7 @@
 ---
 name: agentfeed
 title: "AgentFeed"
-description: "48 pay-per-call JSON endpoints for live crypto market state: spot prices, perp funding and open interest, a complete Bybit liquidation tape joined with OKX and Binance, cascade and squeeze scores, orderbook imbalance, plus Solana token-risk and peg data."
+description: "52 pay-per-call JSON endpoints for crypto market state: spot prices, perp funding, open interest, a complete Bybit liquidation tape joined with OKX and Binance, cascade and squeeze scores, orderbook imbalance, tokenized-stock peg and Solana token risk."
 use_case: "Use when an agent needs current derivatives or liquidation state before acting: what is liquidating now, where funding and open interest sit, whether a cascade is building. Also for Solana token-risk and wallet holdings without an API key."
 category: data
 service_url: https://x402.ochinimus.app
@@ -26,11 +26,15 @@ drifts and the tape does not.
 
 The derivatives endpoints cover funding, open interest, long/short account
 ratios, basis and volatility; the Solana endpoints cover wallet holdings, token
-metadata, holder concentration and rug-risk flags, priority fees, Jito tips and
-stablecoin peg deviation.
+metadata, holder concentration and rug-risk flags, priority fees and Jito tips.
+The peg endpoints are not stablecoins: they measure tokenized US equities that
+trade on Solana against the stock itself - the on-chain DEX price versus the
+underlying's last real trade, broken out by trading session and ranked across
+every tracked name.
 
-Prices run $0.001–$0.1 per call. Three endpoints are free and carry no payment
-challenge: `/api/fear-greed`, `/api/last-liquidation` and `/api/exit-method`.
+Prices run $0.001–$0.1 per call. Six endpoints are free and carry no payment
+challenge: `/api/fear-greed`, `/api/last-liquidation`, `/api/exit-method`,
+`/api/forecast-record`, `/api/sample` and `/api/sample/{route}`.
 
 The same tools are exposed over MCP at `POST /mcp` for agents that prefer a
 tool interface to raw HTTP.
@@ -52,8 +56,12 @@ tool interface to raw HTTP.
   default majors set and filtering client-side.
 - Token and wallet endpoints are keyed by mint or address. Cache the identifier
   and call the narrow endpoint directly instead of re-discovering it.
-- `/api/fear-greed`, `/api/last-liquidation` and `/api/exit-method` are free -
-  use them to decide whether a paid call is warranted before making one.
+- `/api/fear-greed`, `/api/last-liquidation`, `/api/exit-method` and
+  `/api/forecast-record` are free - use them to decide whether a paid call is
+  warranted before making one.
+- `/api/sample/{route}` returns a paid route's real captured response for free,
+  so the exact shape can be checked before paying for it; `/api/sample` lists
+  them.
 
 <!--
 REVIEW NOTES - the four fields below are proposals, not settled:
