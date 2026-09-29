@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tetrac Trading API",
-    "description": "Multi-exchange trading data API \u2014 tickers, funding rates, open interest,\ntechnical analysis (Tetrac scanner), news, economic calendar, market\nintelligence, volume data, and order execution across 30+ CEXs and DEXs.\n\n## Authentication\n\nAll endpoints require one of:\n\n- **Session auth** \u2014 pass `ttc-auth-token` (Bearer) + `ttc-public-key` header for registered Tetrac users.\n- **x402 micropayment** \u2014 pass a signed Solana USDC payment ($0.05 standard, $0.50 for the full-market scanner snapshot) in the `x-x402-payment` header.\n  See [x402.json](https://www.tetrac.xyz/.well-known/x402.json) for payment details.\n\nResponses from paid endpoints include an `x-x402-receipt` header confirming payment.\n",
+    "description": "Multi-exchange trading data API — tickers, funding rates, open interest,\ntechnical analysis (Tetrac scanner), news, economic calendar, market\nintelligence, volume data, and order execution across 30+ CEXs and DEXs.\n\n## Authentication\n\nEvery endpoint except the free `/api/v1/markets` discovery index requires one of:\n\n- **Session auth** — pass `ttc-auth-token` (Bearer) + `ttc-public-key` header for registered Tetrac users.\n- **x402 micropayment** — pass a signed Solana USDC payment ($0.05 standard, $0.50 for the full-market scanner snapshot) in the `x-x402-payment` header.\n  See [x402.json](https://www.tetrac.xyz/.well-known/x402.json) for payment details.\n\nResponses from paid endpoints include an `x-x402-receipt` header confirming payment.\n",
     "version": "1.0.0",
     "contact": {
       "email": "security@tetrac.xyz"
@@ -21,8 +21,8 @@
     "/api/v1/markets": {
       "get": {
         "operationId": "getMarketsIndex",
-        "summary": "List market data endpoints and their prices",
-        "description": "Discovery index for every `/api/v1/markets/*` endpoint. Returns `{pricing, methods}`: `pricing` is the per-request price summary `{amount, currency, network, per}`, and `methods` is keyed by sub-route slug (e.g. `funding-rates`) with `{name, path, method, description, price: {amount, currency}, params}` per entry. The unpaid 402 challenge carries the same `methods` catalog and `pricing` summary next to the standard x402 fields, so an agent can read what sits behind the paywall before deciding to pay. ($0.05 USDC on Solana mainnet)\n",
+        "summary": "Market data endpoint index",
+        "description": "Free discovery index for every `/api/v1/markets/*` endpoint — no payment and no session required. Returns `{pricing, methods}`: `pricing` is the standard per-request price of the listed endpoints `{amount, currency, network, per}`, and `methods` is keyed by sub-route slug (e.g. `funding-rates`) with `{name, path, method, description, price: {amount, currency}, params}` per entry, so an agent can see what each paid endpoint costs before paying for any of them. Rate-limited per client (per account when a session is presented); over the limit it returns 429 with `Retry-After`. (Free)\n",
         "responses": {
           "200": {
             "description": "Endpoint catalog and pricing summary",
@@ -128,23 +128,21 @@
               }
             }
           },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "402": {
-            "description": "Payment required (x402) \u2014 the body also carries the `methods` catalog and `pricing` summary"
+          "429": {
+            "description": "Rate limit exceeded — retry after `Retry-After` seconds"
           }
         },
         "tags": [
           "Market Data"
-        ]
+        ],
+        "security": []
       }
     },
     "/api/v1/markets/hybrid-tickers": {
       "get": {
         "operationId": "getHybridTickers",
-        "summary": "Fetch cross-exchange spot and perp tickers",
-        "description": "Returns an array of unified ticker objects (`symbol`, `price`, `change24h`, `volume24hUSD`, `bid`, `ask`, `exchange`) covering spot and perpetual pairs across 30+ CEXs and DEXs, served from a single hybrid cache. Use this to screen markets in one paid call instead of fanning out per-exchange. Query params filter the result set: `type` (spot|futures), `exchange`, `symbol`, `minimumVolume`, `minimumPrice`, `maximumPrice`, `up` (gainers \u2265 X%), `down` (losers \u2265 X%). ($0.05 USDC on Solana mainnet)\n",
+        "summary": "Multi-exchange tickers",
+        "description": "Returns an array of unified ticker objects (`symbol`, `price`, `change24h`, `volume24hUSD`, `bid`, `ask`, `exchange`) covering spot and perpetual pairs across 30+ CEXs and DEXs, served from a single hybrid cache. Use this to screen markets in one paid call instead of fanning out per-exchange. Query params filter the result set: `type` (spot|futures), `exchange`, `symbol`, `minimumVolume`, `minimumPrice`, `maximumPrice`, `up` (gainers ≥ X%), `down` (losers ≥ X%). ($0.05 USDC on Solana mainnet)\n",
         "parameters": [
           {
             "name": "type",
@@ -250,8 +248,8 @@
     "/api/v1/markets/funding-rates": {
       "get": {
         "operationId": "getFundingRates",
-        "summary": "Fetch perpetual funding rates across venues",
-        "description": "Returns an array of perpetual-futures funding entries (`exchange`, `symbol`, `fundingRate`, `intervalHours`, `hourlyRate`, `dailyRoi`, `nextFundingTime`) live across major perp venues. Use to spot funding-rate arbitrage between venues, monitor extreme rates that signal crowded positioning, or rank perps by funding cost. Filter by `symbol`. ($0.05 USDC on Solana mainnet)\n\n**Comparing venues:** `fundingRate` is each venue's NATIVE per-interval rate, and that interval differs per MARKET \u2014 not merely per exchange. A single venue commonly runs 1h, 4h and 8h markets side by side, so raw `fundingRate` values are not comparable across rows. Use `hourlyRate` (rate normalized to a 1-hour basis) for any cross-venue comparison, and `dailyRoi` (`hourlyRate` x 24) for a rough 24h projection.\n\n`hourlyRate` and `dailyRoi` are **omitted** when the market's settlement interval could not be established, rather than being estimated from a default. Check `intervalSource` to distinguish a confirmed interval from an unknown one.\n",
+        "summary": "Perpetual funding rates",
+        "description": "Returns an array of perpetual-futures funding entries (`exchange`, `symbol`, `fundingRate`, `intervalHours`, `hourlyRate`, `dailyRoi`, `nextFundingTime`) live across major perp venues. Use to spot funding-rate arbitrage between venues, monitor extreme rates that signal crowded positioning, or rank perps by funding cost. Filter by `symbol`. ($0.05 USDC on Solana mainnet)\n\n**Comparing venues:** `fundingRate` is each venue's NATIVE per-interval rate, and that interval differs per MARKET — not merely per exchange. A single venue commonly runs 1h, 4h and 8h markets side by side, so raw `fundingRate` values are not comparable across rows. Use `hourlyRate` (rate normalized to a 1-hour basis) for any cross-venue comparison, and `dailyRoi` (`hourlyRate` x 24) for a rough 24h projection.\n\n`hourlyRate` and `dailyRoi` are **omitted** when the market's settlement interval could not be established, rather than being estimated from a default. Check `intervalSource` to distinguish a confirmed interval from an unknown one.\n",
         "parameters": [
           {
             "name": "symbol",
@@ -306,8 +304,8 @@
     "/api/v1/markets/open-interest": {
       "get": {
         "operationId": "getOpenInterest",
-        "summary": "Fetch open interest across exchanges",
-        "description": "Returns the latest open-interest snapshot for Binance crypto perpetuals \u2014 array of `{symbol, openInterest, openInterestValue (USD)}` plus a `marketsCount` and `timestamp`. Use to detect OI build-up that often precedes price moves and spot liquidation cascades. ($0.05 USDC on Solana mainnet)\n",
+        "summary": "Open interest across exchanges",
+        "description": "Returns the latest open-interest snapshot for Binance crypto perpetuals — array of `{symbol, openInterest, openInterestValue (USD)}` plus a `marketsCount` and `timestamp`. Use to detect OI build-up that often precedes price moves and spot liquidation cascades. ($0.05 USDC on Solana mainnet)\n",
         "responses": {
           "200": {
             "description": "Open interest data",
@@ -351,8 +349,8 @@
     "/api/v1/markets/listings": {
       "get": {
         "operationId": "getNewListings",
-        "summary": "List newly listed tokens across exchanges",
-        "description": "Returns the latest \"new listings\" delta \u2014 `{data: {newListings: ProcessedTickerData[], totalCount, previousCount}, timestamp, cached}`. Pulls the live spot+perp ticker set from the hybrid market cache, diffs it against a rolling 24h known-symbols set, and returns the tokens that newly appeared. Server caches the result for 1h so concurrent agents see a stable answer; the rolling known-set then advances and the next GET produces the next delta. POST exists for clients with their own ticker source (submit `{ tickers: ProcessedTickerData[] }` to diff against the same known set). ($0.05 USDC on Solana mainnet)\n",
+        "summary": "New token listings",
+        "description": "Returns the latest \"new listings\" delta — `{data: {newListings: ProcessedTickerData[], totalCount, previousCount}, timestamp, cached}`. Pulls the live spot+perp ticker set from the hybrid market cache, diffs it against a rolling 24h known-symbols set, and returns the tokens that newly appeared. Server caches the result for 1h so concurrent agents see a stable answer; the rolling known-set then advances and the next GET produces the next delta. POST exists for clients with their own ticker source (submit `{ tickers: ProcessedTickerData[] }` to diff against the same known set). ($0.05 USDC on Solana mainnet)\n",
         "responses": {
           "200": {
             "description": "New listings",
@@ -411,7 +409,7 @@
     "/api/v1/markets/volume-snapshot": {
       "get": {
         "operationId": "getVolumeSnapshot",
-        "summary": "Fetch cross-exchange 24h volume snapshot",
+        "summary": "Cross-exchange volume snapshot",
         "description": "Returns an array of `{exchange, volume24h (USD), pairCount}` plus a snapshot `timestamp` for cross-exchange 24-hour volume comparison. Use to rank exchanges by liquidity, detect volume migration between venues, or feed market-share dashboards. Filter by `exchange`. ($0.05 USDC on Solana mainnet)\n",
         "parameters": [
           {
@@ -466,8 +464,8 @@
     "/api/v1/markets/swap-volume": {
       "get": {
         "operationId": "getSwapVolume",
-        "summary": "Fetch DEX swap volume history by chain",
-        "description": "Returns historical daily DEX swap volume \u2014 an array of `{date, totalVolume (USD), perChainVolumes}` entries. Use to track on-chain trading activity over time and identify chains gaining DEX share. ($0.05 USDC on Solana mainnet)\n",
+        "summary": "DEX swap volume history",
+        "description": "Returns historical daily DEX swap volume — an array of `{date, totalVolume (USD), perChainVolumes}` entries. Use to track on-chain trading activity over time and identify chains gaining DEX share. ($0.05 USDC on Solana mainnet)\n",
         "responses": {
           "200": {
             "description": "Swap volume history",
@@ -516,11 +514,11 @@
     "/api/v1/markets/symbol-venues": {
       "get": {
         "operationId": "getSymbolVenues",
-        "summary": "List which exchanges quote a given symbol",
-        "description": "Returns which venues list each symbol: `data.symbolVenues` maps an upper-cased symbol to the sorted venue ids that offer a market for it. This is a listings index (does a venue offer the market), not a price aggregate \u2014 use it to find where a symbol trades before calling a venue-specific endpoint. Rebuilt at most once every 24 hours; `data.updatedAt` is the build time (epoch ms), `data.venueCount` the number of venues that contributed at least one symbol, and `cached` whether the call was served from that cache. ($0.05 USDC on Solana mainnet)\n",
+        "summary": "Cross-exchange symbol listings index",
+        "description": "Returns which venues list each symbol: `data.symbolVenues` maps an upper-cased symbol to the sorted venue ids that offer a market for it. This is a listings index (does a venue offer the market), not a price aggregate — use it to find where a symbol trades before calling a venue-specific endpoint. Rebuilt at most once every 24 hours; `data.updatedAt` is the build time (epoch ms), `data.venueCount` the number of venues that contributed at least one symbol, and `cached` whether the call was served from that cache. ($0.05 USDC on Solana mainnet)\n",
         "responses": {
           "200": {
-            "description": "Symbol \u2192 venue membership map",
+            "description": "Symbol → venue membership map",
             "content": {
               "application/json": {
                 "schema": {
@@ -576,8 +574,8 @@
     "/api/v1/markets/ttc-scanner": {
       "get": {
         "operationId": "runTTCScanner",
-        "summary": "Generate technical signals for one symbol",
-        "description": "Runs a multi-timeframe Quadrant-lines technical scan for one symbol. Returns `{price, scans (per-timeframe scan results), scoring (bull/bear strength), signal: {direction (LONG|SHORT|NEUTRAL), strength, confidence (HIGH|MEDIUM|LOW), entry, stoploss, takeProfits[]}}`. Use as a one-call signal generator for a specific symbol/timeframe \u2014 entry, stop, and up to three TPs derived from the same fan structure. ($0.05 USDC on Solana mainnet)\n",
+        "summary": "Tetrac technical scanner",
+        "description": "Runs a multi-timeframe Quadrant-lines technical scan for one symbol. Returns `{price, scans (per-timeframe scan results), scoring (bull/bear strength), signal: {direction (LONG|SHORT|NEUTRAL), strength, confidence (HIGH|MEDIUM|LOW), entry, stoploss, takeProfits[]}}`. Use as a one-call signal generator for a specific symbol/timeframe — entry, stop, and up to three TPs derived from the same fan structure. ($0.05 USDC on Solana mainnet)\n",
         "parameters": [
           {
             "name": "symbol",
@@ -616,8 +614,7 @@
               "type": "integer",
               "default": 1000,
               "maximum": 1000
-            },
-            "description": "Number of historical bars to analyze. Defaults to 300."
+            }
           },
           {
             "name": "swingStrength",
@@ -625,8 +622,7 @@
             "schema": {
               "type": "integer",
               "default": 10
-            },
-            "description": "Pivot sensitivity in bars; higher values report only larger swings."
+            }
           }
         ],
         "responses": {
@@ -683,7 +679,7 @@
     "/api/v1/markets/ttc-scanner-cache": {
       "get": {
         "operationId": "getTTCScannerCache",
-        "summary": "Fetch full-market technical signal snapshot",
+        "summary": "Tetrac scanner — full-market signal snapshot",
         "description": "Returns the latest CACHED technical-analysis signals for every scanned market in one call (no params). Each entry carries the same `signal` payload as the per-symbol scanner. Use as a one-call market-wide signal feed; the snapshot refreshes at most hourly. ($0.50 USDC on Solana mainnet)\n",
         "responses": {
           "200": {
@@ -754,8 +750,8 @@
     "/api/v1/markets/news": {
       "get": {
         "operationId": "getCryptoNews",
-        "summary": "Fetch aggregated crypto news headlines",
-        "description": "Returns a market-impact news feed \u2014 array of `{title, summary, source, url, publishedAt, sentiment, marketImpact}` entries aggregated from major crypto and macro outlets. Use to detect market-moving headlines or as feature input for sentiment-aware strategies. ($0.05 USDC on Solana mainnet)\n",
+        "summary": "Aggregated crypto news",
+        "description": "Returns a market-impact news feed — array of `{title, summary, source, url, publishedAt, sentiment, marketImpact}` entries aggregated from major crypto and macro outlets. Use to detect market-moving headlines or as feature input for sentiment-aware strategies. ($0.05 USDC on Solana mainnet)\n",
         "responses": {
           "200": {
             "description": "News feed",
@@ -796,8 +792,8 @@
     "/api/v1/markets/insights": {
       "get": {
         "operationId": "getMarketInsights",
-        "summary": "Generate AI market insights from live data",
-        "description": "Vector-similarity ticker search plus an LLM-generated market analysis for the given query.\nReturns:\n  - `insights` \u2014 natural-language analysis (`summary`, `analysis`, or `report` depending on `type`).\n  - `tickers` \u2014 up to `limit` Binance spot pairs (volume \u2265 $1M) ranked by semantic similarity to `query`,\n    each enriched with the live ticker fields plus a one-line `description`.\n($0.05 USDC on Solana mainnet)\n",
+        "summary": "AI-powered market insights",
+        "description": "Vector-similarity ticker search plus an LLM-generated market analysis for the given query.\nReturns:\n  - `insights` — natural-language analysis (`summary`, `analysis`, or `report` depending on `type`).\n  - `tickers` — up to `limit` Binance spot pairs (volume ≥ $1M) ranked by semantic similarity to `query`,\n    each enriched with the live ticker fields plus a one-line `description`.\n($0.05 USDC on Solana mainnet)\n",
         "parameters": [
           {
             "name": "query",
@@ -827,8 +823,7 @@
             "schema": {
               "type": "integer",
               "default": 10
-            },
-            "description": "Maximum number of insight records to return. Defaults to 10."
+            }
           }
         ],
         "responses": {
@@ -854,7 +849,7 @@
                         },
                         "tickers": {
                           "type": "array",
-                          "description": "Ranked similar tickers (Binance spot, volume \u2265 $1M) with a one-line description",
+                          "description": "Ranked similar tickers (Binance spot, volume ≥ $1M) with a one-line description",
                           "items": {
                             "type": "object"
                           }
@@ -884,8 +879,8 @@
     "/api/v1/markets/calendar": {
       "get": {
         "operationId": "getEconomicCalendar",
-        "summary": "List crypto and macro economic events",
-        "description": "Returns a filtered economic calendar \u2014 `{events: [{title, date, country, impact (high|medium|low), source, ...}], fromCache}`. Covers macro releases that move crypto (FOMC, CPI prints, NFP, ECB) plus crypto-specific events. Use to schedule strategy windows around high-impact macro events or pause trading bots ahead of releases. Filter by `impact` and `country`. ($0.05 USDC on Solana mainnet)\n",
+        "summary": "Crypto & macro economic calendar",
+        "description": "Returns a filtered economic calendar — `{events: [{title, date, country, impact (high|medium|low), source, ...}], fromCache}`. Covers macro releases that move crypto (FOMC, CPI prints, NFP, ECB) plus crypto-specific events. Use to schedule strategy windows around high-impact macro events or pause trading bots ahead of releases. Filter by `impact` and `country`. ($0.05 USDC on Solana mainnet)\n",
         "parameters": [
           {
             "name": "country",
@@ -982,8 +977,8 @@
     "/api/v1/markets/quakes": {
       "get": {
         "operationId": "getMarketQuakes",
-        "summary": "Detect abnormal price and volume moves",
-        "description": "Returns a GeoJSON `FeatureCollection` of \"market quake\" events \u2014 sudden abnormal volume + price spikes detected across exchanges. Each feature carries `{symbol, exchange, magnitude, type (spike|dump), timestamp, geometry}`. Use as a real-time alert stream for unusual market activity. ($0.05 USDC on Solana mainnet)\n",
+        "summary": "Market quake detector",
+        "description": "Returns a GeoJSON `FeatureCollection` of \"market quake\" events — sudden abnormal volume + price spikes detected across exchanges. Each feature carries `{symbol, exchange, magnitude, type (spike|dump), timestamp, geometry}`. Use as a real-time alert stream for unusual market activity. ($0.05 USDC on Solana mainnet)\n",
         "responses": {
           "200": {
             "description": "Market quake events",
@@ -1021,8 +1016,8 @@
     "/api/v1/solana-perps/long-short": {
       "get": {
         "operationId": "getSolanaPerpsLongShort",
-        "summary": "Fetch Solana perp long/short OI ratios",
-        "description": "Open-interest snapshot across Solana perpetual venues, collected server-side in one pass. `rows` holds venues that publish a genuine long-vs-short split (`{venue, symbol, longUsd, shortUsd, longPositions, shortPositions}` \u2014 the position counts are `null` when a venue publishes none); `totals` holds venues that publish combined open interest only (`{venue, symbol, totalUsd}`); `venueStatus` maps each venue id to `ok` or `error`, so a degraded source is visible instead of silently missing. `fetchedAt` is the ISO collection time. ($0.05 USDC on Solana mainnet)\n",
+        "summary": "Solana perp long/short open-interest snapshot",
+        "description": "Open-interest snapshot across Solana perpetual venues, collected server-side in one pass. `rows` holds venues that publish a genuine long-vs-short split (`{venue, symbol, longUsd, shortUsd, longPositions, shortPositions}` — the position counts are `null` when a venue publishes none); `totals` holds venues that publish combined open interest only (`{venue, symbol, totalUsd}`); `venueStatus` maps each venue id to `ok` or `error`, so a degraded source is visible instead of silently missing. `fetchedAt` is the ISO collection time. ($0.05 USDC on Solana mainnet)\n",
         "parameters": [
           {
             "name": "venues",
@@ -1122,8 +1117,8 @@
     "/api/v1/solana-perps/pacifica-watchlist": {
       "get": {
         "operationId": "getPacificaWatchlist",
-        "summary": "List Pacifica top open-interest accounts",
-        "description": "Returns the top Pacifica trader accounts ranked by current open-interest notional, trimmed to `{address, label, oiUsd}` each, plus `totalRanked` (accounts on the upstream leaderboard) and `fetchedAt`. `label` is `null` when the trader has enabled privacy mode. Built for subscribing to those accounts on Pacifica's public WebSocket \u2014 this endpoint is address discovery only and carries no trade events itself. Refreshed at most every 5 minutes. ($0.05 USDC on Solana mainnet)\n",
+        "summary": "Pacifica top open-interest account watchlist",
+        "description": "Returns the top Pacifica trader accounts ranked by current open-interest notional, trimmed to `{address, label, oiUsd}` each, plus `totalRanked` (accounts on the upstream leaderboard) and `fetchedAt`. `label` is `null` when the trader has enabled privacy mode. Built for subscribing to those accounts on Pacifica's public WebSocket — this endpoint is address discovery only and carries no trade events itself. Refreshed at most every 5 minutes. ($0.05 USDC on Solana mainnet)\n",
         "parameters": [
           {
             "name": "limit",
@@ -1191,8 +1186,8 @@
     "/api/v1/exchanges": {
       "get": {
         "operationId": "getExchangeData",
-        "summary": "List exchange methods, pricing and venues",
-        "description": "Read-only exchange dispatcher \u2014 one endpoint that proxies read calls to any supported venue. Pass `method` plus the target `exchange`; for account-data methods, also pass `apiKey`/`apiSecret`/`passphrase` as query params.\n\nSupported methods (response shape varies by method):\n  - `getTickers` \u2014 array of live ticker objects for the venue\n  - `getBestBidAsk` \u2014 best bid/ask for a `symbol`\n  - `getPositions` \u2014 open positions for the credentialed account\n  - `getBalance` \u2014 account balance summary\n  - `getOrders` \u2014 open or historical orders\n  - `getUserTradeHistory` \u2014 fills\n\nReturns `{success, data: <method-shaped>, exchange, code}`. Use to query any supported exchange through one unified endpoint instead of integrating each venue's SDK. ($0.05 USDC on Solana mainnet)\n",
+        "summary": "Exchange read — positions, balances, orders, bid-ask",
+        "description": "Read-only exchange dispatcher — one endpoint that proxies read calls to any supported venue. Pass `method` plus the target `exchange`; for account-data methods, also pass `apiKey`/`apiSecret`/`passphrase` as query params.\n\nSupported methods (response shape varies by method):\n  - `getTickers` — array of live ticker objects for the venue\n  - `getBestBidAsk` — best bid/ask for a `symbol`\n  - `getPositions` — open positions for the credentialed account\n  - `getBalance` — account balance summary\n  - `getOrders` — open or historical orders\n  - `getUserTradeHistory` — fills\n\nReturns `{success, data: <method-shaped>, exchange, code}`. Use to query any supported exchange through one unified endpoint instead of integrating each venue's SDK. ($0.05 USDC on Solana mainnet)\n",
         "parameters": [
           {
             "name": "method",
@@ -1208,19 +1203,17 @@
                 "getOrders",
                 "getUserTradeHistory"
               ]
-            },
-            "description": "Legacy no-op. The bare GET always returns the methods catalog; trading methods go to POST."
+            }
           },
           {
             "name": "exchange",
             "in": "query",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string",
               "example": "binance",
               "description": "Venue roster changes over time and is not enumerated here; the current list is returned by `GET /api/v1/exchanges` (including in its 402 discovery response, which requires no payment) and is shown on https://www.tetrac.xyz."
-            },
-            "description": "Venue id, e.g. binance. Optional on the catalog read."
+            }
           },
           {
             "name": "symbol",
@@ -1228,6 +1221,27 @@
             "schema": {
               "type": "string",
               "example": "BTCUSDT"
+            }
+          },
+          {
+            "name": "apiKey",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "apiSecret",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "passphrase",
+            "in": "query",
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -1269,8 +1283,8 @@
       },
       "post": {
         "operationId": "executeExchangeAction",
-        "summary": "Create and cancel orders, set leverage",
-        "description": "Trading dispatcher \u2014 one endpoint that executes order/position actions on any supported venue. Body fields: `exchangeName`, `method`, `params` (method-specific), `credentials` (`apiKey`/`apiSecret`/`passphrase`).\n\n**IMPORTANT**: Executes REAL trades with REAL money. Always confirm parameters with the user before calling.\n\nSupported methods (`params` shape varies by method):\n  - `placeMarketOrder` \u2014 `{symbol, side, quantity, reduceOnly?}`\n  - `placeLimitOrder` \u2014 `{symbol, side, quantity, price, timeInForce?, reduceOnly?}`\n  - `placeStopOrder` \u2014 `{symbol, side, quantity, stopPrice, ...}`\n  - `cancelOrder` \u2014 `{symbol, orderId}`\n  - `cancelAllOrders` \u2014 `{symbol?}`\n  - `closeAllPositions` \u2014 `{}`\n  - `setLeverage` \u2014 `{symbol, leverage}`\n  - `setHedgeMode` \u2014 `{enabled}`\n\nReturns `{success, data: <method-shaped result>, exchange, code}`. Use to execute trades on any supported venue without integrating each SDK. ($0.05 USDC on Solana mainnet)\n",
+        "summary": "Exchange trade — place/cancel orders, set leverage, close positions",
+        "description": "Trading dispatcher — one endpoint that executes order/position actions on any supported venue. Body fields: `exchangeName`, `method`, `params` (method-specific), `credentials` (`apiKey`/`apiSecret`/`passphrase`).\n\n**IMPORTANT**: Executes REAL trades with REAL money. Always confirm parameters with the user before calling.\n\nSupported methods (`params` shape varies by method):\n  - `placeMarketOrder` — `{symbol, side, quantity, reduceOnly?}`\n  - `placeLimitOrder` — `{symbol, side, quantity, price, timeInForce?, reduceOnly?}`\n  - `placeStopOrder` — `{symbol, side, quantity, stopPrice, ...}`\n  - `cancelOrder` — `{symbol, orderId}`\n  - `cancelAllOrders` — `{symbol?}`\n  - `closeAllPositions` — `{}`\n  - `setLeverage` — `{symbol, leverage}`\n  - `setHedgeMode` — `{enabled}`\n\nReturns `{success, data: <method-shaped result>, exchange, code}`. Use to execute trades on any supported venue without integrating each SDK. ($0.05 USDC on Solana mainnet)\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -1368,8 +1382,8 @@
     "/api/v1/exchanges/latency": {
       "get": {
         "operationId": "getExchangeLatency",
-        "summary": "Fetch exchange reachability and latency",
-        "description": "Probes every configured venue from Tetrac's servers and returns two independent measurements per exchange: a TLS-handshake time (`tlsLatency`/`tlsStatus`) and a full data-endpoint roundtrip (`dataLatency`/`dataStatus`), plus the resolved `hostname`, `ip`, hosting `org` and static `tickerCount`. Takes no parameters \u2014 every configured venue is probed on each call. Rows are sorted data-online first, then by ascending data latency. Use to pick the lowest-latency venue for execution, or to detect a venue whose API is degraded while its edge is still up. ($0.05 USDC on Solana mainnet)\n",
+        "summary": "Exchange reachability & latency probe",
+        "description": "Probes every configured venue from Tetrac's servers and returns two independent measurements per exchange: a TLS-handshake time (`tlsLatency`/`tlsStatus`) and a full data-endpoint roundtrip (`dataLatency`/`dataStatus`), plus the resolved `hostname`, `ip`, hosting `org` and static `tickerCount`. Takes no parameters — every configured venue is probed on each call. Rows are sorted data-online first, then by ascending data latency. Use to pick the lowest-latency venue for execution, or to detect a venue whose API is degraded while its edge is still up. ($0.05 USDC on Solana mainnet)\n",
         "responses": {
           "200": {
             "description": "Per-exchange latency probe results plus aggregate summary",
@@ -1474,7 +1488,7 @@
           },
           "fundingRate": {
             "type": "number",
-            "description": "The venue's NATIVE rate for one settlement interval, as a decimal fraction (0.0001 = 0.01%). NOT comparable across rows \u2014 see hourlyRate.",
+            "description": "The venue's NATIVE rate for one settlement interval, as a decimal fraction (0.0001 = 0.01%). NOT comparable across rows — see hourlyRate.",
             "example": 0.0001
           },
           "intervalHours": {
@@ -1500,7 +1514,7 @@
           },
           "dailyRoi": {
             "type": "number",
-            "description": "hourlyRate x 24 \u2014 a hypothetical 24h projection, not compounded. Omitted when hourlyRate is.",
+            "description": "hourlyRate x 24 — a hypothetical 24h projection, not compounded. Omitted when hourlyRate is.",
             "example": 0.0003
           },
           "nextFundingTime": {
@@ -1771,7 +1785,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "x-x402-payment",
-        "description": "Signed Solana USDC micropayment ($0.05 standard, $0.50 for the full-market scanner snapshot) \u2014 alternative to session auth"
+        "description": "Signed Solana USDC micropayment ($0.05 standard, $0.50 for the full-market scanner snapshot) — alternative to session auth"
       }
     }
   },
