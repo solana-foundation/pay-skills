@@ -38,7 +38,7 @@ holders $0.007 · drain-trace $0.05 · dossier $0.50 · xwatch $5.00.
 - `/x402/v1/predictions/{mint}` returns the per-mint risk prediction and resolved
   outcome — prefer it over re-deriving risk from raw market data.
 - Reserve `/x402/v1/drain-trace/{wallet}` and `/x402/v1/dossier/{wallet}` for
-  post-incident forensics or high-value due-diligence; they are multi-hop / AI-heavy
-  and priced accordingly. Start with the cheap verdict endpoints first.
+  post-incident forensics or high-value due-diligence; they are multi-hop and
+  priced accordingly (a cold dossier build can take over a minute). Start with the cheap verdict endpoints first.
 - `/x402/v1/holders/{mint}` returns holder count and top-holder concentration in a
   single call — use it instead of chaining raw RPC `getTokenLargestAccounts`.
