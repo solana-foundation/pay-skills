@@ -1,0 +1,987 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Motto",
+    "version": "1.0.0",
+    "description": "Refundable holds for agents renting real-world things. The agent holds $1.00 USDC with x402 upto on Solana, the desk checks whether the need is already handled, then keeps the hold as the rental or returns it.",
+    "x-guidance": "Read GET /v1/terms first (free). Then call POST /v1/rent/charger or POST /v1/rent/hotspot through a payment-aware client. The first response is a 402 x402 upto offer for a hold of up to $1.00; the client pays and retries, and the desk settles $1.00 when the rental is kept or $0.01 when the need is already handled. One call is one hold, so do not repeat a call that returned 200."
+  },
+  "paths": {
+    "/v1/terms": {
+      "get": {
+        "operationId": "getTerms",
+        "summary": "Read desk terms, refund rules and device public key",
+        "description": "Free, no payment. Returns the rules the desk applies when it settles a hold and the devicePublicKey that verifies signed readings.",
+        "responses": {
+          "200": {
+            "description": "Desk terms.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "service": {
+                      "type": "string"
+                    },
+                    "summary": {
+                      "type": "string"
+                    },
+                    "why_hold": {
+                      "type": "string",
+                      "description": "Why an agent holds $1.00 and what happens to it."
+                    },
+                    "network": {
+                      "type": "string",
+                      "description": "localnet in the Pay.sh sandbox, mainnet when live."
+                    },
+                    "scheme": {
+                      "type": "string"
+                    },
+                    "devicePublicKey": {
+                      "type": "string",
+                      "description": "Hex ed25519 public key that verifies signed readings."
+                    },
+                    "items": {
+                      "type": "object",
+                      "description": "Per item hold_usd, check_fee_usd, check question and settlement rules."
+                    },
+                    "endpoints": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/rent/charger": {
+      "post": {
+        "operationId": "rentCharger",
+        "summary": "Start a charger rental with a refundable $1 hold",
+        "description": "Holds up to $1.00, then checks whether the device is already drawing AC power. Already on power: $0.01 check fee, $0.99 returned. On battery and power arrives within wait_seconds: $1.00 kept. Power never arrives: $0.01, $0.99 returned.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "wait_seconds": {
+                    "type": "number",
+                    "minimum": 0,
+                    "default": 30,
+                    "description": "Seconds to wait for power to arrive when the device starts on battery. Clamped to 0 to 240 (the payment timeout is 300 seconds).",
+                    "maximum": 240
+                  }
+                }
+              },
+              "example": {
+                "wait_seconds": 30
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Hold settled: kept as the rental or refunded, with a signed device reading.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "hold_id",
+                    "item",
+                    "outcome",
+                    "decision",
+                    "charged_usd",
+                    "returned_usd",
+                    "reason",
+                    "signed_reading",
+                    "network"
+                  ],
+                  "properties": {
+                    "hold_id": {
+                      "type": "string",
+                      "description": "Short id of this hold."
+                    },
+                    "item": {
+                      "type": "string",
+                      "enum": [
+                        "charger"
+                      ]
+                    },
+                    "outcome": {
+                      "type": "string",
+                      "enum": [
+                        "already_handled",
+                        "delivered",
+                        "not_delivered",
+                        "check_failed"
+                      ]
+                    },
+                    "decision": {
+                      "type": "string",
+                      "enum": [
+                        "kept",
+                        "refunded",
+                        "settle_failed"
+                      ],
+                      "description": "kept or refunded once settled; settle_failed when the settlement transaction failed, in which case no money moved and settle_error says why."
+                    },
+                    "charged_usd": {
+                      "type": "string",
+                      "description": "USD settled to the desk, 1.00, 0.01 or 0.00."
+                    },
+                    "returned_usd": {
+                      "type": "string",
+                      "description": "USD returned to the payer, 0.00, 0.99 or 1.00."
+                    },
+                    "reason": {
+                      "type": "string",
+                      "description": "The refund rule that applied, in plain English."
+                    },
+                    "signed_reading": {
+                      "type": "object",
+                      "description": "Device reading signed with the desk device ed25519 key. A failed check returns an unsigned reading with outcome check_failed.",
+                      "properties": {
+                        "holdId": {
+                          "type": "string"
+                        },
+                        "item": {
+                          "type": "string"
+                        },
+                        "outcome": {
+                          "type": "string"
+                        },
+                        "detail": {
+                          "type": "string",
+                          "description": "Short machine reason, for example device_on_AC or charging_verified."
+                        },
+                        "raw": {
+                          "type": "string",
+                          "description": "The raw device observation the decision was based on."
+                        },
+                        "ts": {
+                          "type": "integer",
+                          "description": "Unix time in milliseconds."
+                        },
+                        "signature": {
+                          "type": "string",
+                          "description": "Hex ed25519 signature over the reading fields."
+                        },
+                        "devicePublicKey": {
+                          "type": "string",
+                          "description": "Hex ed25519 public key, same value as GET /v1/terms devicePublicKey."
+                        }
+                      }
+                    },
+                    "settlement_tx": {
+                      "type": "string",
+                      "description": "Solana settlement transaction signature, present when available."
+                    },
+                    "network": {
+                      "type": "string",
+                      "description": "Network the hold settled on: localnet in the Pay.sh sandbox, mainnet when live."
+                    },
+                    "settle_error": {
+                      "type": "string",
+                      "description": "Present only when decision is settle_failed."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required. x402 upto offer for a hold of up to 1 USDC (1000000 base units)."
+          }
+        },
+        "x-payment-info": {
+          "offers": [
+            {
+              "amount": "1000000",
+              "currency": "USDC",
+              "description": "up to 1 USDC",
+              "intent": "charge",
+              "method": "x402",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "scheme": "upto"
+            }
+          ]
+        }
+      }
+    },
+    "/v1/rent/hotspot": {
+      "post": {
+        "operationId": "rentHotspot",
+        "summary": "Start a hotspot rental with a refundable $1 hold",
+        "description": "Holds up to $1.00, then checks whether the device is already on the venue network. Already on it: $0.01 check fee, $0.99 returned. Off the venue network: hotspot rental kept, $1.00 charged.",
+        "responses": {
+          "200": {
+            "description": "Hold settled: kept as the rental or refunded, with a signed device reading.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "hold_id",
+                    "item",
+                    "outcome",
+                    "decision",
+                    "charged_usd",
+                    "returned_usd",
+                    "reason",
+                    "signed_reading",
+                    "network"
+                  ],
+                  "properties": {
+                    "hold_id": {
+                      "type": "string",
+                      "description": "Short id of this hold."
+                    },
+                    "item": {
+                      "type": "string",
+                      "enum": [
+                        "hotspot"
+                      ]
+                    },
+                    "outcome": {
+                      "type": "string",
+                      "enum": [
+                        "already_handled",
+                        "delivered",
+                        "check_failed"
+                      ]
+                    },
+                    "decision": {
+                      "type": "string",
+                      "enum": [
+                        "kept",
+                        "refunded",
+                        "settle_failed"
+                      ],
+                      "description": "kept or refunded once settled; settle_failed when the settlement transaction failed, in which case no money moved and settle_error says why."
+                    },
+                    "charged_usd": {
+                      "type": "string",
+                      "description": "USD settled to the desk, 1.00, 0.01 or 0.00."
+                    },
+                    "returned_usd": {
+                      "type": "string",
+                      "description": "USD returned to the payer, 0.00, 0.99 or 1.00."
+                    },
+                    "reason": {
+                      "type": "string",
+                      "description": "The refund rule that applied, in plain English."
+                    },
+                    "signed_reading": {
+                      "type": "object",
+                      "description": "Device reading signed with the desk device ed25519 key. A failed check returns an unsigned reading with outcome check_failed.",
+                      "properties": {
+                        "holdId": {
+                          "type": "string"
+                        },
+                        "item": {
+                          "type": "string"
+                        },
+                        "outcome": {
+                          "type": "string"
+                        },
+                        "detail": {
+                          "type": "string",
+                          "description": "Short machine reason, for example device_on_AC or charging_verified."
+                        },
+                        "raw": {
+                          "type": "string",
+                          "description": "The raw device observation the decision was based on."
+                        },
+                        "ts": {
+                          "type": "integer",
+                          "description": "Unix time in milliseconds."
+                        },
+                        "signature": {
+                          "type": "string",
+                          "description": "Hex ed25519 signature over the reading fields."
+                        },
+                        "devicePublicKey": {
+                          "type": "string",
+                          "description": "Hex ed25519 public key, same value as GET /v1/terms devicePublicKey."
+                        }
+                      }
+                    },
+                    "settlement_tx": {
+                      "type": "string",
+                      "description": "Solana settlement transaction signature, present when available."
+                    },
+                    "network": {
+                      "type": "string",
+                      "description": "Network the hold settled on: localnet in the Pay.sh sandbox, mainnet when live."
+                    },
+                    "settle_error": {
+                      "type": "string",
+                      "description": "Present only when decision is settle_failed."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required. x402 upto offer for a hold of up to 1 USDC (1000000 base units)."
+          }
+        },
+        "x-payment-info": {
+          "offers": [
+            {
+              "amount": "1000000",
+              "currency": "USDC",
+              "description": "up to 1 USDC",
+              "intent": "charge",
+              "method": "x402",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "scheme": "upto"
+            }
+          ]
+        }
+      }
+    },
+    "/v1/rent/battery_pack": {
+      "post": {
+        "operationId": "rentBatteryPack",
+        "summary": "Start a battery pack rental with a refundable $1 hold",
+        "description": "Holds up to $1.00, then reads the device battery. On AC or charged to at least min_percent: $0.01 check fee, $0.99 returned. On battery below min_percent: battery pack rental kept, $1.00 charged.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "min_percent": {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "default": 50,
+                    "description": "Charge the job needs to finish without a pack. Clamped to 1 to 100."
+                  }
+                }
+              },
+              "example": {
+                "min_percent": 50
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Hold settled: kept as the rental or refunded, with a signed device reading.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "hold_id",
+                    "item",
+                    "outcome",
+                    "decision",
+                    "charged_usd",
+                    "returned_usd",
+                    "reason",
+                    "signed_reading",
+                    "network"
+                  ],
+                  "properties": {
+                    "hold_id": {
+                      "type": "string",
+                      "description": "Short id of this hold."
+                    },
+                    "item": {
+                      "type": "string",
+                      "enum": [
+                        "battery_pack"
+                      ]
+                    },
+                    "outcome": {
+                      "type": "string",
+                      "enum": [
+                        "already_handled",
+                        "delivered",
+                        "check_failed"
+                      ]
+                    },
+                    "decision": {
+                      "type": "string",
+                      "enum": [
+                        "kept",
+                        "refunded",
+                        "settle_failed"
+                      ],
+                      "description": "kept or refunded once settled; settle_failed when the settlement transaction failed, in which case no money moved and settle_error says why."
+                    },
+                    "charged_usd": {
+                      "type": "string",
+                      "description": "USD settled to the desk, 1.00, 0.01 or 0.00."
+                    },
+                    "returned_usd": {
+                      "type": "string",
+                      "description": "USD returned to the payer, 0.00, 0.99 or 1.00."
+                    },
+                    "reason": {
+                      "type": "string",
+                      "description": "The refund rule that applied, in plain English."
+                    },
+                    "signed_reading": {
+                      "type": "object",
+                      "description": "Device reading signed with the desk device ed25519 key. A failed check returns an unsigned reading with outcome check_failed.",
+                      "properties": {
+                        "holdId": {
+                          "type": "string"
+                        },
+                        "item": {
+                          "type": "string"
+                        },
+                        "outcome": {
+                          "type": "string"
+                        },
+                        "detail": {
+                          "type": "string",
+                          "description": "Short machine reason, for example device_on_AC or charging_verified."
+                        },
+                        "raw": {
+                          "type": "string",
+                          "description": "The raw device observation the decision was based on."
+                        },
+                        "ts": {
+                          "type": "integer",
+                          "description": "Unix time in milliseconds."
+                        },
+                        "signature": {
+                          "type": "string",
+                          "description": "Hex ed25519 signature over the reading fields."
+                        },
+                        "devicePublicKey": {
+                          "type": "string",
+                          "description": "Hex ed25519 public key, same value as GET /v1/terms devicePublicKey."
+                        }
+                      }
+                    },
+                    "settlement_tx": {
+                      "type": "string",
+                      "description": "Solana settlement transaction signature, present when available."
+                    },
+                    "network": {
+                      "type": "string",
+                      "description": "Network the hold settled on: localnet in the Pay.sh sandbox, mainnet when live."
+                    },
+                    "settle_error": {
+                      "type": "string",
+                      "description": "Present only when decision is settle_failed."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required. x402 upto offer for a hold of up to 1 USDC (1000000 base units)."
+          }
+        },
+        "x-payment-info": {
+          "offers": [
+            {
+              "amount": "1000000",
+              "currency": "USDC",
+              "description": "up to 1 USDC",
+              "intent": "charge",
+              "method": "x402",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "scheme": "upto"
+            }
+          ]
+        }
+      }
+    },
+    "/v1/rent/storage": {
+      "post": {
+        "operationId": "rentStorage",
+        "summary": "Start a cloud storage rental with a refundable $1 hold",
+        "description": "Holds up to $1.00, then reads free disk on the device. At least needed_gb free: $0.01 check fee, $0.99 returned. Less than needed_gb free: cloud storage rental kept, $1.00 charged.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "needed_gb": {
+                    "type": "number",
+                    "minimum": 0.1,
+                    "maximum": 100000,
+                    "default": 10,
+                    "description": "Free space the job needs, in GB. Clamped to 0.1 to 100000."
+                  }
+                }
+              },
+              "example": {
+                "needed_gb": 60
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Hold settled: kept as the rental or refunded, with a signed device reading.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "hold_id",
+                    "item",
+                    "outcome",
+                    "decision",
+                    "charged_usd",
+                    "returned_usd",
+                    "reason",
+                    "signed_reading",
+                    "network"
+                  ],
+                  "properties": {
+                    "hold_id": {
+                      "type": "string",
+                      "description": "Short id of this hold."
+                    },
+                    "item": {
+                      "type": "string",
+                      "enum": [
+                        "storage"
+                      ]
+                    },
+                    "outcome": {
+                      "type": "string",
+                      "enum": [
+                        "already_handled",
+                        "delivered",
+                        "check_failed"
+                      ]
+                    },
+                    "decision": {
+                      "type": "string",
+                      "enum": [
+                        "kept",
+                        "refunded",
+                        "settle_failed"
+                      ],
+                      "description": "kept or refunded once settled; settle_failed when the settlement transaction failed, in which case no money moved and settle_error says why."
+                    },
+                    "charged_usd": {
+                      "type": "string",
+                      "description": "USD settled to the desk, 1.00, 0.01 or 0.00."
+                    },
+                    "returned_usd": {
+                      "type": "string",
+                      "description": "USD returned to the payer, 0.00, 0.99 or 1.00."
+                    },
+                    "reason": {
+                      "type": "string",
+                      "description": "The refund rule that applied, in plain English."
+                    },
+                    "signed_reading": {
+                      "type": "object",
+                      "description": "Device reading signed with the desk device ed25519 key. A failed check returns an unsigned reading with outcome check_failed.",
+                      "properties": {
+                        "holdId": {
+                          "type": "string"
+                        },
+                        "item": {
+                          "type": "string"
+                        },
+                        "outcome": {
+                          "type": "string"
+                        },
+                        "detail": {
+                          "type": "string",
+                          "description": "Short machine reason, for example device_on_AC or charging_verified."
+                        },
+                        "raw": {
+                          "type": "string",
+                          "description": "The raw device observation the decision was based on."
+                        },
+                        "ts": {
+                          "type": "integer",
+                          "description": "Unix time in milliseconds."
+                        },
+                        "signature": {
+                          "type": "string",
+                          "description": "Hex ed25519 signature over the reading fields."
+                        },
+                        "devicePublicKey": {
+                          "type": "string",
+                          "description": "Hex ed25519 public key, same value as GET /v1/terms devicePublicKey."
+                        }
+                      }
+                    },
+                    "settlement_tx": {
+                      "type": "string",
+                      "description": "Solana settlement transaction signature, present when available."
+                    },
+                    "network": {
+                      "type": "string",
+                      "description": "Network the hold settled on: localnet in the Pay.sh sandbox, mainnet when live."
+                    },
+                    "settle_error": {
+                      "type": "string",
+                      "description": "Present only when decision is settle_failed."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required. x402 upto offer for a hold of up to 1 USDC (1000000 base units)."
+          }
+        },
+        "x-payment-info": {
+          "offers": [
+            {
+              "amount": "1000000",
+              "currency": "USDC",
+              "description": "up to 1 USDC",
+              "intent": "charge",
+              "method": "x402",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "scheme": "upto"
+            }
+          ]
+        }
+      }
+    },
+    "/v1/rent/display": {
+      "post": {
+        "operationId": "rentDisplay",
+        "summary": "Start a monitor rental with a refundable $1 hold",
+        "description": "Holds up to $1.00, then checks for an external display. Already connected: $0.01 check fee, $0.99 returned. None, then one connected within wait_seconds: $1.00 kept. Never connected: $0.01, $0.99 returned.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "wait_seconds": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 240,
+                    "default": 30,
+                    "description": "Seconds to wait for a display to be connected. Clamped to 0 to 240 (the payment timeout is 300 seconds)."
+                  }
+                }
+              },
+              "example": {
+                "wait_seconds": 30
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Hold settled: kept as the rental or refunded, with a signed device reading.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "hold_id",
+                    "item",
+                    "outcome",
+                    "decision",
+                    "charged_usd",
+                    "returned_usd",
+                    "reason",
+                    "signed_reading",
+                    "network"
+                  ],
+                  "properties": {
+                    "hold_id": {
+                      "type": "string",
+                      "description": "Short id of this hold."
+                    },
+                    "item": {
+                      "type": "string",
+                      "enum": [
+                        "display"
+                      ]
+                    },
+                    "outcome": {
+                      "type": "string",
+                      "enum": [
+                        "already_handled",
+                        "delivered",
+                        "not_delivered",
+                        "check_failed"
+                      ]
+                    },
+                    "decision": {
+                      "type": "string",
+                      "enum": [
+                        "kept",
+                        "refunded",
+                        "settle_failed"
+                      ],
+                      "description": "kept or refunded once settled; settle_failed when the settlement transaction failed, in which case no money moved and settle_error says why."
+                    },
+                    "charged_usd": {
+                      "type": "string",
+                      "description": "USD settled to the desk, 1.00, 0.01 or 0.00."
+                    },
+                    "returned_usd": {
+                      "type": "string",
+                      "description": "USD returned to the payer, 0.00, 0.99 or 1.00."
+                    },
+                    "reason": {
+                      "type": "string",
+                      "description": "The refund rule that applied, in plain English."
+                    },
+                    "signed_reading": {
+                      "type": "object",
+                      "description": "Device reading signed with the desk device ed25519 key. A failed check returns an unsigned reading with outcome check_failed.",
+                      "properties": {
+                        "holdId": {
+                          "type": "string"
+                        },
+                        "item": {
+                          "type": "string"
+                        },
+                        "outcome": {
+                          "type": "string"
+                        },
+                        "detail": {
+                          "type": "string",
+                          "description": "Short machine reason, for example device_on_AC or charging_verified."
+                        },
+                        "raw": {
+                          "type": "string",
+                          "description": "The raw device observation the decision was based on."
+                        },
+                        "ts": {
+                          "type": "integer",
+                          "description": "Unix time in milliseconds."
+                        },
+                        "signature": {
+                          "type": "string",
+                          "description": "Hex ed25519 signature over the reading fields."
+                        },
+                        "devicePublicKey": {
+                          "type": "string",
+                          "description": "Hex ed25519 public key, same value as GET /v1/terms devicePublicKey."
+                        }
+                      }
+                    },
+                    "settlement_tx": {
+                      "type": "string",
+                      "description": "Solana settlement transaction signature, present when available."
+                    },
+                    "network": {
+                      "type": "string",
+                      "description": "Network the hold settled on: localnet in the Pay.sh sandbox, mainnet when live."
+                    },
+                    "settle_error": {
+                      "type": "string",
+                      "description": "Present only when decision is settle_failed."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required. x402 upto offer for a hold of up to 1 USDC (1000000 base units)."
+          }
+        },
+        "x-payment-info": {
+          "offers": [
+            {
+              "amount": "1000000",
+              "currency": "USDC",
+              "description": "up to 1 USDC",
+              "intent": "charge",
+              "method": "x402",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "scheme": "upto"
+            }
+          ]
+        }
+      }
+    },
+    "/v1/rent/verify": {
+      "post": {
+        "operationId": "rentVerify",
+        "summary": "Verify any condition before you buy, refundable $1 hold",
+        "description": "Holds up to $1.00. You state the condition that would make a purchase unnecessary; the desk reads its device evidence and up to 3 public https URLs, and a model decides. True: $0.01 check fee, $0.99 returned. False: the need is real, $1.00 charged. Evidence does not settle it: nothing charged, $1.00 returned. A missing or invalid condition is a 400 before any payment.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "condition": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "The fact that would make this purchase unnecessary, in plain English."
+                  },
+                  "evidence_urls": {
+                    "type": "array",
+                    "maxItems": 3,
+                    "items": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "description": "Public https URLs the desk fetches as evidence."
+                  }
+                },
+                "required": [
+                  "condition"
+                ]
+              },
+              "example": {
+                "condition": "The laptop has at least one external monitor connected"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Hold settled: kept as the rental or refunded, with a signed device reading.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "hold_id",
+                    "item",
+                    "outcome",
+                    "decision",
+                    "charged_usd",
+                    "returned_usd",
+                    "reason",
+                    "signed_reading",
+                    "network"
+                  ],
+                  "properties": {
+                    "hold_id": {
+                      "type": "string",
+                      "description": "Short id of this hold."
+                    },
+                    "item": {
+                      "type": "string",
+                      "enum": [
+                        "verify"
+                      ]
+                    },
+                    "outcome": {
+                      "type": "string",
+                      "enum": [
+                        "already_handled",
+                        "delivered",
+                        "inconclusive",
+                        "check_failed"
+                      ]
+                    },
+                    "decision": {
+                      "type": "string",
+                      "enum": [
+                        "kept",
+                        "refunded",
+                        "settle_failed"
+                      ],
+                      "description": "kept or refunded once settled; settle_failed when the settlement transaction failed, in which case no money moved and settle_error says why."
+                    },
+                    "charged_usd": {
+                      "type": "string",
+                      "description": "USD settled to the desk, 1.00, 0.01 or 0.00."
+                    },
+                    "returned_usd": {
+                      "type": "string",
+                      "description": "USD returned to the payer, 0.00, 0.99 or 1.00."
+                    },
+                    "reason": {
+                      "type": "string",
+                      "description": "The refund rule that applied, in plain English."
+                    },
+                    "signed_reading": {
+                      "type": "object",
+                      "description": "Device reading signed with the desk device ed25519 key. A failed check returns an unsigned reading with outcome check_failed.",
+                      "properties": {
+                        "holdId": {
+                          "type": "string"
+                        },
+                        "item": {
+                          "type": "string"
+                        },
+                        "outcome": {
+                          "type": "string"
+                        },
+                        "detail": {
+                          "type": "string",
+                          "description": "Short machine reason, for example device_on_AC or charging_verified."
+                        },
+                        "raw": {
+                          "type": "string",
+                          "description": "The raw device observation the decision was based on."
+                        },
+                        "ts": {
+                          "type": "integer",
+                          "description": "Unix time in milliseconds."
+                        },
+                        "signature": {
+                          "type": "string",
+                          "description": "Hex ed25519 signature over the reading fields."
+                        },
+                        "devicePublicKey": {
+                          "type": "string",
+                          "description": "Hex ed25519 public key, same value as GET /v1/terms devicePublicKey."
+                        }
+                      }
+                    },
+                    "settlement_tx": {
+                      "type": "string",
+                      "description": "Solana settlement transaction signature, present when available."
+                    },
+                    "network": {
+                      "type": "string",
+                      "description": "Network the hold settled on: localnet in the Pay.sh sandbox, mainnet when live."
+                    },
+                    "settle_error": {
+                      "type": "string",
+                      "description": "Present only when decision is settle_failed."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required. x402 upto offer for a hold of up to 1 USDC (1000000 base units)."
+          }
+        },
+        "x-payment-info": {
+          "offers": [
+            {
+              "amount": "1000000",
+              "currency": "USDC",
+              "description": "up to 1 USDC",
+              "intent": "charge",
+              "method": "x402",
+              "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+              "scheme": "upto"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
