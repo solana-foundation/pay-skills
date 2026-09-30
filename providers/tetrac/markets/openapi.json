@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tetrac Trading API",
-    "description": "Multi-exchange trading data API — tickers, funding rates, open interest,\ntechnical analysis (Tetrac scanner), news, economic calendar, market\nintelligence, volume data, and order execution across 30+ CEXs and DEXs.\n\n## Authentication\n\nEvery endpoint except the free `/api/v1/markets` discovery index requires one of:\n\n- **Session auth** — pass `ttc-auth-token` (Bearer) + `ttc-public-key` header for registered Tetrac users.\n- **x402 micropayment** — pass a signed Solana USDC payment ($0.05 standard, $0.50 for the full-market scanner snapshot) in the `x-x402-payment` header.\n  See [x402.json](https://www.tetrac.xyz/.well-known/x402.json) for payment details.\n\nResponses from paid endpoints include an `x-x402-receipt` header confirming payment.\n",
+    "description": "Multi-exchange trading data API \u2014 tickers, funding rates, open interest,\ntechnical analysis (Tetrac scanner), news, economic calendar, market\nintelligence, volume data, and order execution across 30+ CEXs and DEXs.\n\n## Authentication\n\nEvery endpoint except the free `/api/v1/markets` discovery index requires one of:\n\n- **Session auth** \u2014 pass `ttc-auth-token` (Bearer) + `ttc-public-key` header for registered Tetrac users.\n- **x402 micropayment** \u2014 pass a signed Solana USDC payment ($0.05 standard, $0.50 for the full-market scanner snapshot) in the `x-x402-payment` header.\n  See [x402.json](https://www.tetrac.xyz/.well-known/x402.json) for payment details.\n",
     "version": "1.0.0",
     "contact": {
       "email": "security@tetrac.xyz"
@@ -21,8 +21,8 @@
     "/api/v1/markets": {
       "get": {
         "operationId": "getMarketsIndex",
-        "summary": "Market data endpoint index",
-        "description": "Free discovery index for every `/api/v1/markets/*` endpoint — no payment and no session required. Returns `{pricing, methods}`: `pricing` is the standard per-request price of the listed endpoints `{amount, currency, network, per}`, and `methods` is keyed by sub-route slug (e.g. `funding-rates`) with `{name, path, method, description, price: {amount, currency}, params}` per entry, so an agent can see what each paid endpoint costs before paying for any of them. Rate-limited per client (per account when a session is presented); over the limit it returns 429 with `Retry-After`. (Free)\n",
+        "summary": "List market data endpoints and their prices",
+        "description": "Free discovery index for every `/api/v1/markets/*` endpoint \u2014 no payment and no session required. Returns `{pricing, methods}`: `pricing` is the standard per-request price of the listed endpoints `{amount, currency, network, per}`, and `methods` is keyed by sub-route slug (e.g. `funding-rates`) with `{name, path, method, description, price: {amount, currency}}` per entry, plus `params` on the entries that take query parameters, so an agent can see what each paid endpoint costs before paying for any of them. Rate-limited per client (per account when a session is presented); over the limit it returns 429 with `Retry-After`. (Free)\n",
         "responses": {
           "200": {
             "description": "Endpoint catalog and pricing summary",
@@ -129,7 +129,7 @@
             }
           },
           "429": {
-            "description": "Rate limit exceeded — retry after `Retry-After` seconds"
+            "description": "Rate limit exceeded \u2014 retry after `Retry-After` seconds"
           }
         },
         "tags": [
@@ -141,68 +141,96 @@
     "/api/v1/markets/hybrid-tickers": {
       "get": {
         "operationId": "getHybridTickers",
-        "summary": "Multi-exchange tickers",
-        "description": "Returns an array of unified ticker objects (`symbol`, `price`, `change24h`, `volume24hUSD`, `bid`, `ask`, `exchange`) covering spot and perpetual pairs across 30+ CEXs and DEXs, served from a single hybrid cache. Use this to screen markets in one paid call instead of fanning out per-exchange. Query params filter the result set: `type` (spot|futures), `exchange`, `symbol`, `minimumVolume`, `minimumPrice`, `maximumPrice`, `up` (gainers ≥ X%), `down` (losers ≥ X%). ($0.05 USDC on Solana mainnet)\n",
+        "summary": "Multi-exchange perpetual tickers",
+        "description": "Returns the cross-exchange **perpetual futures** ticker set from one server-side cache: `data.futures.data` is an array of `Ticker` objects (Binance-style 24h fields, numeric values as decimal strings), where `source`/`sources` name the venues that list each market and `volumeByExchange` splits its volume by venue. Use it to screen markets in one paid call instead of calling each venue. Every filter is optional; a missing, non-numeric or out-of-range value is ignored rather than rejected. `health` returns the cache's health record instead of tickers. ($0.05 USDC on Solana mainnet)\n",
         "parameters": [
           {
             "name": "type",
             "in": "query",
-            "description": "Market type filter",
+            "description": "Market type. Only `futures` is served; any other value is ignored and futures are returned.",
             "schema": {
               "type": "string",
-              "enum": [
-                "futures",
-                "spot"
-              ]
+              "example": "futures"
             }
           },
           {
             "name": "symbol",
             "in": "query",
-            "description": "Exact symbol match",
+            "description": "Exact symbol match (upper-cased before comparing).",
             "schema": {
               "type": "string",
               "example": "BTCUSDT"
             }
           },
           {
+            "name": "exchange",
+            "in": "query",
+            "description": "Keep only markets listed on this venue (matched against `source` and `sources`, case-insensitive).",
+            "schema": {
+              "type": "string",
+              "example": "binance"
+            }
+          },
+          {
             "name": "minimumVolume",
             "in": "query",
-            "description": "Minimum 24h volume in USD",
+            "description": "Minimum 24h quote volume in USD (`quoteVolume`).",
             "schema": {
-              "type": "integer",
+              "type": "number",
+              "minimum": 0,
               "example": 10000000
+            }
+          },
+          {
+            "name": "minimumPrice",
+            "in": "query",
+            "description": "Minimum `lastPrice`. Swapped with `maximumPrice` if it is the larger of the two.",
+            "schema": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "maximumPrice",
+            "in": "query",
+            "description": "Maximum `lastPrice`.",
+            "schema": {
+              "type": "number",
+              "minimum": 0
             }
           },
           {
             "name": "up",
             "in": "query",
-            "description": "Filter markets up by at least X%",
+            "description": "Keep markets whose 24h `priceChangePercent` is at least this value.",
             "schema": {
-              "type": "number"
+              "type": "number",
+              "minimum": -100,
+              "maximum": 10000
             }
           },
           {
             "name": "down",
             "in": "query",
-            "description": "Filter markets down by at least X%",
+            "description": "Keep markets down at least this many percent over 24h.",
             "schema": {
-              "type": "number"
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
             }
           },
           {
-            "name": "exchange",
+            "name": "health",
             "in": "query",
-            "description": "Filter by specific exchange",
+            "description": "Any value: return `data` = `{status, redis, lastError, lastSuccessfulFetch, timeSinceLastFetch}` (the ticker cache's health) instead of tickers.",
             "schema": {
-              "type": "string",
-              "example": "binance"
+              "type": "string"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Ticker data",
+            "description": "Perpetual tickers",
             "content": {
               "application/json": {
                 "schema": {
@@ -214,30 +242,50 @@
                     "data": {
                       "type": "object",
                       "properties": {
-                        "spot": {
-                          "type": "object"
-                        },
                         "futures": {
-                          "type": "object"
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/Ticker"
+                              }
+                            }
+                          }
                         }
                       }
+                    },
+                    "timestamp": {
+                      "type": "integer"
                     },
                     "cached": {
                       "type": "boolean"
                     },
-                    "timestamp": {
-                      "type": "integer"
+                    "cacheInfo": {
+                      "type": "object",
+                      "properties": {
+                        "futures": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "warning": {
+                      "type": "string",
+                      "description": "Optional advisory about the cache's state"
                     }
                   }
                 }
               }
             }
           },
-          "401": {
-            "description": "Unauthorized"
-          },
           "402": {
             "description": "Payment required (x402)"
+          },
+          "429": {
+            "description": "Rate limit exceeded \u2014 retry after `Retry-After` seconds"
+          },
+          "500": {
+            "description": "Unexpected server error"
           }
         },
         "tags": [
@@ -248,16 +296,34 @@
     "/api/v1/markets/funding-rates": {
       "get": {
         "operationId": "getFundingRates",
-        "summary": "Perpetual funding rates",
-        "description": "Returns an array of perpetual-futures funding entries (`exchange`, `symbol`, `fundingRate`, `intervalHours`, `hourlyRate`, `dailyRoi`, `nextFundingTime`) live across major perp venues. Use to spot funding-rate arbitrage between venues, monitor extreme rates that signal crowded positioning, or rank perps by funding cost. Filter by `symbol`. ($0.05 USDC on Solana mainnet)\n\n**Comparing venues:** `fundingRate` is each venue's NATIVE per-interval rate, and that interval differs per MARKET — not merely per exchange. A single venue commonly runs 1h, 4h and 8h markets side by side, so raw `fundingRate` values are not comparable across rows. Use `hourlyRate` (rate normalized to a 1-hour basis) for any cross-venue comparison, and `dailyRoi` (`hourlyRate` x 24) for a rough 24h projection.\n\n`hourlyRate` and `dailyRoi` are **omitted** when the market's settlement interval could not be established, rather than being estimated from a default. Check `intervalSource` to distinguish a confirmed interval from an unknown one.\n",
+        "summary": "Fetch perpetual funding rates across venues",
+        "description": "Returns an array of perpetual-futures funding entries (`exchange`, `symbol`, `fundingRate`, `intervalHours`, `hourlyRate`, `dailyRoi`, `nextFundingTime`) live across major perp venues. Use to spot funding-rate arbitrage between venues, monitor extreme rates that signal crowded positioning, or rank perps by funding cost. Optional filters: `symbol`, `exchange` and `arb`. A top-level `error` string lists venues that failed during the refresh, when any did. ($0.05 USDC on Solana mainnet)\n\n**Comparing venues:** `fundingRate` is each venue's NATIVE per-interval rate, and that interval differs per MARKET \u2014 not merely per exchange. A single venue commonly runs 1h, 4h and 8h markets side by side, so raw `fundingRate` values are not comparable across rows. Use `hourlyRate` (rate normalized to a 1-hour basis) for any cross-venue comparison, and `dailyRoi` (`hourlyRate` x 24) for a rough 24h projection.\n\n`hourlyRate` and `dailyRoi` are **omitted** when the market's settlement interval could not be established, rather than being estimated from a default. `intervalSource` is always present and is `unknown` in exactly that case.\n",
         "parameters": [
           {
             "name": "symbol",
             "in": "query",
-            "description": "Filter by symbol",
+            "description": "Only this symbol. Also widens the query to venues that have no bulk funding endpoint, which are skipped when no symbol is given; rows are then sorted by exchange.",
             "schema": {
               "type": "string",
               "example": "BTCUSDT"
+            }
+          },
+          {
+            "name": "exchange",
+            "in": "query",
+            "description": "Comma-separated venue ids to keep (case-insensitive).",
+            "schema": {
+              "type": "string",
+              "example": "binance,bybit"
+            }
+          },
+          {
+            "name": "arb",
+            "in": "query",
+            "description": "Return only the N highest and N lowest `fundingRate` rows, sorted by `fundingRate` descending.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
             }
           }
         ],
@@ -283,17 +349,24 @@
                     },
                     "timestamp": {
                       "type": "integer"
+                    },
+                    "error": {
+                      "type": "string",
+                      "description": "Present when some venues failed during the refresh"
                     }
                   }
                 }
               }
             }
           },
-          "401": {
-            "description": "Unauthorized"
-          },
           "402": {
             "description": "Payment required (x402)"
+          },
+          "429": {
+            "description": "Rate limit exceeded \u2014 retry after `Retry-After` seconds"
+          },
+          "500": {
+            "description": "Unexpected server error"
           }
         },
         "tags": [
@@ -304,8 +377,19 @@
     "/api/v1/markets/open-interest": {
       "get": {
         "operationId": "getOpenInterest",
-        "summary": "Open interest across exchanges",
-        "description": "Returns the latest open-interest snapshot for Binance crypto perpetuals — array of `{symbol, openInterest, openInterestValue (USD)}` plus a `marketsCount` and `timestamp`. Use to detect OI build-up that often precedes price moves and spot liquidation cascades. ($0.05 USDC on Solana mainnet)\n",
+        "summary": "Open interest by market, from one venue",
+        "description": "Returns the latest open-interest snapshot from one venue \u2014 chosen by `source`, default `bybit` \u2014 for the Binance perpetual markets that venue also lists, sorted by 24h volume: `{data: [{symbol, openInterest, openInterestUsd, price, volumeUsd, timestamp}], timestamp, source}`. Numeric values are decimal strings. The snapshot is cached for 5 minutes. Use to detect open-interest build-up that often precedes price moves. ($0.05 USDC on Solana mainnet)\n",
+        "parameters": [
+          {
+            "name": "source",
+            "in": "query",
+            "description": "Venue to read open interest from. An unsupported value falls back to `bybit`.",
+            "schema": {
+              "type": "string",
+              "example": "bybit"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Open interest data",
@@ -326,19 +410,23 @@
                     "timestamp": {
                       "type": "integer"
                     },
-                    "marketsCount": {
-                      "type": "integer"
+                    "source": {
+                      "type": "string",
+                      "description": "The venue the open interest came from"
                     }
                   }
                 }
               }
             }
           },
-          "401": {
-            "description": "Unauthorized"
-          },
           "402": {
             "description": "Payment required (x402)"
+          },
+          "429": {
+            "description": "Rate limit exceeded \u2014 retry after `Retry-After` seconds"
+          },
+          "500": {
+            "description": "Unexpected error, or the snapshot could not be fetched on a cold cache"
           }
         },
         "tags": [
@@ -349,8 +437,8 @@
     "/api/v1/markets/listings": {
       "get": {
         "operationId": "getNewListings",
-        "summary": "New token listings",
-        "description": "Returns the latest \"new listings\" delta — `{data: {newListings: ProcessedTickerData[], totalCount, previousCount}, timestamp, cached}`. Pulls the live spot+perp ticker set from the hybrid market cache, diffs it against a rolling 24h known-symbols set, and returns the tokens that newly appeared. Server caches the result for 1h so concurrent agents see a stable answer; the rolling known-set then advances and the next GET produces the next delta. POST exists for clients with their own ticker source (submit `{ tickers: ProcessedTickerData[] }` to diff against the same known set). ($0.05 USDC on Solana mainnet)\n",
+        "summary": "New perpetual listings",
+        "description": "Returns the latest new-listings delta for **perpetual futures**: the cross-exchange futures ticker set is diffed against a rolling 24h set of known symbols, and markets that newly appeared are returned as `Ticker` objects. The result is cached for 1 hour, so concurrent callers see a stable answer; after that the known set advances and the next call produces the next delta.\n\nThe payload is nested one level deeper than most endpoints: `data.data` holds `{newListings, totalCount, previousCount}`, `data.timestamp` is when the snapshot was computed and `data.cached` whether it came from the 1-hour cache. The outer `timestamp` is the response time and the outer `cached` is always `false`.\n\nPOST exists for clients with their own ticker source: submit `{ tickers }` to diff against the same known set. ($0.05 USDC on Solana mainnet)\n",
         "responses": {
           "200": {
             "description": "New listings",
@@ -365,40 +453,56 @@
                     "data": {
                       "type": "object",
                       "properties": {
-                        "newListings": {
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/Ticker"
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "newListings": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/Ticker"
+                              }
+                            },
+                            "totalCount": {
+                              "type": "integer",
+                              "description": "Futures symbols currently tracked"
+                            },
+                            "previousCount": {
+                              "type": "integer",
+                              "description": "Size of the known-symbols set before this snapshot"
+                            }
                           }
                         },
-                        "totalCount": {
+                        "timestamp": {
                           "type": "integer",
-                          "description": "Total symbols currently tracked (spot + perp)"
+                          "description": "Epoch ms when the snapshot was computed"
                         },
-                        "previousCount": {
-                          "type": "integer",
-                          "description": "Size of the known-symbols set before this snapshot"
+                        "cached": {
+                          "type": "boolean",
+                          "description": "True if served from the 1-hour snapshot cache"
                         }
                       }
                     },
                     "timestamp": {
                       "type": "integer",
-                      "description": "Epoch ms when the snapshot was computed"
+                      "description": "Epoch ms of the response"
                     },
                     "cached": {
                       "type": "boolean",
-                      "description": "True if served from the 1h snapshot cache, false on fresh compute"
+                      "description": "Always false; see data.cached"
                     }
                   }
                 }
               }
             }
           },
-          "401": {
-            "description": "Unauthorized"
-          },
           "402": {
             "description": "Payment required (x402)"
+          },
+          "429": {
+            "description": "Rate limit exceeded \u2014 retry after `Retry-After` seconds"
+          },
+          "500": {
+            "description": "Unexpected server error"
           }
         },
         "tags": [
@@ -410,12 +514,12 @@
       "get": {
         "operationId": "getVolumeSnapshot",
         "summary": "Cross-exchange volume snapshot",
-        "description": "Returns an array of `{exchange, volume24h (USD), pairCount}` plus a snapshot `timestamp` for cross-exchange 24-hour volume comparison. Use to rank exchanges by liquidity, detect volume migration between venues, or feed market-share dashboards. Filter by `exchange`. ($0.05 USDC on Solana mainnet)\n",
+        "description": "Returns one entry per perpetual venue with its 24h snapshot: `{exchange, displayName, chain, timestamp, totalVolume24h, totalOpenInterest, tvl?, markets[{symbol, volume24h, openInterest?, price, fundingRate?, priceChange24h?}], status, error?}`. Only venues whose fetch succeeded are included. Cached for 60 seconds; when served from cache, `timestamp` is the last update. An optional top-level `error` string reports a degraded refresh. Use to rank venues by liquidity or track volume moving between them. Filter by `exchange`. ($0.05 USDC on Solana mainnet)\n",
         "parameters": [
           {
             "name": "exchange",
             "in": "query",
-            "description": "Filter by a specific exchange",
+            "description": "Only this venue (exact id, case-insensitive)",
             "schema": {
               "type": "string"
             }
@@ -435,7 +539,62 @@
                     "data": {
                       "type": "array",
                       "items": {
-                        "type": "object"
+                        "type": "object",
+                        "properties": {
+                          "exchange": {
+                            "type": "string"
+                          },
+                          "displayName": {
+                            "type": "string"
+                          },
+                          "chain": {
+                            "type": "string"
+                          },
+                          "timestamp": {
+                            "type": "integer"
+                          },
+                          "totalVolume24h": {
+                            "type": "number"
+                          },
+                          "totalOpenInterest": {
+                            "type": "number"
+                          },
+                          "tvl": {
+                            "type": "number"
+                          },
+                          "markets": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "symbol": {
+                                  "type": "string"
+                                },
+                                "volume24h": {
+                                  "type": "number"
+                                },
+                                "openInterest": {
+                                  "type": "number"
+                                },
+                                "price": {
+                                  "type": "number"
+                                },
+                                "fundingRate": {
+                                  "type": "number"
+                                },
+                                "priceChange24h": {
+                                  "type": "number"
+                                }
+                              }
+                            }
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "error": {
+                            "type": "string"
+                          }
+                        }
                       }
                     },
                     "cached": {
@@ -443,17 +602,24 @@
                     },
                     "timestamp": {
                       "type": "integer"
+                    },
+                    "error": {
+                      "type": "string",
+                      "description": "Present when the refresh was degraded"
                     }
                   }
                 }
               }
             }
           },
-          "401": {
-            "description": "Unauthorized"
-          },
           "402": {
             "description": "Payment required (x402)"
+          },
+          "429": {
+            "description": "Rate limit exceeded \u2014 retry after `Retry-After` seconds"
+          },
+          "500": {
+            "description": "Unexpected server error"
           }
         },
         "tags": [
@@ -464,11 +630,11 @@
     "/api/v1/markets/swap-volume": {
       "get": {
         "operationId": "getSwapVolume",
-        "summary": "DEX swap volume history",
-        "description": "Returns historical daily DEX swap volume — an array of `{date, totalVolume (USD), perChainVolumes}` entries. Use to track on-chain trading activity over time and identify chains gaining DEX share. ($0.05 USDC on Solana mainnet)\n",
+        "summary": "Daily cross-venue volume history",
+        "description": "Returns up to 30 daily entries `{date, volume, timestamp}`. `volume` is the day's peak of the summed 24h volume (USD) across the venues in `/api/v1/markets/volume-snapshot` \u2014 perpetual venues, not DEX swaps, despite the route name. `data` is empty until history has been recorded. ($0.05 USDC on Solana mainnet)\n",
         "responses": {
           "200": {
-            "description": "Swap volume history",
+            "description": "Daily volume history",
             "content": {
               "application/json": {
                 "schema": {
@@ -499,11 +665,14 @@
               }
             }
           },
-          "401": {
-            "description": "Unauthorized"
-          },
           "402": {
             "description": "Payment required (x402)"
+          },
+          "429": {
+            "description": "Rate limit exceeded \u2014 retry after `Retry-After` seconds"
+          },
+          "500": {
+            "description": "Unexpected server error"
           }
         },
         "tags": [
@@ -514,11 +683,11 @@
     "/api/v1/markets/symbol-venues": {
       "get": {
         "operationId": "getSymbolVenues",
-        "summary": "Cross-exchange symbol listings index",
-        "description": "Returns which venues list each symbol: `data.symbolVenues` maps an upper-cased symbol to the sorted venue ids that offer a market for it. This is a listings index (does a venue offer the market), not a price aggregate — use it to find where a symbol trades before calling a venue-specific endpoint. Rebuilt at most once every 24 hours; `data.updatedAt` is the build time (epoch ms), `data.venueCount` the number of venues that contributed at least one symbol, and `cached` whether the call was served from that cache. ($0.05 USDC on Solana mainnet)\n",
+        "summary": "List which exchanges quote a given symbol",
+        "description": "Returns which venues list each symbol: `data.symbolVenues` maps an upper-cased symbol to the sorted venue ids that offer a market for it. This is a listings index (does a venue offer the market), not a price aggregate \u2014 use it to find where a symbol trades before calling a venue-specific endpoint. Served from a 24-hour cache; `data.updatedAt` is the build time (epoch ms), `data.venueCount` the number of venues that contributed at least one symbol, and `cached` whether the call was served from that cache. ($0.05 USDC on Solana mainnet)\n",
         "responses": {
           "200": {
-            "description": "Symbol → venue membership map",
+            "description": "Symbol \u2192 venue membership map",
             "content": {
               "application/json": {
                 "schema": {
@@ -559,11 +728,14 @@
               }
             }
           },
-          "401": {
-            "description": "Unauthorized"
-          },
           "402": {
             "description": "Payment required (x402)"
+          },
+          "429": {
+            "description": "Rate limit exceeded \u2014 retry after `Retry-After` seconds"
+          },
+          "500": {
+            "description": "Unexpected server error"
           }
         },
         "tags": [
@@ -575,12 +747,13 @@
       "get": {
         "operationId": "runTTCScanner",
         "summary": "Tetrac technical scanner",
-        "description": "Runs a multi-timeframe Quadrant-lines technical scan for one symbol. Returns `{price, scans (per-timeframe scan results), scoring (bull/bear strength), signal: {direction (LONG|SHORT|NEUTRAL), strength, confidence (HIGH|MEDIUM|LOW), entry, stoploss, takeProfits[]}}`. Use as a one-call signal generator for a specific symbol/timeframe — entry, stop, and up to three TPs derived from the same fan structure. ($0.05 USDC on Solana mainnet)\n",
+        "description": "Runs a multi-timeframe Quadrant-lines technical scan for one symbol. Returns `{params: {symbol, timeframe, bars, swingStrength}, data: {symbol, price, scans, scoring, signal, breakout}}`: `scans` holds the per-timeframe scan results, `scoring` the long/short fan-line scores, `signal` the trade signal (`direction` LONG|SHORT|NEUTRAL, `strength`, `confidence`, `entry`, `stopLoss`, `takeProfit1..3`, `riskRewardRatio`, `reasoning`; the levels are `null` when no trade is signalled) and `breakout` a volatility-squeeze breakout read. Use as a one-call signal generator for one symbol and timeframe. ($0.05 USDC on Solana mainnet)\n",
         "parameters": [
           {
             "name": "symbol",
             "in": "query",
             "required": true,
+            "description": "Market symbol",
             "schema": {
               "type": "string",
               "example": "BTCUSDT"
@@ -589,27 +762,17 @@
           {
             "name": "timeframe",
             "in": "query",
+            "description": "Kline interval, e.g. 1m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 12h, 1d, 1w. The value is passed to the exchange as-is; an unsupported one returns 500.",
             "schema": {
               "type": "string",
               "default": "1h",
-              "enum": [
-                "1m",
-                "5m",
-                "15m",
-                "30m",
-                "1h",
-                "2h",
-                "4h",
-                "6h",
-                "12h",
-                "1d",
-                "1w"
-              ]
+              "example": "1h"
             }
           },
           {
             "name": "bars",
             "in": "query",
+            "description": "Number of historical bars to analyze. Defaults to 1000 (the maximum); fewer than 50 bars of history returns 500.",
             "schema": {
               "type": "integer",
               "default": 1000,
@@ -619,6 +782,7 @@
           {
             "name": "swingStrength",
             "in": "query",
+            "description": "Pivot sensitivity in bars; higher values report only larger swings. Defaults to 10.",
             "schema": {
               "type": "integer",
               "default": 10
@@ -640,7 +804,21 @@
                       "type": "integer"
                     },
                     "params": {
-                      "type": "object"
+                      "type": "object",
+                      "properties": {
+                        "symbol": {
+                          "type": "string"
+                        },
+                        "timeframe": {
+                          "type": "string"
+                        },
+                        "bars": {
+                          "type": "integer"
+                        },
+                        "swingStrength": {
+                          "type": "integer"
+                        }
+                      }
                     },
                     "data": {
                       "type": "object",
@@ -651,8 +829,22 @@
                         "price": {
                           "type": "number"
                         },
+                        "scans": {
+                          "type": "array",
+                          "description": "One scan per timeframe: pivot, fan angles, zone, momentum and per-side risk/reward",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "scoring": {
+                          "type": "object",
+                          "description": "Long and short fan-line scores, the pivots they are measured from, and `preferredDirection`"
+                        },
                         "signal": {
                           "$ref": "#/components/schemas/ScannerSignal"
+                        },
+                        "breakout": {
+                          "$ref": "#/components/schemas/BreakoutSignal"
                         }
                       }
                     }
@@ -664,11 +856,14 @@
           "400": {
             "description": "Missing symbol"
           },
-          "401": {
-            "description": "Unauthorized"
-          },
           "402": {
             "description": "Payment required (x402)"
+          },
+          "429": {
+            "description": "Rate limit exceeded \u2014 retry after `Retry-After` seconds"
+          },
+          "500": {
+            "description": "Unexpected error, an unsupported timeframe, or fewer than 50 bars of history"
           }
         },
         "tags": [
@@ -679,11 +874,22 @@
     "/api/v1/markets/ttc-scanner-cache": {
       "get": {
         "operationId": "getTTCScannerCache",
-        "summary": "Tetrac scanner — full-market signal snapshot",
-        "description": "Returns the latest CACHED technical-analysis signals for every scanned market in one call (no params). Each entry carries the same `signal` payload as the per-symbol scanner. Use as a one-call market-wide signal feed; the snapshot refreshes at most hourly. ($0.50 USDC on Solana mainnet)\n",
+        "summary": "Tetrac scanner \u2014 full-market signal snapshot",
+        "description": "The latest cached technical-analysis signals for every scanned market. Without parameters it returns only the snapshot's freshness \u2014 `generatedAt` and `staleAtMs` (epoch ms; `generatedAt` is `null` before the first sweep) \u2014 so a client can check age before fetching. `?full=1` returns the snapshot itself: `data: {generatedAt, universe, symbols[{symbol, quoteVolume, signal, breakout}], meta: {universeSize, scanned, skipped, durationMs, submitted?, dropped?}}`. Both modes are priced the same, so pass `full=1` to receive the signals.\n\nThe snapshot counts as stale 55 minutes after `generatedAt` (`staleAtMs`). Refreshes are triggered by client POSTs, not by a server schedule. ($0.50 USDC on Solana mainnet)\n",
+        "parameters": [
+          {
+            "name": "full",
+            "in": "query",
+            "description": "`1` returns the full snapshot in `data`; omit it for the freshness fields only.",
+            "schema": {
+              "type": "string",
+              "example": "1"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Full cached snapshot of per-market signals",
+            "description": "Snapshot freshness, or the full snapshot with ?full=1",
             "content": {
               "application/json": {
                 "schema": {
@@ -695,6 +901,11 @@
                     "timestamp": {
                       "type": "integer"
                     },
+                    "generatedAt": {
+                      "type": "integer",
+                      "nullable": true,
+                      "description": "Without full=1: epoch ms of the last sweep, null if none"
+                    },
                     "staleAtMs": {
                       "type": "integer",
                       "nullable": true,
@@ -702,6 +913,7 @@
                     },
                     "data": {
                       "type": "object",
+                      "description": "Only with full=1",
                       "properties": {
                         "generatedAt": {
                           "type": "integer",
@@ -724,7 +936,33 @@
                               },
                               "signal": {
                                 "$ref": "#/components/schemas/ScannerSignal"
+                              },
+                              "breakout": {
+                                "$ref": "#/components/schemas/BreakoutSignal"
                               }
+                            }
+                          }
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "universeSize": {
+                              "type": "integer"
+                            },
+                            "scanned": {
+                              "type": "integer"
+                            },
+                            "skipped": {
+                              "type": "integer"
+                            },
+                            "durationMs": {
+                              "type": "integer"
+                            },
+                            "submitted": {
+                              "type": "integer"
+                            },
+                            "dropped": {
+                              "type": "integer"
                             }
                           }
                         }
@@ -735,11 +973,14 @@
               }
             }
           },
-          "401": {
-            "description": "Unauthorized"
-          },
           "402": {
             "description": "Payment required (x402)"
+          },
+          "429": {
+            "description": "Rate limit exceeded \u2014 retry after `Retry-After` seconds"
+          },
+          "500": {
+            "description": "Unexpected server error"
           }
         },
         "tags": [
@@ -750,8 +991,8 @@
     "/api/v1/markets/news": {
       "get": {
         "operationId": "getCryptoNews",
-        "summary": "Aggregated crypto news",
-        "description": "Returns a market-impact news feed — array of `{title, summary, source, url, publishedAt, sentiment, marketImpact}` entries aggregated from major crypto and macro outlets. Use to detect market-moving headlines or as feature input for sentiment-aware strategies. ($0.05 USDC on Solana mainnet)\n",
+        "summary": "Market news feed",
+        "description": "Returns up to 10 recent news items from the Alpha Vantage NEWS_SENTIMENT feed (topics: technology, IPO, earnings, financial markets), cached for 5 minutes: `items: [{title, url, time_published, summary, source, impact_score, sentiment}]`. `time_published` uses Alpha Vantage's `YYYYMMDDTHHMMSS` format; `impact_score` is the item's overall sentiment score \u00d7 100 (signed). ($0.05 USDC on Solana mainnet)\n",
         "responses": {
           "200": {
             "description": "News feed",
@@ -777,11 +1018,14 @@
               }
             }
           },
-          "401": {
-            "description": "Unauthorized"
-          },
           "402": {
             "description": "Payment required (x402)"
+          },
+          "429": {
+            "description": "Rate limit exceeded \u2014 retry after `Retry-After` seconds"
+          },
+          "500": {
+            "description": "Unexpected server error"
           }
         },
         "tags": [
@@ -792,43 +1036,11 @@
     "/api/v1/markets/insights": {
       "get": {
         "operationId": "getMarketInsights",
-        "summary": "AI-powered market insights",
-        "description": "Vector-similarity ticker search plus an LLM-generated market analysis for the given query.\nReturns:\n  - `insights` — natural-language analysis (`summary`, `analysis`, or `report` depending on `type`).\n  - `tickers` — up to `limit` Binance spot pairs (volume ≥ $1M) ranked by semantic similarity to `query`,\n    each enriched with the live ticker fields plus a one-line `description`.\n($0.05 USDC on Solana mainnet)\n",
-        "parameters": [
-          {
-            "name": "query",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "BTC outlook"
-            }
-          },
-          {
-            "name": "type",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "default": "summary",
-              "enum": [
-                "summary",
-                "analysis",
-                "report"
-              ]
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "default": 10
-            }
-          }
-        ],
+        "summary": "Momentum screener with funding context",
+        "description": "Returns the cross-exchange perpetual tickers with 24h quote volume \u2265 $1M and 24h price change \u2265 1% \u2014 full `Ticker` objects, each with an optional `fundingArb` list of `\"exchange: rate%\"` strings \u2014 plus `tickersCount` and `fundingArbCount`. No query parameters are read. `data.cached.futures` reports whether the ticker set came from cache; the top-level `cached` is always `false`. ($0.05 USDC on Solana mainnet)\n",
         "responses": {
           "200": {
-            "description": "Market insights",
+            "description": "Screened tickers",
             "content": {
               "application/json": {
                 "schema": {
@@ -840,35 +1052,67 @@
                     "data": {
                       "type": "object",
                       "properties": {
-                        "query": {
-                          "type": "string"
-                        },
-                        "insights": {
-                          "type": "string",
-                          "description": "LLM-generated analysis text"
-                        },
                         "tickers": {
                           "type": "array",
-                          "description": "Ranked similar tickers (Binance spot, volume ≥ $1M) with a one-line description",
                           "items": {
-                            "type": "object"
+                            "allOf": [
+                              {
+                                "$ref": "#/components/schemas/Ticker"
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "fundingArb": {
+                                    "type": "array",
+                                    "description": "\"exchange: rate%\" entries",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        "tickersCount": {
+                          "type": "integer"
+                        },
+                        "fundingArbCount": {
+                          "type": "integer"
+                        },
+                        "cached": {
+                          "type": "object",
+                          "properties": {
+                            "futures": {
+                              "type": "boolean"
+                            }
                           }
                         },
                         "timestamp": {
                           "type": "integer"
                         }
                       }
+                    },
+                    "timestamp": {
+                      "type": "integer"
+                    },
+                    "cached": {
+                      "type": "boolean",
+                      "description": "Always false; see data.cached"
                     }
                   }
                 }
               }
             }
           },
-          "401": {
-            "description": "Unauthorized"
-          },
           "402": {
             "description": "Payment required (x402)"
+          },
+          "429": {
+            "description": "Rate limit exceeded \u2014 retry after `Retry-After` seconds"
+          },
+          "500": {
+            "description": "Unexpected server error"
           }
         },
         "tags": [
@@ -879,20 +1123,22 @@
     "/api/v1/markets/calendar": {
       "get": {
         "operationId": "getEconomicCalendar",
-        "summary": "Crypto & macro economic calendar",
-        "description": "Returns a filtered economic calendar — `{events: [{title, date, country, impact (high|medium|low), source, ...}], fromCache}`. Covers macro releases that move crypto (FOMC, CPI prints, NFP, ECB) plus crypto-specific events. Use to schedule strategy windows around high-impact macro events or pause trading bots ahead of releases. Filter by `impact` and `country`. ($0.05 USDC on Solana mainnet)\n",
+        "summary": "Economic calendar",
+        "description": "Medium- and high-impact macro-economic events for this week and next \u2014 central-bank rate decisions, FOMC, CPI, NFP, GDP and more \u2014 from the Forex Factory calendar, sourced via x402node and cached for 24 hours: `data: {events: [CalendarEvent], source, fromCache, fetchedAt, expiresAt, ageSeconds, truncated}`. Events are keyed by the currency they move and include forecast, previous and (once released) actual values as published. Filters: `currency` (comma-separated codes; `country` is accepted as an alias), `impact` (exact level), `search` (case-insensitive substring of `event`) and `from`/`to` (UTC dates, inclusive). ($0.05 USDC on Solana mainnet)\n",
         "parameters": [
           {
-            "name": "country",
+            "name": "currency",
             "in": "query",
+            "description": "Comma-separated currency codes to keep (case-insensitive)",
             "schema": {
               "type": "string",
-              "example": "US"
+              "example": "USD,EUR"
             }
           },
           {
             "name": "impact",
             "in": "query",
+            "description": "Exact impact level (case-insensitive)",
             "schema": {
               "type": "string",
               "enum": [
@@ -905,6 +1151,7 @@
           {
             "name": "search",
             "in": "query",
+            "description": "Case-insensitive substring of `event`",
             "schema": {
               "type": "string",
               "example": "CPI"
@@ -913,19 +1160,21 @@
           {
             "name": "from",
             "in": "query",
+            "description": "Earliest UTC date, inclusive",
             "schema": {
               "type": "string",
               "format": "date",
-              "example": "2026-03-01"
+              "example": "2026-10-01"
             }
           },
           {
             "name": "to",
             "in": "query",
+            "description": "Latest UTC date, inclusive",
             "schema": {
               "type": "string",
               "format": "date",
-              "example": "2026-03-31"
+              "example": "2026-10-09"
             }
           }
         ],
@@ -949,8 +1198,98 @@
                             "$ref": "#/components/schemas/CalendarEvent"
                           }
                         },
+                        "source": {
+                          "type": "string",
+                          "example": "x402node"
+                        },
                         "fromCache": {
-                          "type": "boolean"
+                          "type": "boolean",
+                          "description": "True when served from the 24-hour snapshot"
+                        },
+                        "fetchedAt": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "Epoch ms the snapshot was fetched"
+                        },
+                        "expiresAt": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "Epoch ms the 24-hour snapshot expires"
+                        },
+                        "ageSeconds": {
+                          "type": "integer",
+                          "description": "Snapshot age at response time"
+                        },
+                        "truncated": {
+                          "type": "boolean",
+                          "description": "True when the provider returned its full page, so more events may exist"
+                        }
+                      }
+                    },
+                    "timestamp": {
+                      "type": "integer"
+                    },
+                    "cached": {
+                      "type": "boolean",
+                      "description": "Same as data.fromCache"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402)"
+          },
+          "429": {
+            "description": "Rate limit exceeded \u2014 retry after `Retry-After` seconds"
+          },
+          "500": {
+            "description": "Unexpected error, or the calendar provider could not be paid or reached"
+          }
+        },
+        "tags": [
+          "Market Intelligence"
+        ]
+      }
+    },
+    "/api/v1/markets/quakes": {
+      "get": {
+        "operationId": "getMarketQuakes",
+        "summary": "Significant earthquakes (USGS feed)",
+        "description": "Returns the USGS \"significant earthquakes, past day\" GeoJSON feed unchanged: `data: {type, metadata, features[], bbox?}`, where each feature carries USGS `properties` (`mag`, `place`, `time`, `tsunami`, `sig`, \u2026), `geometry` and `id`. It contains no market data. `timestamp` is when the server cached the feed, which can be older than the request. ($0.05 USDC on Solana mainnet)\n",
+        "responses": {
+          "200": {
+            "description": "USGS significant-earthquake feed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "FeatureCollection"
+                        },
+                        "metadata": {
+                          "type": "object"
+                        },
+                        "features": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "bbox": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          }
                         }
                       }
                     },
@@ -962,50 +1301,14 @@
               }
             }
           },
-          "401": {
-            "description": "Unauthorized"
-          },
           "402": {
             "description": "Payment required (x402)"
-          }
-        },
-        "tags": [
-          "Market Intelligence"
-        ]
-      }
-    },
-    "/api/v1/markets/quakes": {
-      "get": {
-        "operationId": "getMarketQuakes",
-        "summary": "Market quake detector",
-        "description": "Returns a GeoJSON `FeatureCollection` of \"market quake\" events — sudden abnormal volume + price spikes detected across exchanges. Each feature carries `{symbol, exchange, magnitude, type (spike|dump), timestamp, geometry}`. Use as a real-time alert stream for unusual market activity. ($0.05 USDC on Solana mainnet)\n",
-        "responses": {
-          "200": {
-            "description": "Market quake events",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "data": {
-                      "type": "object"
-                    },
-                    "timestamp": {
-                      "type": "integer"
-                    }
-                  }
-                }
-              }
-            }
           },
-          "401": {
-            "description": "Unauthorized"
+          "429": {
+            "description": "Rate limit exceeded \u2014 retry after `Retry-After` seconds"
           },
-          "402": {
-            "description": "Payment required (x402)"
+          "500": {
+            "description": "Unexpected server error"
           }
         },
         "tags": [
@@ -1016,8 +1319,8 @@
     "/api/v1/solana-perps/long-short": {
       "get": {
         "operationId": "getSolanaPerpsLongShort",
-        "summary": "Solana perp long/short open-interest snapshot",
-        "description": "Open-interest snapshot across Solana perpetual venues, collected server-side in one pass. `rows` holds venues that publish a genuine long-vs-short split (`{venue, symbol, longUsd, shortUsd, longPositions, shortPositions}` — the position counts are `null` when a venue publishes none); `totals` holds venues that publish combined open interest only (`{venue, symbol, totalUsd}`); `venueStatus` maps each venue id to `ok` or `error`, so a degraded source is visible instead of silently missing. `fetchedAt` is the ISO collection time. ($0.05 USDC on Solana mainnet)\n",
+        "summary": "Fetch Solana perp long/short OI ratios",
+        "description": "Open-interest snapshot across Solana perpetual venues, collected server-side in one pass. `rows` holds venues that publish a genuine long-vs-short split (`{venue, symbol, longUsd, shortUsd, longPositions, shortPositions}` \u2014 the position counts are `null` whenever a venue publishes none, which is currently every venue); `totals` holds venues that publish combined open interest only (`{venue, symbol, totalUsd}`); `venueStatus` maps each venue id to `ok` or `error`, so a degraded source is visible instead of silently missing. `fetchedAt` is when the snapshot was assembled; the per-venue data behind it can be up to a minute older. ($0.05 USDC on Solana mainnet)\n",
         "parameters": [
           {
             "name": "venues",
@@ -1102,11 +1405,14 @@
               }
             }
           },
-          "401": {
-            "description": "Unauthorized"
-          },
           "402": {
             "description": "Payment required (x402)"
+          },
+          "429": {
+            "description": "Rate limit exceeded \u2014 retry after `Retry-After` seconds"
+          },
+          "500": {
+            "description": "Snapshot collection failed"
           }
         },
         "tags": [
@@ -1117,14 +1423,14 @@
     "/api/v1/solana-perps/pacifica-watchlist": {
       "get": {
         "operationId": "getPacificaWatchlist",
-        "summary": "Pacifica top open-interest account watchlist",
-        "description": "Returns the top Pacifica trader accounts ranked by current open-interest notional, trimmed to `{address, label, oiUsd}` each, plus `totalRanked` (accounts on the upstream leaderboard) and `fetchedAt`. `label` is `null` when the trader has enabled privacy mode. Built for subscribing to those accounts on Pacifica's public WebSocket — this endpoint is address discovery only and carries no trade events itself. Refreshed at most every 5 minutes. ($0.05 USDC on Solana mainnet)\n",
+        "summary": "List Pacifica top open-interest accounts",
+        "description": "Returns the top Pacifica trader accounts ranked by current open-interest notional, trimmed to `{address, label, oiUsd}` each, plus `totalRanked` (accounts on the upstream leaderboard) and `fetchedAt`. `label` is `null` when the trader set no username or enabled privacy mode. Accounts with no open interest are left out, so `accounts` can be shorter than `limit`. Built for subscribing to those accounts on Pacifica's public WebSocket \u2014 this endpoint is address discovery only and carries no trade events itself. The upstream leaderboard is refreshed at most every 5 minutes; `fetchedAt` is the response time. ($0.05 USDC on Solana mainnet)\n",
         "parameters": [
           {
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Number of accounts to return. Values above the maximum are capped; a non-positive or non-numeric value falls back to the default.",
+            "description": "Number of accounts to return (parsed as an integer). Values above the maximum are capped; a non-positive or unparseable value falls back to the default.",
             "schema": {
               "type": "integer",
               "default": 250,
@@ -1171,11 +1477,14 @@
               }
             }
           },
-          "401": {
-            "description": "Unauthorized"
-          },
           "402": {
             "description": "Payment required (x402)"
+          },
+          "429": {
+            "description": "Rate limit exceeded \u2014 retry after `Retry-After` seconds"
+          },
+          "500": {
+            "description": "Leaderboard fetch failed"
           }
         },
         "tags": [
@@ -1186,68 +1495,11 @@
     "/api/v1/exchanges": {
       "get": {
         "operationId": "getExchangeData",
-        "summary": "Exchange read — positions, balances, orders, bid-ask",
-        "description": "Read-only exchange dispatcher — one endpoint that proxies read calls to any supported venue. Pass `method` plus the target `exchange`; for account-data methods, also pass `apiKey`/`apiSecret`/`passphrase` as query params.\n\nSupported methods (response shape varies by method):\n  - `getTickers` — array of live ticker objects for the venue\n  - `getBestBidAsk` — best bid/ask for a `symbol`\n  - `getPositions` — open positions for the credentialed account\n  - `getBalance` — account balance summary\n  - `getOrders` — open or historical orders\n  - `getUserTradeHistory` — fills\n\nReturns `{success, data: <method-shaped>, exchange, code}`. Use to query any supported exchange through one unified endpoint instead of integrating each venue's SDK. ($0.05 USDC on Solana mainnet)\n",
-        "parameters": [
-          {
-            "name": "method",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "getTickers",
-                "getBestBidAsk",
-                "getPositions",
-                "getBalance",
-                "getOrders",
-                "getUserTradeHistory"
-              ]
-            }
-          },
-          {
-            "name": "exchange",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "binance",
-              "description": "Venue roster changes over time and is not enumerated here; the current list is returned by `GET /api/v1/exchanges` (including in its 402 discovery response, which requires no payment) and is shown on https://www.tetrac.xyz."
-            }
-          },
-          {
-            "name": "symbol",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "example": "BTCUSDT"
-            }
-          },
-          {
-            "name": "apiKey",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "apiSecret",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "passphrase",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "summary": "List exchange methods, pricing and venues",
+        "description": "Exchange discovery read. Returns the methods catalog, the pricing summary and the live `supportedExchanges` roster, so an agent learns what it can trade and what each action costs.\n\nEvery call that targets a venue \u2014 account reads and trading alike \u2014 goes to `POST /api/v1/exchanges`, which carries exchange credentials in the request body. This GET never reads credentials \u2014 secrets in a query string leak into access logs, proxy logs and referrer headers \u2014 and takes no parameters: a non-empty `method` query parameter is rejected with 400 (the legacy `list-methods=true` is tolerated and returns the catalog).\n\nAn unpaid call receives the same `methods`, `pricing` and `supportedExchanges` fields inside its 402 challenge (a 402 for a payment that failed verification carries no catalog), so the catalog can be read before paying.\n\nReturns `{success, status, code, pricing, methods, supportedExchanges}`. ($0.05 USDC on Solana mainnet)\n",
         "responses": {
           "200": {
-            "description": "Exchange data",
+            "description": "Methods catalog, pricing summary and venue roster",
             "content": {
               "application/json": {
                 "schema": {
@@ -1256,25 +1508,92 @@
                     "success": {
                       "type": "boolean"
                     },
-                    "data": {
-                      "type": "object"
-                    },
-                    "exchange": {
-                      "type": "string"
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
                     },
                     "code": {
-                      "type": "integer"
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "pricing": {
+                      "type": "object",
+                      "properties": {
+                        "amount": {
+                          "type": "string",
+                          "example": "0.05"
+                        },
+                        "currency": {
+                          "type": "string",
+                          "example": "USDC"
+                        },
+                        "network": {
+                          "type": "string",
+                          "example": "Solana"
+                        },
+                        "per": {
+                          "type": "string",
+                          "example": "request"
+                        }
+                      }
+                    },
+                    "methods": {
+                      "type": "object",
+                      "description": "Keyed by method name; every entry is run with `POST /api/v1/exchanges`",
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string",
+                            "example": "/api/v1/exchanges"
+                          },
+                          "method": {
+                            "type": "string",
+                            "example": "POST"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "price": {
+                            "type": "object",
+                            "properties": {
+                              "amount": {
+                                "type": "string"
+                              },
+                              "currency": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "supportedExchanges": {
+                      "type": "array",
+                      "description": "Venue ids accepted as `exchangeName` by `POST /api/v1/exchanges`",
+                      "items": {
+                        "type": "string"
+                      }
                     }
                   }
                 }
               }
             }
           },
-          "401": {
-            "description": "Unauthorized"
+          "400": {
+            "description": "A non-empty `method` query parameter was sent \u2014 this GET takes none; run methods with `POST /api/v1/exchanges`"
           },
           "402": {
-            "description": "Payment required (x402)"
+            "description": "Payment required (x402) \u2014 the body also carries `methods`, `pricing` and `supportedExchanges`"
+          },
+          "429": {
+            "description": "Rate limit exceeded \u2014 retry after `Retry-After` seconds"
+          },
+          "500": {
+            "description": "Unexpected server error"
           }
         },
         "tags": [
@@ -1283,8 +1602,8 @@
       },
       "post": {
         "operationId": "executeExchangeAction",
-        "summary": "Exchange trade — place/cancel orders, set leverage, close positions",
-        "description": "Trading dispatcher — one endpoint that executes order/position actions on any supported venue. Body fields: `exchangeName`, `method`, `params` (method-specific), `credentials` (`apiKey`/`apiSecret`/`passphrase`).\n\n**IMPORTANT**: Executes REAL trades with REAL money. Always confirm parameters with the user before calling.\n\nSupported methods (`params` shape varies by method):\n  - `placeMarketOrder` — `{symbol, side, quantity, reduceOnly?}`\n  - `placeLimitOrder` — `{symbol, side, quantity, price, timeInForce?, reduceOnly?}`\n  - `placeStopOrder` — `{symbol, side, quantity, stopPrice, ...}`\n  - `cancelOrder` — `{symbol, orderId}`\n  - `cancelAllOrders` — `{symbol?}`\n  - `closeAllPositions` — `{}`\n  - `setLeverage` — `{symbol, leverage}`\n  - `setHedgeMode` — `{enabled}`\n\nReturns `{success, data: <method-shaped result>, exchange, code}`. Use to execute trades on any supported venue without integrating each SDK. ($0.05 USDC on Solana mainnet)\n",
+        "summary": "Run an exchange method: account reads and trading",
+        "description": "Exchange dispatcher \u2014 runs one method against one venue. Every call that targets a venue goes through this POST, account reads included, so exchange credentials travel only in the request body. Body fields: `exchangeName` (a venue id from `supportedExchanges` in `GET /api/v1/exchanges`, case-insensitive), `method`, `params` (method-specific) and `credentials` (`apiKey`/`apiSecret`/`passphrase`/`walletAddress`).\n\n**IMPORTANT**: trading methods execute REAL trades with REAL money. Always confirm parameters with the user before calling.\n\nMethods and the credentials each needs (live descriptions: the `methods` catalog from `GET /api/v1/exchanges`):\n  - Public market data, no `credentials`: `getTickers`, `getBestBidAsk`, `getKlines`, `getContractSpecs`\n  - Account reads, `apiKey` + `apiSecret`: `getBalance`, `getPositions`, `getOrders`, `getUserTradeHistory`, `getInfoLeverage`, `getDepositAddress`\n  - Propr onboarding, `apiKey` only: `getAccounts`\n  - Trading and withdrawals, `apiKey` + `apiSecret`: `placeMarketOrder`, `placeLimitOrder`, `placeStopOrder`, `cancelOrder`, `cancelAllOrders`, `closeAllPositions`, `setLeverage`, `setHedgeMode`, `createWithdrawal`\n\nNot every venue implements every method; an unimplemented one returns 400. `getPositions` also records the returned positions for DAO analytics when the account has opted in to DAO participation.\n\n`params` shape (varies by method):\n  - `placeMarketOrder` \u2014 `{symbol, side, quantity, reduceOnly?}`\n  - `placeLimitOrder` \u2014 `{symbol, side, quantity, price, timeInForce?, reduceOnly?}`\n  - `placeStopOrder` \u2014 `{symbol, side, quantity, stopPrice, ...}`\n  - `cancelOrder` \u2014 `{symbol, orderID, origClientOrderId?}`\n  - `cancelAllOrders`, `getOrders` \u2014 `{symbol?}`, or the bare symbol string\n  - `getBestBidAsk` \u2014 `{symbol}`, or the bare symbol string\n  - `closeAllPositions` \u2014 `{}`\n  - `setLeverage` \u2014 `{symbol, leverage}`\n  - `setHedgeMode` \u2014 `{symbol, isHedged}`\n\nReturns `{success, data: <method-shaped result>, code, msg, exchange}`; `success` is always `true` on a 200, so read `code`/`msg` for the venue's own status. ($0.05 USDC on Solana mainnet)\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -1295,29 +1614,47 @@
                   "exchangeName": {
                     "type": "string",
                     "example": "binance",
-                    "description": "Venue roster changes over time and is not enumerated here; the current list is returned by `GET /api/v1/exchanges` (including in its 402 discovery response, which requires no payment) and is shown on https://www.tetrac.xyz."
+                    "description": "Venue id from `supportedExchanges`, case-insensitive (normalised to lower case). Venue roster changes over time and is not enumerated here; the current list is returned by `GET /api/v1/exchanges` (including in its 402 discovery response, which requires no payment) and is shown on https://www.tetrac.xyz."
                   },
                   "method": {
                     "type": "string",
+                    "description": "One of the methods in the `methods` catalog from `GET /api/v1/exchanges`",
                     "enum": [
-                      "placeMarketOrder",
-                      "placeLimitOrder",
-                      "placeStopOrder",
-                      "cancelOrder",
-                      "cancelAllOrders",
-                      "closeAllPositions",
-                      "setLeverage",
                       "setHedgeMode",
+                      "setLeverage",
+                      "getInfoLeverage",
+                      "getPositions",
+                      "getBalance",
+                      "placeLimitOrder",
+                      "placeMarketOrder",
+                      "placeStopOrder",
+                      "closeAllPositions",
+                      "createWithdrawal",
                       "getDepositAddress",
-                      "createWithdrawal"
+                      "getOrders",
+                      "cancelAllOrders",
+                      "cancelOrder",
+                      "getUserTradeHistory",
+                      "getAccounts",
+                      "getTickers",
+                      "getBestBidAsk",
+                      "getKlines",
+                      "getContractSpecs"
                     ]
                   },
                   "params": {
-                    "description": "Method-specific parameters (symbol, side, quantity, price, leverage, etc.)",
-                    "type": "object"
+                    "description": "Method-specific parameters. `getOrders`, `getBestBidAsk` and `cancelAllOrders` also accept the bare symbol string.",
+                    "oneOf": [
+                      {
+                        "type": "object"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
                   },
                   "credentials": {
-                    "description": "Exchange API credentials",
+                    "description": "Exchange API credentials. Omit for the public market-data methods; `getAccounts` needs `apiKey` only; every other method needs `apiKey` and `apiSecret`.",
                     "type": "object",
                     "properties": {
                       "apiKey": {
@@ -1328,15 +1665,17 @@
                       },
                       "passphrase": {
                         "type": "string"
+                      },
+                      "walletAddress": {
+                        "type": "string",
+                        "description": "Venue wallet address, for venues that key accounts by wallet"
                       }
                     }
                   }
                 },
                 "required": [
                   "exchangeName",
-                  "method",
-                  "params",
-                  "credentials"
+                  "method"
                 ]
               }
             }
@@ -1344,7 +1683,7 @@
         },
         "responses": {
           "200": {
-            "description": "Trade result",
+            "description": "Method result",
             "content": {
               "application/json": {
                 "schema": {
@@ -1354,24 +1693,33 @@
                       "type": "boolean"
                     },
                     "data": {
-                      "type": "object"
-                    },
-                    "exchange": {
-                      "type": "string"
+                      "description": "Method-shaped result"
                     },
                     "code": {
                       "type": "integer"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "exchange": {
+                      "type": "string"
                     }
                   }
                 }
               }
             }
           },
-          "401": {
-            "description": "Unauthorized"
+          "400": {
+            "description": "Bad input: the body is not a JSON object, `exchangeName` is missing or not a supported venue, `method` is not a supported exchange method, `credentials` are missing for a credentialed method, the method is not implemented on this venue, or the venue rejected the call"
           },
           "402": {
-            "description": "Payment required (x402)"
+            "description": "Payment required (x402) \u2014 the body also carries `methods`, `pricing` and `supportedExchanges`"
+          },
+          "429": {
+            "description": "Rate limit exceeded \u2014 retry after `Retry-After` seconds"
+          },
+          "500": {
+            "description": "Unexpected server error"
           }
         },
         "tags": [
@@ -1382,8 +1730,8 @@
     "/api/v1/exchanges/latency": {
       "get": {
         "operationId": "getExchangeLatency",
-        "summary": "Exchange reachability & latency probe",
-        "description": "Probes every configured venue from Tetrac's servers and returns two independent measurements per exchange: a TLS-handshake time (`tlsLatency`/`tlsStatus`) and a full data-endpoint roundtrip (`dataLatency`/`dataStatus`), plus the resolved `hostname`, `ip`, hosting `org` and static `tickerCount`. Takes no parameters — every configured venue is probed on each call. Rows are sorted data-online first, then by ascending data latency. Use to pick the lowest-latency venue for execution, or to detect a venue whose API is degraded while its edge is still up. ($0.05 USDC on Solana mainnet)\n",
+        "summary": "Fetch exchange reachability and latency",
+        "description": "Probes every configured venue from Tetrac's servers and returns two independent measurements per exchange: a TLS-handshake time (`tlsLatency`/`tlsStatus`) and a full data-endpoint roundtrip (`dataLatency`/`dataStatus`), plus the resolved `hostname`, `ip`, hosting `org` and static `tickerCount`. Takes no parameters \u2014 every configured venue is probed on each call. Rows are sorted data-online first, then by ascending data latency. Use to pick the lowest-latency venue for execution, or to detect a venue whose API is degraded while its edge is still up. ($0.05 USDC on Solana mainnet)\n",
         "responses": {
           "200": {
             "description": "Per-exchange latency probe results plus aggregate summary",
@@ -1424,11 +1772,14 @@
               }
             }
           },
-          "401": {
-            "description": "Unauthorized"
-          },
           "402": {
             "description": "Payment required (x402)"
+          },
+          "429": {
+            "description": "Rate limit exceeded \u2014 retry after `Retry-After` seconds"
+          },
+          "500": {
+            "description": "Probe run failed"
           }
         },
         "tags": [
@@ -1452,26 +1803,102 @@
       },
       "Ticker": {
         "type": "object",
+        "description": "Binance-style 24h ticker for one perpetual market; numeric values are decimal strings",
         "properties": {
           "symbol": {
             "type": "string",
             "example": "BTCUSDT"
           },
-          "price": {
-            "type": "number",
-            "example": 67420.5
-          },
-          "volume24h": {
-            "type": "number",
-            "example": 1200000000
-          },
-          "changePercent": {
-            "type": "number",
-            "example": 2.3
-          },
-          "exchange": {
+          "source": {
             "type": "string",
+            "description": "Primary venue for this row",
             "example": "binance"
+          },
+          "sources": {
+            "type": "array",
+            "description": "Every venue that lists this market",
+            "items": {
+              "type": "string"
+            }
+          },
+          "priceChange": {
+            "type": "string"
+          },
+          "priceChangePercent": {
+            "type": "string",
+            "example": "2.30"
+          },
+          "weightedAvgPrice": {
+            "type": "string"
+          },
+          "prevClosePrice": {
+            "type": "string"
+          },
+          "lastPrice": {
+            "type": "string",
+            "example": "67420.5"
+          },
+          "lastQty": {
+            "type": "string"
+          },
+          "bidPrice": {
+            "type": "string"
+          },
+          "bidQty": {
+            "type": "string"
+          },
+          "askPrice": {
+            "type": "string"
+          },
+          "askQty": {
+            "type": "string"
+          },
+          "openPrice": {
+            "type": "string"
+          },
+          "highPrice": {
+            "type": "string"
+          },
+          "lowPrice": {
+            "type": "string"
+          },
+          "volume": {
+            "type": "string"
+          },
+          "quoteVolume": {
+            "type": "string",
+            "description": "24h quote volume (USD)"
+          },
+          "volumeByExchange": {
+            "type": "object",
+            "description": "24h volume split by venue"
+          },
+          "totalQuoteVolume": {
+            "type": "string"
+          },
+          "openTime": {
+            "type": "string"
+          },
+          "closeTime": {
+            "type": "string"
+          },
+          "openInterest": {
+            "type": "string"
+          },
+          "funding": {
+            "type": "string"
+          },
+          "nextFunding": {
+            "type": "string"
+          },
+          "firstId": {
+            "type": "string"
+          },
+          "lastId": {
+            "type": "string"
+          },
+          "count": {
+            "type": "string"
           }
         }
       },
@@ -1488,7 +1915,7 @@
           },
           "fundingRate": {
             "type": "number",
-            "description": "The venue's NATIVE rate for one settlement interval, as a decimal fraction (0.0001 = 0.01%). NOT comparable across rows — see hourlyRate.",
+            "description": "The venue's NATIVE rate for one settlement interval, as a decimal fraction (0.0001 = 0.01%). NOT comparable across rows \u2014 see hourlyRate.",
             "example": 0.0001
           },
           "intervalHours": {
@@ -1504,7 +1931,7 @@
               "venue-constant",
               "unknown"
             ],
-            "description": "How intervalHours was determined. \"unknown\" means the rate is un-normalized and hourlyRate/dailyRoi are absent.",
+            "description": "How intervalHours was determined. Always present; \"unknown\" means the rate is un-normalized and hourlyRate/dailyRoi are absent.",
             "example": "api-field"
           },
           "hourlyRate": {
@@ -1514,7 +1941,7 @@
           },
           "dailyRoi": {
             "type": "number",
-            "description": "hourlyRate x 24 — a hypothetical 24h projection, not compounded. Omitted when hourlyRate is.",
+            "description": "hourlyRate x 24 \u2014 a hypothetical 24h projection, not compounded. Omitted when hourlyRate is.",
             "example": 0.0003
           },
           "nextFundingTime": {
@@ -1522,6 +1949,15 @@
             "format": "int64",
             "description": "Epoch milliseconds of the next settlement.",
             "example": 1785859200000
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Epoch ms of the reading"
+          },
+          "openInterest": {
+            "type": "number",
+            "description": "Open interest, when the venue reports it"
           }
         }
       },
@@ -1533,20 +1969,23 @@
             "example": "BTCUSDT"
           },
           "openInterest": {
-            "type": "number",
-            "example": 12500000000
+            "type": "string",
+            "description": "Open interest in base units (3 decimals)",
+            "example": "12500.125"
           },
           "openInterestUsd": {
-            "type": "number",
-            "example": 12500000000
+            "type": "string",
+            "description": "Open interest in USD (2 decimals)",
+            "example": "842000000.00"
           },
           "price": {
-            "type": "number",
-            "example": 67420.5
+            "type": "string",
+            "example": "67420.5"
           },
           "volumeUsd": {
-            "type": "number",
-            "example": 800000000
+            "type": "string",
+            "description": "24h volume in USD (2 decimals)",
+            "example": "800000000.00"
           },
           "timestamp": {
             "type": "integer",
@@ -1566,7 +2005,8 @@
           },
           "time_published": {
             "type": "string",
-            "format": "date-time"
+            "description": "Alpha Vantage YYYYMMDDTHHMMSS format",
+            "example": "20260929T131500"
           },
           "summary": {
             "type": "string"
@@ -1576,7 +2016,8 @@
           },
           "impact_score": {
             "type": "number",
-            "example": 0.78
+            "description": "Overall sentiment score \u00d7 100 (signed)",
+            "example": 12.5
           },
           "sentiment": {
             "type": "string",
@@ -1590,31 +2031,45 @@
       },
       "CalendarEvent": {
         "type": "object",
+        "description": "One economic event, normalized from the Forex Factory calendar",
         "properties": {
           "date": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Scheduled release time, UTC",
+            "example": "2026-10-02T12:30:00.000Z"
           },
           "country": {
             "type": "string",
-            "example": "US"
+            "description": "The currency the event moves (the provider keys events by currency)",
+            "example": "USD"
           },
           "event": {
             "type": "string",
-            "example": "CPI m/m"
+            "example": "Non-Farm Employment Change"
           },
           "currency": {
             "type": "string",
+            "description": "Same code as `country`",
             "example": "USD"
           },
           "previous": {
-            "type": "number"
+            "type": "string",
+            "nullable": true,
+            "description": "Last published value, as displayed (unit included)",
+            "example": "22K"
           },
           "estimate": {
-            "type": "number"
+            "type": "string",
+            "nullable": true,
+            "description": "Consensus forecast, as displayed",
+            "example": "50K"
           },
           "actual": {
-            "type": "number"
+            "type": "string",
+            "nullable": true,
+            "description": "Released value, as displayed; null until the release",
+            "example": null
           },
           "impact": {
             "type": "string",
@@ -1622,7 +2077,8 @@
               "Low",
               "Medium",
               "High"
-            ]
+            ],
+            "description": "Market impact"
           }
         }
       },
@@ -1695,7 +2151,7 @@
           },
           "averageLatency": {
             "type": "number",
-            "description": "Mean latency in ms over the probes that succeeded. Failed probes (latency -1) are excluded, and the value is 0 when none succeeded.",
+            "description": "Mean latency in ms (rounded) over probes with a positive latency; failed probes (-1) are excluded, and the value is 0 when none succeeded.",
             "example": 148
           }
         }
@@ -1762,8 +2218,51 @@
           },
           "org": {
             "type": "string",
-            "description": "Hosting org / ASN resolved from the IP, or a hostname-derived fallback",
+            "description": "Hosting org from static lookup tables keyed by IP or hostname; \"Unknown\" when neither matches",
             "example": "Cloudflare"
+          }
+        }
+      },
+      "BreakoutSignal": {
+        "type": "object",
+        "description": "Volatility-squeeze breakout read for the same market",
+        "properties": {
+          "direction": {
+            "type": "string"
+          },
+          "strength": {
+            "type": "number"
+          },
+          "inSqueeze": {
+            "type": "boolean"
+          },
+          "shiftBars": {
+            "type": "integer"
+          },
+          "bandwidth": {
+            "type": "number"
+          },
+          "squeezeBandwidth": {
+            "type": "number"
+          },
+          "minBandwidth": {
+            "type": "number"
+          },
+          "medianBandwidth": {
+            "type": "number"
+          },
+          "upperAtShift": {
+            "type": "number"
+          },
+          "lowerAtShift": {
+            "type": "number"
+          },
+          "breakoutPct": {
+            "type": "number",
+            "nullable": true
+          },
+          "reasoning": {
+            "type": "string"
           }
         }
       }
@@ -1785,14 +2284,14 @@
         "type": "apiKey",
         "in": "header",
         "name": "x-x402-payment",
-        "description": "Signed Solana USDC micropayment ($0.05 standard, $0.50 for the full-market scanner snapshot) — alternative to session auth"
+        "description": "Signed Solana USDC micropayment ($0.05 standard, $0.50 for the full-market scanner snapshot) \u2014 alternative to session auth"
       }
     }
   },
   "tags": [
     {
       "name": "Market Data",
-      "description": "Real-time tickers, funding rates, open interest, volume, and listings"
+      "description": "Perpetual tickers, funding rates, open interest, volume, listings and Solana perp positioning"
     },
     {
       "name": "Technical Analysis",
@@ -1800,7 +2299,7 @@
     },
     {
       "name": "Market Intelligence",
-      "description": "AI insights, news, economic calendar, and market quake detection"
+      "description": "News, the economic calendar, a momentum screener and the USGS significant-earthquake feed"
     },
     {
       "name": "Exchange Infrastructure",
