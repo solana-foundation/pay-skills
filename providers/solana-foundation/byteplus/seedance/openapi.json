@@ -1,0 +1,460 @@
+{
+ "openapi": "3.0.3",
+ "info": {
+  "title": "BytePlus ModelArk Video Generation (Seedance) API",
+  "description": "Filtered OpenAPI description for the Seedance video generation proxy. The upstream endpoint is BytePlus ModelArk's asynchronous video generation task API (international, ap-southeast region); the caller selects the Seedance model via the request `model` field. Workflow: create a task, poll it until `status` is `succeeded`, then download the video from the temporary `content.video_url`.",
+  "version": "v3"
+ },
+ "servers": [
+  {
+   "url": "https://seedance.byteplus.gateway-402.com"
+  }
+ ],
+ "tags": [
+  {
+   "name": "video.generations"
+  }
+ ],
+ "paths": {
+  "/api/v3/contents/generations/tasks": {
+   "post": {
+    "tags": [
+     "video.generations"
+    ],
+    "summary": "Create a video generation task",
+    "description": "Create an asynchronous video generation task with a caller-selected Seedance model. The response returns only the task id; poll the retrieve endpoint until the task reaches a terminal state. Generation parameters (resolution, ratio, duration, audio) are top-level fields for Seedance 2.0 models; Seedance 1.x models instead read `--resolution 1080p --ratio 16:9 --duration 5` style flags appended to the text prompt.",
+    "operationId": "byteplus.seedance.createTask",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CreateVideoTaskRequest"
+       },
+       "example": {
+        "model": "dreamina-seedance-2-0-260128",
+        "content": [
+         {
+          "type": "text",
+          "text": "A quiet product demo shot, slow camera move, clean studio light"
+         }
+        ],
+        "ratio": "16:9",
+        "resolution": "720p",
+        "duration": 5
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Task accepted. Poll the returned id for the result.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CreateVideoTaskResponse"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "Invalid request.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     }
+    }
+   },
+   "get": {
+    "tags": [
+     "video.generations"
+    ],
+    "summary": "List video generation tasks",
+    "description": "List video generation tasks, optionally filtered by status or model. Free endpoint used to reconcile task queues.",
+    "operationId": "byteplus.seedance.listTasks",
+    "parameters": [
+     {
+      "name": "page_num",
+      "in": "query",
+      "description": "1-based page number.",
+      "schema": {
+       "type": "integer"
+      }
+     },
+     {
+      "name": "page_size",
+      "in": "query",
+      "description": "Tasks per page.",
+      "schema": {
+       "type": "integer"
+      }
+     },
+     {
+      "name": "filter.status",
+      "in": "query",
+      "description": "Filter by task status (queued, running, succeeded, failed, cancelled, expired).",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "filter.model",
+      "in": "query",
+      "description": "Filter by model id.",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Task list.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/VideoTaskList"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/v3/contents/generations/tasks/{taskId}": {
+   "get": {
+    "tags": [
+     "video.generations"
+    ],
+    "summary": "Fetch a video generation task",
+    "description": "Retrieve a video generation task. While the task is queued or running the response has no `usage` and the upto charge settles as a full refund; the poll that returns `status: succeeded` includes `usage.total_tokens` (settled as the generation charge) and the temporary `content.video_url` download link. Stop polling after a terminal state \u2014 retrieving an already-succeeded task settles its usage again.",
+    "operationId": "byteplus.seedance.getTask",
+    "parameters": [
+     {
+      "name": "taskId",
+      "in": "path",
+      "required": true,
+      "description": "Task id returned by the create endpoint (e.g. \"cgt-2026...\").",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Current task state.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/VideoTask"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown or expired task.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "video.generations"
+    ],
+    "summary": "Cancel or delete a video generation task",
+    "description": "Cancel a queued/running task or delete a finished one. Free endpoint.",
+    "operationId": "byteplus.seedance.deleteTask",
+    "parameters": [
+     {
+      "name": "taskId",
+      "in": "path",
+      "required": true,
+      "description": "Task id to cancel or delete.",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Task cancelled or deleted.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "Unknown or expired task.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorResponse"
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "schemas": {
+   "CreateVideoTaskRequest": {
+    "type": "object",
+    "required": [
+     "model",
+     "content"
+    ],
+    "properties": {
+     "model": {
+      "type": "string",
+      "description": "Seedance model id selected by the caller (e.g. \"dreamina-seedance-2-0-260128\", \"dreamina-seedance-2-0-fast-260128\", \"dreamina-seedance-2-0-mini-260615\", \"seedance-1-5-pro-251215\", \"seedance-1-0-pro-250528\"). Model ids carry release-date suffixes that rotate \u2014 list current ids in the ModelArk console."
+     },
+     "content": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Multimodal generation inputs in order: a text prompt plus optional image/video/audio references (Seedance 2.0 supports image, video, and audio conditioning; 1.x supports text and first/last-frame images).",
+      "items": {
+       "$ref": "#/components/schemas/ContentItem"
+      }
+     },
+     "resolution": {
+      "type": "string",
+      "description": "Output resolution (e.g. \"480p\", \"720p\", \"1080p\"). Seedance 2.0 top-level field; for 1.x models pass --resolution in the text prompt instead. Billing scales with pixel count.",
+      "enum": [
+       "480p",
+       "720p",
+       "1080p"
+      ]
+     },
+     "ratio": {
+      "type": "string",
+      "description": "Output aspect ratio (e.g. \"16:9\", \"9:16\", \"4:3\", \"1:1\", \"21:9\", \"adaptive\")."
+     },
+     "duration": {
+      "type": "integer",
+      "description": "Video duration in seconds. Billing scales linearly with duration.",
+      "minimum": 1
+     },
+     "generate_audio": {
+      "type": "boolean",
+      "description": "Seedance 2.0: also generate a synchronized audio track."
+     },
+     "return_last_frame": {
+      "type": "boolean",
+      "description": "Include the final frame image URL in the task result (useful for chaining shots)."
+     },
+     "seed": {
+      "type": "integer",
+      "description": "Random seed for reproducible generations."
+     },
+     "watermark": {
+      "type": "boolean",
+      "description": "Whether the output video carries the provider watermark."
+     },
+     "callback_url": {
+      "type": "string",
+      "description": "Upstream webhook invoked on task state changes. Note: callbacks bypass the proxy's usage settlement \u2014 callers paying per use should poll the retrieve endpoint instead."
+     }
+    }
+   },
+   "ContentItem": {
+    "type": "object",
+    "required": [
+     "type"
+    ],
+    "properties": {
+     "type": {
+      "type": "string",
+      "enum": [
+       "text",
+       "image_url",
+       "video_url",
+       "audio_url"
+      ],
+      "description": "Input kind. Exactly one matching payload field must be set."
+     },
+     "text": {
+      "type": "string",
+      "description": "Prompt text for \"text\" items. Seedance 1.x models also read generation flags appended here (e.g. \"--resolution 1080p --duration 5\")."
+     },
+     "image_url": {
+      "type": "object",
+      "description": "Image input for \"image_url\" items.",
+      "properties": {
+       "url": {
+        "type": "string",
+        "description": "HTTPS URL or data URI of the image."
+       }
+      }
+     },
+     "video_url": {
+      "type": "object",
+      "description": "Video reference input for \"video_url\" items (Seedance 2.0).",
+      "properties": {
+       "url": {
+        "type": "string"
+       }
+      }
+     },
+     "audio_url": {
+      "type": "object",
+      "description": "Audio reference input for \"audio_url\" items (Seedance 2.0).",
+      "properties": {
+       "url": {
+        "type": "string"
+       }
+      }
+     },
+     "role": {
+      "type": "string",
+      "enum": [
+       "first_frame",
+       "last_frame",
+       "reference_image",
+       "reference_video",
+       "reference_audio"
+      ],
+      "description": "How this input conditions the generation."
+     }
+    }
+   },
+   "CreateVideoTaskResponse": {
+    "type": "object",
+    "required": [
+     "id"
+    ],
+    "properties": {
+     "id": {
+      "type": "string",
+      "description": "Task id to poll (e.g. \"cgt-2026...\")."
+     }
+    }
+   },
+   "VideoTask": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "model": {
+      "type": "string",
+      "description": "Model id that served the task."
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "queued",
+       "running",
+       "succeeded",
+       "failed",
+       "cancelled",
+       "expired"
+      ]
+     },
+     "content": {
+      "type": "object",
+      "description": "Present when status is succeeded.",
+      "properties": {
+       "video_url": {
+        "type": "string",
+        "description": "Temporary download URL for the generated MP4 (expires; copy to durable storage promptly)."
+       },
+       "last_frame_url": {
+        "type": "string",
+        "description": "Final frame image URL when return_last_frame was requested."
+       }
+      }
+     },
+     "usage": {
+      "type": "object",
+      "description": "Present when status is succeeded. total_tokens is the billed video token count: (width x height x 24fps x seconds) / 1024.",
+      "properties": {
+       "completion_tokens": {
+        "type": "integer"
+       },
+       "total_tokens": {
+        "type": "integer"
+       }
+      }
+     },
+     "error": {
+      "type": "object",
+      "description": "Present when status is failed.",
+      "properties": {
+       "code": {
+        "type": "string"
+       },
+       "message": {
+        "type": "string"
+       }
+      }
+     },
+     "seed": {
+      "type": "integer"
+     },
+     "created_at": {
+      "type": "integer",
+      "description": "Unix timestamp."
+     },
+     "updated_at": {
+      "type": "integer",
+      "description": "Unix timestamp."
+     }
+    },
+    "required": [
+     "id",
+     "status"
+    ]
+   },
+   "VideoTaskList": {
+    "type": "object",
+    "properties": {
+     "items": {
+      "type": "array",
+      "items": {
+       "$ref": "#/components/schemas/VideoTask"
+      }
+     },
+     "total": {
+      "type": "integer"
+     }
+    }
+   },
+   "ErrorResponse": {
+    "type": "object",
+    "properties": {
+     "error": {
+      "type": "object",
+      "properties": {
+       "code": {
+        "type": "string"
+       },
+       "message": {
+        "type": "string"
+       },
+       "type": {
+        "type": "string"
+       }
+      }
+     },
+     "request_id": {
+      "type": "string"
+     }
+    }
+   }
+  }
+ }
+}
