@@ -31,7 +31,12 @@ interest, listings, scanner signals), use the `tetrac/markets` skill instead.
   the asset (`currency`), the exact `amount`, the destination `address`, the
   network (`chainName`, in the venue's own naming) and the memo/tag
   (`addressTag`) when the destination requires one. Never fill in a missing
-  address, network or tag yourself. Not every venue supports withdrawals.
+  address, network or tag yourself.
+- Withdrawals need an exchange API key with withdrawal permission — most venues
+  also require an IP whitelist and a pre-approved destination address — and
+  the funds must already be in the venue's withdrawable wallet (usually spot or
+  funding). Not every venue supports withdrawals; an unsupported venue returns
+  400.
 - Exchange credentials travel in the request body on every call. Ask the user
   for API keys limited to what the task needs — keys without withdrawal rights
   unless the user is withdrawing.
