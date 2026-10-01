@@ -29,8 +29,11 @@ the separate `tetrac/exchange` skill, which needs the user's exchange credential
   response for the timeframe's bar duration (e.g. 1h scan, reuse for an hour).
 - Call `markets/ttc-scanner-cache` with `?full=1` to receive the signals. Without
   it the call costs the same $0.50 but returns only the snapshot's timestamps
-  (`generatedAt`, `staleAtMs`). Check `staleAtMs` in the response before acting
-  on the signals.
+  (`generatedAt`, `staleAtMs`), so never make a separate freshness check first.
+- The scanner snapshot cannot be refreshed through the API and has no refresh
+  schedule, so it can be hours old. If `staleAtMs` has passed, don't act on the
+  snapshot's signals; scan the symbols you need with `markets/ttc-scanner`
+  instead.
 - Reach for `markets/ttc-scanner-cache` only when you need signals across the
   whole market at once; scanning a handful of symbols is cheaper via
   `markets/ttc-scanner` ($0.05 each).
