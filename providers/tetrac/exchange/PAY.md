@@ -23,9 +23,15 @@ interest, listings, scanner signals), use the `tetrac/markets` skill instead.
 ## Safety
 
 - `placeMarketOrder`, `placeLimitOrder`, `placeStopOrder`, `cancelOrder`,
-  `cancelAllOrders`, `closeAllPositions`, `setLeverage`, `setHedgeMode` and
-  `createWithdrawal` execute REAL trades and move REAL funds. Confirm the venue,
-  symbol, side, size and price with the user before every call.
+  `cancelAllOrders`, `closeAllPositions`, `setLeverage` and `setHedgeMode`
+  execute REAL trades. Confirm the venue, symbol, side, size and price with the
+  user before every call.
+- `createWithdrawal` sends funds off the exchange and cannot be reversed. Before
+  every call, read back and get the user's explicit confirmation of the venue,
+  the asset (`currency`), the exact `amount`, the destination `address`, the
+  network (`chainName`, in the venue's own naming) and the memo/tag
+  (`addressTag`) when the destination requires one. Never fill in a missing
+  address, network or tag yourself. Not every venue supports withdrawals.
 - Exchange credentials travel in the request body on every call. Ask the user
   for API keys limited to what the task needs — keys without withdrawal rights
   unless the user is withdrawing.
