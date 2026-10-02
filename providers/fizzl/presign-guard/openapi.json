@@ -1,0 +1,782 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "presign-guard",
+    "version": "2.3.0",
+    "description": "Pre-sign risk check for AI agents: a green/orange/red verdict with reason codes before signing an EVM transaction, approval or EIP-712 signature. Checks the spender or recipient (including OFAC SDN sanctions), the token itself (honeypot, impersonation, high tax) and, with origin, how old the requesting site's domain is. Plus GET /v1/token: a verdict on any Solana or EVM token before buying, holding or accepting it, and GET /v1/approvals: an audit of a wallet's open token approvals with the ones to revoke.",
+    "x-guidance": "Call POST /v1/check with what you are about to sign, before you sign it. Only proceed on green; on orange ask your user; never sign on red. For a signature, pass the exact eth_signTypedData_v4 payload as typedData. Pass origin (the site asking) to catch newly registered phishing domains. Use /v1/check/explain when a person needs the reason in plain language (lang en or nl). Before buying or accepting a token, call GET /v1/token?chain=solana&address=<mint> (or chain=base with a 0x address): the same green/orange/red logic plus a grade, a one-line summary and market data. To clean up a wallet, call GET /v1/approvals?chain=base&address=<wallet>: every open token approval with who the spender is, and which ones to revoke."
+  },
+  "servers": [
+    {
+      "url": "https://presign-guard.onrender.com"
+    }
+  ],
+  "paths": {
+    "/v1/check": {
+      "post": {
+        "operationId": "check",
+        "summary": "Check if a transaction, approval or signature is safe to sign",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          },
+          "protocols": [
+            "x402"
+          ],
+          "networks": [
+            "eip155:8453"
+          ],
+          "asset": "USDC"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "approval",
+                      "transaction",
+                      "signature"
+                    ],
+                    "description": "What the agent is about to sign"
+                  },
+                  "chainId": {
+                    "type": "integer",
+                    "enum": [
+                      1,
+                      10,
+                      56,
+                      137,
+                      8453,
+                      42161
+                    ]
+                  },
+                  "token": {
+                    "type": "string",
+                    "description": "approval: token contract"
+                  },
+                  "spender": {
+                    "type": "string",
+                    "description": "approval: who gets the allowance"
+                  },
+                  "amount": {
+                    "type": "string",
+                    "description": "approval: amount in base units (0 = revoke)"
+                  },
+                  "to": {
+                    "type": "string",
+                    "description": "transaction: target contract"
+                  },
+                  "data": {
+                    "type": "string",
+                    "description": "transaction: 0x-prefixed calldata"
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "transaction: native value in wei"
+                  },
+                  "typedData": {
+                    "type": [
+                      "object",
+                      "string"
+                    ],
+                    "description": "signature: the eth_signTypedData_v4 payload (Permit, Permit2, EIP-3009 x402 payment, Seaport)"
+                  },
+                  "origin": {
+                    "type": "string",
+                    "description": "optional: the site asking for the signature or transaction (URL or hostname); a domain under 30 days old is orange"
+                  },
+                  "lang": {
+                    "type": "string",
+                    "enum": [
+                      "en",
+                      "nl"
+                    ],
+                    "description": "explain only: language of the explanation (default en)"
+                  }
+                },
+                "required": [
+                  "type",
+                  "chainId"
+                ]
+              },
+              "example": {
+                "type": "approval",
+                "chainId": 8453,
+                "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                "spender": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+                "amount": "1000000"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verdict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "verdict": {
+                      "type": "string",
+                      "enum": [
+                        "green",
+                        "orange",
+                        "red"
+                      ]
+                    },
+                    "reasons": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "red",
+                              "orange",
+                              "info"
+                            ]
+                          },
+                          "subject": {
+                            "type": "string"
+                          },
+                          "details": {}
+                        },
+                        "required": [
+                          "code",
+                          "severity"
+                        ]
+                      }
+                    },
+                    "subject": {
+                      "type": "object"
+                    },
+                    "explanation": {
+                      "type": "object",
+                      "properties": {
+                        "lang": {
+                          "type": "string"
+                        },
+                        "text": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "verdict",
+                    "reasons"
+                  ]
+                },
+                "example": {
+                  "verdict": "orange",
+                  "reasons": [
+                    {
+                      "code": "UNLIMITED_APPROVAL",
+                      "severity": "orange",
+                      "subject": "0x000000000022d473030f116ddee9f6b43ac78ba3",
+                      "details": {
+                        "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request; nothing is charged"
+          },
+          "402": {
+            "description": "Payment Required"
+          },
+          "503": {
+            "description": "A data source is down; nothing is charged, no verdict"
+          }
+        }
+      }
+    },
+    "/v1/check/explain": {
+      "post": {
+        "operationId": "checkAndExplain",
+        "summary": "Get a pre-sign verdict with a plain-language explanation",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.03"
+          },
+          "protocols": [
+            "x402"
+          ],
+          "networks": [
+            "eip155:8453"
+          ],
+          "asset": "USDC"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "approval",
+                      "transaction",
+                      "signature"
+                    ],
+                    "description": "What the agent is about to sign"
+                  },
+                  "chainId": {
+                    "type": "integer",
+                    "enum": [
+                      1,
+                      10,
+                      56,
+                      137,
+                      8453,
+                      42161
+                    ]
+                  },
+                  "token": {
+                    "type": "string",
+                    "description": "approval: token contract"
+                  },
+                  "spender": {
+                    "type": "string",
+                    "description": "approval: who gets the allowance"
+                  },
+                  "amount": {
+                    "type": "string",
+                    "description": "approval: amount in base units (0 = revoke)"
+                  },
+                  "to": {
+                    "type": "string",
+                    "description": "transaction: target contract"
+                  },
+                  "data": {
+                    "type": "string",
+                    "description": "transaction: 0x-prefixed calldata"
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "transaction: native value in wei"
+                  },
+                  "typedData": {
+                    "type": [
+                      "object",
+                      "string"
+                    ],
+                    "description": "signature: the eth_signTypedData_v4 payload (Permit, Permit2, EIP-3009 x402 payment, Seaport)"
+                  },
+                  "origin": {
+                    "type": "string",
+                    "description": "optional: the site asking for the signature or transaction (URL or hostname); a domain under 30 days old is orange"
+                  },
+                  "lang": {
+                    "type": "string",
+                    "enum": [
+                      "en",
+                      "nl"
+                    ],
+                    "description": "explain only: language of the explanation (default en)"
+                  }
+                },
+                "required": [
+                  "type",
+                  "chainId"
+                ]
+              },
+              "example": {
+                "type": "approval",
+                "chainId": 8453,
+                "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                "spender": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+                "amount": "1000000"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verdict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "verdict": {
+                      "type": "string",
+                      "enum": [
+                        "green",
+                        "orange",
+                        "red"
+                      ]
+                    },
+                    "reasons": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "red",
+                              "orange",
+                              "info"
+                            ]
+                          },
+                          "subject": {
+                            "type": "string"
+                          },
+                          "details": {}
+                        },
+                        "required": [
+                          "code",
+                          "severity"
+                        ]
+                      }
+                    },
+                    "subject": {
+                      "type": "object"
+                    },
+                    "explanation": {
+                      "type": "object",
+                      "properties": {
+                        "lang": {
+                          "type": "string"
+                        },
+                        "text": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "verdict",
+                    "reasons"
+                  ]
+                },
+                "example": {
+                  "verdict": "orange",
+                  "reasons": [
+                    {
+                      "code": "UNLIMITED_APPROVAL",
+                      "severity": "orange",
+                      "subject": "0x000000000022d473030f116ddee9f6b43ac78ba3",
+                      "details": {
+                        "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request; nothing is charged"
+          },
+          "402": {
+            "description": "Payment Required"
+          },
+          "503": {
+            "description": "A data source is down; nothing is charged, no verdict"
+          }
+        }
+      }
+    },
+    "/v1/token": {
+      "get": {
+        "operationId": "tokenVerdict",
+        "summary": "Check if a token is safe to buy, hold or accept (Solana, EVM)",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          },
+          "protocols": [
+            "x402"
+          ],
+          "networks": [
+            "eip155:8453",
+            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+          ],
+          "asset": "USDC"
+        },
+        "parameters": [
+          {
+            "name": "chain",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "solana",
+                "base",
+                "ethereum",
+                "arbitrum",
+                "optimism",
+                "polygon",
+                "bsc"
+              ],
+              "description": "Chain the token lives on"
+            },
+            "example": "solana"
+          },
+          {
+            "name": "address",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Solana mint address (base58) or EVM token contract (0x...)"
+            },
+            "example": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verdict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "verdict": {
+                      "type": "string",
+                      "enum": [
+                        "green",
+                        "orange",
+                        "red"
+                      ]
+                    },
+                    "grade": {
+                      "type": "string",
+                      "enum": [
+                        "SAFE",
+                        "CAUTION",
+                        "RISKY",
+                        "AVOID"
+                      ]
+                    },
+                    "one_liner": {
+                      "type": "string"
+                    },
+                    "reasons": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "red",
+                              "orange",
+                              "info"
+                            ]
+                          },
+                          "details": {}
+                        },
+                        "required": [
+                          "code",
+                          "severity"
+                        ]
+                      }
+                    },
+                    "token": {
+                      "type": "object"
+                    },
+                    "market": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "description": "DexScreener data: priceUsd, liquidityUsd, marketCapUsd, volume24hUsd, firstPairAt, ageSeconds, url"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "checkedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "verdict",
+                    "grade",
+                    "one_liner",
+                    "reasons"
+                  ]
+                },
+                "example": {
+                  "verdict": "green",
+                  "grade": "SAFE",
+                  "one_liner": "SAFE: no red flags, $422k liquidity, 3.1 years old",
+                  "reasons": [
+                    {
+                      "code": "MUTABLE_METADATA",
+                      "severity": "info"
+                    }
+                  ],
+                  "token": {
+                    "chain": "solana",
+                    "address": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+                    "name": "Bonk",
+                    "symbol": "Bonk"
+                  },
+                  "market": {
+                    "priceUsd": 0.0000123,
+                    "liquidityUsd": 422000,
+                    "marketCapUsd": 1000000000,
+                    "volume24hUsd": 350000,
+                    "ageSeconds": 98000000,
+                    "url": "https://dexscreener.com/solana/..."
+                  },
+                  "sources": [
+                    "goplus",
+                    "dexscreener",
+                    "rugcheck"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request; nothing is charged"
+          },
+          "402": {
+            "description": "Payment Required"
+          },
+          "503": {
+            "description": "A data source is down; nothing is charged, no verdict"
+          }
+        }
+      }
+    },
+    "/v1/approvals": {
+      "get": {
+        "operationId": "walletApprovals",
+        "summary": "Find which open token approvals on a wallet to revoke",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.02"
+          },
+          "protocols": [
+            "x402"
+          ],
+          "networks": [
+            "eip155:8453",
+            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+          ],
+          "asset": "USDC"
+        },
+        "parameters": [
+          {
+            "name": "chain",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "base",
+                "ethereum",
+                "arbitrum",
+                "optimism",
+                "polygon",
+                "bsc"
+              ],
+              "description": "EVM chain to audit"
+            },
+            "example": "ethereum"
+          },
+          {
+            "name": "address",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Wallet address (0x...)"
+            },
+            "example": "0x28c6c06298d514db089934071355e5743bf21d60"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "verdict": {
+                      "type": "string",
+                      "enum": [
+                        "green",
+                        "orange",
+                        "red"
+                      ]
+                    },
+                    "grade": {
+                      "type": "string",
+                      "enum": [
+                        "SAFE",
+                        "CAUTION",
+                        "RISKY",
+                        "AVOID"
+                      ]
+                    },
+                    "one_liner": {
+                      "type": "string"
+                    },
+                    "reasons": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "red",
+                              "orange",
+                              "info"
+                            ]
+                          },
+                          "details": {}
+                        },
+                        "required": [
+                          "code",
+                          "severity"
+                        ]
+                      }
+                    },
+                    "summary": {
+                      "type": "object",
+                      "description": "approvals, tokens, unlimited, toRevoke"
+                    },
+                    "approvals": {
+                      "type": "array",
+                      "description": "Per allowance: token, spender (address, name, trusted, contract), amount, approvedAt, severity, codes, revoke",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "revokeUrl": {
+                      "type": "string"
+                    },
+                    "checkedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "verdict",
+                    "grade",
+                    "one_liner",
+                    "reasons",
+                    "approvals"
+                  ]
+                },
+                "example": {
+                  "verdict": "orange",
+                  "grade": "CAUTION",
+                  "one_liner": "CAUTION: 3 approvals, 1 unlimited; revoke 1",
+                  "reasons": [
+                    {
+                      "code": "UNLIMITED_APPROVAL",
+                      "severity": "orange",
+                      "details": {
+                        "count": 1,
+                        "spenders": [
+                          "0x1111111254eeb25477b68fb85ed929f73a960582"
+                        ]
+                      }
+                    },
+                    {
+                      "code": "STALE_APPROVAL",
+                      "severity": "info",
+                      "details": {
+                        "count": 2,
+                        "spenders": [
+                          "0x000000000022d473030f116ddee9f6b43ac78ba3"
+                        ]
+                      }
+                    }
+                  ],
+                  "summary": {
+                    "approvals": 3,
+                    "tokens": 2,
+                    "unlimited": 1,
+                    "toRevoke": 1
+                  },
+                  "approvals": [
+                    {
+                      "token": {
+                        "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                        "symbol": "USDC",
+                        "name": "USD Coin"
+                      },
+                      "spender": {
+                        "address": "0x1111111254eeb25477b68fb85ed929f73a960582",
+                        "name": "AggregationRouterV5",
+                        "trusted": false,
+                        "contract": true
+                      },
+                      "amount": "unlimited",
+                      "unlimited": true,
+                      "approvedAt": "2025-03-01T10:00:00.000Z",
+                      "severity": "orange",
+                      "codes": [
+                        {
+                          "code": "UNLIMITED_APPROVAL",
+                          "severity": "orange"
+                        }
+                      ],
+                      "revoke": true
+                    }
+                  ],
+                  "revokeUrl": "https://revoke.cash/address/0x...?chainId=8453"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request; nothing is charged"
+          },
+          "402": {
+            "description": "Payment Required"
+          },
+          "503": {
+            "description": "GoPlus is down; nothing is charged, no verdict"
+          }
+        }
+      }
+    }
+  }
+}
