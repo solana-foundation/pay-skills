@@ -1,0 +1,1808 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "VÃ©rif Entreprise FR",
+    "version": "0.1.0",
+    "summary": "VÃ©rification d'entreprises franÃ§aises payable Ã  l'appel par les agents IA (x402).",
+    "description": "AgrÃ¨ge l'Annuaire des Entreprises, le BODACC et la liste RGE de l'ADEME, et renvoie un verdict expliquÃ© par des signaux sourcÃ©s (codes stables, voir docs/signaux.md). Paiement Ã  l'appel en USDC via x402, sans compte ni clÃ© API.\n\nSources : Annuaire des Entreprises (DINUM), BODACC (DILA), ADEME â€” Licence Ouverte Etalab 2.0.\n\nInformations issues de sources publiques, fournies Ã  titre indicatif. Ne constitue pas un conseil.",
+    "license": {
+      "name": "DonnÃ©es : Licence Ouverte Etalab 2.0",
+      "url": "https://www.etalab.gouv.fr/licence-ouverte-open-licence"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api-production-24833.up.railway.app"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Payant",
+      "description": "Routes payantes x402"
+    },
+    {
+      "name": "Gratuit",
+      "description": "Routes gratuites"
+    }
+  ],
+  "paths": {
+    "/v1/verify": {
+      "get": {
+        "tags": [
+          "Payant"
+        ],
+        "operationId": "verifierEntreprise",
+        "summary": "VÃ©rification complÃ¨te d'une entreprise par SIREN et verdict expliquÃ©. (0.01 $)",
+        "x-payment": {
+          "protocol": "x402",
+          "version": 2,
+          "scheme": "exact",
+          "price": "$0.01",
+          "asset": "USDC",
+          "networks": [
+            "eip155:8453",
+            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "siren",
+            "in": "query",
+            "required": true,
+            "description": "SIREN (9 chiffres, clÃ© de Luhn valide). Espaces, points et tirets acceptÃ©s.",
+            "schema": {
+              "type": "string",
+              "examples": [
+                "552032534"
+              ]
+            }
+          },
+          {
+            "name": "nom",
+            "in": "query",
+            "required": false,
+            "description": "Nom Ã  vÃ©rifier (2 Ã  100 caractÃ¨res). Renvoie `correspondanceNom` (exacte, partielle ou aucune) sans divulguer le nom officiel : utile pour un entrepreneur individuel.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "PAYMENT-SIGNATURE",
+            "in": "header",
+            "required": false,
+            "description": "Preuve de paiement x402 (fournie par un client x402 aprÃ¨s une rÃ©ponse 402).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SuccÃ¨s. Le paiement n'est rÃ©glÃ© que pour une rÃ©ponse < 400.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "description": "ReÃ§u de rÃ¨glement x402 (JSON encodÃ© en base64 : transaction, payeur, rÃ©seau).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ParamÃ¨tre invalide (vÃ©rifiÃ© AVANT toute demande de paiement).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Erreur"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Paiement requis ($0.01 en USDC). Conditions encodÃ©es en base64 dans l'en-tÃªte PAYMENT-REQUIRED (protocole x402 v2). Rejouez la requÃªte avec l'en-tÃªte PAYMENT-SIGNATURE.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Conditions de paiement x402 (JSON encodÃ© en base64).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Erreur"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Entreprise introuvable ou non diffusible. Aucun paiement n'est rÃ©glÃ©.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Erreur"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Trop de requÃªtes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Erreur"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Source officielle indisponible. Aucun paiement n'est rÃ©glÃ©.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Erreur"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/search": {
+      "get": {
+        "tags": [
+          "Payant"
+        ],
+        "operationId": "rechercherEntreprise",
+        "summary": "Trouver le SIREN d'une entreprise Ã  partir de son nom (10 rÃ©sultats max). (0.002 $)",
+        "x-payment": {
+          "protocol": "x402",
+          "version": 2,
+          "scheme": "exact",
+          "price": "$0.002",
+          "asset": "USDC",
+          "networks": [
+            "eip155:8453",
+            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "Nom de l'entreprise (3 Ã  100 caractÃ¨res).",
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 100,
+              "examples": [
+                "boulangerie"
+              ]
+            }
+          },
+          {
+            "name": "code_postal",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{5}$",
+              "examples": [
+                "69003"
+              ]
+            }
+          },
+          {
+            "name": "commune",
+            "in": "query",
+            "required": false,
+            "description": "Code commune INSEE (ex. 69383), pas le nom de la ville.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9][0-9AB][0-9]{3}$"
+            }
+          },
+          {
+            "name": "PAYMENT-SIGNATURE",
+            "in": "header",
+            "required": false,
+            "description": "Preuve de paiement x402 (fournie par un client x402 aprÃ¨s une rÃ©ponse 402).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SuccÃ¨s. Le paiement n'est rÃ©glÃ© que pour une rÃ©ponse < 400.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "description": "ReÃ§u de rÃ¨glement x402 (JSON encodÃ© en base64 : transaction, payeur, rÃ©seau).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ParamÃ¨tre invalide (vÃ©rifiÃ© AVANT toute demande de paiement).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Erreur"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Paiement requis ($0.002 en USDC). Conditions encodÃ©es en base64 dans l'en-tÃªte PAYMENT-REQUIRED (protocole x402 v2). Rejouez la requÃªte avec l'en-tÃªte PAYMENT-SIGNATURE.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Conditions de paiement x402 (JSON encodÃ© en base64).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Erreur"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Trop de requÃªtes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Erreur"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Source officielle indisponible. Aucun paiement n'est rÃ©glÃ©.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Erreur"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/rge": {
+      "get": {
+        "tags": [
+          "Payant"
+        ],
+        "operationId": "qualificationsRge",
+        "summary": "DÃ©tail des qualifications RGE d'un Ã©tablissement (SIRET) : domaines, organisme, validitÃ©. (0.01 $)",
+        "x-payment": {
+          "protocol": "x402",
+          "version": 2,
+          "scheme": "exact",
+          "price": "$0.01",
+          "asset": "USDC",
+          "networks": [
+            "eip155:8453",
+            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "siret",
+            "in": "query",
+            "required": true,
+            "description": "SIRET de l'Ã©tablissement (14 chiffres).",
+            "schema": {
+              "type": "string",
+              "examples": [
+                "34758223100226"
+              ]
+            }
+          },
+          {
+            "name": "PAYMENT-SIGNATURE",
+            "in": "header",
+            "required": false,
+            "description": "Preuve de paiement x402 (fournie par un client x402 aprÃ¨s une rÃ©ponse 402).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SuccÃ¨s. Le paiement n'est rÃ©glÃ© que pour une rÃ©ponse < 400.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "description": "ReÃ§u de rÃ¨glement x402 (JSON encodÃ© en base64 : transaction, payeur, rÃ©seau).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RgeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ParamÃ¨tre invalide (vÃ©rifiÃ© AVANT toute demande de paiement).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Erreur"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Paiement requis ($0.01 en USDC). Conditions encodÃ©es en base64 dans l'en-tÃªte PAYMENT-REQUIRED (protocole x402 v2). Rejouez la requÃªte avec l'en-tÃªte PAYMENT-SIGNATURE.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Conditions de paiement x402 (JSON encodÃ© en base64).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Erreur"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ã‰tablissement introuvable ou non diffusible. Aucun paiement n'est rÃ©glÃ©.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Erreur"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Trop de requÃªtes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Erreur"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Source officielle indisponible. Aucun paiement n'est rÃ©glÃ©.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Erreur"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Signal": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Code stable, documentÃ© dans docs/signaux.md. Jamais renommÃ©."
+          },
+          "niveau": {
+            "type": "string",
+            "enum": [
+              "critique",
+              "eleve",
+              "moyen",
+              "faible",
+              "info",
+              "positif"
+            ],
+            "description": "GravitÃ© du signal, de Â« critique Â» Ã  Â« positif Â»."
+          },
+          "message": {
+            "type": "string",
+            "description": "Explication en franÃ§ais."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "annuaire",
+              "bodacc",
+              "ademe",
+              "vies",
+              "service"
+            ]
+          },
+          "date": {
+            "description": "Date de l'Ã©vÃ©nement Ã  l'origine du signal (AAAA-MM-JJ).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "preuve": {
+            "description": "URL de la publication officielle, si disponible.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "niveau",
+          "message",
+          "source",
+          "date",
+          "preuve"
+        ],
+        "additionalProperties": false
+      },
+      "Verdict": {
+        "type": "object",
+        "properties": {
+          "niveau": {
+            "type": "string",
+            "enum": [
+              "favorable",
+              "vigilance",
+              "defavorable",
+              "indetermine"
+            ]
+          },
+          "resume": {
+            "type": "string"
+          },
+          "confiance": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "partielle"
+            ],
+            "description": "Â« partielle Â» si une source (ex. BODACC) n'a pas pu Ãªtre consultÃ©e."
+          }
+        },
+        "required": [
+          "niveau",
+          "resume",
+          "confiance"
+        ],
+        "additionalProperties": false
+      },
+      "Entreprise": {
+        "type": "object",
+        "properties": {
+          "siren": {
+            "type": "string"
+          },
+          "tva": {
+            "type": "object",
+            "properties": {
+              "numero": {
+                "description": "NumÃ©ro de TVA intracommunautaire calculÃ© Ã  partir du SIREN (FR + clÃ© + SIREN).",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "valide": {
+                "description": "RÃ©ponse de VIES (Commission europÃ©enne) : true = numÃ©ro actif ; false = non assujetti Ã  la TVA ou numÃ©ro inactif ; null = VIES n'a pas rÃ©pondu Ã  temps.",
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "numero",
+              "valide"
+            ],
+            "additionalProperties": false
+          },
+          "denomination": {
+            "description": "Raison sociale. Pour un entrepreneur individuel : nom commercial ou enseigne uniquement (jamais le nom de la personne), sinon null.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sigle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "entrepreneurIndividuel": {
+            "type": "boolean"
+          },
+          "natureJuridique": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "libelle": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "libelle"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "activite": {
+            "type": "object",
+            "properties": {
+              "codeNaf": {
+                "description": "Code NAF rÃ©v. 2 de l'activitÃ© principale.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "section": {
+                "description": "Section NAF (lettre A Ã  U).",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "libelleSection": {
+                "description": "LibellÃ© INSEE de la section NAF.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "codeNaf",
+              "section",
+              "libelleSection"
+            ],
+            "additionalProperties": false
+          },
+          "categorie": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "libelle": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "libelle"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "PME, ETI ou GE (INSEE)."
+          },
+          "dateCreation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ancienneteAnnees": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "etat": {
+            "type": "string",
+            "enum": [
+              "active",
+              "cessee",
+              "inconnu"
+            ]
+          },
+          "dateCessation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "effectif": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  },
+                  "libelle": {
+                    "type": "string"
+                  },
+                  "min": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "max": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "annee": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "code",
+                  "libelle",
+                  "min",
+                  "max",
+                  "annee"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "employeur": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "siege": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "siret": {
+                    "type": "string"
+                  },
+                  "commune": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "codeCommune": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "codePostal": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "departement": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "adresse": {
+                    "description": "Adresse du siÃ¨ge ; toujours null pour un entrepreneur individuel.",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "etat": {
+                    "type": "string",
+                    "enum": [
+                      "ouvert",
+                      "ferme",
+                      "inconnu"
+                    ]
+                  }
+                },
+                "required": [
+                  "siret",
+                  "commune",
+                  "codeCommune",
+                  "codePostal",
+                  "departement",
+                  "adresse",
+                  "etat"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "etablissements": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "ouverts": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "total",
+              "ouverts"
+            ],
+            "additionalProperties": false
+          },
+          "labels": {
+            "type": "object",
+            "properties": {
+              "rge": {
+                "type": "boolean"
+              },
+              "qualiopi": {
+                "type": "boolean"
+              },
+              "bio": {
+                "type": "boolean"
+              },
+              "ess": {
+                "type": "boolean"
+              },
+              "societeMission": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "rge",
+              "qualiopi",
+              "bio",
+              "ess",
+              "societeMission"
+            ],
+            "additionalProperties": false
+          },
+          "miseAJour": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "siren",
+          "tva",
+          "denomination",
+          "sigle",
+          "entrepreneurIndividuel",
+          "natureJuridique",
+          "activite",
+          "categorie",
+          "dateCreation",
+          "ancienneteAnnees",
+          "etat",
+          "dateCessation",
+          "effectif",
+          "employeur",
+          "siege",
+          "etablissements",
+          "labels",
+          "miseAJour"
+        ],
+        "additionalProperties": false
+      },
+      "EvenementProcedure": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "categorie": {
+            "type": "string",
+            "description": "CatÃ©gorie normalisÃ©e (ex. OUVERTURE_LIQUIDATION)."
+          },
+          "nature": {
+            "description": "LibellÃ© officiel du jugement.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tribunal": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "date",
+          "categorie",
+          "nature",
+          "tribunal",
+          "url"
+        ],
+        "additionalProperties": false
+      },
+      "Procedures": {
+        "type": "object",
+        "properties": {
+          "etat": {
+            "type": "string",
+            "enum": [
+              "aucune",
+              "sauvegarde_en_cours",
+              "redressement_en_cours",
+              "liquidation_en_cours",
+              "plan_sauvegarde_en_cours",
+              "plan_redressement_en_cours",
+              "cloturee_insuffisance_actif",
+              "cloturee_extinction_passif",
+              "cloturee",
+              "terminee"
+            ]
+          },
+          "libelle": {
+            "type": "string"
+          },
+          "depuis": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dateOuverture": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "radiation": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "date": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "date",
+                  "url"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "historique": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvenementProcedure"
+            }
+          }
+        },
+        "required": [
+          "etat",
+          "libelle",
+          "depuis",
+          "dateOuverture",
+          "radiation",
+          "historique"
+        ],
+        "additionalProperties": false
+      },
+      "VerifyResponse": {
+        "type": "object",
+        "properties": {
+          "siren": {
+            "type": "string"
+          },
+          "entreprise": {
+            "$ref": "#/components/schemas/Entreprise"
+          },
+          "procedures": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Procedures"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null si le BODACC Ã©tait indisponible."
+          },
+          "correspondanceNom": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "resultat": {
+                    "type": "string",
+                    "enum": [
+                      "exacte",
+                      "partielle",
+                      "aucune"
+                    ],
+                    "description": "Tous les mots du nom demandÃ© figurent dans le nom officiel / une partie / aucun."
+                  },
+                  "motsReconnus": {
+                    "type": "number"
+                  },
+                  "motsDemandes": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "resultat",
+                  "motsReconnus",
+                  "motsDemandes"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "PrÃ©sent si le paramÃ¨tre `nom` est fourni. Permet de vÃ©rifier un nom (y compris d'entrepreneur individuel) sans que le nom officiel soit divulguÃ©."
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/Verdict"
+          },
+          "signaux": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Signal"
+            }
+          },
+          "fraicheur": {
+            "type": "string",
+            "enum": [
+              "temps_reel",
+              "cache",
+              "degradee"
+            ],
+            "description": "Â« degradee Â» : une source est en panne, donnÃ©es en cache de moins de 7 jours."
+          },
+          "sources": {
+            "type": "object",
+            "properties": {
+              "mention": {
+                "type": "string"
+              },
+              "detail": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "enum": [
+                        "recherche_entreprises",
+                        "bodacc",
+                        "ademe_rge",
+                        "vies"
+                      ]
+                    },
+                    "nom": {
+                      "type": "string"
+                    },
+                    "statut": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "indisponible"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "nom",
+                    "statut"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "mention",
+              "detail"
+            ],
+            "additionalProperties": false
+          },
+          "verifieLe": {
+            "type": "string",
+            "description": "Date et heure de collecte des donnÃ©es (ISO 8601)."
+          },
+          "avertissement": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "siren",
+          "entreprise",
+          "procedures",
+          "correspondanceNom",
+          "verdict",
+          "signaux",
+          "fraicheur",
+          "sources",
+          "verifieLe",
+          "avertissement",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "SearchResult": {
+        "type": "object",
+        "properties": {
+          "siren": {
+            "type": "string"
+          },
+          "siret": {
+            "description": "Ã‰tablissement affichÃ© : celui qui correspond au filtre gÃ©ographique, sinon le siÃ¨ge.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "denomination": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "entrepreneurIndividuel": {
+            "type": "boolean"
+          },
+          "etat": {
+            "type": "string",
+            "enum": [
+              "active",
+              "cessee",
+              "inconnu"
+            ]
+          },
+          "codeNaf": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "commune": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "codePostal": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dateCreation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "siren",
+          "siret",
+          "denomination",
+          "entrepreneurIndividuel",
+          "etat",
+          "codeNaf",
+          "commune",
+          "codePostal",
+          "dateCreation"
+        ],
+        "additionalProperties": false
+      },
+      "SearchResponse": {
+        "type": "object",
+        "properties": {
+          "requete": {
+            "type": "object",
+            "properties": {
+              "q": {
+                "type": "string"
+              },
+              "commune": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "codePostal": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "q",
+              "commune",
+              "codePostal"
+            ],
+            "additionalProperties": false
+          },
+          "resultats": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchResult"
+            }
+          },
+          "nombreResultats": {
+            "type": "number",
+            "description": "Nombre de rÃ©sultats renvoyÃ©s (10 au maximum)."
+          },
+          "plusDeResultats": {
+            "type": "boolean",
+            "description": "true si d'autres entreprises correspondent : affinez."
+          },
+          "fraicheur": {
+            "type": "string",
+            "enum": [
+              "temps_reel",
+              "cache",
+              "degradee"
+            ],
+            "description": "Â« degradee Â» : une source est en panne, donnÃ©es en cache de moins de 7 jours."
+          },
+          "sources": {
+            "type": "object",
+            "properties": {
+              "mention": {
+                "type": "string"
+              },
+              "detail": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "enum": [
+                        "recherche_entreprises",
+                        "bodacc",
+                        "ademe_rge",
+                        "vies"
+                      ]
+                    },
+                    "nom": {
+                      "type": "string"
+                    },
+                    "statut": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "indisponible"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "nom",
+                    "statut"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "mention",
+              "detail"
+            ],
+            "additionalProperties": false
+          },
+          "verifieLe": {
+            "type": "string",
+            "description": "Date et heure de collecte des donnÃ©es (ISO 8601)."
+          },
+          "avertissement": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requete",
+          "resultats",
+          "nombreResultats",
+          "plusDeResultats",
+          "fraicheur",
+          "sources",
+          "verifieLe",
+          "avertissement",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "QualificationRge": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nom": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "domaines": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metaDomaine": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "organisme": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "certificat": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dateDebut": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dateFin": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "valide": {
+            "type": "boolean",
+            "description": "true si la date du jour est dans la pÃ©riode de validitÃ©."
+          },
+          "particuliers": {
+            "description": "Travaux ouverts aux particuliers.",
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "nom",
+          "domaines",
+          "metaDomaine",
+          "organisme",
+          "certificat",
+          "dateDebut",
+          "dateFin",
+          "valide",
+          "particuliers",
+          "url"
+        ],
+        "additionalProperties": false
+      },
+      "RgeResponse": {
+        "type": "object",
+        "properties": {
+          "siret": {
+            "type": "string"
+          },
+          "siren": {
+            "type": "string"
+          },
+          "denomination": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "etablissement": {
+            "type": "object",
+            "properties": {
+              "etat": {
+                "type": "string",
+                "enum": [
+                  "ouvert",
+                  "ferme",
+                  "inconnu"
+                ]
+              },
+              "commune": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "codePostal": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "etat",
+              "commune",
+              "codePostal"
+            ],
+            "additionalProperties": false
+          },
+          "rge": {
+            "type": "object",
+            "properties": {
+              "qualifie": {
+                "type": "boolean",
+                "description": "Au moins une qualification RGE valide aujourd'hui."
+              },
+              "nombreQualificationsValides": {
+                "type": "number"
+              },
+              "qualifications": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/QualificationRge"
+                }
+              }
+            },
+            "required": [
+              "qualifie",
+              "nombreQualificationsValides",
+              "qualifications"
+            ],
+            "additionalProperties": false
+          },
+          "fraicheur": {
+            "type": "string",
+            "enum": [
+              "temps_reel",
+              "cache",
+              "degradee"
+            ],
+            "description": "Â« degradee Â» : une source est en panne, donnÃ©es en cache de moins de 7 jours."
+          },
+          "sources": {
+            "type": "object",
+            "properties": {
+              "mention": {
+                "type": "string"
+              },
+              "detail": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "enum": [
+                        "recherche_entreprises",
+                        "bodacc",
+                        "ademe_rge",
+                        "vies"
+                      ]
+                    },
+                    "nom": {
+                      "type": "string"
+                    },
+                    "statut": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "indisponible"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "nom",
+                    "statut"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "mention",
+              "detail"
+            ],
+            "additionalProperties": false
+          },
+          "verifieLe": {
+            "type": "string",
+            "description": "Date et heure de collecte des donnÃ©es (ISO 8601)."
+          },
+          "avertissement": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "siret",
+          "siren",
+          "denomination",
+          "etablissement",
+          "rge",
+          "fraicheur",
+          "sources",
+          "verifieLe",
+          "avertissement",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "BatchItem": {
+        "type": "object",
+        "properties": {
+          "siren": {
+            "type": "string"
+          },
+          "statut": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "introuvable",
+              "erreur"
+            ]
+          },
+          "resultat": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "siren": {
+                    "type": "string"
+                  },
+                  "entreprise": {
+                    "$ref": "#/components/schemas/Entreprise"
+                  },
+                  "procedures": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/Procedures"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "null si le BODACC Ã©tait indisponible."
+                  },
+                  "correspondanceNom": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "resultat": {
+                            "type": "string",
+                            "enum": [
+                              "exacte",
+                              "partielle",
+                              "aucune"
+                            ],
+                            "description": "Tous les mots du nom demandÃ© figurent dans le nom officiel / une partie / aucun."
+                          },
+                          "motsReconnus": {
+                            "type": "number"
+                          },
+                          "motsDemandes": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "resultat",
+                          "motsReconnus",
+                          "motsDemandes"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "PrÃ©sent si le paramÃ¨tre `nom` est fourni. Permet de vÃ©rifier un nom (y compris d'entrepreneur individuel) sans que le nom officiel soit divulguÃ©."
+                  },
+                  "verdict": {
+                    "$ref": "#/components/schemas/Verdict"
+                  },
+                  "signaux": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Signal"
+                    }
+                  },
+                  "fraicheur": {
+                    "type": "string",
+                    "enum": [
+                      "temps_reel",
+                      "cache",
+                      "degradee"
+                    ],
+                    "description": "Â« degradee Â» : une source est en panne, donnÃ©es en cache de moins de 7 jours."
+                  },
+                  "verifieLe": {
+                    "type": "string",
+                    "description": "Date et heure de collecte des donnÃ©es (ISO 8601)."
+                  }
+                },
+                "required": [
+                  "siren",
+                  "entreprise",
+                  "procedures",
+                  "correspondanceNom",
+                  "verdict",
+                  "signaux",
+                  "fraicheur",
+                  "verifieLe"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "PrÃ©sent si statut = ok."
+          },
+          "erreur": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "siren",
+          "statut",
+          "resultat",
+          "erreur"
+        ],
+        "additionalProperties": false
+      },
+      "BatchResponse": {
+        "type": "object",
+        "properties": {
+          "resultats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BatchItem"
+            }
+          },
+          "facturation": {
+            "type": "object",
+            "properties": {
+              "verificationsReussies": {
+                "type": "number"
+              },
+              "prixUnitaireUsd": {
+                "type": "number"
+              },
+              "montantUsd": {
+                "type": "number",
+                "description": "Montant rÃ©ellement rÃ©glÃ© (seules les vÃ©rifications rÃ©ussies sont facturÃ©es)."
+              }
+            },
+            "required": [
+              "verificationsReussies",
+              "prixUnitaireUsd",
+              "montantUsd"
+            ],
+            "additionalProperties": false
+          },
+          "fraicheur": {
+            "type": "string",
+            "enum": [
+              "temps_reel",
+              "cache",
+              "degradee"
+            ],
+            "description": "Â« degradee Â» : une source est en panne, donnÃ©es en cache de moins de 7 jours."
+          },
+          "sources": {
+            "type": "object",
+            "properties": {
+              "mention": {
+                "type": "string"
+              },
+              "detail": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "enum": [
+                        "recherche_entreprises",
+                        "bodacc",
+                        "ademe_rge",
+                        "vies"
+                      ]
+                    },
+                    "nom": {
+                      "type": "string"
+                    },
+                    "statut": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "indisponible"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "nom",
+                    "statut"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "mention",
+              "detail"
+            ],
+            "additionalProperties": false
+          },
+          "verifieLe": {
+            "type": "string",
+            "description": "Date et heure de collecte des donnÃ©es (ISO 8601)."
+          },
+          "avertissement": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "resultats",
+          "facturation",
+          "fraicheur",
+          "sources",
+          "verifieLe",
+          "avertissement",
+          "requestId"
+        ],
+        "additionalProperties": false
+      },
+      "Erreur": {
+        "type": "object",
+        "properties": {
+          "erreur": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "erreur",
+          "requestId"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}
