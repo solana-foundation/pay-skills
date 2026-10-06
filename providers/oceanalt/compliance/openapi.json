@@ -1,0 +1,611 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "OceanAlt — compliance layer for agent payments",
+    "version": "1.0.0",
+    "summary": "Before your agent pays, call OceanAlt once.",
+    "description": "Free, no-signup, CORS-enabled compliance screening and payment decisions for autonomous agents.\n\nEvery verdict comes with verifiable evidence — which sanctions list, which issuer freeze, which on-chain path — so an agent (or its auditor) can check the reasoning rather than trust a score.\n\nCoverage: 8 EVM chains (ethereum, base, bsc, polygon, arbitrum, optimism, avalanche, arc) + TRON + Bitcoin + Solana.\nThe payment gateway runs 11 gates before settlement: Attribution (KYA) → Revocation check → Identity proof (anti-impersonation) → KYC gate (optional) → Per-payment limit → Daily cumulative limit → Payee allowlist → Mandate-intent match (anti prompt-injection) → AML sanctions & risk screening → Behavioral anomaly detection (optional) → Replay & double-spend prevention.\n\nLanguage: human-readable fields default to English. Pass `lang=zh` for Chinese. `signal_keys` is language-independent — branch on it.\n\nLimits of the claim: compliance screening is not full or licensed AML compliance, and a `clear` / `allow` result is not proof of safety — absence of evidence is not evidence of absence. Enforce your own mandate regardless.\n\nAPI keys: optional and only ever raise limits (POST /api/access-keys). A key's holder may additionally restrict it — scopes (screen_address, screen_endpoint, decide, payee_decide, batch_screen, trace_funds, evidence_bundle, intent_check, baseline_lookup), a source-IP allowlist, and an expiry — in which case a call outside those limits is refused 403 with reason_code key_scope_denied or key_ip_denied, and a call with an expired key is served at the anonymous level with key_rejected: expired. Keys with no restrictions set, and calls with no key at all, are unaffected. See /api/access-keys/settings.\n\nIdempotency: the POST /api/pay payment call and `rotate` accept an `Idempotency-Key` header (semantics per draft-ietf-httpapi-idempotency-key-header). Same credential + same key + same JSON body within 24 hours returns the original status and body with `Idempotent-Replayed: true`; nothing runs twice and the retry is not recorded as a replay attack. Keep the same nonce when retrying. Calls without the header are unchanged.\n\nWebhooks: notifications to a URL configured in the console are signed per Standard Webhooks (webhook-id, webhook-timestamp, webhook-signature = v1,base64 HMAC-SHA256). Reject timestamps more than 300 seconds away. Failed deliveries are retried up to 5 attempts with the same webhook-id. See the top-level `webhooks` section.",
+    "contact": {
+      "name": "OceanAlt",
+      "url": "https://oceanalt.com",
+      "email": "business@oceanalt.com"
+    },
+    "license": {
+      "name": "Free tier — fair use",
+      "url": "https://oceanalt.com/en/api-docs"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://oceanalt.com"
+    }
+  ],
+  "tags": [
+    {
+      "name": "free",
+      "description": "No API key, no signup. Fair-use rate limited."
+    },
+    {
+      "name": "paid (x402)",
+      "description": "Pay-per-call over x402. Unpaid requests return 402 with a machine-readable quote."
+    }
+  ],
+  "paths": {
+    "/api/x402/decision": {
+      "post": {
+        "operationId": "x402_decision_post",
+        "summary": "Paid: decision + settlement",
+        "description": "Same shape as /api/decide, plus x402 settlement ($0.002/call, or $0.05 for a 100-call credit pack). Unpaid requests get a 402 with a payment-required quote header.\n\nExample:\ncurl -i -X POST \"https://oceanalt.com/api/x402/decision\" -H \"content-type: application/json\" -d '{\"to\":\"0x…\"}'",
+        "tags": [
+          "paid (x402)"
+        ],
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.002"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "to": {
+                    "type": "string",
+                    "description": "Payee address"
+                  },
+                  "amountUsdc": {
+                    "type": "number",
+                    "description": "Amount"
+                  },
+                  "network": {
+                    "type": "string",
+                    "description": "Chain"
+                  },
+                  "lang": {
+                    "type": "string",
+                    "description": "en (default) or zh"
+                  }
+                },
+                "required": [
+                  "to"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Screening / decision result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or invalid address"
+          },
+          "402": {
+            "description": "Payment required — the `payment-required` header carries the x402 v2 quote (accepts[])."
+          },
+          "429": {
+            "description": "Rate limited (60 requests/min per IP). Honour `retry-after`."
+          }
+        }
+      }
+    },
+    "/api/x402/trace": {
+      "get": {
+        "operationId": "x402_trace_get",
+        "summary": "Paid: TRON multi-hop taint trace",
+        "description": "Follows the largest inflows upstream, up to 3 hops, to see whether funds touched a listed address. Main path only, so no hit does not prove the address is clean. x402 settlement, $0.01 per call.\n\nExample:\ncurl -i \"https://oceanalt.com/api/x402/trace?addr=T…\"",
+        "tags": [
+          "paid (x402)"
+        ],
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          }
+        },
+        "parameters": [
+          {
+            "name": "addr",
+            "in": "query",
+            "required": true,
+            "description": "TRON address (T…)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Screening / decision result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or invalid address"
+          },
+          "402": {
+            "description": "Payment required — the `payment-required` header carries the x402 v2 quote (accepts[])."
+          },
+          "429": {
+            "description": "Rate limited (60 requests/min per IP). Honour `retry-after`."
+          }
+        }
+      }
+    },
+    "/api/x402/batch": {
+      "post": {
+        "operationId": "x402_batch_post",
+        "summary": "Paid: batch screening (up to 25 addresses)",
+        "description": "Screens up to 25 addresses in one call, with a verdict per address, sorted riskiest first. x402 settlement, $0.01 per call.\n\nExample:\ncurl -i -X POST \"https://oceanalt.com/api/x402/batch\" -H \"content-type: application/json\" -d '{\"addresses\":[\"0x…\",\"T…\"]}'",
+        "tags": [
+          "paid (x402)"
+        ],
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "addresses": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 25,
+                    "description": "Array of up to 25 addresses (0x or T)"
+                  }
+                },
+                "required": [
+                  "addresses"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Screening / decision result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or invalid address"
+          },
+          "402": {
+            "description": "Payment required — the `payment-required` header carries the x402 v2 quote (accepts[])."
+          },
+          "429": {
+            "description": "Rate limited (60 requests/min per IP). Honour `retry-after`."
+          }
+        }
+      }
+    },
+    "/api/x402/credits": {
+      "post": {
+        "operationId": "x402_credits_post",
+        "summary": "Paid: decision credit pack",
+        "description": "One $0.05 payment buys 100 decision calls, valid 365 days. The response shows a token once; send it as the X-OceanAlt-Credit header on /api/x402/decision and each call uses one credit.\n\nExample:\ncurl -i -X POST \"https://oceanalt.com/api/x402/credits\"",
+        "tags": [
+          "paid (x402)"
+        ],
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.05"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {}
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Screening / decision result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or invalid address"
+          },
+          "402": {
+            "description": "Payment required — the `payment-required` header carries the x402 v2 quote (accepts[])."
+          },
+          "429": {
+            "description": "Rate limited (60 requests/min per IP). Honour `retry-after`."
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {
+    "key-alert": {
+      "post": {
+        "summary": "A payment by one of your agents was blocked or flagged",
+        "description": "Sent to the webhook URL configured in the console (https://oceanalt.com/en/keys).\n\nSignature (Standard Webhooks, https://www.standardwebhooks.com/): webhook-signature = \"v1,\" + base64(HMAC-SHA256(key, webhook-id + \".\" + webhook-timestamp + \".\" + raw body)), where key is the base64-decoded part of the whsec_ secret after the prefix. Reject a webhook-timestamp more than 300 seconds from your clock. For 24 hours after a rotation the header carries two space-separated signatures; accept if either matches.\n\nDelivery: answer 2xx within about 5 seconds. Redirects are not followed. Anything else is retried after 60, 300, 1800, 7200 seconds, up to 5 attempts in total, with the same webhook-id (deduplicate on it).",
+        "parameters": [
+          {
+            "name": "webhook-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unique message id, identical across retries."
+          },
+          {
+            "name": "webhook-timestamp",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix seconds when this attempt was signed."
+          },
+          {
+            "name": "webhook-signature",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Space-separated list of v1,<base64> signatures."
+          },
+          {
+            "name": "X-OceanAlt-Event",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Event type, e.g. key-alert."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "key-alert"
+                    ]
+                  },
+                  "agentId": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "description": "block | review"
+                  },
+                  "pillar": {
+                    "type": "string",
+                    "description": "The gate that fired, e.g. Screening/AML."
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "amountUsdc": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "toAddr": {
+                    "type": "string"
+                  },
+                  "at": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Acknowledged. Any other outcome counts as a failed delivery and is retried."
+          }
+        }
+      }
+    },
+    "webhook.test": {
+      "post": {
+        "summary": "Test event sent from the console",
+        "description": "Signed exactly like key-alert. Test events are not retried.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "webhook.test"
+                    ]
+                  },
+                  "note": {
+                    "type": "string"
+                  },
+                  "at": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Acknowledged."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ScreenResult": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "clear",
+              "caution",
+              "risky",
+              "uncertain"
+            ],
+            "description": "uncertain means screening could not run — never treat it as clear."
+          },
+          "risk": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100
+          },
+          "blocked": {
+            "type": "boolean"
+          },
+          "lang": {
+            "type": "string",
+            "enum": [
+              "en",
+              "zh"
+            ],
+            "description": "Language the human-readable fields were rendered in."
+          },
+          "signals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Human-readable risk signals, in the requested language."
+          },
+          "signal_keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Language-independent signal keys (e.g. list.mixer, taint.onehop). Branch on these, not on the prose."
+          },
+          "evidence": {
+            "type": "array",
+            "description": "Verifiable evidence: which list, label or on-chain path matched, with a link you can open yourself.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "detail": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            }
+          },
+          "provider": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "reason_code": {
+            "type": "string",
+            "description": "Stable machine-readable reason code (x402 conformance)."
+          },
+          "signal_class": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "payment",
+              "regulatory",
+              "authorization",
+              "uncertain"
+            ]
+          },
+          "retry": {
+            "type": "object",
+            "description": "Whether and under what condition an agent should retry."
+          },
+          "advice": {
+            "type": "string"
+          },
+          "standard": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "DecisionResult": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ScreenResult"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "decision": {
+                "type": "string",
+                "enum": [
+                  "allow",
+                  "review",
+                  "decline"
+                ]
+              },
+              "allow": {
+                "type": "boolean",
+                "description": "One-line branch for an agent: if (!allow) halt()."
+              },
+              "summary": {
+                "type": "string",
+                "description": "One sentence a person can read: the verdict and when the check ran (UTC). Generated from decision and signal_keys; branch on those, not on this text."
+              },
+              "settlement": {
+                "type": "object",
+                "description": "Compliance attestation you can bind to your own settlement. OceanAlt never touches the funds.",
+                "properties": {
+                  "attestation": {
+                    "type": "string",
+                    "description": "Attestation token; pass it to GET /api/attestation/verify?token=…"
+                  },
+                  "attestation_id": {
+                    "type": "string",
+                    "description": "Short reference to this decision, for settlement memos. Not a replay or single-use primitive."
+                  },
+                  "issued_at": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "expires_at": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "verify_url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "bind": {
+                    "type": "string",
+                    "description": "Human-readable instruction for attaching the attestation to a settlement."
+                  },
+                  "rails": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Settlement rails this attestation is commonly bound to (informational)."
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "securitySchemes": {
+      "ApiKeyBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Optional registered API key (POST /api/access-keys). It raises limits; it is never required."
+      },
+      "ApiKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key",
+        "description": "The same key, for clients that prefer a custom header."
+      }
+    },
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "description": "Honoured on the payment call (no action) and on action rotate; ignored by preview and other actions. Same x-agent-secret + same key + same JSON body within 24 hours → original status and body with Idempotent-Replayed: true, nothing executed again, no threat recorded. Same key + different body → 422. Original still running → 409 with retry-after. Keep the same nonce when retrying. A UUID is recommended."
+      }
+    }
+  },
+  "externalDocs": {
+    "description": "RAP — Recursive Agent Payment standard",
+    "url": "https://oceanalt.com/en/rap"
+  }
+}
