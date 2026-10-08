@@ -1,7 +1,7 @@
 ---
 name: agentfeed
 title: "AgentFeed"
-description: "53 pay-per-call JSON endpoints for crypto market state: spot prices, perp funding and a cross-venue funding radar, open interest, a complete Bybit liquidation tape joined with OKX and Binance, cascade scores, tokenized-stock peg and Solana token risk."
+description: "59 pay-per-call JSON endpoints for crypto market state: spot prices, a cross-venue funding radar, open interest, a full Bybit liquidation tape joined with OKX and Binance, Deribit options IV and GEX, stock perps, a macro calendar and Solana token risk."
 use_case: "Use when an agent needs current derivatives or liquidation state before acting: what is liquidating now, where funding and open interest sit, whether a cascade is building. Also for Solana token-risk and wallet holdings without an API key."
 category: data
 service_url: https://x402.ochinimus.app
@@ -31,6 +31,16 @@ The derivatives endpoints cover funding, open interest, long/short account
 ratios, basis and volatility, plus a funding radar that scores every liquid
 perp's funding on Bybit, OKX and Hyperliquid against each venue's own 30 days; the Solana endpoints cover wallet holdings, token
 metadata, holder concentration and rug-risk flags, priority fees and Jito tips.
+
+The options endpoints read Deribit for BTC, ETH, SOL, XRP and HYPE:
+`/api/options-summary` returns ATM and 30-day implied vol, 25-delta risk
+reversal and butterfly, DVOL and max pain per expiry; `/api/options-gex`
+returns dealer gamma exposure by strike and the flip level. `/api/tradfi-radar`
+ranks stock, index, commodity and FX perps on Hyperliquid HIP-3 dexes, Bybit,
+Binance and OKX by funding, and `/api/equity-24h` gives an indicative weekend
+price for a US stock from those perps and its tokenized DEX price.
+`/api/macro-calendar` lists FOMC decisions and CPI, NFP and PCE releases with
+UTC times.
 The peg endpoints are not stablecoins: they measure tokenized US equities that
 trade on Solana against the stock itself - the on-chain DEX price versus the
 underlying's last real trade, broken out by trading session and ranked across
@@ -48,6 +58,9 @@ tool interface to raw HTTP.
 - `/api/trade-context` ($0.01) bundles prices, funding, fear/greed, positioning
   and liquidations into one response. Prefer it over calling four endpoints
   separately, which costs more and returns a less coherent snapshot.
+- `/api/market-state` ($0.02) is the regime read for one symbol: spot,
+  realized and implied vol, funding z-score, open interest, long/short,
+  basis, liquidation spike and the next macro event in one response.
 - `/api/market-snapshot` ($0.005) is the cheaper bundle when you only need
   prices, funding and sentiment.
 - `/api/squeeze-score` ($0.1) is the most expensive call in the catalog, at
