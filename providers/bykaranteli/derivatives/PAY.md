@@ -42,6 +42,11 @@ route-specific ones) are in `openapi.json` next to this file, and the free
 | `/api/x402/liquidation-leaderboard-history` | $0.10 | Per-day ranking of the largest single liquidation prints across nine venues: up to 100 ranks per finalized UTC day with symbol, venue, side and notional. |
 | `/api/x402/insurance-fund-history` | $0.10 | Hourly insurance fund readings per pool on ten venues: balance, USD value and the contracts each pool covers. |
 | `/api/x402/tokenized-stocks-history` | $0.10 | Hourly readings per tokenized stock wrapper from nine issuers: price, reference, premium, liquidity and 24h volume with chain, issuer and day filters. |
+| `/api/x402/hl-positions-history` | $0.10 | Every open position of the 1000 largest Hyperliquid accounts by equity, once an hour since 2026-09-30: address, coin, signed size, notional, entry and liquidation price, leverage and account equity. |
+| `/api/x402/market-profile-history` | $0.10 | Daily Market Profile per perpetual from our own minute bars: 30-minute TPO periods, point of control, 70% value area, initial balance, volume point of control and the per-bucket profile. |
+| `/api/x402/options-chain-history` | $0.10 | Hourly listed options chain per instrument on Deribit, Bybit, Binance, OKX and Delta Exchange: open interest in coins, mark IV, underlying price, 24h volume, plus Deribit mark, bid and ask. |
+| `/api/x402/solana-perps-history` | $0.10 | Hourly history of the Solana perp venues other than Jupiter (Pacifica, Phoenix, GM Trade, Velocity, Bullet) per market and metric: open interest, 24h volume, funding and mark, recorded from 2026-09-25. |
+| `/api/x402/venue-share-history` | $0.10 | Hourly recorded liquidations per counted venue since 2026-08-29: long and short USD, events, largest print, symbols, the hour's total over the counted venues and the venue's share of it. |
 | `/api/x402/bulk-liquidations` | $15 | One-hour download links for monthly gzip CSV files of every recorded liquidation event. |
 | `/api/x402/bulk-derivatives` | $10 | One-hour download links for monthly files of open interest, funding settlements and venue snapshots. |
 | `/api/x402/bulk-flow` | $10 | One-hour download links for monthly files of whale prints, Hyperliquid whale events, positioning and RSI. |
