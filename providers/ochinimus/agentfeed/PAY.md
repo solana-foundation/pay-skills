@@ -1,7 +1,7 @@
 ---
 name: agentfeed
 title: "AgentFeed"
-description: "52 pay-per-call JSON endpoints for crypto market state: spot prices, perp funding, open interest, a complete Bybit liquidation tape joined with OKX and Binance, cascade and squeeze scores, orderbook imbalance, tokenized-stock peg and Solana token risk."
+description: "53 pay-per-call JSON endpoints for crypto market state: spot prices, perp funding and a cross-venue funding radar, open interest, a complete Bybit liquidation tape joined with OKX and Binance, cascade scores, tokenized-stock peg and Solana token risk."
 use_case: "Use when an agent needs current derivatives or liquidation state before acting: what is liquidating now, where funding and open interest sit, whether a cascade is building. Also for Solana token-risk and wallet holdings without an API key."
 category: data
 service_url: https://x402.ochinimus.app
@@ -11,11 +11,14 @@ openapi:
 
 AgentFeed is a read-only market-data API for agents, gated per call in USDC.
 No accounts and no API keys: every route answers `402` with an x402 challenge
-(Solana mainnet or Base), the caller pays, and the same request returns JSON.
+(Solana mainnet, Base, Polygon or Arbitrum), the caller pays, and the same
+request returns JSON.
 `/api/sol-price` and `/api/btc-price` also carry an MPP `solana`/`charge`
 challenge in `WWW-Authenticate` on the same 402, so `pay` can settle either
 protocol. Payment goes to `4a8o45skRPcyjAdyR8yES215Swvh8uTpZD6KLarhxCJ7` on
-Solana and `0x22DB3A9686EE5261e7Bf3ed4f91277232E8076e6` on Base.
+Solana and `0x22DB3A9686EE5261e7Bf3ed4f91277232E8076e6` on Base, Polygon and
+Arbitrum. Take `payTo` from a fresh 402, never from transaction history:
+lookalikes of the EVM address have sent address-poisoning transfers.
 
 The liquidation data is the part that is hard to get elsewhere: Bybit's
 complete, unthrottled liquidation tape, joined with OKX and Binance, with
@@ -25,14 +28,15 @@ the tape rather than restated here, because a number written into a document
 drifts and the tape does not.
 
 The derivatives endpoints cover funding, open interest, long/short account
-ratios, basis and volatility; the Solana endpoints cover wallet holdings, token
+ratios, basis and volatility, plus a funding radar that scores every liquid
+perp's funding on Bybit, OKX and Hyperliquid against each venue's own 30 days; the Solana endpoints cover wallet holdings, token
 metadata, holder concentration and rug-risk flags, priority fees and Jito tips.
 The peg endpoints are not stablecoins: they measure tokenized US equities that
 trade on Solana against the stock itself - the on-chain DEX price versus the
 underlying's last real trade, broken out by trading session and ranked across
 every tracked name.
 
-Prices run $0.001–$0.1 per call. Six endpoints are free and carry no payment
+Prices run $0.005–$0.1 per call. Six endpoints are free and carry no payment
 challenge: `/api/fear-greed`, `/api/last-liquidation`, `/api/exit-method`,
 `/api/forecast-record`, `/api/sample` and `/api/sample/{route}`.
 
@@ -44,7 +48,7 @@ tool interface to raw HTTP.
 - `/api/trade-context` ($0.01) bundles prices, funding, fear/greed, positioning
   and liquidations into one response. Prefer it over calling four endpoints
   separately, which costs more and returns a less coherent snapshot.
-- `/api/market-snapshot` ($0.003) is the cheaper bundle when you only need
+- `/api/market-snapshot` ($0.005) is the cheaper bundle when you only need
   prices, funding and sentiment.
 - `/api/squeeze-score` ($0.1) is the most expensive call in the catalog, at
   twice the next tier. Reach for it when you specifically want the composite

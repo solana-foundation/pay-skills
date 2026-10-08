@@ -3,14 +3,14 @@
   "info": {
     "title": "AgentFeed",
     "version": "1.0.0",
-    "description": "Live crypto market, liquidation, tokenized-equity and Solana on-chain data for AI agents. Paid per call in USDC over x402 on Solana or Base. No API keys, no accounts.",
+    "description": "Live crypto market, liquidation, tokenized-equity and Solana on-chain data for AI agents. Paid per call in USDC over x402 on Solana, Base, Polygon or Arbitrum. No API keys, no accounts.",
     "x-generated-from": "payments.PRICES + bazaar-examples.json, at boot",
     "contact": {
       "name": "ochinimus",
       "email": "ochinimus@gmail.com",
       "url": "https://ochinimus.app"
     },
-    "x-guidance": "Every route is a GET that returns JSON. There are no API keys and no accounts. Paid routes answer 402 with the challenge base64-encoded in the PAYMENT-REQUIRED response header (x402 v2, not the body). Pay it and repeat the request with an X-PAYMENT header. USDC on Solana mainnet or Base. Response shape is always { \"tool\": \"<name>\", \"data\": { ... }, \"paid\": true }. Before paying, GET /api/sample/<route> for that route's real captured response, free. GET /api/sample lists them. Start cheap: /api/perp, /api/liq-pulse, /api/funding-pulse and /api/price are $0.001 each and cover most questions. The premium routes are the liquidation tape, cascade detection and the tokenized-equity peg tape. A route that cannot answer returns 200 with a decline field naming the reason; it never returns fabricated or zero-filled data. Limits: GET only on /api/* (HEAD answers 405); per caller per minute 240 GET or POST /mcp and 2400 of any other method; a 429 carries Retry-After."
+    "x-guidance": "Every route is a GET that returns JSON. There are no API keys and no accounts. Paid routes answer 402 with the challenge base64-encoded in the PAYMENT-REQUIRED response header (x402 v2, not the body). Pay it and repeat the request with a PAYMENT-SIGNATURE header (x402 v2; the v1 X-PAYMENT header is not read). USDC on Solana mainnet, Base, Polygon or Arbitrum. Copy payTo only from a fresh 402 response, never from transaction history: a lookalike of the treasury address has sent address-poisoning transfers to our buyers. Response shape is always { \"tool\": \"<name>\", \"data\": { ... }, \"paid\": true }. Before paying, GET /api/sample/<route> for that route's real captured response, free. GET /api/sample lists them. Start cheap: /api/perp, /api/liq-pulse, /api/funding-pulse and /api/price are $0.005 each and cover most questions. The premium routes are the liquidation tape, cascade detection and the tokenized-equity peg tape. A route that cannot answer returns 200 with a decline field naming the reason; it never returns fabricated or zero-filled data. Limits: GET only on /api/* (HEAD on a paid route answers the 402 challenge headers with no body, on a free route 405); per caller per minute 240 GET or POST /mcp and 2400 of any other method; a 429 carries Retry-After."
   },
   "externalDocs": {
     "description": "AgentFeed agent skill: when to use each route, what it answers and what it costs",
@@ -109,7 +109,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -146,7 +146,7 @@
         "tags": [
           "agentfeed"
         ],
-        "x-price-usd": 0.001,
+        "x-price-usd": 0.005,
         "x-payment-info": {
           "protocols": [
             {
@@ -163,7 +163,7 @@
           "price": {
             "mode": "fixed",
             "currency": "USD",
-            "amount": "0.001"
+            "amount": "0.005"
           }
         }
       }
@@ -255,7 +255,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -292,7 +292,7 @@
         "tags": [
           "agentfeed"
         ],
-        "x-price-usd": 0.001,
+        "x-price-usd": 0.005,
         "x-payment-info": {
           "protocols": [
             {
@@ -309,15 +309,29 @@
           "price": {
             "mode": "fixed",
             "currency": "USD",
-            "amount": "0.001"
+            "amount": "0.005"
           }
         }
       }
     },
     "/api/funding-rate": {
       "get": {
-        "description": "Funding rate for SOL and BTC perps, from Hyperliquid: the hourly rate, its 8h equivalent, mark price and open interest for each. For the funding rate on ANY USDT perp across Bybit, OKX and Hyperliquid in one call, use /api/funding-cross.",
+        "description": "Funding rate for any USDT perp on Bybit, OKX and Hyperliquid: per venue the raw rate, its interval in hours, the 8h equivalent, the annualised rate, next funding time and mark price. Without a symbol: funding rates for the SOL and BTC perps on Hyperliquid, with open interest. Cross-venue spread and crowding: /api/funding-cross.",
         "operationId": "get_funding_rate",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "symbol",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "USDT perp symbol e.g. ETHUSDT, ONDOUSDT (omit for SOL and BTC from Hyperliquid)"
+            }
+          }
+        ],
+        "x-example-query": {
+          "symbol": "ETHUSDT"
+        },
         "responses": {
           "200": {
             "content": {
@@ -331,11 +345,17 @@
                     "data": {
                       "type": "object",
                       "properties": {
-                        "sol": {
+                        "symbol": {
+                          "type": "string"
+                        },
+                        "venues": {
                           "type": "object"
                         },
-                        "btc": {
-                          "type": "object"
+                        "note": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "type": "string"
                         }
                       }
                     },
@@ -347,24 +367,35 @@
                 "example": {
                   "tool": "get_funding_rate",
                   "data": {
-                    "sol": {
-                      "symbol": "SOL",
-                      "funding_rate_hourly": 0.0000125,
-                      "funding_rate_8h_equiv": 0.0001,
-                      "funding_rate_pct_hourly": 0.00125,
-                      "mark_price": 121.42,
-                      "open_interest": 6103405.560000007,
-                      "source": "hyperliquid"
+                    "symbol": "ETHUSDT",
+                    "venues": {
+                      "bybit": {
+                        "funding_rate_raw": -0.0000658,
+                        "funding_interval_hours": 8,
+                        "funding_rate_8h": -0.0000658,
+                        "annualized_pct": -7.21,
+                        "next_funding_time": 1790611200000,
+                        "mark_price": 2649.08
+                      },
+                      "okx": {
+                        "funding_rate_raw": -0.0000219362088511,
+                        "funding_interval_hours": 8,
+                        "funding_rate_8h": -0.0000219362088511,
+                        "annualized_pct": -2.4,
+                        "next_funding_time": 1790611200000,
+                        "mark_price": 2648.8
+                      },
+                      "hyperliquid": {
+                        "funding_rate_raw": 0.0000125,
+                        "funding_interval_hours": 1,
+                        "funding_rate_8h": 0.0001,
+                        "annualized_pct": 10.95,
+                        "next_funding_time": 1790593200000,
+                        "mark_price": 2650.7
+                      }
                     },
-                    "btc": {
-                      "symbol": "BTC",
-                      "funding_rate_hourly": 0.0000125,
-                      "funding_rate_8h_equiv": 0.0001,
-                      "funding_rate_pct_hourly": 0.00125,
-                      "mark_price": 83875,
-                      "open_interest": 39511.1646,
-                      "source": "hyperliquid"
-                    }
+                    "note": "Each rate is quoted for its own interval: funding_rate_8h = raw x 8 / funding_interval_hours, annualized_pct = raw x 24 / funding_interval_hours x 365 x 100. /api/funding-cross adds the cross-venue spread and a crowding read.",
+                    "source": "bybit+okx+hyperliquid public funding"
                   },
                   "paid": true
                 }
@@ -373,15 +404,15 @@
             "description": "Paid response."
           },
           "400": {
-            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. This route takes no required input, so a 400 means an upstream source failed, not a caller mistake.",
+            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. Observed: optional query param symbol = not-a-symbol.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object"
                 },
                 "example": {
-                  "tool": "<tool name>",
-                  "error": "<human-readable reason>"
+                  "tool": "get_funding_rate",
+                  "error": "invalid symbol: not-a-symbol"
                 }
               }
             }
@@ -409,7 +440,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -442,11 +473,11 @@
             }
           }
         },
-        "summary": "Fetch funding rate: funding rate for sol and btc perps, from",
+        "summary": "Fetch funding rate: funding rate for any usdt perp on bybit",
         "tags": [
           "agentfeed"
         ],
-        "x-price-usd": 0.002,
+        "x-price-usd": 0.005,
         "x-payment-info": {
           "protocols": [
             {
@@ -456,7 +487,7 @@
           "price": {
             "mode": "fixed",
             "currency": "USD",
-            "amount": "0.002"
+            "amount": "0.005"
           }
         }
       }
@@ -584,7 +615,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -621,7 +652,7 @@
         "tags": [
           "agentfeed"
         ],
-        "x-price-usd": 0.003,
+        "x-price-usd": 0.005,
         "x-payment-info": {
           "protocols": [
             {
@@ -631,7 +662,7 @@
           "price": {
             "mode": "fixed",
             "currency": "USD",
-            "amount": "0.003"
+            "amount": "0.005"
           }
         }
       }
@@ -758,7 +789,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -932,7 +963,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -1112,15 +1143,15 @@
             "description": "Paid response."
           },
           "400": {
-            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. This route takes no required input, so a 400 means an upstream source failed, not a caller mistake.",
+            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. Observed: optional query param symbol = not-a-symbol.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object"
                 },
                 "example": {
-                  "tool": "<tool name>",
-                  "error": "<human-readable reason>"
+                  "tool": "get_recent_liquidations",
+                  "error": "symbol must be an alias (SOL, BTC, ETH, XRP, DOGE) or a USDT perp symbol (e.g. SXTUSDT)"
                 }
               }
             }
@@ -1148,7 +1179,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -1185,7 +1216,7 @@
         "tags": [
           "agentfeed"
         ],
-        "x-price-usd": 0.003,
+        "x-price-usd": 0.005,
         "x-payment-info": {
           "protocols": [
             {
@@ -1195,7 +1226,7 @@
           "price": {
             "mode": "fixed",
             "currency": "USD",
-            "amount": "0.003"
+            "amount": "0.005"
           }
         }
       }
@@ -1358,7 +1389,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -1568,7 +1599,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -1770,7 +1801,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -1863,67 +1894,69 @@
                   "data": {
                     "source": "multi_exchange_colle…",
                     "exchanges": [
-                      "bybit"
+                      "bybit",
+                      "okx",
+                      "binance"
                     ],
                     "collecting_since": 1783528952067,
                     "sol": {
                       "1h": {
-                        "events": 111,
-                        "total_usd": 551818.07,
-                        "longs_liquidated_usd": 19962.17,
-                        "shorts_liquidated_usd": 531855.9,
-                        "biggest_print_usd": 100573.77,
+                        "events": 474,
+                        "total_usd": 6674773.67,
+                        "longs_liquidated_usd": 6443900.69,
+                        "shorts_liquidated_usd": 230872.98,
+                        "biggest_print_usd": 565140.68,
                         "by_exchange": {
                           "bybit": {
-                            "events": 32,
-                            "total_usd": 244917.79,
-                            "longs_liquidated_usd": 445.55,
-                            "shorts_liquidated_usd": 244472.23,
-                            "biggest_print_usd": 100573.77
-                          },
-                          "binance": {
-                            "events": 46,
-                            "total_usd": 185867.75,
-                            "longs_liquidated_usd": 5269.3,
-                            "shorts_liquidated_usd": 180598.45,
-                            "biggest_print_usd": 87563.06
+                            "events": 246,
+                            "total_usd": 924074.2,
+                            "longs_liquidated_usd": 857833.57,
+                            "shorts_liquidated_usd": 66240.63,
+                            "biggest_print_usd": 67330.17
                           },
                           "okx": {
-                            "events": 33,
-                            "total_usd": 121032.53,
-                            "longs_liquidated_usd": 14247.32,
-                            "shorts_liquidated_usd": 106785.21,
-                            "biggest_print_usd": 53474.45
+                            "events": 85,
+                            "total_usd": 611411.23,
+                            "longs_liquidated_usd": 583604.52,
+                            "shorts_liquidated_usd": 27806.71,
+                            "biggest_print_usd": 132626.52
+                          },
+                          "binance": {
+                            "events": 143,
+                            "total_usd": 5139288.24,
+                            "longs_liquidated_usd": 5002462.6,
+                            "shorts_liquidated_usd": 136825.64,
+                            "biggest_print_usd": 565140.68
                           }
                         }
                       },
                       "24h": {
-                        "events": 1808,
-                        "total_usd": 16129696.9,
-                        "longs_liquidated_usd": 3920645.3,
-                        "shorts_liquidated_usd": 12209051.6,
-                        "biggest_print_usd": 915882,
+                        "events": 3160,
+                        "total_usd": 35593650,
+                        "longs_liquidated_usd": 34649734.64,
+                        "shorts_liquidated_usd": 943915.35,
+                        "biggest_print_usd": 1858611.82,
                         "by_exchange": {
+                          "okx": {
+                            "events": 566,
+                            "total_usd": 3740852.51,
+                            "longs_liquidated_usd": 3458924.73,
+                            "shorts_liquidated_usd": 281927.78,
+                            "biggest_print_usd": 382358.02
+                          },
                           "binance": {
-                            "events": 705,
-                            "total_usd": 9445111.62,
-                            "longs_liquidated_usd": 2343782.62,
-                            "shorts_liquidated_usd": 7101329,
-                            "biggest_print_usd": 915882
+                            "events": 911,
+                            "total_usd": 24296622.41,
+                            "longs_liquidated_usd": 23797984.96,
+                            "shorts_liquidated_usd": 498637.46,
+                            "biggest_print_usd": 1858611.82
                           },
                           "bybit": {
-                            "events": 637,
-                            "total_usd": 2953284.27,
-                            "longs_liquidated_usd": 635875.59,
-                            "shorts_liquidated_usd": 2317408.68,
-                            "biggest_print_usd": 100573.77
-                          },
-                          "okx": {
-                            "events": 466,
-                            "total_usd": 3731301.02,
-                            "longs_liquidated_usd": 940987.1,
-                            "shorts_liquidated_usd": 2790313.92,
-                            "biggest_print_usd": 585023.37
+                            "events": 1683,
+                            "total_usd": 7556175.07,
+                            "longs_liquidated_usd": 7392824.96,
+                            "shorts_liquidated_usd": 163350.11,
+                            "biggest_print_usd": 99431.77
                           }
                         }
                       }
@@ -1972,7 +2005,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -2009,7 +2042,7 @@
         "tags": [
           "agentfeed"
         ],
-        "x-price-usd": 0.004,
+        "x-price-usd": 0.01,
         "x-payment-info": {
           "protocols": [
             {
@@ -2019,7 +2052,7 @@
           "price": {
             "mode": "fixed",
             "currency": "USD",
-            "amount": "0.004"
+            "amount": "0.01"
           }
         }
       }
@@ -2137,7 +2170,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -2174,7 +2207,7 @@
         "tags": [
           "agentfeed"
         ],
-        "x-price-usd": 0.004,
+        "x-price-usd": 0.005,
         "x-payment-info": {
           "protocols": [
             {
@@ -2184,7 +2217,7 @@
           "price": {
             "mode": "fixed",
             "currency": "USD",
-            "amount": "0.004"
+            "amount": "0.005"
           }
         }
       }
@@ -2234,18 +2267,18 @@
                 "example": {
                   "tool": "get_trade_context",
                   "data": {
-                    "ts": 1790355177366,
+                    "ts": 1791476635017,
                     "prices": {
                       "sol": {
                         "symbol": "SOL",
-                        "price": 121.35,
+                        "price": 108.745,
                         "confidence": null,
                         "publish_time": null,
                         "source": "coinbase"
                       },
                       "btc": {
                         "symbol": "BTC",
-                        "price": 83868.13,
+                        "price": 81255.52,
                         "confidence": null,
                         "publish_time": null,
                         "source": "coinbase"
@@ -2254,27 +2287,27 @@
                     "funding": {
                       "sol": {
                         "symbol": "SOL",
-                        "funding_rate_hourly": 0.0000125,
-                        "funding_rate_8h_equiv": 0.0001,
-                        "funding_rate_pct_hourly": 0.00125,
-                        "mark_price": 121.42,
-                        "open_interest": 6103405.560000007,
+                        "funding_rate_hourly": 0.0000061104,
+                        "funding_rate_8h_equiv": 0.00004888,
+                        "funding_rate_pct_hourly": 0.000611,
+                        "mark_price": 108.68,
+                        "open_interest": 5571356.6,
                         "source": "hyperliquid"
                       },
                       "btc": {
                         "symbol": "BTC",
-                        "funding_rate_hourly": 0.0000125,
-                        "funding_rate_8h_equiv": 0.0001,
-                        "funding_rate_pct_hourly": 0.00125,
-                        "mark_price": 83875,
-                        "open_interest": 39511.1646,
+                        "funding_rate_hourly": 0.0000057443,
+                        "funding_rate_8h_equiv": 0.00004595,
+                        "funding_rate_pct_hourly": 0.000574,
+                        "mark_price": 81231,
+                        "open_interest": 40268.2770399999,
                         "source": "hyperliquid"
                       }
                     },
                     "fear_greed": {
-                      "value": 71,
+                      "value": 64,
                       "classification": "Greed",
-                      "timestamp": 1790294400,
+                      "timestamp": 1791417600,
                       "source": "alternative.me"
                     },
                     "positioning": {
@@ -2282,97 +2315,99 @@
                       "period": "1h",
                       "sol": {
                         "long_short_ratio": {
-                          "long_pct": 68.86,
-                          "short_pct": 31.14,
-                          "long_pct_prev_hour": 68.74,
-                          "ts": 1790352000000
+                          "long_pct": 73.49,
+                          "short_pct": 26.51,
+                          "long_pct_prev_hour": 73.19,
+                          "ts": 1791475200000
                         },
                         "open_interest": {
-                          "base": 6478924.1,
-                          "usd": 809589831,
-                          "change_1h_pct": -1.3,
-                          "change_24h_pct": 9.93
+                          "base": 6326412.6,
+                          "usd": 692973021,
+                          "change_1h_pct": -4.32,
+                          "change_24h_pct": 5.55
                         }
                       },
                       "btc": {
                         "long_short_ratio": {
-                          "long_pct": 57.02,
-                          "short_pct": 42.98,
-                          "long_pct_prev_hour": 57,
-                          "ts": 1790352000000
+                          "long_pct": 63.17,
+                          "short_pct": 36.83,
+                          "long_pct_prev_hour": 63.2,
+                          "ts": 1791475200000
                         },
                         "open_interest": {
-                          "base": 58663.035,
-                          "usd": 4907625052,
-                          "change_1h_pct": 0.19,
-                          "change_24h_pct": -1.31
+                          "base": 58495.439,
+                          "usd": 4810687095,
+                          "change_1h_pct": -0.38,
+                          "change_24h_pct": 0.4
                         }
                       }
                     },
                     "liquidations": {
                       "source": "multi_exchange_colle…",
                       "exchanges": [
-                        "bybit"
+                        "bybit",
+                        "okx",
+                        "binance"
                       ],
                       "collecting_since": 1783528952067,
                       "sol": {
                         "1h": {
-                          "events": 111,
-                          "total_usd": 551818.07,
-                          "longs_liquidated_usd": 19962.17,
-                          "shorts_liquidated_usd": 531855.9,
-                          "biggest_print_usd": 100573.77,
+                          "events": 474,
+                          "total_usd": 6674773.67,
+                          "longs_liquidated_usd": 6443900.69,
+                          "shorts_liquidated_usd": 230872.98,
+                          "biggest_print_usd": 565140.68,
                           "by_exchange": {
                             "bybit": {
-                              "events": 32,
-                              "total_usd": 244917.79,
-                              "longs_liquidated_usd": 445.55,
-                              "shorts_liquidated_usd": 244472.23,
-                              "biggest_print_usd": 100573.77
-                            },
-                            "binance": {
-                              "events": 46,
-                              "total_usd": 185867.75,
-                              "longs_liquidated_usd": 5269.3,
-                              "shorts_liquidated_usd": 180598.45,
-                              "biggest_print_usd": 87563.06
+                              "events": 246,
+                              "total_usd": 924074.2,
+                              "longs_liquidated_usd": 857833.57,
+                              "shorts_liquidated_usd": 66240.63,
+                              "biggest_print_usd": 67330.17
                             },
                             "okx": {
-                              "events": 33,
-                              "total_usd": 121032.53,
-                              "longs_liquidated_usd": 14247.32,
-                              "shorts_liquidated_usd": 106785.21,
-                              "biggest_print_usd": 53474.45
+                              "events": 85,
+                              "total_usd": 611411.23,
+                              "longs_liquidated_usd": 583604.52,
+                              "shorts_liquidated_usd": 27806.71,
+                              "biggest_print_usd": 132626.52
+                            },
+                            "binance": {
+                              "events": 143,
+                              "total_usd": 5139288.24,
+                              "longs_liquidated_usd": 5002462.6,
+                              "shorts_liquidated_usd": 136825.64,
+                              "biggest_print_usd": 565140.68
                             }
                           }
                         },
                         "24h": {
-                          "events": 1808,
-                          "total_usd": 16129696.9,
-                          "longs_liquidated_usd": 3920645.3,
-                          "shorts_liquidated_usd": 12209051.6,
-                          "biggest_print_usd": 915882,
+                          "events": 3160,
+                          "total_usd": 35593650,
+                          "longs_liquidated_usd": 34649734.64,
+                          "shorts_liquidated_usd": 943915.35,
+                          "biggest_print_usd": 1858611.82,
                           "by_exchange": {
+                            "okx": {
+                              "events": 566,
+                              "total_usd": 3740852.51,
+                              "longs_liquidated_usd": 3458924.73,
+                              "shorts_liquidated_usd": 281927.78,
+                              "biggest_print_usd": 382358.02
+                            },
                             "binance": {
-                              "events": 705,
-                              "total_usd": 9445111.62,
-                              "longs_liquidated_usd": 2343782.62,
-                              "shorts_liquidated_usd": 7101329,
-                              "biggest_print_usd": 915882
+                              "events": 911,
+                              "total_usd": 24296622.41,
+                              "longs_liquidated_usd": 23797984.96,
+                              "shorts_liquidated_usd": 498637.46,
+                              "biggest_print_usd": 1858611.82
                             },
                             "bybit": {
-                              "events": 637,
-                              "total_usd": 2953284.27,
-                              "longs_liquidated_usd": 635875.59,
-                              "shorts_liquidated_usd": 2317408.68,
-                              "biggest_print_usd": 100573.77
-                            },
-                            "okx": {
-                              "events": 466,
-                              "total_usd": 3731301.02,
-                              "longs_liquidated_usd": 940987.1,
-                              "shorts_liquidated_usd": 2790313.92,
-                              "biggest_print_usd": 585023.37
+                              "events": 1683,
+                              "total_usd": 7556175.07,
+                              "longs_liquidated_usd": 7392824.96,
+                              "shorts_liquidated_usd": 163350.11,
+                              "biggest_print_usd": 99431.77
                             }
                           }
                         }
@@ -2422,7 +2457,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -2617,7 +2652,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -2808,7 +2843,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -2997,15 +3032,15 @@
             "description": "Paid response."
           },
           "400": {
-            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. This route takes no required input, so a 400 means an upstream source failed, not a caller mistake.",
+            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. Observed: optional query param symbol = not-a-symbol.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object"
                 },
                 "example": {
-                  "tool": "<tool name>",
-                  "error": "<human-readable reason>"
+                  "tool": "get_liq_history",
+                  "error": "invalid symbol: not-a-symbol"
                 }
               }
             }
@@ -3033,7 +3068,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -3087,7 +3122,7 @@
     },
     "/api/liq-heatmap": {
       "get": {
-        "description": "Liquidation heatmap by PRICE LEVEL: where leverage actually got flushed in the last N hours — USD, prints and long/short split per price zone, with the hottest zone flagged. Built from real liquidation prints, not entry-price estimates.",
+        "description": "Liquidation heatmap by PRICE LEVEL: where leverage actually got flushed in the last N hours — USD, prints and long/short split per price zone, with the hottest zone flagged. Built from real liquidation prints, not entry-price estimates. BTC, ETH, SOL, HYPE or any other USDT perp on our Bybit, OKX and Binance tape.",
         "operationId": "get_liq_heatmap",
         "parameters": [
           {
@@ -3096,7 +3131,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "description": "USDT perp symbol e.g. SOLUSDT, BTCUSDT (default SOLUSDT)"
+              "description": "BTC, ETH, SOL, HYPE or any USDT perp e.g. BTCUSDT (default SOLUSDT)"
             }
           },
           {
@@ -3211,15 +3246,15 @@
             "description": "Paid response."
           },
           "400": {
-            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. This route takes no required input, so a 400 means an upstream source failed, not a caller mistake.",
+            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. Observed: optional query param symbol = not-a-symbol.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object"
                 },
                 "example": {
-                  "tool": "<tool name>",
-                  "error": "<human-readable reason>"
+                  "tool": "get_liq_heatmap",
+                  "error": "invalid symbol: not-a-symbol"
                 }
               }
             }
@@ -3247,7 +3282,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -3284,7 +3319,7 @@
         "tags": [
           "agentfeed"
         ],
-        "x-price-usd": 0.05,
+        "x-price-usd": 0.02,
         "x-payment-info": {
           "protocols": [
             {
@@ -3294,7 +3329,7 @@
           "price": {
             "mode": "fixed",
             "currency": "USD",
-            "amount": "0.05"
+            "amount": "0.02"
           }
         }
       }
@@ -3447,15 +3482,15 @@
             "description": "Paid response."
           },
           "400": {
-            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. This route takes no required input, so a 400 means an upstream source failed, not a caller mistake.",
+            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. Observed: optional query param symbol = not-a-symbol.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object"
                 },
                 "example": {
-                  "tool": "<tool name>",
-                  "error": "<human-readable reason>"
+                  "tool": "get_cascade_history",
+                  "error": "invalid symbol: not-a-symbol"
                 }
               }
             }
@@ -3483,7 +3518,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -3596,14 +3631,16 @@
                   "data": {
                     "symbol": "SOLUSDT",
                     "short_squeeze_score": 0,
-                    "long_flush_score": 62,
+                    "long_flush_score": 7,
                     "inputs": {
-                      "funding_rate_8h": 0.0001,
-                      "oi_change_24h_pct": 9.93,
-                      "long_account_pct": 68.86,
+                      "funding_rate_8h": 0.00008784,
+                      "funding_rate_raw": 0.00008784,
+                      "funding_interval_hours": 8,
+                      "oi_change_24h_pct": -4.74,
+                      "long_account_pct": 68.82,
                       "liq_24h": {
-                        "longs_usd": 3920645,
-                        "shorts_usd": 12209052
+                        "longs_usd": 10578855,
+                        "shorts_usd": 1792016
                       }
                     },
                     "read": "no extreme setup",
@@ -3616,15 +3653,15 @@
             "description": "Paid response."
           },
           "400": {
-            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. This route takes no required input, so a 400 means an upstream source failed, not a caller mistake.",
+            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. Observed: optional query param symbol = not-a-symbol.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object"
                 },
                 "example": {
-                  "tool": "<tool name>",
-                  "error": "<human-readable reason>"
+                  "tool": "get_squeeze_score",
+                  "error": "invalid symbol: not-a-symbol"
                 }
               }
             }
@@ -3652,7 +3689,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -3810,15 +3847,15 @@
             "description": "Paid response."
           },
           "400": {
-            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. This route takes no required input, so a 400 means an upstream source failed, not a caller mistake.",
+            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. Observed: optional query param symbol = not-a-symbol.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object"
                 },
                 "example": {
-                  "tool": "<tool name>",
-                  "error": "<human-readable reason>"
+                  "tool": "get_venue_liq_share",
+                  "error": "invalid symbol: not-a-symbol"
                 }
               }
             }
@@ -3846,7 +3883,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -3900,7 +3937,7 @@
     },
     "/api/funding-cross": {
       "get": {
-        "description": "Funding rate for ANY USDT perp across Bybit, OKX and Hyperliquid in one call, with the cross-venue spread and a crowding read. /api/funding-rate covers SOL and BTC only.",
+        "description": "Funding rate for ANY USDT perp across Bybit, OKX and Hyperliquid in one call, with the cross-venue spread and a crowding read.",
         "operationId": "get_funding_cross",
         "parameters": [
           {
@@ -3954,21 +3991,28 @@
                     "symbol": "SOLUSDT",
                     "venues": {
                       "bybit": {
-                        "funding_rate_8h": 0.0001,
-                        "next_funding_time": 1790380800000,
-                        "mark_price": 121.419
+                        "funding_rate_8h": 0.00008784,
+                        "funding_rate_raw": 0.00008784,
+                        "funding_interval_hours": 8,
+                        "next_funding_time": 1790611200000,
+                        "mark_price": 118.209
                       },
                       "okx": {
-                        "funding_rate_8h": 0.0001,
-                        "next_funding_time": 1790409600000
+                        "funding_rate_8h": 0.0000384889726373,
+                        "funding_rate_raw": 0.0000384889726373,
+                        "funding_interval_hours": 8,
+                        "next_funding_time": 1790611200000,
+                        "mark_price": 118.19
                       },
                       "hyperliquid": {
                         "funding_rate_1h": 0.0000125,
                         "funding_rate_8h_equiv": 0.0001,
-                        "mark_price": 121.42
+                        "funding_rate_raw": 0.0000125,
+                        "funding_interval_hours": 1,
+                        "mark_price": 118.31
                       }
                     },
-                    "spread_8h": 0,
+                    "spread_8h": 0.00006151,
                     "crowding": "longs_pay_everywhere"
                   },
                   "paid": true
@@ -3978,15 +4022,15 @@
             "description": "Paid response."
           },
           "400": {
-            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. This route takes no required input, so a 400 means an upstream source failed, not a caller mistake.",
+            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. Observed: optional query param symbol = not-a-symbol.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object"
                 },
                 "example": {
-                  "tool": "<tool name>",
-                  "error": "<human-readable reason>"
+                  "tool": "get_funding_cross",
+                  "error": "invalid symbol: not-a-symbol"
                 }
               }
             }
@@ -4014,7 +4058,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -4129,52 +4173,46 @@
                   "tool": "get_funding_extremes",
                   "data": {
                     "source": "bybit_linear_universe",
-                    "universe_size": 290,
+                    "universe_size": 299,
                     "min_turnover_usd": 1000000,
                     "most_positive": [
                       {
-                        "symbol": "RAVEUSDT",
-                        "funding_rate_8h": 0.0027543,
-                        "annualized_pct": 301.6,
-                        "price_24h_pct": -2.56,
-                        "oi_usd": 2489059
+                        "symbol": "ARKUSDT",
+                        "funding_rate_8h": 0.00158998,
+                        "funding_rate_raw": 0.00079499,
+                        "funding_interval_hours": 4,
+                        "annualized_pct": 174.1,
+                        "price_24h_pct": -10.18,
+                        "oi_usd": 2773871
                       },
                       {
-                        "symbol": "USUSDT",
-                        "funding_rate_8h": 0.00121524,
-                        "annualized_pct": 133.07,
-                        "price_24h_pct": 9.9,
-                        "oi_usd": 5739469
-                      },
-                      {
-                        "symbol": "TMXUSDT",
-                        "funding_rate_8h": 0.00116627,
-                        "annualized_pct": 127.71,
-                        "price_24h_pct": -26.14,
-                        "oi_usd": 959862
+                        "symbol": "LONGXIAUSDT",
+                        "funding_rate_8h": 0.00149958,
+                        "funding_rate_raw": 0.00074979,
+                        "funding_interval_hours": 4,
+                        "annualized_pct": 164.2,
+                        "price_24h_pct": -32.3,
+                        "oi_usd": 1449504
                       }
                     ],
                     "most_negative": [
                       {
-                        "symbol": "RAREUSDT",
-                        "funding_rate_8h": -0.00495278,
-                        "annualized_pct": -542.33,
-                        "price_24h_pct": 23.09,
-                        "oi_usd": 833574
+                        "symbol": "SAGAUSDT",
+                        "funding_rate_8h": -0.0053745,
+                        "funding_rate_raw": -0.00268725,
+                        "funding_interval_hours": 4,
+                        "annualized_pct": -588.51,
+                        "price_24h_pct": -4.43,
+                        "oi_usd": 3283608
                       },
                       {
-                        "symbol": "FLOCKUSDT",
-                        "funding_rate_8h": -0.00286719,
-                        "annualized_pct": -313.96,
-                        "price_24h_pct": 4.19,
-                        "oi_usd": 3637520
-                      },
-                      {
-                        "symbol": "STEEMUSDT",
-                        "funding_rate_8h": -0.00152602,
-                        "annualized_pct": -167.1,
-                        "price_24h_pct": 2.28,
-                        "oi_usd": 1259411
+                        "symbol": "BLASTUSDT",
+                        "funding_rate_8h": -0.00224282,
+                        "funding_rate_raw": -0.00224282,
+                        "funding_interval_hours": 8,
+                        "annualized_pct": -245.59,
+                        "price_24h_pct": -12.27,
+                        "oi_usd": 1149802
                       }
                     ]
                   },
@@ -4221,7 +4259,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -4255,6 +4293,263 @@
           }
         },
         "summary": "Fetch funding extremes: funding rate extremes across every",
+        "tags": [
+          "agentfeed"
+        ],
+        "x-price-usd": 0.02,
+        "x-payment-info": {
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.02"
+          }
+        }
+      }
+    },
+    "/api/funding-radar": {
+      "get": {
+        "description": "Funding rates radar across Bybit, OKX and Hyperliquid. It tracks every USDT perp listed on at least two of them from $5M combined open interest and, by default, shows the ones with $10M and up; min_oi_usd changes that. Per symbol: the current funding per venue at its 8h equivalent, each venue's 30-day z-score against its own settled history, the cross-venue spread, and a flag on any |z| of 2 or more, most extreme first. Precomputed every 5 minutes, with as_of and stale.",
+        "operationId": "get_funding_radar",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "top",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "description": "symbols returned, most extreme first, 1-100, default 20"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_oi_usd",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "description": "minimum combined open interest in USD across the venues: default 10000000 ($10M); the radar tracks pairs from 5000000 ($5M), and lower values return that floor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tool": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "as_of": {
+                          "type": "string"
+                        },
+                        "age_s": {
+                          "type": "number"
+                        },
+                        "stale": {
+                          "type": "boolean"
+                        },
+                        "venues": {
+                          "type": "array"
+                        },
+                        "window_target_days": {
+                          "type": "number"
+                        },
+                        "z_flag_abs": {
+                          "type": "number"
+                        },
+                        "min_oi_usd": {
+                          "type": "number"
+                        },
+                        "universe_size": {
+                          "type": "number"
+                        },
+                        "matched": {
+                          "type": "number"
+                        },
+                        "returned": {
+                          "type": "number"
+                        },
+                        "coverage": {
+                          "type": "object"
+                        },
+                        "symbols": {
+                          "type": "array"
+                        },
+                        "method": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "paid": {
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "example": {
+                  "tool": "get_funding_radar",
+                  "data": {
+                    "as_of": "2026-10-08T16:20:02.…",
+                    "age_s": 233,
+                    "stale": false,
+                    "venues": [
+                      "bybit",
+                      "okx",
+                      "hyperliquid"
+                    ],
+                    "window_target_days": 30,
+                    "z_flag_abs": 2,
+                    "min_oi_usd": 10000000,
+                    "universe_size": 179,
+                    "matched": 119,
+                    "returned": 20,
+                    "coverage": {
+                      "series_total": 459,
+                      "series_with_history": 459,
+                      "series_full_window": 458
+                    },
+                    "symbols": [
+                      {
+                        "symbol": "VVVUSDT",
+                        "oi_usd": {
+                          "bybit": 29725355,
+                          "okx": 3966527,
+                          "hyperliquid": 72525719,
+                          "total": 106217601
+                        },
+                        "venues": {
+                          "bybit": {
+                            "funding_rate_8h": 0.00318944,
+                            "funding_rate_raw": 0.00159472,
+                            "funding_interval_hours": 4,
+                            "next_funding_time": 1791489600000,
+                            "z_30d": 8.66,
+                            "mean_8h_30d": 0.0001165,
+                            "std_8h_30d": 0.00035473,
+                            "samples": 180,
+                            "window_days": 29.8
+                          },
+                          "okx": {
+                            "funding_rate_8h": 0.00156427,
+                            "funding_rate_raw": 0.0007821356052997,
+                            "funding_interval_hours": 4,
+                            "next_funding_time": 1791489600000,
+                            "z_30d": 12.15,
+                            "mean_8h_30d": 0.00011762,
+                            "std_8h_30d": 0.00011909,
+                            "samples": 180,
+                            "window_days": 29.8
+                          },
+                          "hyperliquid": {
+                            "funding_rate_8h": 0.00049902,
+                            "funding_rate_raw": 0.0000623772,
+                            "funding_interval_hours": 1,
+                            "z_30d": 1.19,
+                            "mean_8h_30d": 0.00020534,
+                            "std_8h_30d": 0.00024768,
+                            "samples": 720,
+                            "window_days": 30
+                          }
+                        },
+                        "spread_8h": 0.00269042,
+                        "spread_high_venue": "bybit",
+                        "spread_low_venue": "hyperliquid",
+                        "max_abs_z": 12.15,
+                        "extreme_venue": "okx",
+                        "flag": true,
+                        "flagged_venues": [
+                          "bybit",
+                          "okx"
+                        ]
+                      }
+                    ],
+                    "method": "funding_rate_8h is e…"
+                  },
+                  "paid": true
+                }
+              }
+            },
+            "description": "Paid response."
+          },
+          "400": {
+            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. This route takes no required input, so a 400 means an upstream source failed, not a caller mistake.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "tool": "<tool name>",
+                  "error": "<human-readable reason>"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "No payment presented, or the payment did not settle. The full challenge is base64 in the PAYMENT-REQUIRED response header, not in the body. Read it from the header.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64 x402 v2 challenge.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "x402Version": 2,
+                  "error": "Payment required"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
+            "headers": {
+              "Allow": {
+                "description": "Always GET.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "More than 240 GET (or POST /mcp) requests from one IP in 60s. Other HTTP methods have a separate 2400/60s allowance. Retry-After is also set as a response header.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "error": "rate limit: 240 req/min",
+                  "retry_after": "<seconds>"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Fetch funding radar: funding rates radar across bybit, okx and",
         "tags": [
           "agentfeed"
         ],
@@ -4346,15 +4641,15 @@
             "description": "Paid response."
           },
           "400": {
-            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. This route takes no required input, so a 400 means an upstream source failed, not a caller mistake.",
+            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. Observed: optional query param symbol = not-a-symbol.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object"
                 },
                 "example": {
-                  "tool": "<tool name>",
-                  "error": "<human-readable reason>"
+                  "tool": "get_open_interest",
+                  "error": "invalid symbol: not-a-symbol"
                 }
               }
             }
@@ -4382,7 +4677,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -4485,25 +4780,31 @@
                     "baseline_min_ago": 30,
                     "spikes": [
                       {
-                        "symbol": "SAGAUSDT",
-                        "oi_usd": 4036255,
-                        "oi_change_pct": 7.4,
-                        "funding_rate_8h": 0.00005,
-                        "price_24h_pct": -11.3
+                        "symbol": "FLOCKUSDT",
+                        "oi_usd": 3173189,
+                        "oi_change_pct": 16.48,
+                        "funding_rate_8h": 0.0001,
+                        "funding_rate_raw": 0.00005,
+                        "funding_interval_hours": 4,
+                        "price_24h_pct": -9.9
                       },
                       {
-                        "symbol": "SOXLUSDT",
-                        "oi_usd": 51958235,
-                        "oi_change_pct": 7.23,
-                        "funding_rate_8h": 0.00002971,
-                        "price_24h_pct": 11.57
+                        "symbol": "ALGOUSDT",
+                        "oi_usd": 14571114,
+                        "oi_change_pct": 5.44,
+                        "funding_rate_8h": -0.00022272,
+                        "funding_rate_raw": -0.00022272,
+                        "funding_interval_hours": 8,
+                        "price_24h_pct": 8.95
                       },
                       {
-                        "symbol": "RENDERUSDT",
-                        "oi_usd": 13248249,
-                        "oi_change_pct": 5.57,
-                        "funding_rate_8h": 0.00005,
-                        "price_24h_pct": 10.65
+                        "symbol": "MARSCOINUSDT",
+                        "oi_usd": 12820971,
+                        "oi_change_pct": -5.37,
+                        "funding_rate_8h": 0.0001,
+                        "funding_rate_raw": 0.00005,
+                        "funding_interval_hours": 4,
+                        "price_24h_pct": 10.81
                       }
                     ]
                   },
@@ -4550,7 +4851,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -4683,15 +4984,15 @@
             "description": "Paid response."
           },
           "400": {
-            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. This route takes no required input, so a 400 means an upstream source failed, not a caller mistake.",
+            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. Observed: optional query param symbol = not-a-symbol.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object"
                 },
                 "example": {
-                  "tool": "<tool name>",
-                  "error": "<human-readable reason>"
+                  "tool": "get_long_short",
+                  "error": "invalid symbol: not-a-symbol"
                 }
               }
             }
@@ -4719,7 +5020,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -4819,6 +5120,12 @@
                         },
                         "funding_rate_8h": {
                           "type": "number"
+                        },
+                        "funding_rate_raw": {
+                          "type": "number"
+                        },
+                        "funding_interval_hours": {
+                          "type": "number"
                         }
                       }
                     },
@@ -4831,11 +5138,13 @@
                   "tool": "get_basis",
                   "data": {
                     "symbol": "SOLUSDT",
-                    "mark_price": 121.42,
-                    "spot_price": 121.43,
-                    "basis_pct": -0.0082,
+                    "mark_price": 118.201,
+                    "spot_price": 118.26,
+                    "basis_pct": -0.0499,
                     "state": "flat",
-                    "funding_rate_8h": 0.0001
+                    "funding_rate_8h": 0.00008784,
+                    "funding_rate_raw": 0.00008784,
+                    "funding_interval_hours": 8
                   },
                   "paid": true
                 }
@@ -4844,15 +5153,15 @@
             "description": "Paid response."
           },
           "400": {
-            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. This route takes no required input, so a 400 means an upstream source failed, not a caller mistake.",
+            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. Observed: optional query param symbol = not-a-symbol.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object"
                 },
                 "example": {
-                  "tool": "<tool name>",
-                  "error": "<human-readable reason>"
+                  "tool": "get_basis",
+                  "error": "invalid symbol: not-a-symbol"
                 }
               }
             }
@@ -4880,7 +5189,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -5001,15 +5310,15 @@
             "description": "Paid response."
           },
           "400": {
-            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. This route takes no required input, so a 400 means an upstream source failed, not a caller mistake.",
+            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. Observed: optional query param symbol = not-a-symbol.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object"
                 },
                 "example": {
-                  "tool": "<tool name>",
-                  "error": "<human-readable reason>"
+                  "tool": "get_volatility",
+                  "error": "invalid symbol: not-a-symbol"
                 }
               }
             }
@@ -5037,7 +5346,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -5159,21 +5468,27 @@
                   "data": {
                     "symbol": "SOLUSDT",
                     "intervals": 30,
-                    "avg_rate_8h": 0.00003041,
-                    "avg_annualized_pct": 3.33,
-                    "positive_share_pct": 63,
+                    "avg_rate_8h": 0.00005327,
+                    "avg_annualized_pct": 5.83,
+                    "positive_share_pct": 77,
                     "history": [
                       {
-                        "ts": 1790352000000,
-                        "rate_8h": 0.0001
+                        "ts": 1790582400000,
+                        "rate_8h": 0.00008247,
+                        "funding_rate_raw": 0.00008247,
+                        "funding_interval_hours": 8
                       },
                       {
-                        "ts": 1790323200000,
-                        "rate_8h": -0.0000047
+                        "ts": 1790553600000,
+                        "rate_8h": 0.00006338,
+                        "funding_rate_raw": 0.00006338,
+                        "funding_interval_hours": 8
                       },
                       {
-                        "ts": 1790294400000,
-                        "rate_8h": -0.00010564
+                        "ts": 1790524800000,
+                        "rate_8h": 0.0001,
+                        "funding_rate_raw": 0.0001,
+                        "funding_interval_hours": 8
                       }
                     ]
                   },
@@ -5184,15 +5499,15 @@
             "description": "Paid response."
           },
           "400": {
-            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. This route takes no required input, so a 400 means an upstream source failed, not a caller mistake.",
+            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. Observed: optional query param symbol = not-a-symbol.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object"
                 },
                 "example": {
-                  "tool": "<tool name>",
-                  "error": "<human-readable reason>"
+                  "tool": "get_funding_history",
+                  "error": "invalid symbol: not-a-symbol"
                 }
               }
             }
@@ -5220,7 +5535,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -5335,52 +5650,64 @@
                   "tool": "get_top_movers",
                   "data": {
                     "source": "bybit_linear_universe",
-                    "universe_size": 290,
+                    "universe_size": 299,
                     "min_turnover_usd": 1000000,
                     "gainers": [
                       {
-                        "symbol": "PHAUSDT",
-                        "price": 0.08014,
-                        "change_24h_pct": 58.66,
-                        "turnover_24h_usd": 30081331,
-                        "funding_rate_8h": 0.00008699
+                        "symbol": "QNTUSDT",
+                        "price": 226.72,
+                        "change_24h_pct": 31.05,
+                        "turnover_24h_usd": 522856332,
+                        "funding_rate_8h": 0.0001,
+                        "funding_rate_raw": 0.0001,
+                        "funding_interval_hours": 8
                       },
                       {
-                        "symbol": "LYNUSDT",
-                        "price": 0.05835,
-                        "change_24h_pct": 46.28,
-                        "turnover_24h_usd": 2473255,
-                        "funding_rate_8h": 0.00005
+                        "symbol": "BTWUSDT",
+                        "price": 1.39689,
+                        "change_24h_pct": 26.07,
+                        "turnover_24h_usd": 45725371,
+                        "funding_rate_8h": 0.00056134,
+                        "funding_rate_raw": 0.00028067,
+                        "funding_interval_hours": 4
                       },
                       {
-                        "symbol": "BPUSDT",
-                        "price": 1.17372,
-                        "change_24h_pct": 29.03,
-                        "turnover_24h_usd": 2514691,
-                        "funding_rate_8h": 0.00005
+                        "symbol": "HBARUSDT",
+                        "price": 0.11291,
+                        "change_24h_pct": 19.17,
+                        "turnover_24h_usd": 89605037,
+                        "funding_rate_8h": -0.00000436,
+                        "funding_rate_raw": -0.00000436,
+                        "funding_interval_hours": 8
                       }
                     ],
                     "losers": [
                       {
-                        "symbol": "TMXUSDT",
-                        "price": 0.01167,
-                        "change_24h_pct": -26.14,
-                        "turnover_24h_usd": 3539192,
-                        "funding_rate_8h": 0.00116627
+                        "symbol": "QUSDT",
+                        "price": 0.02544,
+                        "change_24h_pct": -45.87,
+                        "turnover_24h_usd": 55364194,
+                        "funding_rate_8h": 0.0001,
+                        "funding_rate_raw": 0.00005,
+                        "funding_interval_hours": 4
                       },
                       {
-                        "symbol": "BRUSDT",
-                        "price": 0.81658,
-                        "change_24h_pct": -20.7,
-                        "turnover_24h_usd": 30825239,
-                        "funding_rate_8h": -0.00140557
+                        "symbol": "LONGXIAUSDT",
+                        "price": 0.07,
+                        "change_24h_pct": -32.3,
+                        "turnover_24h_usd": 5859730,
+                        "funding_rate_8h": 0.00149958,
+                        "funding_rate_raw": 0.00074979,
+                        "funding_interval_hours": 4
                       },
                       {
-                        "symbol": "SAGAUSDT",
-                        "price": 0.03574,
-                        "change_24h_pct": -15.96,
-                        "turnover_24h_usd": 73503750,
-                        "funding_rate_8h": 0.00002516
+                        "symbol": "STONKUSDT",
+                        "price": 0.2396,
+                        "change_24h_pct": -24.44,
+                        "turnover_24h_usd": 4663895,
+                        "funding_rate_8h": 0.0007196,
+                        "funding_rate_raw": 0.0003598,
+                        "funding_interval_hours": 4
                       }
                     ]
                   },
@@ -5427,7 +5754,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -5569,15 +5896,15 @@
             "description": "Paid response."
           },
           "400": {
-            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. This route takes no required input, so a 400 means an upstream source failed, not a caller mistake.",
+            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. Observed: optional query param symbol = not-a-symbol.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object"
                 },
                 "example": {
-                  "tool": "<tool name>",
-                  "error": "<human-readable reason>"
+                  "tool": "get_orderbook_imbalance",
+                  "error": "invalid symbol: not-a-symbol"
                 }
               }
             }
@@ -5605,7 +5932,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -5767,15 +6094,15 @@
             "description": "Paid response."
           },
           "400": {
-            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. This route takes no required input, so a 400 means an upstream source failed, not a caller mistake.",
+            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. Observed: optional query param symbol = not-a-symbol.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object"
                 },
                 "example": {
-                  "tool": "<tool name>",
-                  "error": "<human-readable reason>"
+                  "tool": "get_orderbook_walls",
+                  "error": "invalid symbol: not-a-symbol"
                 }
               }
             }
@@ -5803,7 +6130,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -5978,15 +6305,15 @@
             "description": "Paid response."
           },
           "400": {
-            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. This route takes no required input, so a 400 means an upstream source failed, not a caller mistake.",
+            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. Observed: optional query param symbol = not-a-symbol.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object"
                 },
                 "example": {
-                  "tool": "<tool name>",
-                  "error": "<human-readable reason>"
+                  "tool": "get_whale_trades",
+                  "error": "invalid symbol: not-a-symbol"
                 }
               }
             }
@@ -6014,7 +6341,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -6150,15 +6477,15 @@
             "description": "Paid response."
           },
           "400": {
-            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. This route takes no required input, so a 400 means an upstream source failed, not a caller mistake.",
+            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. Observed: optional query param symbol = not-a-symbol.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object"
                 },
                 "example": {
-                  "tool": "<tool name>",
-                  "error": "<human-readable reason>"
+                  "tool": "get_spread_arb",
+                  "error": "invalid symbol: not-a-symbol"
                 }
               }
             }
@@ -6186,7 +6513,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -6368,7 +6695,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -6559,7 +6886,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -6705,7 +7032,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -6854,7 +7181,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -6997,7 +7324,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -7133,22 +7460,22 @@
                     "chains": [
                       "Solana"
                     ],
-                    "tvl_usd": 1272938092,
-                    "change_1d_pct": 3.86,
-                    "change_7d_pct": 10.66,
+                    "tvl_usd": 1191075811,
+                    "change_1d_pct": -3.61,
+                    "change_7d_pct": -3.65,
                     "deployments": 2,
                     "components": [
                       {
                         "name": "Jito Liquid Staking",
                         "slug": "jito-liquid-staking",
-                        "tvl_usd": 1252493242,
-                        "change_1d_pct": 3.83
+                        "tvl_usd": 1171815631,
+                        "change_1d_pct": -3.65
                       },
                       {
                         "name": "Jito Restaking",
                         "slug": "jito-restaking",
-                        "tvl_usd": 20444850,
-                        "change_1d_pct": 5.86
+                        "tvl_usd": 19260179,
+                        "change_1d_pct": -1.11
                       }
                     ],
                     "note": "aggregate of 2 deployment(s); change is TVL-weighted. Query a component slug for one deployment.",
@@ -7197,7 +7524,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -7357,7 +7684,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -7500,8 +7827,8 @@
                     "input_mint": "So11111111111111111111111111111111111111112",
                     "output_mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
                     "in_amount": "1000000000",
-                    "out_amount": "121197247",
-                    "other_amount_threshold": "120591261",
+                    "out_amount": "108691257",
+                    "other_amount_threshold": "108147801",
                     "price_impact_pct": 0,
                     "route": [
                       "BisonFi"
@@ -7552,7 +7879,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -7764,7 +8091,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -7979,7 +8306,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -8171,7 +8498,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -8322,23 +8649,23 @@
                     "mint": "XsoCS1TfEyfFhfvj8EtZ…",
                     "gated_from_ts": 1786406400,
                     "confidence": "measured",
-                    "measurement_age_sec": 383,
+                    "measurement_age_sec": 533,
                     "current_sample_withheld": null,
                     "measurement": {
-                      "as_of": 1790354804,
-                      "as_of_utc": "2026-09-25T16:46:44.…",
+                      "as_of": 1791476102,
+                      "as_of_utc": "2026-10-08T16:15:02.…",
                       "session": "regular",
-                      "marked_usd": 4249843.81,
-                      "oracle_price": 775.647297,
+                      "marked_usd": 4372796.94,
+                      "oracle_price": 779.036556,
                       "oracle_source": "kamino_implied_live",
                       "oracle_age_sec": null,
-                      "mark_generated_at": 1790354804,
+                      "mark_generated_at": 1791476102,
                       "mark_is_live": true,
-                      "max_exitable_usd": 1727094,
-                      "exitable_fraction": 0.40639,
-                      "max_exitable_cons_usd": 1544526,
-                      "unbacked_usd_lower_bound": 2522749.81,
-                      "resolution_usd": 66388,
+                      "max_exitable_usd": 1708735,
+                      "exitable_fraction": 0.390765,
+                      "max_exitable_cons_usd": 1025641,
+                      "unbacked_usd_lower_bound": 2664061.94,
+                      "resolution_usd": 68309,
                       "status": "partial",
                       "observation": "cleared",
                       "corroboration": null,
@@ -8348,13 +8675,13 @@
                     },
                     "exit_blocked": null,
                     "nearest_measured_clip": {
-                      "requested_size_usd": 1727094,
-                      "measured_clip_usd": 1727094,
+                      "requested_size_usd": 1708735,
+                      "measured_clip_usd": 1708735,
                       "is_exact_match": true,
                       "routed": true,
-                      "realised_usd": 1677924.11,
-                      "haircut_bps": 284.7,
-                      "liq_margin_bps": 215.3,
+                      "realised_usd": 1631818.42,
+                      "haircut_bps": 450.14,
+                      "liq_margin_bps": 49.86,
                       "reason": null,
                       "clips_measured_usd": [
                         1000
@@ -8412,7 +8739,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -8568,7 +8895,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -8605,7 +8932,7 @@
         "tags": [
           "agentfeed"
         ],
-        "x-price-usd": 0.001,
+        "x-price-usd": 0.005,
         "x-payment-info": {
           "protocols": [
             {
@@ -8615,7 +8942,7 @@
           "price": {
             "mode": "fixed",
             "currency": "USD",
-            "amount": "0.001"
+            "amount": "0.005"
           }
         }
       }
@@ -8731,7 +9058,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -8768,7 +9095,7 @@
         "tags": [
           "agentfeed"
         ],
-        "x-price-usd": 0.001,
+        "x-price-usd": 0.005,
         "x-payment-info": {
           "protocols": [
             {
@@ -8778,7 +9105,7 @@
           "price": {
             "mode": "fixed",
             "currency": "USD",
-            "amount": "0.001"
+            "amount": "0.005"
           }
         }
       }
@@ -8914,7 +9241,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -8951,7 +9278,7 @@
         "tags": [
           "agentfeed"
         ],
-        "x-price-usd": 0.002,
+        "x-price-usd": 0.005,
         "x-payment-info": {
           "protocols": [
             {
@@ -8961,7 +9288,7 @@
           "price": {
             "mode": "fixed",
             "currency": "USD",
-            "amount": "0.002"
+            "amount": "0.005"
           }
         }
       }
@@ -9033,53 +9360,60 @@
                     "funding": {
                       "venues": {
                         "bybit": {
-                          "funding_rate_8h": 0.0001,
-                          "next_funding_time": 1790380800000,
-                          "mark_price": 121.419
+                          "funding_rate_8h": 0.00008784,
+                          "funding_rate_raw": 0.00008784,
+                          "funding_interval_hours": 8,
+                          "next_funding_time": 1790611200000,
+                          "mark_price": 118.209
                         },
                         "okx": {
-                          "funding_rate_8h": 0.0001,
-                          "next_funding_time": 1790409600000
+                          "funding_rate_8h": 0.0000384889726373,
+                          "funding_rate_raw": 0.0000384889726373,
+                          "funding_interval_hours": 8,
+                          "next_funding_time": 1790611200000,
+                          "mark_price": 118.19
                         },
                         "hyperliquid": {
                           "funding_rate_1h": 0.0000125,
                           "funding_rate_8h_equiv": 0.0001,
-                          "mark_price": 121.42
+                          "funding_rate_raw": 0.0000125,
+                          "funding_interval_hours": 1,
+                          "mark_price": 118.31
                         }
                       },
-                      "spread_8h": 0,
+                      "spread_8h": 0.00006151,
                       "crowding": "longs_pay_everywhere"
                     },
                     "open_interest": {
                       "bybit": {
-                        "oi_base": 6478924.1,
-                        "oi_usd": 809609835,
-                        "change_1h_pct": -1.3,
-                        "change_24h_pct": 9.93
+                        "oi_base": 6961018.5,
+                        "oi_usd": 822567812,
+                        "change_1h_pct": 0.36,
+                        "change_24h_pct": -4.74
                       },
                       "okx": {
-                        "oi_base": 3054425.3599999994,
-                        "oi_usd": 370837783
+                        "oi_base": 3046096.9400000013,
+                        "oi_usd": 360200963
                       },
-                      "mark_price": 121.419
+                      "mark_price": 118.209
                     },
                     "long_short": {
-                      "long_pct": 68.86,
-                      "short_pct": 31.14,
-                      "long_pct_1h_ago": 68.74,
-                      "long_pct_24h_ago": 70.08,
+                      "long_pct": 68.82,
+                      "short_pct": 31.18,
+                      "long_pct_1h_ago": 68.79,
+                      "long_pct_24h_ago": 67.29,
                       "source": "bybit_v5_public"
                     },
                     "liquidations_24h": {
-                      "prints": 1808,
-                      "total_usd": 16129696.9,
-                      "longs_usd": 3920645.3,
-                      "shorts_usd": 12209051.6,
-                      "biggest_print_usd": 915882,
+                      "prints": 1652,
+                      "total_usd": 12370870.62,
+                      "longs_usd": 10578854.85,
+                      "shorts_usd": 1792015.77,
+                      "biggest_print_usd": 603093.97,
                       "venues": 3,
-                      "dominant_side": "shorts"
+                      "dominant_side": "longs"
                     },
-                    "tape_age_sec": 3,
+                    "tape_age_sec": 4,
                     "partial": null,
                     "source": "bybit+okx+hyperliquid venues, liquidations from our own tape"
                   },
@@ -9090,15 +9424,15 @@
             "description": "Paid response."
           },
           "400": {
-            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. This route takes no required input, so a 400 means an upstream source failed, not a caller mistake.",
+            "description": "The handler threw: a missing or malformed caller parameter, or an upstream data source failed. Observed: optional query param symbol = not-a-symbol.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object"
                 },
                 "example": {
-                  "tool": "<tool name>",
-                  "error": "<human-readable reason>"
+                  "tool": "get_perp",
+                  "error": "invalid symbol: not-a-symbol"
                 }
               }
             }
@@ -9126,7 +9460,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -9163,7 +9497,7 @@
         "tags": [
           "agentfeed"
         ],
-        "x-price-usd": 0.001,
+        "x-price-usd": 0.005,
         "x-payment-info": {
           "protocols": [
             {
@@ -9173,7 +9507,7 @@
           "price": {
             "mode": "fixed",
             "currency": "USD",
-            "amount": "0.001"
+            "amount": "0.005"
           }
         }
       }
@@ -9322,7 +9656,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -9359,7 +9693,7 @@
         "tags": [
           "agentfeed"
         ],
-        "x-price-usd": 0.001,
+        "x-price-usd": 0.005,
         "x-payment-info": {
           "protocols": [
             {
@@ -9369,7 +9703,7 @@
           "price": {
             "mode": "fixed",
             "currency": "USD",
-            "amount": "0.001"
+            "amount": "0.005"
           }
         }
       }
@@ -9421,31 +9755,37 @@
                   "data": {
                     "extremes": [
                       {
-                        "symbol": "RAREUSDT",
+                        "symbol": "ORCAUSDT",
                         "venue": "bybit",
-                        "funding_rate_8h": -0.00495278,
-                        "annualized_pct": -542.33,
-                        "oi_usd": 833574,
-                        "price_24h_pct": 23.09
+                        "funding_rate_8h": -0.00963784,
+                        "funding_rate_raw": -0.00481892,
+                        "funding_interval_hours": 4,
+                        "annualized_pct": -1055.34,
+                        "oi_usd": 7303411,
+                        "price_24h_pct": -10.83
                       },
                       {
-                        "symbol": "FLOCKUSDT",
+                        "symbol": "SKLUSDT",
                         "venue": "bybit",
-                        "funding_rate_8h": -0.00286719,
-                        "annualized_pct": -313.96,
-                        "oi_usd": 3637520,
-                        "price_24h_pct": 4.19
+                        "funding_rate_8h": -0.00745625,
+                        "funding_rate_raw": -0.00745625,
+                        "funding_interval_hours": 8,
+                        "annualized_pct": -816.46,
+                        "oi_usd": 807732,
+                        "price_24h_pct": 6.94
                       },
                       {
-                        "symbol": "RAVEUSDT",
+                        "symbol": "ZKCUSDT",
                         "venue": "bybit",
-                        "funding_rate_8h": 0.0027543,
-                        "annualized_pct": 301.6,
-                        "oi_usd": 2489059,
-                        "price_24h_pct": -2.56
+                        "funding_rate_8h": -0.00744792,
+                        "funding_rate_raw": -0.00372396,
+                        "funding_interval_hours": 4,
+                        "annualized_pct": -815.55,
+                        "oi_usd": 1195906,
+                        "price_24h_pct": -4.57
                       }
                     ],
-                    "universe_size": 290,
+                    "universe_size": 304,
                     "min_turnover_usd": 1000000,
                     "venue_scope": [
                       "bybit"
@@ -9496,7 +9836,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -9533,7 +9873,7 @@
         "tags": [
           "agentfeed"
         ],
-        "x-price-usd": 0.001,
+        "x-price-usd": 0.005,
         "x-payment-info": {
           "protocols": [
             {
@@ -9543,7 +9883,7 @@
           "price": {
             "mode": "fixed",
             "currency": "USD",
-            "amount": "0.001"
+            "amount": "0.005"
           }
         }
       }
@@ -9657,7 +9997,7 @@
             }
           },
           "405": {
-            "description": "Any method other than GET on a paid route. The response has an Allow: GET header and an empty body.",
+            "description": "HEAD on a free /api route. The response has an Allow: GET header and an empty body. HEAD on a paid route answers 402 with the challenge in PAYMENT-REQUIRED and no body.",
             "headers": {
               "Allow": {
                 "description": "Always GET.",
@@ -9694,7 +10034,7 @@
         "tags": [
           "agentfeed"
         ],
-        "x-price-usd": 0.001,
+        "x-price-usd": 0.005,
         "x-payment-info": {
           "protocols": [
             {
@@ -9704,7 +10044,7 @@
           "price": {
             "mode": "fixed",
             "currency": "USD",
-            "amount": "0.001"
+            "amount": "0.005"
           }
         }
       }
@@ -9743,8 +10083,10 @@
             "name": "route",
             "required": true,
             "description": "A paid route slug or tool name, e.g. liq-pulse, perp, or get_liq_pulse. GET /api/sample lists them.",
+            "example": "liq-pulse",
             "schema": {
               "type": "string",
+              "example": "liq-pulse",
               "enum": [
                 "base-balance",
                 "base-gas",
@@ -9761,6 +10103,7 @@
                 "funding-extremes",
                 "funding-history",
                 "funding-pulse",
+                "funding-radar",
                 "funding-rate",
                 "jito-tips",
                 "liq-heatmap",
