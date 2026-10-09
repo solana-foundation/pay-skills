@@ -1673,6 +1673,177 @@
         }
       }
     },
+    "/api/bazaar-check": {
+      "get": {
+        "operationId": "getBazaarCheck",
+        "tags": [
+          "Agent utilities"
+        ],
+        "summary": "Check if an x402 seller is listed in CDP Bazaar, and why not",
+        "description": "x402 developer tool. Use to find out whether an x402 seller is listed in Coinbase CDP Bazaar and, if not, why. GET with required url (host or https URL). Reads CDP discovery and the host's /.well-known/x402, then sends one unpaid request per route; never pays. Returns JSON: verdict, per-route indexed status and networks (Base, Solana), and fail/warn findings each with a fix line. https only; private targets blocked. Errors are not charged.\n\nPrice: $0.01 USDC per call (10000 atomic), paid with x402 v2 `exact` on Base or Solana (same price). Unpaid requests get 402 with PAYMENT-REQUIRED; retry with PAYMENT-SIGNATURE.",
+        "x-payment-info": {
+          "protocol": "x402",
+          "x402Version": 2,
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "assetSymbol": "USDC",
+          "decimals": 6,
+          "priceUsd": "$0.01",
+          "amount": "10000",
+          "payTo": "0x5b32c973596078a967562ca652761404f19be0e9",
+          "maxTimeoutSeconds": 300,
+          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402",
+          "discovery": "https://horizonpulse.dev/.well-known/x402"
+        },
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "description": "Seller host (e.g. example.com) or https URL (required). A URL path is also probed as a route. https only; private/localhost blocked.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "horizonpulse.dev"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paid success. The settlement receipt is in the PAYMENT-RESPONSE header.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BazaarCheckResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "source": "bazaar-check",
+                  "asOf": "2026-10-09T16:38:45.681Z",
+                  "target": {
+                    "input": "horizonpulse.dev",
+                    "host": "horizonpulse.dev",
+                    "origin": "https://horizonpulse.dev"
+                  },
+                  "verdict": "fully_indexed",
+                  "summary": {
+                    "routesListed": 13,
+                    "routesProbed": 13,
+                    "indexed": 13,
+                    "notIndexed": 0,
+                    "indexedOnBase": 13,
+                    "indexedOnSolana": 13,
+                    "fail": 0,
+                    "warn": 0
+                  },
+                  "wellKnown": {
+                    "url": "https://horizonpulse.dev/.well-known/x402",
+                    "httpStatus": 200,
+                    "found": true,
+                    "entries": 15
+                  },
+                  "index": {
+                    "payTos": [
+                      {
+                        "network": "eip155:8453",
+                        "payTo": "0x5b32c973596078a967562ca652761404f19be0e9",
+                        "indexedTotalForPayTo": 13,
+                        "indexedOnHost": 13
+                      },
+                      {
+                        "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                        "payTo": "BjY98A6dS3GGLZdz2zHy8wK7XAwnQgNhCc66mfmBTRPz",
+                        "indexedTotalForPayTo": 13,
+                        "indexedOnHost": 13
+                      }
+                    ],
+                    "searchHitsOnHost": 13
+                  },
+                  "routes": [
+                    {
+                      "url": "https://horizonpulse.dev/api/pulse",
+                      "methods": [
+                        "GET"
+                      ],
+                      "probed": true,
+                      "indexed": true,
+                      "indexedNetworks": [
+                        "base",
+                        "solana"
+                      ],
+                      "advertisedNetworks": [
+                        "base",
+                        "solana"
+                      ],
+                      "lastIndexed": "2026-10-08T21:10:33.046Z",
+                      "findings": []
+                    },
+                    {
+                      "url": "https://horizonpulse.dev/api/signals",
+                      "methods": [
+                        "GET"
+                      ],
+                      "probed": true,
+                      "indexed": true,
+                      "indexedNetworks": [
+                        "base",
+                        "solana"
+                      ],
+                      "advertisedNetworks": [
+                        "base",
+                        "solana"
+                      ],
+                      "lastIndexed": "2026-10-09T15:20:10.271Z",
+                      "findings": []
+                    }
+                  ],
+                  "findings": [],
+                  "elapsedMs": 1707
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing, bad or http-only url, or a blocked private/local host. Not charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "ok": false,
+                  "error": "Query param url is required (a host like example.com or an https URL)",
+                  "code": "missing_url"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 v2). Not charged. The challenge is in the PAYMENT-REQUIRED header; the body is empty JSON {}.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "$ref": "#/components/headers/PaymentRequired"
+              }
+            }
+          },
+          "502": {
+            "description": "Host unreachable on every request, or CDP discovery unavailable or not answering before the 18s deadline counted from request arrival (code cdp_unavailable), or too little time left after payment verification (code time_budget_used). Not charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/screenshot": {
       "get": {
         "operationId": "getScreenshot",
@@ -3093,6 +3264,159 @@
           }
         },
         "description": "Inferred from a real response recorded from GET /api/demo/x402-check at 2026-10-01T14:36Z UTC (trimmed). Fields may be added; clients should ignore unknown fields."
+      },
+      "BazaarCheckResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string"
+          },
+          "target": {
+            "type": "object",
+            "properties": {
+              "input": {
+                "type": "string"
+              },
+              "host": {
+                "type": "string"
+              },
+              "origin": {
+                "type": "string"
+              }
+            }
+          },
+          "verdict": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "routesListed": {
+                "type": "number"
+              },
+              "routesProbed": {
+                "type": "number"
+              },
+              "indexed": {
+                "type": "number"
+              },
+              "notIndexed": {
+                "type": "number"
+              },
+              "indexedOnBase": {
+                "type": "number"
+              },
+              "indexedOnSolana": {
+                "type": "number"
+              },
+              "fail": {
+                "type": "number"
+              },
+              "warn": {
+                "type": "number"
+              }
+            }
+          },
+          "wellKnown": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "httpStatus": {
+                "type": "number"
+              },
+              "found": {
+                "type": "boolean"
+              },
+              "entries": {
+                "type": "number"
+              }
+            }
+          },
+          "index": {
+            "type": "object",
+            "properties": {
+              "payTos": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "network": {
+                      "type": "string"
+                    },
+                    "payTo": {
+                      "type": "string"
+                    },
+                    "indexedTotalForPayTo": {
+                      "type": "number"
+                    },
+                    "indexedOnHost": {
+                      "type": "number"
+                    }
+                  }
+                }
+              },
+              "searchHitsOnHost": {
+                "type": "number"
+              }
+            }
+          },
+          "routes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string"
+                },
+                "methods": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "probed": {
+                  "type": "boolean"
+                },
+                "indexed": {
+                  "type": "boolean"
+                },
+                "indexedNetworks": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "advertisedNetworks": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "lastIndexed": {
+                  "type": "string"
+                },
+                "findings": {
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "findings": {
+            "type": "array"
+          },
+          "elapsedMs": {
+            "type": "number"
+          }
+        },
+        "description": "Inferred from a real response recorded from GET /api/demo/bazaar-check at 2026-10-09T16:38Z UTC (trimmed). Fields may be added; clients should ignore unknown fields."
       },
       "ScreenshotResponse": {
         "type": "object",

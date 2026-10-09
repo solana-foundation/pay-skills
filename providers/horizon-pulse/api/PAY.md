@@ -18,7 +18,8 @@ on Solana mainnet (`exact`) and on Base. No account or API key.
   fields), `GET|POST /api/http` (raw response from a public URL),
   `GET /api/screenshot` (rendered PNG/JPEG), `GET /api/pdf` (PDF text layer).
 - Developer: `GET /api/x402-check` (one unpaid probe of an x402 endpoint,
-  decoded and checked; never pays).
+  decoded and checked; never pays), `GET /api/bazaar-check` (whether an x402
+  seller is listed in Coinbase CDP Bazaar and, if not, why; never pays).
 - Crypto market data: `GET /api/pulse` (BTC/ETH/SOL spot), `GET /api/signals`
   (RSI, MACD, Bollinger), `GET /api/funding` (OKX perpetual funding),
   `GET /api/gas` (Base and Ethereum fees), `GET /api/yield` (DefiLlama pools),
