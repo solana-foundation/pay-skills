@@ -1,0 +1,3582 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Horizon Pulse",
+    "version": "1.1.0",
+    "summary": "Pay-per-call APIs for AI agents, settled in USDC on Base or Solana with x402.",
+    "description": "Pay-per-call APIs for AI agents, paid in USDC on Base or Solana with x402: web search, page fetch and extract, screenshots, PDF to text, an HTTP proxy, and crypto market data. No signup or API key.\n\nYou pay only for a successful response; errors are not charged except where an operation says so. Every paid operation carries `x-payment-info` with the exact price, asset, network and payTo of its Base entry; these match the 402 challenge and https://horizonpulse.dev/.well-known/x402. The 402 challenge also offers the same price in USDC on Solana mainnet (`exact`, network solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp, USDC mint EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v, payTo BjY98A6dS3GGLZdz2zHy8wK7XAwnQgNhCc66mfmBTRPz, PayAI facilitator https://facilitator.payai.network). Free fixed-input samples: GET /api/demo/{route}.\n\nAgent integration: step-by-step skill at https://horizonpulse.dev/skill.md; guide with MCP setup at https://horizonpulse.dev/agents (hosted MCP at https://horizonpulse.dev/mcp for x402-aware clients, plus a local stdio MCP server in the repo's mcp/ folder that pays from your own wallet with spend caps).\n\nServices for API owners (web pages, not API operations; not paid via x402): Bazaar listing fix at https://horizonpulse.dev/listing-fix; agent promotion at https://horizonpulse.dev/agent-promotion.",
+    "contact": {
+      "name": "Horizon Pulse",
+      "email": "horizonpulse.co@proton.me",
+      "url": "https://horizonpulse.dev"
+    }
+  },
+  "externalDocs": {
+    "description": "Agent guide: discovery, the x402 pay flow, skill file and MCP setup",
+    "url": "https://horizonpulse.dev/agents"
+  },
+  "servers": [
+    {
+      "url": "https://horizonpulse.dev",
+      "description": "Production"
+    }
+  ],
+  "security": [
+    {
+      "x402": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Crypto market data",
+      "description": "Crypto market data on Base and Ethereum."
+    },
+    {
+      "name": "Web and documents",
+      "description": "Read, call and render the public web."
+    },
+    {
+      "name": "Agent utilities",
+      "description": "Tools for agents working with x402."
+    }
+  ],
+  "paths": {
+    "/api/pulse": {
+      "get": {
+        "operationId": "getPulse",
+        "tags": [
+          "Crypto market data"
+        ],
+        "summary": "Get BTC, ETH and SOL spot prices with 24h momentum",
+        "description": "Crypto market data. Use when you need current BTC, ETH and SOL spot prices in USD. Call GET with no parameters. Returns JSON: assets.BTC/ETH/SOL with priceUsd, change24hPct and momentum (bullish/bearish/neutral), plus overall momentum, sentiment (risk-on/risk-off/neutral), direction (up/down/flat) and avgChange24hPct, and asOf. Prices from Coinbase Exchange, CoinGecko fallback (source field). Labels are fixed rules on 24h change, not advice. Errors are not charged.\n\nPrice: $0.005 USDC per call (5000 atomic), paid with x402 v2 `exact` on Base or Solana (same price). Unpaid requests get 402 with PAYMENT-REQUIRED; retry with PAYMENT-SIGNATURE.",
+        "x-payment-info": {
+          "protocol": "x402",
+          "x402Version": 2,
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "assetSymbol": "USDC",
+          "decimals": 6,
+          "priceUsd": "$0.005",
+          "amount": "5000",
+          "payTo": "0x5b32c973596078a967562ca652761404f19be0e9",
+          "maxTimeoutSeconds": 300,
+          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402",
+          "discovery": "https://horizonpulse.dev/.well-known/x402"
+        },
+        "responses": {
+          "200": {
+            "description": "Paid success. The settlement receipt is in the PAYMENT-RESPONSE header.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PulseResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "source": "coinbase",
+                  "asOf": "2026-10-01T14:36:42.113Z",
+                  "assets": {
+                    "BTC": {
+                      "id": "bitcoin",
+                      "priceUsd": 84092.26,
+                      "change24hPct": 0.40332180519101707,
+                      "momentum": "neutral"
+                    },
+                    "ETH": {
+                      "id": "ethereum",
+                      "priceUsd": 2695,
+                      "change24hPct": 0.6776596460031482,
+                      "momentum": "neutral"
+                    },
+                    "SOL": {
+                      "id": "solana",
+                      "priceUsd": 117.79,
+                      "change24hPct": -0.8084210526315737,
+                      "momentum": "neutral"
+                    }
+                  },
+                  "overall": {
+                    "momentum": "neutral",
+                    "sentiment": "neutral",
+                    "direction": "flat",
+                    "avgChange24hPct": 0.09085346618753054
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 v2). Not charged. The challenge is in the PAYMENT-REQUIRED header; the body is empty JSON {}.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "$ref": "#/components/headers/PaymentRequired"
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream data source failed. Not charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/signals": {
+      "get": {
+        "operationId": "getSignals",
+        "tags": [
+          "Crypto market data"
+        ],
+        "summary": "Get RSI, MACD and Bollinger bands for BTC, ETH and SOL",
+        "description": "Crypto market data: technical indicators. Use when you need indicators for BTC, ETH and SOL rather than just prices. Call GET with no parameters. Returns JSON per asset: rsi14, macd {macd, signal, histogram} (null when there are too few candles), bollinger {upper, middle, lower, period}, lastClose and OKX perpetual funding {fundingRate, fundingTime}. Computed from CoinGecko OHLC closes (Coinbase candles fallback); methodology included. Descriptive only, not advice. Errors are not charged.\n\nPrice: $0.015 USDC per call (15000 atomic), paid with x402 v2 `exact` on Base or Solana (same price). Unpaid requests get 402 with PAYMENT-REQUIRED; retry with PAYMENT-SIGNATURE.",
+        "x-payment-info": {
+          "protocol": "x402",
+          "x402Version": 2,
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "assetSymbol": "USDC",
+          "decimals": 6,
+          "priceUsd": "$0.015",
+          "amount": "15000",
+          "payTo": "0x5b32c973596078a967562ca652761404f19be0e9",
+          "maxTimeoutSeconds": 300,
+          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402",
+          "discovery": "https://horizonpulse.dev/.well-known/x402"
+        },
+        "responses": {
+          "200": {
+            "description": "Paid success. The settlement receipt is in the PAYMENT-RESPONSE header.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignalsResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "asOf": "2026-10-01T14:36:42.828Z",
+                  "assets": {
+                    "BTC": {
+                      "rsi14": 74.6303843022904,
+                      "macd": null,
+                      "bollinger": {
+                        "upper": 88132.02721674947,
+                        "middle": 71862.85,
+                        "lower": 55593.672783250535,
+                        "period": 20
+                      },
+                      "lastClose": 84442,
+                      "funding": {
+                        "instId": "BTC-USDT-SWAP",
+                        "fundingRate": 8.50403758528e-05,
+                        "fundingTime": "1790870400000",
+                        "venue": "okx"
+                      }
+                    },
+                    "ETH": {
+                      "rsi14": 78.943937124236,
+                      "macd": null,
+                      "bollinger": {
+                        "upper": 2868.5199493803807,
+                        "middle": 2201.9800000000005,
+                        "lower": 1535.4400506196203,
+                        "period": 20
+                      },
+                      "lastClose": 2686.91,
+                      "funding": {
+                        "instId": "ETH-USDT-SWAP",
+                        "fundingRate": 6.42085539106e-05,
+                        "fundingTime": "1790870400000",
+                        "venue": "okx"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 v2). Not charged. The challenge is in the PAYMENT-REQUIRED header; the body is empty JSON {}.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "$ref": "#/components/headers/PaymentRequired"
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream data source failed. Not charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/yield": {
+      "get": {
+        "operationId": "getYield",
+        "tags": [
+          "Crypto market data"
+        ],
+        "summary": "List DeFi pool yields with TVL of $10M or more (DefiLlama)",
+        "description": "DeFi yields. Use when you need to compare current DeFi pool yields, especially stablecoin or single-asset pools. Call GET with no parameters. Returns JSON: up to 25 pools ranked by preference tier then APY, each with project, chain, symbol, tvlUsd, apy, apyBase, apyReward, apyMean30d, stablecoin, exposure, ilRisk and poolId. Filters: TVL >= $10M, non-outlier APY. Figures passed through from DefiLlama at fetch time, not advice. Errors are not charged.\n\nPrice: $0.02 USDC per call (20000 atomic), paid with x402 v2 `exact` on Base or Solana (same price). Unpaid requests get 402 with PAYMENT-REQUIRED; retry with PAYMENT-SIGNATURE.",
+        "x-payment-info": {
+          "protocol": "x402",
+          "x402Version": 2,
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "assetSymbol": "USDC",
+          "decimals": 6,
+          "priceUsd": "$0.02",
+          "amount": "20000",
+          "payTo": "0x5b32c973596078a967562ca652761404f19be0e9",
+          "maxTimeoutSeconds": 300,
+          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402",
+          "discovery": "https://horizonpulse.dev/.well-known/x402"
+        },
+        "responses": {
+          "200": {
+            "description": "Paid success. The settlement receipt is in the PAYMENT-RESPONSE header.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YieldResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "source": "defillama",
+                  "asOf": "2026-10-01T14:36:44.086Z",
+                  "meta": {
+                    "scanned": 17001,
+                    "afterTvlFilter": 816,
+                    "afterPreferenceFilter": 686,
+                    "returned": 25
+                  },
+                  "pools": [
+                    {
+                      "rank": 1,
+                      "poolId": "edf44260-d78f-5dab-853a-f89c4f523169",
+                      "chain": "Ethereum",
+                      "project": "axis",
+                      "symbol": "SUSDX",
+                      "tvlUsd": 37488444,
+                      "apy": 25.85643,
+                      "apyBase": 25.85643,
+                      "apyReward": null,
+                      "apyMean30d": 23.14246,
+                      "stablecoin": true,
+                      "exposure": "single",
+                      "ilRisk": "no",
+                      "poolMeta": null,
+                      "preferenceTier": 2,
+                      "preferenceReason": "stablecoin + single-asset"
+                    },
+                    {
+                      "rank": 2,
+                      "poolId": "9fe33fd6-d3f3-4dbe-9187-7bff012e79f5",
+                      "chain": "Ethereum",
+                      "project": "pendle-v2",
+                      "symbol": "APYUSD",
+                      "tvlUsd": 19815029,
+                      "apy": 15.60566,
+                      "apyBase": 15.60566,
+                      "apyReward": null,
+                      "apyMean30d": 14.44087,
+                      "stablecoin": true,
+                      "exposure": "single",
+                      "ilRisk": "no",
+                      "poolMeta": "For buying PT-apyUSD-05NOV2026",
+                      "preferenceTier": 2,
+                      "preferenceReason": "stablecoin + single-asset"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 v2). Not charged. The challenge is in the PAYMENT-REQUIRED header; the body is empty JSON {}.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "$ref": "#/components/headers/PaymentRequired"
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream data source failed. Not charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portfolio": {
+      "get": {
+        "operationId": "getPortfolio",
+        "tags": [
+          "Crypto market data"
+        ],
+        "summary": "Get token holdings and USD value of one EVM address",
+        "description": "Crypto wallet analysis. Use when you need the token holdings and USD value of one EVM address. Call GET with required address=0x... (40 hex). Reads Base and Ethereum: ETH, USDC, WETH, WBTC/cbBTC, DAI. Returns JSON: holdings (balance, priceUsd, valueUsd, weight), totals (valueUsd, stablecoinShare, max asset/chain weight), risk {score 0-100, band} and rule findings (asset, stablecoin and chain weights vs fixed thresholds). Read-only; not advice. Invalid addresses return 400, not charged.\n\nPrice: $0.04 USDC per call (40000 atomic), paid with x402 v2 `exact` on Base or Solana (same price). Unpaid requests get 402 with PAYMENT-REQUIRED; retry with PAYMENT-SIGNATURE.",
+        "x-payment-info": {
+          "protocol": "x402",
+          "x402Version": 2,
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "assetSymbol": "USDC",
+          "decimals": 6,
+          "priceUsd": "$0.04",
+          "amount": "40000",
+          "payTo": "0x5b32c973596078a967562ca652761404f19be0e9",
+          "maxTimeoutSeconds": 300,
+          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402",
+          "discovery": "https://horizonpulse.dev/.well-known/x402"
+        },
+        "parameters": [
+          {
+            "name": "address",
+            "in": "query",
+            "required": true,
+            "description": "EVM address to read on Base + Ethereum (required): 0x followed by 40 hex characters.",
+            "schema": {
+              "type": "string",
+              "pattern": "^0x[a-fA-F0-9]{40}$"
+            },
+            "example": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paid success. The settlement receipt is in the PAYMENT-RESPONSE header.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "address": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+                  "asOf": "2026-10-01T14:36:45.419Z",
+                  "holdings": [
+                    {
+                      "network": "base",
+                      "chainId": 8453,
+                      "symbol": "USDC",
+                      "kind": "erc20",
+                      "contract": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                      "decimals": 6,
+                      "balanceAtomic": "43286078",
+                      "balance": "43.286078",
+                      "stablecoin": true,
+                      "priceUsd": 1,
+                      "valueUsd": 43.286078,
+                      "weight": 0.0015226151828024019
+                    },
+                    {
+                      "network": "ethereum",
+                      "chainId": 1,
+                      "symbol": "ETH",
+                      "kind": "native",
+                      "contract": null,
+                      "decimals": 18,
+                      "balanceAtomic": "5715987139328012679",
+                      "balance": "5.715987139328012679",
+                      "stablecoin": false,
+                      "priceUsd": 2696.21,
+                      "valueUsd": 15411.50168492758,
+                      "weight": 0.5421093233546252
+                    }
+                  ],
+                  "totals": {
+                    "valueUsd": 28428.77076815375,
+                    "stablecoinShare": 0.003485316759255355,
+                    "maxAssetWeight": 0.83884957651361,
+                    "maxAssetSymbol": "ETH",
+                    "maxChainWeight": 0.682574246168484,
+                    "maxChain": "ethereum"
+                  },
+                  "risk": {
+                    "score": 85,
+                    "band": "high"
+                  },
+                  "suggestions": [
+                    {
+                      "priority": "high",
+                      "code": "concentration_high",
+                      "message": "ETH weight 83.9% of USD value, at or above the 50% single-asset threshold."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input. Not charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "ok": false,
+                  "error": "Query param address is required and must be a 0x-prefixed 40-hex EVM address (e.g. ?address=0xabc...)"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 v2). Not charged. The challenge is in the PAYMENT-REQUIRED header; the body is empty JSON {}.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "$ref": "#/components/headers/PaymentRequired"
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream data source failed. Not charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/gas": {
+      "get": {
+        "operationId": "getGas",
+        "tags": [
+          "Crypto market data"
+        ],
+        "summary": "Get Base and Ethereum gas fees with a suggested max fee",
+        "description": "Blockchain gas fees. Use before sending a transaction on Base or Ethereum to choose fees and timing. Call GET with no parameters. Returns JSON per network: baseFeeGwei, priorityFeeGwei (p50, with p10/p90), suggestedMaxFeeGwei (2x base + priority), timingHint (cheap/normal/expensive vs the last 20 blocks) and simpleTransfer cost in ETH and USD, plus ethUsd. From eth_feeHistory with eth_gasPrice fallback. Descriptive, not a forecast. Errors are not charged.\n\nPrice: $0.01 USDC per call (10000 atomic), paid with x402 v2 `exact` on Base or Solana (same price). Unpaid requests get 402 with PAYMENT-REQUIRED; retry with PAYMENT-SIGNATURE.",
+        "x-payment-info": {
+          "protocol": "x402",
+          "x402Version": 2,
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "assetSymbol": "USDC",
+          "decimals": 6,
+          "priceUsd": "$0.01",
+          "amount": "10000",
+          "payTo": "0x5b32c973596078a967562ca652761404f19be0e9",
+          "maxTimeoutSeconds": 300,
+          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402",
+          "discovery": "https://horizonpulse.dev/.well-known/x402"
+        },
+        "responses": {
+          "200": {
+            "description": "Paid success. The settlement receipt is in the PAYMENT-RESPONSE header.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GasResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "asOf": "2026-10-01T14:36:44.639Z",
+                  "ethUsd": 2699.12,
+                  "networks": [
+                    {
+                      "network": "base",
+                      "chainId": 8453,
+                      "ok": true,
+                      "baseFeeGwei": "0.005",
+                      "priorityFeeGwei": "0.001",
+                      "priorityFeePercentilesGwei": {
+                        "p10": "0.000000079",
+                        "p50": "0.001",
+                        "p90": "0.01"
+                      },
+                      "suggestedMaxFeeGwei": "0.011",
+                      "timingHint": "normal",
+                      "simpleTransfer": {
+                        "gasLimit": 21000,
+                        "costWei": "231000000000",
+                        "costEth": "0.000000231",
+                        "costUsd": 0.000623
+                      }
+                    },
+                    {
+                      "network": "ethereum",
+                      "chainId": 1,
+                      "ok": true,
+                      "baseFeeGwei": "0.47866594",
+                      "priorityFeeGwei": "0.244726498",
+                      "priorityFeePercentilesGwei": {
+                        "p10": "0.001003273",
+                        "p50": "0.244726498",
+                        "p90": "2"
+                      },
+                      "suggestedMaxFeeGwei": "1.202058378",
+                      "timingHint": "expensive",
+                      "simpleTransfer": {
+                        "gasLimit": 21000,
+                        "costWei": "25243225938000",
+                        "costEth": "0.000025243225938",
+                        "costUsd": 0.068134
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 v2). Not charged. The challenge is in the PAYMENT-REQUIRED header; the body is empty JSON {}.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "$ref": "#/components/headers/PaymentRequired"
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream data source failed. Not charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/funding": {
+      "get": {
+        "operationId": "getFunding",
+        "tags": [
+          "Crypto market data"
+        ],
+        "summary": "Get BTC, ETH and SOL perpetual funding rates (OKX)",
+        "description": "Crypto derivatives data. Use when you need current perpetual futures funding rates for BTC, ETH and SOL. Call GET with no parameters. Returns JSON per asset from OKX USDT swaps: instId, fundingRate, fundingTime and a rule-based crowding hint {side: longs/shorts/neutral, level: quiet/mild/elevated/extreme} with the thresholds used. OKX public data only. The hint is not a forecast or advice. Errors are not charged.\n\nPrice: $0.01 USDC per call (10000 atomic), paid with x402 v2 `exact` on Base or Solana (same price). Unpaid requests get 402 with PAYMENT-REQUIRED; retry with PAYMENT-SIGNATURE.",
+        "x-payment-info": {
+          "protocol": "x402",
+          "x402Version": 2,
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "assetSymbol": "USDC",
+          "decimals": 6,
+          "priceUsd": "$0.01",
+          "amount": "10000",
+          "payTo": "0x5b32c973596078a967562ca652761404f19be0e9",
+          "maxTimeoutSeconds": 300,
+          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402",
+          "discovery": "https://horizonpulse.dev/.well-known/x402"
+        },
+        "responses": {
+          "200": {
+            "description": "Paid success. The settlement receipt is in the PAYMENT-RESPONSE header.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FundingResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "source": "okx",
+                  "asOf": "2026-10-01T14:36:45.068Z",
+                  "assets": {
+                    "BTC": {
+                      "instId": "BTC-USDT-SWAP",
+                      "fundingRate": 8.50403758528e-05,
+                      "fundingTime": "1790870400000",
+                      "crowding": {
+                        "side": "longs",
+                        "level": "mild"
+                      }
+                    },
+                    "SOL": {
+                      "instId": "SOL-USDT-SWAP",
+                      "fundingRate": -4.39448031955e-05,
+                      "fundingTime": "1790870400000",
+                      "crowding": {
+                        "side": "neutral",
+                        "level": "quiet"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 v2). Not charged. The challenge is in the PAYMENT-REQUIRED header; the body is empty JSON {}.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "$ref": "#/components/headers/PaymentRequired"
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream data source failed. Not charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fetch": {
+      "get": {
+        "operationId": "getFetch",
+        "tags": [
+          "Web and documents"
+        ],
+        "summary": "Fetch a public URL as clean text or markdown",
+        "description": "Web page to text. Use when you need to read a public web page as clean text or markdown for an LLM. Call GET with required url (absolute http/https). Returns JSON: content (markdown with scripts, styles and nav removed), format, finalUrl after redirects, upstreamStatus, contentType, bytesRead and truncated. Caps: 200KB, 8s, 3 redirects; private and localhost targets are blocked. For raw status, headers and body use /api/http. Errors are not charged.\n\nPrice: $0.02 USDC per call (20000 atomic), paid with x402 v2 `exact` on Base or Solana (same price). Unpaid requests get 402 with PAYMENT-REQUIRED; retry with PAYMENT-SIGNATURE.",
+        "x-payment-info": {
+          "protocol": "x402",
+          "x402Version": 2,
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "assetSymbol": "USDC",
+          "decimals": 6,
+          "priceUsd": "$0.02",
+          "amount": "20000",
+          "payTo": "0x5b32c973596078a967562ca652761404f19be0e9",
+          "maxTimeoutSeconds": 300,
+          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402",
+          "discovery": "https://horizonpulse.dev/.well-known/x402"
+        },
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "description": "Absolute http(s) URL to fetch (required). Private/localhost blocked; ~200KB / 8s caps.",
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "example": "https://example.com"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paid success. The settlement receipt is in the PAYMENT-RESPONSE header.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FetchResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "requestedUrl": "https://example.com",
+                  "finalUrl": "https://example.com/",
+                  "upstreamStatus": 200,
+                  "contentType": "text/html; charset=utf-8",
+                  "format": "markdown",
+                  "truncated": false,
+                  "bytesRead": 713,
+                  "content": "# Example Domain\n\nThis domain is for use in documentation examples without needing permission. This is not a service, avoid relying on it for testing and monitoring purposes.\n Learn more"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad or blocked URL. Not charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "ok": false,
+                  "error": "Query param url is required (absolute http/https URL)",
+                  "code": "missing_url"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 v2). Not charged. The challenge is in the PAYMENT-REQUIRED header; the body is empty JSON {}.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "$ref": "#/components/headers/PaymentRequired"
+              }
+            }
+          },
+          "413": {
+            "description": "Upstream body too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Content-Type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Upstream timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/http": {
+      "get": {
+        "operationId": "getHttp",
+        "tags": [
+          "Web and documents"
+        ],
+        "summary": "Send an HTTP request via query parameters, get raw response",
+        "description": "HTTP proxy. Use when you need to call a public URL or API and get the raw response. GET with required url (optional method, headers as JSON string), or POST a JSON body {url, method, headers, body}. Methods: GET, POST, HEAD, PUT, PATCH, DELETE. Returns JSON: status, filtered headers, body (text or base64), contentType, finalUrl, elapsedMs. Caps: 384KB response, 64KB body, 12s, 3 redirects; private targets blocked. Upstream 4xx/5xx come back as data (charged); proxy errors are not.\n\nPrice: $0.01 USDC per call (10000 atomic), paid with x402 v2 `exact` on Base or Solana (same price). Unpaid requests get 402 with PAYMENT-REQUIRED; retry with PAYMENT-SIGNATURE.",
+        "x-payment-info": {
+          "protocol": "x402",
+          "x402Version": 2,
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "assetSymbol": "USDC",
+          "decimals": 6,
+          "priceUsd": "$0.01",
+          "amount": "10000",
+          "payTo": "0x5b32c973596078a967562ca652761404f19be0e9",
+          "maxTimeoutSeconds": 300,
+          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402",
+          "discovery": "https://horizonpulse.dev/.well-known/x402"
+        },
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "description": "Absolute http(s) URL (required). Private/localhost blocked.",
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "example": "https://example.com"
+          },
+          {
+            "name": "method",
+            "in": "query",
+            "required": false,
+            "description": "Upstream method: GET (default) | POST | HEAD | PUT | PATCH | DELETE",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "GET",
+                "POST",
+                "HEAD",
+                "PUT",
+                "PATCH",
+                "DELETE"
+              ],
+              "default": "GET"
+            },
+            "example": "GET"
+          },
+          {
+            "name": "headers",
+            "in": "query",
+            "required": false,
+            "description": "Optional allowlisted outbound headers as a URL-encoded JSON object string, e.g. {\"accept\":\"application/json\"} (no Cookie / Host / hop-by-hop).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paid success. The settlement receipt is in the PAYMENT-RESPONSE header.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "status": 200,
+                  "headers": {
+                    "content-type": "text/html; charset=utf-8",
+                    "last-modified": "Mon, 28 Sep 2026 16:19:32 GMT",
+                    "server": "cloudflare"
+                  },
+                  "body": "<!doctype html><html lang=en><head><meta charset=utf-8><link rel=icon href=data:,><meta name=viewport content=\"width=dev…",
+                  "bodyEncoding": "text",
+                  "contentType": "text/html; charset=utf-8",
+                  "finalUrl": "https://example.com/",
+                  "truncated": false,
+                  "bytesRead": 713,
+                  "elapsedMs": 10
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad or blocked URL / method / headers. Not charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "ok": false,
+                  "error": "url is required (absolute http/https URL)",
+                  "code": "missing_url"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 v2). Not charged. The challenge is in the PAYMENT-REQUIRED header; the body is empty JSON {}.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "$ref": "#/components/headers/PaymentRequired"
+              }
+            }
+          },
+          "413": {
+            "description": "Request or upstream body too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Upstream timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "postHttp",
+        "tags": [
+          "Web and documents"
+        ],
+        "summary": "Send an HTTP request from a JSON body, get raw response",
+        "description": "HTTP proxy. Use when you need to call a public URL or API and get the raw response. GET with required url (optional method, headers as JSON string), or POST a JSON body {url, method, headers, body}. Methods: GET, POST, HEAD, PUT, PATCH, DELETE. Returns JSON: status, filtered headers, body (text or base64), contentType, finalUrl, elapsedMs. Caps: 384KB response, 64KB body, 12s, 3 redirects; private targets blocked. Upstream 4xx/5xx come back as data (charged); proxy errors are not.\n\nPrice: $0.01 USDC per call (10000 atomic), paid with x402 v2 `exact` on Base or Solana (same price). Unpaid requests get 402 with PAYMENT-REQUIRED; retry with PAYMENT-SIGNATURE.",
+        "x-payment-info": {
+          "protocol": "x402",
+          "x402Version": 2,
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "assetSymbol": "USDC",
+          "decimals": 6,
+          "priceUsd": "$0.01",
+          "amount": "10000",
+          "payTo": "0x5b32c973596078a967562ca652761404f19be0e9",
+          "maxTimeoutSeconds": 300,
+          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402",
+          "discovery": "https://horizonpulse.dev/.well-known/x402"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "url"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "Absolute http(s) URL (required). Private/localhost blocked."
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "GET",
+                      "POST",
+                      "HEAD",
+                      "PUT",
+                      "PATCH",
+                      "DELETE"
+                    ],
+                    "description": "Upstream method: GET (default) | POST | HEAD | PUT | PATCH | DELETE"
+                  },
+                  "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "Optional allowlisted outbound headers as a JSON object of string values (no Cookie / Host / hop-by-hop)."
+                  },
+                  "body": {
+                    "description": "Optional upstream request body for POST/PUT/PATCH: a string, or a JSON value (sent JSON-encoded). Size-capped (64KB)."
+                  }
+                }
+              },
+              "example": {
+                "url": "https://example.com",
+                "method": "GET"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Paid success. The settlement receipt is in the PAYMENT-RESPONSE header.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "status": 200,
+                  "headers": {
+                    "content-type": "text/html; charset=utf-8",
+                    "last-modified": "Mon, 28 Sep 2026 16:19:32 GMT",
+                    "server": "cloudflare"
+                  },
+                  "body": "<!doctype html><html lang=en><head><meta charset=utf-8><link rel=icon href=data:,><meta name=viewport content=\"width=dev…",
+                  "bodyEncoding": "text",
+                  "contentType": "text/html; charset=utf-8",
+                  "finalUrl": "https://example.com/",
+                  "truncated": false,
+                  "bytesRead": 713,
+                  "elapsedMs": 10
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad input / blocked target. Not charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "ok": false,
+                  "error": "url is required (absolute http/https URL)",
+                  "code": "missing_url"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 v2). Not charged. The challenge is in the PAYMENT-REQUIRED header; the body is empty JSON {}.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "$ref": "#/components/headers/PaymentRequired"
+              }
+            }
+          },
+          "413": {
+            "description": "Body too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Upstream timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extract": {
+      "get": {
+        "operationId": "getExtract",
+        "tags": [
+          "Web and documents"
+        ],
+        "summary": "Extract structured fields from a page URL",
+        "description": "Web page to structured fields. Use when you need specific data from a page, not its full text. GET with required url, or POST JSON {url or html, fields}. Returns JSON: title, description, canonical, language, links, images, headings, jsonLd, textSample, and with fields (map of name to CSS selector, max 20) the matched values with fieldErrors. Caps: 200KB HTML, 8s; private targets blocked. If no requested field matches it returns 422 and is not charged. Errors are not charged.\n\nPrice: $0.015 USDC per call (15000 atomic), paid with x402 v2 `exact` on Base or Solana (same price). Unpaid requests get 402 with PAYMENT-REQUIRED; retry with PAYMENT-SIGNATURE.",
+        "x-payment-info": {
+          "protocol": "x402",
+          "x402Version": 2,
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "assetSymbol": "USDC",
+          "decimals": 6,
+          "priceUsd": "$0.015",
+          "amount": "15000",
+          "payTo": "0x5b32c973596078a967562ca652761404f19be0e9",
+          "maxTimeoutSeconds": 300,
+          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402",
+          "discovery": "https://horizonpulse.dev/.well-known/x402"
+        },
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "description": "Absolute http(s) URL to fetch and extract (required on GET; on POST send url or html in the JSON body). Private/localhost blocked.",
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "example": "https://horizonpulse.dev"
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "description": "Optional CSS-selector fields (max 20) as a URL-encoded JSON object string: map of name to selector string or {selector, attr?: \"text\"|\"html\"|<attribute>, all?: boolean, limit?: 1-50}, e.g. {\"heading\":\"h1\"}. Missing fields come back null with fieldErrors; if none match, 422 no_fields_matched and no charge.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paid success. The settlement receipt is in the PAYMENT-RESPONSE header.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtractResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "url": "https://horizonpulse.dev/",
+                  "finalUrl": "https://horizonpulse.dev/",
+                  "title": "Horizon Pulse",
+                  "description": "Pay-per-call APIs for AI agents via x402 on Base: web fetch, HTTP proxy, page extract, and crypto market data.",
+                  "language": "en",
+                  "links": [
+                    {
+                      "href": "https://horizonpulse.dev/",
+                      "text": "Horizon Pulse"
+                    },
+                    {
+                      "href": "https://horizonpulse.dev/#catalog",
+                      "text": "Catalog"
+                    }
+                  ],
+                  "headings": [
+                    {
+                      "level": 1,
+                      "text": "Pay-per-call APIs built for agents."
+                    },
+                    {
+                      "level": 2,
+                      "text": "Thirteen routes. One protocol."
+                    }
+                  ],
+                  "textSample": "# Horizon Pulse\n\nLive on Base · x402 v2\n# Pay-per-call APIs\n built for agents.\n\n13 routes for market data, the web and d…",
+                  "fields": {
+                    "heading": "Pay-per-call APIsbuilt for agents.",
+                    "links": [
+                      "https://horizonpulse.dev/",
+                      "https://horizonpulse.dev/#catalog",
+                      "https://horizonpulse.dev/#how"
+                    ]
+                  },
+                  "fieldErrors": {},
+                  "matchedFields": 2,
+                  "requestedFields": 2,
+                  "elapsedMs": 120
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing input / bad HTML Includes bad_fields for an invalid fields spec. Not charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "ok": false,
+                  "error": "url is required when html is not provided",
+                  "code": "missing_input"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 v2). Not charged. The challenge is in the PAYMENT-REQUIRED header; the body is empty JSON {}.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "$ref": "#/components/headers/PaymentRequired"
+              }
+            }
+          },
+          "413": {
+            "description": "HTML or body too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Upstream Content-Type is not HTML",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "No requested field matched (no_fields_matched); body includes fieldErrors. Not charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Upstream timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "postExtract",
+        "tags": [
+          "Web and documents"
+        ],
+        "summary": "Extract structured fields from a URL or HTML in a JSON body",
+        "description": "Web page to structured fields. Use when you need specific data from a page, not its full text. GET with required url, or POST JSON {url or html, fields}. Returns JSON: title, description, canonical, language, links, images, headings, jsonLd, textSample, and with fields (map of name to CSS selector, max 20) the matched values with fieldErrors. Caps: 200KB HTML, 8s; private targets blocked. If no requested field matches it returns 422 and is not charged. Errors are not charged.\n\nPrice: $0.015 USDC per call (15000 atomic), paid with x402 v2 `exact` on Base or Solana (same price). Unpaid requests get 402 with PAYMENT-REQUIRED; retry with PAYMENT-SIGNATURE.",
+        "x-payment-info": {
+          "protocol": "x402",
+          "x402Version": 2,
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "assetSymbol": "USDC",
+          "decimals": 6,
+          "priceUsd": "$0.015",
+          "amount": "15000",
+          "payTo": "0x5b32c973596078a967562ca652761404f19be0e9",
+          "maxTimeoutSeconds": 300,
+          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402",
+          "discovery": "https://horizonpulse.dev/.well-known/x402"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "Absolute http(s) URL to fetch and extract. Send url or html (at least one). Private/localhost blocked."
+                  },
+                  "html": {
+                    "type": "string",
+                    "description": "Raw HTML to parse instead of fetching (size-capped, 200KB). Send url or html (at least one); if both are sent, html is parsed and url is echoed."
+                  },
+                  "fields": {
+                    "type": "object",
+                    "description": "Optional CSS-selector fields (max 20). Map of name to selector string or {selector, attr?: \"text\"|\"html\"|<attribute>, all?: boolean, limit?: 1-50}. Missing fields come back null with fieldErrors; if none match, 422 no_fields_matched and no charge. POST: a JSON object.",
+                    "additionalProperties": {
+                      "oneOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "object",
+                          "required": [
+                            "selector"
+                          ],
+                          "properties": {
+                            "selector": {
+                              "type": "string",
+                              "maxLength": 300
+                            },
+                            "attr": {
+                              "type": "string"
+                            },
+                            "all": {
+                              "type": "boolean"
+                            },
+                            "limit": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 50
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              "example": {
+                "url": "https://horizonpulse.dev",
+                "fields": {
+                  "heading": "h1",
+                  "links": {
+                    "selector": "a",
+                    "attr": "href",
+                    "all": true,
+                    "limit": 5
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Paid success. The settlement receipt is in the PAYMENT-RESPONSE header.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtractResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "url": "https://horizonpulse.dev/",
+                  "finalUrl": "https://horizonpulse.dev/",
+                  "title": "Horizon Pulse",
+                  "description": "Pay-per-call APIs for AI agents via x402 on Base: web fetch, HTTP proxy, page extract, and crypto market data.",
+                  "language": "en",
+                  "links": [
+                    {
+                      "href": "https://horizonpulse.dev/",
+                      "text": "Horizon Pulse"
+                    },
+                    {
+                      "href": "https://horizonpulse.dev/#catalog",
+                      "text": "Catalog"
+                    }
+                  ],
+                  "headings": [
+                    {
+                      "level": 1,
+                      "text": "Pay-per-call APIs built for agents."
+                    },
+                    {
+                      "level": 2,
+                      "text": "Thirteen routes. One protocol."
+                    }
+                  ],
+                  "textSample": "# Horizon Pulse\n\nLive on Base · x402 v2\n# Pay-per-call APIs\n built for agents.\n\n13 routes for market data, the web and d…",
+                  "fields": {
+                    "heading": "Pay-per-call APIsbuilt for agents.",
+                    "links": [
+                      "https://horizonpulse.dev/",
+                      "https://horizonpulse.dev/#catalog",
+                      "https://horizonpulse.dev/#how"
+                    ]
+                  },
+                  "fieldErrors": {},
+                  "matchedFields": 2,
+                  "requestedFields": 2,
+                  "elapsedMs": 120
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing input / bad HTML Includes bad_fields for an invalid fields spec. Not charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "ok": false,
+                  "error": "url is required when html is not provided",
+                  "code": "missing_input"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 v2). Not charged. The challenge is in the PAYMENT-REQUIRED header; the body is empty JSON {}.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "$ref": "#/components/headers/PaymentRequired"
+              }
+            }
+          },
+          "413": {
+            "description": "Body or HTML too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "No requested field matched (no_fields_matched); body includes fieldErrors. Not charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Upstream timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/x402-check": {
+      "get": {
+        "operationId": "getX402Check",
+        "tags": [
+          "Agent utilities"
+        ],
+        "summary": "Check an x402 endpoint with one unpaid request",
+        "description": "x402 developer tool. Use before paying an unknown x402 endpoint, or to debug your own. GET with required url (optional method GET/POST, JSON body for POST). Sends one unpaid request and never pays. Returns JSON: httpStatus, isX402, x402Version, decoded accepts (network, asset, USD amount, payTo, EOA or contract), discovery metadata presence, and pass/warn/fail checks. Any HTTP answer from the target, even 4xx/5xx, is billed; bad input, blocked hosts, connection failures and timeouts are not.\n\nPrice: $0.01 USDC per call (10000 atomic), paid with x402 v2 `exact` on Base or Solana (same price). Unpaid requests get 402 with PAYMENT-REQUIRED; retry with PAYMENT-SIGNATURE.",
+        "x-payment-info": {
+          "protocol": "x402",
+          "x402Version": 2,
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "assetSymbol": "USDC",
+          "decimals": 6,
+          "priceUsd": "$0.01",
+          "amount": "10000",
+          "payTo": "0x5b32c973596078a967562ca652761404f19be0e9",
+          "maxTimeoutSeconds": 300,
+          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402",
+          "discovery": "https://horizonpulse.dev/.well-known/x402"
+        },
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "description": "Absolute http(s) URL of the x402 endpoint to audit (required). Private/localhost blocked.",
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "example": "https://horizonpulse.dev/api/pulse"
+          },
+          {
+            "name": "method",
+            "in": "query",
+            "required": false,
+            "description": "HTTP method for the unpaid probe: GET (default; one POST retry on 405) or POST.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "GET",
+                "POST"
+              ],
+              "default": "GET"
+            },
+            "example": "GET"
+          },
+          {
+            "name": "body",
+            "in": "query",
+            "required": false,
+            "description": "Optional JSON body (<=8KB, URL-encoded) sent with a POST probe, for endpoints that validate input before returning 402. Implies POST.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paid success. The settlement receipt is in the PAYMENT-RESPONSE header.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402CheckResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "target": "https://horizonpulse.dev/api/pulse",
+                  "method": "GET",
+                  "httpStatus": 402,
+                  "isX402": true,
+                  "x402Version": 2,
+                  "challengeSource": "header",
+                  "accepts": [
+                    {
+                      "network": "eip155:8453",
+                      "assetLabel": "USDC (Base)",
+                      "amountUsd": "$0.005",
+                      "payTo": "0x5b32c973596078a967562ca652761404f19be0e9",
+                      "payToType": "eoa"
+                    }
+                  ],
+                  "discovery": {
+                    "present": true,
+                    "method": "GET",
+                    "hasInputSchema": true,
+                    "hasOutputExample": true
+                  },
+                  "checks": [
+                    {
+                      "id": "status_402",
+                      "level": "pass"
+                    },
+                    {
+                      "id": "challenge",
+                      "level": "pass"
+                    },
+                    {
+                      "id": "version",
+                      "level": "pass"
+                    },
+                    {
+                      "id": "payto_type",
+                      "level": "info"
+                    },
+                    {
+                      "id": "discovery",
+                      "level": "pass"
+                    }
+                  ],
+                  "summary": {
+                    "pass": 4,
+                    "warn": 0,
+                    "fail": 0
+                  },
+                  "elapsedMs": 201
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing, bad, or blocked URL / method (not charged). Not charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "ok": false,
+                  "error": "Query param url is required (absolute http/https URL)",
+                  "code": "missing_url"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 v2). Not charged. The challenge is in the PAYMENT-REQUIRED header; the body is empty JSON {}.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "$ref": "#/components/headers/PaymentRequired"
+              }
+            }
+          },
+          "502": {
+            "description": "Target unreachable or too many redirects (not charged)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Target timeout (not charged)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bazaar-check": {
+      "get": {
+        "operationId": "getBazaarCheck",
+        "tags": [
+          "Agent utilities"
+        ],
+        "summary": "Check if an x402 seller is listed in CDP Bazaar, and why not",
+        "description": "x402 developer tool. Use to find out whether an x402 seller is listed in Coinbase CDP Bazaar and, if not, why. GET with required url (host or https URL). Reads CDP discovery and the host's /.well-known/x402, then sends one unpaid request per route; never pays. Returns JSON: verdict, per-route indexed status and networks (Base, Solana), and fail/warn findings each with a fix line. https only; private targets blocked. Errors are not charged.\n\nPrice: $0.01 USDC per call (10000 atomic), paid with x402 v2 `exact` on Base or Solana (same price). Unpaid requests get 402 with PAYMENT-REQUIRED; retry with PAYMENT-SIGNATURE.",
+        "x-payment-info": {
+          "protocol": "x402",
+          "x402Version": 2,
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "assetSymbol": "USDC",
+          "decimals": 6,
+          "priceUsd": "$0.01",
+          "amount": "10000",
+          "payTo": "0x5b32c973596078a967562ca652761404f19be0e9",
+          "maxTimeoutSeconds": 300,
+          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402",
+          "discovery": "https://horizonpulse.dev/.well-known/x402"
+        },
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "description": "Seller host (e.g. example.com) or https URL (required). A URL path is also probed as a route. https only; private/localhost blocked.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "horizonpulse.dev"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paid success. The settlement receipt is in the PAYMENT-RESPONSE header.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BazaarCheckResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "source": "bazaar-check",
+                  "asOf": "2026-10-09T16:38:45.681Z",
+                  "target": {
+                    "input": "horizonpulse.dev",
+                    "host": "horizonpulse.dev",
+                    "origin": "https://horizonpulse.dev"
+                  },
+                  "verdict": "fully_indexed",
+                  "summary": {
+                    "routesListed": 13,
+                    "routesProbed": 13,
+                    "indexed": 13,
+                    "notIndexed": 0,
+                    "indexedOnBase": 13,
+                    "indexedOnSolana": 13,
+                    "fail": 0,
+                    "warn": 0
+                  },
+                  "wellKnown": {
+                    "url": "https://horizonpulse.dev/.well-known/x402",
+                    "httpStatus": 200,
+                    "found": true,
+                    "entries": 15
+                  },
+                  "index": {
+                    "payTos": [
+                      {
+                        "network": "eip155:8453",
+                        "payTo": "0x5b32c973596078a967562ca652761404f19be0e9",
+                        "indexedTotalForPayTo": 13,
+                        "indexedOnHost": 13
+                      },
+                      {
+                        "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                        "payTo": "BjY98A6dS3GGLZdz2zHy8wK7XAwnQgNhCc66mfmBTRPz",
+                        "indexedTotalForPayTo": 13,
+                        "indexedOnHost": 13
+                      }
+                    ],
+                    "searchHitsOnHost": 13
+                  },
+                  "routes": [
+                    {
+                      "url": "https://horizonpulse.dev/api/pulse",
+                      "methods": [
+                        "GET"
+                      ],
+                      "probed": true,
+                      "indexed": true,
+                      "indexedNetworks": [
+                        "base",
+                        "solana"
+                      ],
+                      "advertisedNetworks": [
+                        "base",
+                        "solana"
+                      ],
+                      "lastIndexed": "2026-10-08T21:10:33.046Z",
+                      "findings": []
+                    },
+                    {
+                      "url": "https://horizonpulse.dev/api/signals",
+                      "methods": [
+                        "GET"
+                      ],
+                      "probed": true,
+                      "indexed": true,
+                      "indexedNetworks": [
+                        "base",
+                        "solana"
+                      ],
+                      "advertisedNetworks": [
+                        "base",
+                        "solana"
+                      ],
+                      "lastIndexed": "2026-10-09T15:20:10.271Z",
+                      "findings": []
+                    }
+                  ],
+                  "findings": [],
+                  "elapsedMs": 1707
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing, bad or http-only url, or a blocked private/local host. Not charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "ok": false,
+                  "error": "Query param url is required (a host like example.com or an https URL)",
+                  "code": "missing_url"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 v2). Not charged. The challenge is in the PAYMENT-REQUIRED header; the body is empty JSON {}.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "$ref": "#/components/headers/PaymentRequired"
+              }
+            }
+          },
+          "502": {
+            "description": "Host unreachable on every request, or CDP discovery unavailable or not answering before the 18s deadline counted from request arrival (code cdp_unavailable), or too little time left after payment verification (code time_budget_used). Not charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/screenshot": {
+      "get": {
+        "operationId": "getScreenshot",
+        "tags": [
+          "Web and documents"
+        ],
+        "summary": "Render a public page to a PNG or JPEG screenshot",
+        "description": "Web page screenshot. Use when you need to see how a public page renders. GET with required url; optional width (320-1920), height (240-2000), fullPage=true (clipped at 4000px), format png/jpeg, delayMs (0-3000). Renders in headless Chromium and returns JSON: imageBase64, mimeType, width, height, bytes, finalUrl, pageStatus, title and blockedRequests. Every sub-request is checked; private targets blocked. Over the 25s budget returns 504. Errors are not charged.\n\nPrice: $0.02 USDC per call (20000 atomic), paid with x402 v2 `exact` on Base or Solana (same price). Unpaid requests get 402 with PAYMENT-REQUIRED; retry with PAYMENT-SIGNATURE.",
+        "x-payment-info": {
+          "protocol": "x402",
+          "x402Version": 2,
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "assetSymbol": "USDC",
+          "decimals": 6,
+          "priceUsd": "$0.02",
+          "amount": "20000",
+          "payTo": "0x5b32c973596078a967562ca652761404f19be0e9",
+          "maxTimeoutSeconds": 300,
+          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402",
+          "discovery": "https://horizonpulse.dev/.well-known/x402"
+        },
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "description": "Absolute http(s) URL to render (required). Private/localhost blocked.",
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "example": "https://horizonpulse.dev"
+          },
+          {
+            "name": "width",
+            "in": "query",
+            "required": false,
+            "description": "Viewport width 320-1920 (default 1280).",
+            "schema": {
+              "type": "integer",
+              "minimum": 320,
+              "maximum": 1920,
+              "default": 1280
+            }
+          },
+          {
+            "name": "height",
+            "in": "query",
+            "required": false,
+            "description": "Viewport height 240-2000 (default 800).",
+            "schema": {
+              "type": "integer",
+              "minimum": 240,
+              "maximum": 2000,
+              "default": 800
+            }
+          },
+          {
+            "name": "fullPage",
+            "in": "query",
+            "required": false,
+            "description": "true to capture the full page (clipped at 4000px).",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "png (default) or jpeg.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "png",
+                "jpeg"
+              ],
+              "default": "png"
+            }
+          },
+          {
+            "name": "delayMs",
+            "in": "query",
+            "required": false,
+            "description": "Extra wait after load, 0-3000 ms.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3000,
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paid success. The settlement receipt is in the PAYMENT-RESPONSE header.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenshotResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "requestedUrl": "https://horizonpulse.dev",
+                  "finalUrl": "https://horizonpulse.dev/",
+                  "pageStatus": 200,
+                  "title": "Horizon Pulse",
+                  "mimeType": "image/png",
+                  "width": 1280,
+                  "height": 800,
+                  "fullPage": false,
+                  "bytes": 133636,
+                  "imageBase64": "iVBORw0KGgoAAAAN…",
+                  "blockedRequests": 0,
+                  "elapsedMs": 5818
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing/bad/blocked URL or params (not charged). Not charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "ok": false,
+                  "error": "Query param url is required (absolute http/https URL)",
+                  "code": "missing_url"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 v2). Not charged. The challenge is in the PAYMENT-REQUIRED header; the body is empty JSON {}.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "$ref": "#/components/headers/PaymentRequired"
+              }
+            }
+          },
+          "413": {
+            "description": "Image over cap (not charged)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Navigation or render failed (not charged)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Navigation timeout (not charged)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search": {
+      "get": {
+        "operationId": "getSearch",
+        "tags": [
+          "Web and documents"
+        ],
+        "summary": "Search the web and return top pages as clean text",
+        "description": "Web search with page contents. Use when you need current information from the web with sources to cite. GET with required q (max 300 chars) and optional n (1-5 pages, default 3). Searches Google results via Serper, then fetches each top result as clean markdown. Returns JSON: results with rank, url, title, snippet, per-page ok/status and content (up to 12K chars each), plus resultCount and fetchedOk. Billed when at least one result returns; zero results or provider errors are not charged.\n\nPrice: $0.03 USDC per call (30000 atomic), paid with x402 v2 `exact` on Base or Solana (same price). Unpaid requests get 402 with PAYMENT-REQUIRED; retry with PAYMENT-SIGNATURE.",
+        "x-payment-info": {
+          "protocol": "x402",
+          "x402Version": 2,
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "assetSymbol": "USDC",
+          "decimals": 6,
+          "priceUsd": "$0.03",
+          "amount": "30000",
+          "payTo": "0x5b32c973596078a967562ca652761404f19be0e9",
+          "maxTimeoutSeconds": 300,
+          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402",
+          "discovery": "https://horizonpulse.dev/.well-known/x402"
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "Search query (required, <=300 chars).",
+            "schema": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "example": "x402 payment protocol"
+          },
+          {
+            "name": "n",
+            "in": "query",
+            "required": false,
+            "description": "Number of result pages to fetch, integer 1-5 (default 3).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5,
+              "default": 3
+            },
+            "example": 2
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paid success. The settlement receipt is in the PAYMENT-RESPONSE header.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "query": "x402 payment protocol",
+                  "provider": "serper (Google results)",
+                  "n": 2,
+                  "resultCount": 2,
+                  "fetchedOk": 2,
+                  "results": [
+                    {
+                      "rank": 1,
+                      "url": "https://x402.org/",
+                      "title": "x402",
+                      "snippet": "x402 enables instant, low-cost payments for digital services. It's designed for API monetization, agentic commerce, paywalled content, and any scenario. The ...",
+                      "ok": true,
+                      "status": 200,
+                      "format": "markdown",
+                      "truncated": false,
+                      "content": "# x402\n\nClose Search\n\n# x402\n\nx402 is an open, neutral standard for internet-native payments. It absolves the Internet’s…"
+                    }
+                  ],
+                  "elapsedMs": 1860
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing/too-long query or bad n (not charged). Not charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "ok": false,
+                  "error": "Query param q is required",
+                  "code": "missing_query"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 v2). Not charged. The challenge is in the PAYMENT-REQUIRED header; the body is empty JSON {}.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "$ref": "#/components/headers/PaymentRequired"
+              }
+            }
+          },
+          "404": {
+            "description": "No search results (not charged)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Search provider unavailable (not charged)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pdf": {
+      "get": {
+        "operationId": "getPdf",
+        "tags": [
+          "Web and documents"
+        ],
+        "summary": "Convert a public PDF to text per page plus metadata",
+        "description": "PDF to text. Use when you need the text of a public PDF document. GET with required url (http/https, max 10MB) and optional pages (1-50, default 50). Returns JSON: pages [{page, text}], totalPages, pagesReturned, truncated, bytes, finalUrl and meta (title, author, subject, creator, producer, creationDate). Reads the PDF text layer with pdf.js; no OCR, so scanned image-only PDFs return 422. Max 100K chars. Not a PDF, encrypted, too large or failed downloads are not charged.\n\nPrice: $0.02 USDC per call (20000 atomic), paid with x402 v2 `exact` on Base or Solana (same price). Unpaid requests get 402 with PAYMENT-REQUIRED; retry with PAYMENT-SIGNATURE.",
+        "x-payment-info": {
+          "protocol": "x402",
+          "x402Version": 2,
+          "scheme": "exact",
+          "network": "eip155:8453",
+          "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          "assetSymbol": "USDC",
+          "decimals": 6,
+          "priceUsd": "$0.02",
+          "amount": "20000",
+          "payTo": "0x5b32c973596078a967562ca652761404f19be0e9",
+          "maxTimeoutSeconds": 300,
+          "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402",
+          "discovery": "https://horizonpulse.dev/.well-known/x402"
+        },
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "description": "Absolute http(s) URL of a public PDF (required, max 10MB).",
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "example": "https://horizonpulse.dev/sample.pdf"
+          },
+          {
+            "name": "pages",
+            "in": "query",
+            "required": false,
+            "description": "Max pages to return, integer 1-50 (default 50).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paid success. The settlement receipt is in the PAYMENT-RESPONSE header.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PdfResponse"
+                },
+                "example": {
+                  "ok": true,
+                  "requestedUrl": "https://horizonpulse.dev/sample.pdf",
+                  "finalUrl": "https://horizonpulse.dev/sample.pdf",
+                  "bytes": 858,
+                  "totalPages": 1,
+                  "pagesReturned": 1,
+                  "truncated": false,
+                  "meta": {
+                    "title": "Horizon Pulse sample PDF",
+                    "author": "Horizon Pulse"
+                  },
+                  "pages": [
+                    {
+                      "page": 1,
+                      "text": "Horizon Pulse sample PDF\nPay-per-call APIs for AI agents over x402 (USDC on Base).\nThis file is the fixed input for the free /api/demo/pdf sample."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing/bad url, blocked host, or bad pages (not charged). Not charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "ok": false,
+                  "error": "Query param url is required (absolute http/https URL of a PDF)",
+                  "code": "missing_url"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 v2). Not charged. The challenge is in the PAYMENT-REQUIRED header; the body is empty JSON {}.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "$ref": "#/components/headers/PaymentRequired"
+              }
+            }
+          },
+          "413": {
+            "description": "File larger than 10MB (not charged)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Not a PDF (not charged)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Encrypted, corrupt, or image-only PDF with no text layer (not charged)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream download failed (not charged)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Download or parse timed out before any text (not charged)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "x402": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "PAYMENT-SIGNATURE",
+        "description": "x402 v2 payment payload (base64 JSON), built from the 402 PAYMENT-REQUIRED challenge. No account or API key. See https://www.x402.org/."
+      }
+    },
+    "headers": {
+      "PaymentRequired": {
+        "description": "Base64-encoded JSON x402 v2 payment challenge; decode for accepts, payTo, amount, network. Decoded shape: #/components/schemas/PaymentRequired (may also carry Bazaar discovery metadata).",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "contentMediaType": "application/json"
+        }
+      },
+      "PaymentResponse": {
+        "description": "Base64-encoded JSON settlement receipt (success, transaction, network, payer).",
+        "schema": {
+          "type": "string",
+          "contentEncoding": "base64"
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "description": "Error body. Errors are not charged unless the route description says otherwise (e.g. /api/http passes upstream 4xx/5xx back as data).",
+        "required": [
+          "ok",
+          "error"
+        ],
+        "properties": {
+          "ok": {
+            "const": false
+          },
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "description": "Stable machine-readable error code, where the route has one."
+          }
+        }
+      },
+      "PaymentRequired": {
+        "type": "object",
+        "description": "Decoded shape of the PAYMENT-REQUIRED response header: base64-decode the header value and parse it as JSON to get this x402 v2 payment challenge (the live header may also carry Bazaar discovery metadata). Not sent in the 402 body, which is empty JSON {}.",
+        "required": [
+          "x402Version",
+          "accepts"
+        ],
+        "properties": {
+          "x402Version": {
+            "const": 2
+          },
+          "resource": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "mimeType": {
+                "type": "string"
+              }
+            }
+          },
+          "accepts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "scheme",
+                "network",
+                "amount",
+                "asset",
+                "payTo",
+                "maxTimeoutSeconds"
+              ],
+              "properties": {
+                "scheme": {
+                  "const": "exact"
+                },
+                "network": {
+                  "type": "string",
+                  "examples": [
+                    "eip155:8453",
+                    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                  ]
+                },
+                "amount": {
+                  "type": "string",
+                  "description": "Price in USDC atomic units (6 decimals)."
+                },
+                "asset": {
+                  "type": "string",
+                  "description": "USDC contract on Base, or the USDC mint on Solana."
+                },
+                "payTo": {
+                  "type": "string"
+                },
+                "maxTimeoutSeconds": {
+                  "type": "integer"
+                },
+                "extra": {
+                  "type": "object",
+                  "description": "Base: USDC EIP-712 name and version. Solana: feePayer, the facilitator's fee payer for the transaction.",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "feePayer": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "PulseResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string"
+          },
+          "assets": {
+            "type": "object",
+            "properties": {
+              "BTC": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "priceUsd": {
+                    "type": "number"
+                  },
+                  "change24hPct": {
+                    "type": "number"
+                  },
+                  "momentum": {
+                    "type": "string"
+                  }
+                }
+              },
+              "ETH": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "priceUsd": {
+                    "type": "number"
+                  },
+                  "change24hPct": {
+                    "type": "number"
+                  },
+                  "momentum": {
+                    "type": "string"
+                  }
+                }
+              },
+              "SOL": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "priceUsd": {
+                    "type": "number"
+                  },
+                  "change24hPct": {
+                    "type": "number"
+                  },
+                  "momentum": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "overall": {
+            "type": "object",
+            "properties": {
+              "momentum": {
+                "type": "string"
+              },
+              "sentiment": {
+                "type": "string"
+              },
+              "direction": {
+                "type": "string",
+                "enum": [
+                  "up",
+                  "down",
+                  "flat"
+                ]
+              },
+              "avgChange24hPct": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        "description": "Inferred from a real response recorded from GET /api/demo/pulse at 2026-10-01T14:36Z UTC (trimmed). Fields may be added; clients should ignore unknown fields."
+      },
+      "SignalsResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "asOf": {
+            "type": "string"
+          },
+          "assets": {
+            "type": "object",
+            "properties": {
+              "BTC": {
+                "type": "object",
+                "properties": {
+                  "rsi14": {
+                    "type": "number"
+                  },
+                  "macd": {
+                    "description": "Null in the recorded example; may hold a value."
+                  },
+                  "bollinger": {
+                    "type": "object",
+                    "properties": {
+                      "upper": {
+                        "type": "number"
+                      },
+                      "middle": {
+                        "type": "number"
+                      },
+                      "lower": {
+                        "type": "number"
+                      },
+                      "period": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "lastClose": {
+                    "type": "number"
+                  },
+                  "funding": {
+                    "type": "object",
+                    "properties": {
+                      "instId": {
+                        "type": "string"
+                      },
+                      "fundingRate": {
+                        "type": "number"
+                      },
+                      "fundingTime": {
+                        "type": "string"
+                      },
+                      "venue": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              },
+              "ETH": {
+                "type": "object",
+                "properties": {
+                  "rsi14": {
+                    "type": "number"
+                  },
+                  "macd": {
+                    "description": "Null in the recorded example; may hold a value."
+                  },
+                  "bollinger": {
+                    "type": "object",
+                    "properties": {
+                      "upper": {
+                        "type": "number"
+                      },
+                      "middle": {
+                        "type": "number"
+                      },
+                      "lower": {
+                        "type": "number"
+                      },
+                      "period": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "lastClose": {
+                    "type": "number"
+                  },
+                  "funding": {
+                    "type": "object",
+                    "properties": {
+                      "instId": {
+                        "type": "string"
+                      },
+                      "fundingRate": {
+                        "type": "number"
+                      },
+                      "fundingTime": {
+                        "type": "string"
+                      },
+                      "venue": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "Inferred from a real response recorded from GET /api/demo/signals at 2026-10-01T14:36Z UTC (trimmed). Fields may be added; clients should ignore unknown fields."
+      },
+      "YieldResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string"
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "scanned": {
+                "type": "number"
+              },
+              "afterTvlFilter": {
+                "type": "number"
+              },
+              "afterPreferenceFilter": {
+                "type": "number"
+              },
+              "returned": {
+                "type": "number"
+              }
+            }
+          },
+          "pools": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "rank": {
+                  "type": "number"
+                },
+                "poolId": {
+                  "type": "string"
+                },
+                "chain": {
+                  "type": "string"
+                },
+                "project": {
+                  "type": "string"
+                },
+                "symbol": {
+                  "type": "string"
+                },
+                "tvlUsd": {
+                  "type": "number"
+                },
+                "apy": {
+                  "type": "number"
+                },
+                "apyBase": {
+                  "type": "number"
+                },
+                "apyReward": {
+                  "description": "Null in the recorded example; may hold a value."
+                },
+                "apyMean30d": {
+                  "type": "number"
+                },
+                "stablecoin": {
+                  "type": "boolean"
+                },
+                "exposure": {
+                  "type": "string"
+                },
+                "ilRisk": {
+                  "type": "string"
+                },
+                "poolMeta": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "preferenceTier": {
+                  "type": "number"
+                },
+                "preferenceReason": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "description": "Inferred from a real response recorded from GET /api/demo/yield at 2026-10-01T14:36Z UTC (trimmed). Fields may be added; clients should ignore unknown fields."
+      },
+      "PortfolioResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "address": {
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string"
+          },
+          "holdings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "network": {
+                  "type": "string"
+                },
+                "chainId": {
+                  "type": "number"
+                },
+                "symbol": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "contract": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "decimals": {
+                  "type": "number"
+                },
+                "balanceAtomic": {
+                  "type": "string"
+                },
+                "balance": {
+                  "type": "string"
+                },
+                "stablecoin": {
+                  "type": "boolean"
+                },
+                "priceUsd": {
+                  "type": "number"
+                },
+                "valueUsd": {
+                  "type": "number"
+                },
+                "weight": {
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "valueUsd": {
+                "type": "number"
+              },
+              "stablecoinShare": {
+                "type": "number"
+              },
+              "maxAssetWeight": {
+                "type": "number"
+              },
+              "maxAssetSymbol": {
+                "type": "string"
+              },
+              "maxChainWeight": {
+                "type": "number"
+              },
+              "maxChain": {
+                "type": "string"
+              }
+            }
+          },
+          "risk": {
+            "type": "object",
+            "properties": {
+              "score": {
+                "type": "number"
+              },
+              "band": {
+                "type": "string"
+              }
+            }
+          },
+          "suggestions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "priority": {
+                  "type": "string"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "description": "Inferred from a real response recorded from GET /api/demo/portfolio at 2026-10-01T14:36Z UTC (trimmed). Fields may be added; clients should ignore unknown fields."
+      },
+      "GasResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "asOf": {
+            "type": "string"
+          },
+          "ethUsd": {
+            "type": "number"
+          },
+          "networks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "network": {
+                  "type": "string"
+                },
+                "chainId": {
+                  "type": "number"
+                },
+                "ok": {
+                  "type": "boolean"
+                },
+                "baseFeeGwei": {
+                  "type": "string"
+                },
+                "priorityFeeGwei": {
+                  "type": "string"
+                },
+                "priorityFeePercentilesGwei": {
+                  "type": "object",
+                  "properties": {
+                    "p10": {
+                      "type": "string"
+                    },
+                    "p50": {
+                      "type": "string"
+                    },
+                    "p90": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "suggestedMaxFeeGwei": {
+                  "type": "string"
+                },
+                "timingHint": {
+                  "type": "string"
+                },
+                "simpleTransfer": {
+                  "type": "object",
+                  "properties": {
+                    "gasLimit": {
+                      "type": "number"
+                    },
+                    "costWei": {
+                      "type": "string"
+                    },
+                    "costEth": {
+                      "type": "string"
+                    },
+                    "costUsd": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "Inferred from a real response recorded from GET /api/demo/gas at 2026-10-01T14:36Z UTC (trimmed). Fields may be added; clients should ignore unknown fields."
+      },
+      "FundingResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string"
+          },
+          "assets": {
+            "type": "object",
+            "properties": {
+              "BTC": {
+                "type": "object",
+                "properties": {
+                  "instId": {
+                    "type": "string"
+                  },
+                  "fundingRate": {
+                    "type": "number"
+                  },
+                  "fundingTime": {
+                    "type": "string"
+                  },
+                  "crowding": {
+                    "type": "object",
+                    "properties": {
+                      "side": {
+                        "type": "string"
+                      },
+                      "level": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              },
+              "SOL": {
+                "type": "object",
+                "properties": {
+                  "instId": {
+                    "type": "string"
+                  },
+                  "fundingRate": {
+                    "type": "number"
+                  },
+                  "fundingTime": {
+                    "type": "string"
+                  },
+                  "crowding": {
+                    "type": "object",
+                    "properties": {
+                      "side": {
+                        "type": "string"
+                      },
+                      "level": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "Inferred from a real response recorded from GET /api/demo/funding at 2026-10-01T14:36Z UTC (trimmed). Fields may be added; clients should ignore unknown fields."
+      },
+      "FetchResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "requestedUrl": {
+            "type": "string"
+          },
+          "finalUrl": {
+            "type": "string"
+          },
+          "upstreamStatus": {
+            "type": "number"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "bytesRead": {
+            "type": "number"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "description": "Inferred from a real response recorded from GET /api/demo/fetch at 2026-10-01T14:36Z UTC (trimmed). Fields may be added; clients should ignore unknown fields."
+      },
+      "HttpResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "number"
+          },
+          "headers": {
+            "type": "object",
+            "properties": {
+              "content-type": {
+                "type": "string"
+              },
+              "last-modified": {
+                "type": "string"
+              },
+              "server": {
+                "type": "string"
+              }
+            }
+          },
+          "body": {
+            "type": "string"
+          },
+          "bodyEncoding": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "finalUrl": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "bytesRead": {
+            "type": "number"
+          },
+          "elapsedMs": {
+            "type": "number"
+          }
+        },
+        "description": "Inferred from a real response recorded from GET /api/demo/http at 2026-10-01T14:36Z UTC (trimmed). Fields may be added; clients should ignore unknown fields."
+      },
+      "ExtractResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "url": {
+            "type": "string"
+          },
+          "finalUrl": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "href": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "headings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "level": {
+                  "type": "number"
+                },
+                "text": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "textSample": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "object",
+            "properties": {
+              "heading": {
+                "type": "string"
+              },
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "fieldErrors": {
+            "type": "object",
+            "properties": {}
+          },
+          "matchedFields": {
+            "type": "number"
+          },
+          "requestedFields": {
+            "type": "number"
+          },
+          "elapsedMs": {
+            "type": "number"
+          }
+        },
+        "description": "Inferred from a real response recorded from GET /api/demo/extract at 2026-10-01T14:36Z UTC (trimmed). Fields may be added; clients should ignore unknown fields."
+      },
+      "X402CheckResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "target": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "httpStatus": {
+            "type": "number"
+          },
+          "isX402": {
+            "type": "boolean"
+          },
+          "x402Version": {
+            "type": "number"
+          },
+          "challengeSource": {
+            "type": "string"
+          },
+          "accepts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "network": {
+                  "type": "string"
+                },
+                "assetLabel": {
+                  "type": "string"
+                },
+                "amountUsd": {
+                  "type": "string"
+                },
+                "payTo": {
+                  "type": "string"
+                },
+                "payToType": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "discovery": {
+            "type": "object",
+            "properties": {
+              "present": {
+                "type": "boolean"
+              },
+              "method": {
+                "type": "string"
+              },
+              "hasInputSchema": {
+                "type": "boolean"
+              },
+              "hasOutputExample": {
+                "type": "boolean"
+              }
+            }
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "level": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "pass": {
+                "type": "number"
+              },
+              "warn": {
+                "type": "number"
+              },
+              "fail": {
+                "type": "number"
+              }
+            }
+          },
+          "elapsedMs": {
+            "type": "number"
+          }
+        },
+        "description": "Inferred from a real response recorded from GET /api/demo/x402-check at 2026-10-01T14:36Z UTC (trimmed). Fields may be added; clients should ignore unknown fields."
+      },
+      "BazaarCheckResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string"
+          },
+          "asOf": {
+            "type": "string"
+          },
+          "target": {
+            "type": "object",
+            "properties": {
+              "input": {
+                "type": "string"
+              },
+              "host": {
+                "type": "string"
+              },
+              "origin": {
+                "type": "string"
+              }
+            }
+          },
+          "verdict": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "routesListed": {
+                "type": "number"
+              },
+              "routesProbed": {
+                "type": "number"
+              },
+              "indexed": {
+                "type": "number"
+              },
+              "notIndexed": {
+                "type": "number"
+              },
+              "indexedOnBase": {
+                "type": "number"
+              },
+              "indexedOnSolana": {
+                "type": "number"
+              },
+              "fail": {
+                "type": "number"
+              },
+              "warn": {
+                "type": "number"
+              }
+            }
+          },
+          "wellKnown": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "httpStatus": {
+                "type": "number"
+              },
+              "found": {
+                "type": "boolean"
+              },
+              "entries": {
+                "type": "number"
+              }
+            }
+          },
+          "index": {
+            "type": "object",
+            "properties": {
+              "payTos": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "network": {
+                      "type": "string"
+                    },
+                    "payTo": {
+                      "type": "string"
+                    },
+                    "indexedTotalForPayTo": {
+                      "type": "number"
+                    },
+                    "indexedOnHost": {
+                      "type": "number"
+                    }
+                  }
+                }
+              },
+              "searchHitsOnHost": {
+                "type": "number"
+              }
+            }
+          },
+          "routes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string"
+                },
+                "methods": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "probed": {
+                  "type": "boolean"
+                },
+                "indexed": {
+                  "type": "boolean"
+                },
+                "indexedNetworks": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "advertisedNetworks": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "lastIndexed": {
+                  "type": "string"
+                },
+                "findings": {
+                  "type": "array"
+                }
+              }
+            }
+          },
+          "findings": {
+            "type": "array"
+          },
+          "elapsedMs": {
+            "type": "number"
+          }
+        },
+        "description": "Inferred from a real response recorded from GET /api/demo/bazaar-check at 2026-10-09T16:38Z UTC (trimmed). Fields may be added; clients should ignore unknown fields."
+      },
+      "ScreenshotResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "requestedUrl": {
+            "type": "string"
+          },
+          "finalUrl": {
+            "type": "string"
+          },
+          "pageStatus": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "width": {
+            "type": "number"
+          },
+          "height": {
+            "type": "number"
+          },
+          "fullPage": {
+            "type": "boolean"
+          },
+          "bytes": {
+            "type": "number"
+          },
+          "imageBase64": {
+            "type": "string"
+          },
+          "blockedRequests": {
+            "type": "number"
+          },
+          "elapsedMs": {
+            "type": "number"
+          }
+        },
+        "description": "Inferred from a real response recorded from GET /api/demo/screenshot at 2026-10-01T14:36Z UTC (trimmed). Fields may be added; clients should ignore unknown fields."
+      },
+      "SearchResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "query": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "n": {
+            "type": "number"
+          },
+          "resultCount": {
+            "type": "number"
+          },
+          "fetchedOk": {
+            "type": "number"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "rank": {
+                  "type": "number"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "snippet": {
+                  "type": "string"
+                },
+                "ok": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "type": "number"
+                },
+                "format": {
+                  "type": "string"
+                },
+                "truncated": {
+                  "type": "boolean"
+                },
+                "content": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "elapsedMs": {
+            "type": "number"
+          }
+        },
+        "description": "Inferred from a real response recorded from GET /api/demo/search at 2026-10-01T14:36Z UTC (trimmed). Fields may be added; clients should ignore unknown fields."
+      },
+      "PdfResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "requestedUrl": {
+            "type": "string"
+          },
+          "finalUrl": {
+            "type": "string"
+          },
+          "bytes": {
+            "type": "number"
+          },
+          "totalPages": {
+            "type": "number"
+          },
+          "pagesReturned": {
+            "type": "number"
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "author": {
+                "type": "string"
+              }
+            }
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "page": {
+                  "type": "number"
+                },
+                "text": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "description": "Inferred from a real response recorded from GET /api/demo/pdf at 2026-10-01T14:36Z UTC (trimmed). Fields may be added; clients should ignore unknown fields."
+      }
+    }
+  }
+}
