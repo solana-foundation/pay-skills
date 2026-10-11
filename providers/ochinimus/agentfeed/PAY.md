@@ -48,7 +48,7 @@ trade on Solana against the stock itself - the on-chain DEX price versus the
 underlying's last real trade, broken out by trading session and ranked across
 every tracked name.
 
-Prices run $0.005–$0.1 per call. Six endpoints are free and carry no payment
+Prices run $0.001–$0.1 per call; the spot prices (`/api/price`, `/api/sol-price`, `/api/btc-price`, `/api/eth-price`) are $0.001. Six endpoints are free and carry no payment
 challenge: `/api/fear-greed`, `/api/last-liquidation`, `/api/exit-method`,
 `/api/forecast-record`, `/api/sample` and `/api/sample/{route}`.
 
