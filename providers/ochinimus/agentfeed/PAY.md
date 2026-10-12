@@ -11,15 +11,16 @@ openapi:
 
 AgentFeed is a read-only market-data API for agents, gated per call in USDC.
 No accounts and no API keys: every route answers `402` with an x402 challenge
-(Solana mainnet, Base, Polygon or Arbitrum), the caller pays, and the same
+(Solana mainnet, Base, Polygon, Arbitrum or Arc), the caller pays, and the same
 request returns JSON. x402 v2 clients read the challenge from the `PAYMENT-REQUIRED`
 header and pay with `PAYMENT-SIGNATURE`; x402 v1 clients read the same challenge
 from the JSON body and pay with `X-PAYMENT`, on Solana or Base.
 `/api/sol-price` and `/api/btc-price` also carry an MPP `solana`/`charge`
 challenge in `WWW-Authenticate` on the same 402, so `pay` can settle either
 protocol. Payment goes to `4a8o45skRPcyjAdyR8yES215Swvh8uTpZD6KLarhxCJ7` on
-Solana and `0x22DB3A9686EE5261e7Bf3ed4f91277232E8076e6` on Base, Polygon and
-Arbitrum. Take `payTo` from a fresh 402, never from transaction history:
+Solana, `0x22DB3A9686EE5261e7Bf3ed4f91277232E8076e6` on Base, Polygon and
+Arbitrum, and `0x0Cf44185564F2b72E291050DC79E578429E52f83` on Arc.
+Take `payTo` from a fresh 402, never from transaction history:
 lookalikes of the EVM address have sent address-poisoning transfers.
 
 The liquidation data is the part that is hard to get elsewhere: Bybit's
