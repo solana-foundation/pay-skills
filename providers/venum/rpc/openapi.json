@@ -1,0 +1,249 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Venum RPC",
+    "version": "1.1.0",
+    "description": "Pay-per-call Solana mainnet JSON-RPC at $0.0001 per request. Two complementary auth paths: x402 per-call (Solana payment challenge in `WWW-Authenticate`, no signup) and SIWX → JWT session (`POST /auth` exchange, 24h Bearer reuse, pre-pay USDC with `venum-prepay:<pubkey>` memo). `getHealth` and `getVersion` are free in both modes.",
+    "license": { "name": "Proprietary" }
+  },
+  "servers": [
+    { "url": "https://pay.rpc.venum.dev" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "EdDSA-signed JWT obtained from `POST /auth`. 24h TTL. Customer pre-funds a USDC balance to the recipient with memo `venum-prepay:<base58 wallet>`, then the gateway debits 100 micro-USDC ($0.0001) per non-free call from that balance."
+      }
+    },
+    "schemas": {
+      "JsonRpcRequest": {
+        "type": "object",
+        "required": ["jsonrpc", "method"],
+        "properties": {
+          "jsonrpc": { "type": "string", "enum": ["2.0"] },
+          "id": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "integer" },
+              { "type": "null" }
+            ]
+          },
+          "method": {
+            "type": "string",
+            "description": "Any Solana JSON-RPC method name."
+          },
+          "params": {
+            "type": "array",
+            "description": "Method-specific positional parameters per the Solana JSON-RPC spec.",
+            "items": {}
+          }
+        }
+      },
+      "JsonRpcResponse": {
+        "type": "object",
+        "properties": {
+          "jsonrpc": { "type": "string" },
+          "id": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "integer" },
+              { "type": "null" }
+            ]
+          },
+          "result": {},
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "integer" },
+              "message": { "type": "string" },
+              "data": {}
+            }
+          }
+        }
+      },
+      "X402Challenge": {
+        "type": "object",
+        "description": "Body shape of the x402 / MPP-charge 402 response. The authoritative challenge lives in the `WWW-Authenticate` header — this body is a hint for clients that don't decode the header.",
+        "properties": {
+          "endpoint": { "type": "object" },
+          "error": { "type": "string" },
+          "message": { "type": "string" },
+          "pricing": { "type": "object" }
+        }
+      },
+      "BalanceExhausted": {
+        "type": "object",
+        "description": "Session-mode 402 — issued when the JWT-bearing caller has run out of pre-paid balance. Top up via the included `topUpRecipient` + `topUpMemo` and the gateway will resume.",
+        "required": ["error", "message", "topUpRecipient", "topUpMemo"],
+        "properties": {
+          "error": { "type": "string", "enum": ["balance_exhausted"] },
+          "message": { "type": "string" },
+          "topUpRecipient": { "type": "string", "description": "Solana wallet (base58) — destination of the USDC top-up." },
+          "topUpMemo": { "type": "string", "description": "Required memo on the top-up tx. Format: `venum-prepay:<base58 wallet>`. Identifies which session's balance to credit." }
+        }
+      },
+      "AuthResponse": {
+        "type": "object",
+        "required": ["token", "expiresAt", "accountId"],
+        "properties": {
+          "token": { "type": "string", "description": "EdDSA-signed JWT (header.payload.signature, base64url). Reuse via `Authorization: Bearer <token>` for 24h." },
+          "expiresAt": { "type": "string", "format": "date-time" },
+          "accountId": { "type": "string", "description": "CAIP-10 account identifier — `solana:5eykt…:<base58 pubkey>`." }
+        }
+      },
+      "BalanceResponse": {
+        "type": "object",
+        "required": ["accountId", "balanceUsdc", "callsRemaining", "jwtExpiresAt", "topUpRecipient", "topUpMemo"],
+        "properties": {
+          "accountId": { "type": "string" },
+          "balanceUsdc": { "type": "string", "description": "Human-readable USDC balance (e.g. \"0.95\")." },
+          "callsRemaining": { "type": "string", "description": "Floor(balance / per-call cost). Stringified bigint." },
+          "jwtExpiresAt": { "type": "string", "format": "date-time" },
+          "topUpRecipient": { "type": "string" },
+          "topUpMemo": { "type": "string" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/": {
+      "post": {
+        "summary": "Solana JSON-RPC dispatch (x402 or JWT)",
+        "description": "Send any Solana JSON-RPC method as a standard `{jsonrpc:\"2.0\", id, method, params}` envelope. With no `Authorization` header the call enters the x402 per-call flow (402 with payment challenge in WWW-Authenticate). With `Authorization: Bearer <JWT>` from `POST /auth` the call is served from the pre-paid balance (200 OK or 402 `balance_exhausted`). `getHealth` and `getVersion` are free in both modes.",
+        "operationId": "solanaJsonRpc",
+        "security": [
+          {},
+          { "bearerAuth": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/JsonRpcRequest" },
+              "example": { "jsonrpc": "2.0", "id": 1, "method": "getHealth" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "JSON-RPC response from the Solana cluster.",
+            "headers": {
+              "X-Venum-Paid": {
+                "description": "`metered` for a billed call, `free` for the free-method carve-out (`getHealth`, `getVersion`). JWT path only.",
+                "schema": { "type": "string", "enum": ["metered", "free"] }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/JsonRpcResponse" }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. In x402 mode (no Bearer) the `WWW-Authenticate` header carries the Solana payment challenge. In JWT mode the body is a `BalanceExhausted` envelope pointing at the top-up recipient and memo.",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "Solana MPP-charge challenge (x402 mode only) — `Payment id=\"<challenge-id>\", realm=\"Venum RPC\", method=\"solana\", intent=\"charge\", request=\"<base64-json>\"`. The base64 `request` decodes to JSON containing `recipient`, `amount`, `currency` (USDC mint), `methodDetails.network`, and `methodDetails.recentBlockhash`.",
+                "schema": { "type": "string" }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    { "$ref": "#/components/schemas/X402Challenge" },
+                    { "$ref": "#/components/schemas/BalanceExhausted" }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth": {
+      "post": {
+        "summary": "Exchange SIWX signature for JWT (session mode)",
+        "description": "CAIP-122 Sign-In-With-X exchange. Send the SIWX message string + an ed25519 signature (base58) produced by the wallet named in the message's `address` field. Returns a 24-hour EdDSA-signed JWT bound to the wallet's CAIP-10 account. The customer pre-funds a USDC balance for that account by sending USDC to the gateway's recipient with memo `venum-prepay:<base58 wallet>`; the watcher credits the balance within ~30s of confirmation.",
+        "operationId": "exchangeSiwxForJwt",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["message", "signature", "type"],
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "description": "CAIP-122 SIWX message. Must include `domain=pay.rpc.venum.dev`, `chain-id=solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d`, a fresh `Nonce` (≥8 chars, single-use), and an `Issued At` within ±5 minutes of server time."
+                  },
+                  "signature": {
+                    "type": "string",
+                    "description": "Base58-encoded ed25519 signature of the UTF-8 SIWX message bytes."
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": ["siwx"]
+                  }
+                }
+              },
+              "example": {
+                "message": "pay.rpc.venum.dev wants you to sign in with your Solana account:\n7LQXiKR6QmqmB3BwLFx6Q9o7BPxZ1DmJQoS8mtHf55fW\n\nAuthorize Venum RPC session\n\nURI: https://pay.rpc.venum.dev\nVersion: 1\nChain ID: solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d\nNonce: a1b2c3d4e5f6a1b2\nIssued At: 2026-05-30T11:00:00Z",
+                "signature": "<base58 ed25519 sig of the message>",
+                "type": "siwx"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "JWT issued.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AuthResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request (missing field, unparseable SIWX, wrong `type`).",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "error": { "type": "string" } } } } }
+          },
+          "401": {
+            "description": "SIWX validation or signature check failed (wrong domain, bad nonce, expired, signature mismatch, replay).",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "error": { "type": "string" }, "message": { "type": "string" } } } } }
+          }
+        }
+      }
+    },
+    "/balance": {
+      "get": {
+        "summary": "Read current pre-pay balance (session mode)",
+        "description": "Returns the JWT-bound account's remaining USDC balance + top-up instructions. Cheap, never charges.",
+        "operationId": "getBalance",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Current balance + top-up instructions.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BalanceResponse" }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid Authorization header.",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "error": { "type": "string" } } } } }
+          },
+          "403": {
+            "description": "JWT explicitly revoked (operator-side revocation; v1 has no customer-facing revoke endpoint).",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "error": { "type": "string" } } } } }
+          }
+        }
+      }
+    }
+  }
+}
