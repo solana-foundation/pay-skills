@@ -1,0 +1,317 @@
+{
+  "openapi": "3.1.0",
+  "servers": [
+    {
+      "url": "https://preflight.natio.re"
+    }
+  ],
+  "info": {
+    "title": "Machine Preflight API",
+    "version": "0.1.0",
+    "description": "Read-only preflight analysis for unsigned Base transactions. Technical signal only; no signing, broadcasting or investment advice.",
+    "x-guidance": "Use POST /v1/preflight/transaction before asking a user or agent to sign a Base transaction. Send the signing address in from together with the unsigned target, calldata and value. The endpoint returns caller-specific target-code checks, an eth_call simulation, a gas estimate and risk findings. It never signs or broadcasts."
+  },
+  "externalDocs": {
+    "description": "Human-readable integration guide",
+    "url": "https://preflight.natio.re/docs"
+  },
+  "paths": {
+    "/v1/preflight/transaction": {
+      "post": {
+        "operationId": "preflightBaseTransaction",
+        "summary": "Generate a safety report for an unsigned Base transaction",
+        "tags": [
+          "Security",
+          "Base"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.02"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "x-payment-networks": [
+          "eip155:8453",
+          "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "chainId": {
+                    "type": "integer",
+                    "enum": [
+                      8453
+                    ],
+                    "default": 8453,
+                    "description": "Base mainnet chain ID. Only Base is accepted in v1."
+                  },
+                  "from": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{40}$",
+                    "description": "Required signing address used as the EVM caller for eth_call and gas estimation."
+                  },
+                  "to": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{40}$",
+                    "description": "Target address of the unsigned transaction."
+                  },
+                  "data": {
+                    "type": "string",
+                    "pattern": "^0x(?:[0-9a-fA-F]{2})*$",
+                    "maxLength": 131074,
+                    "default": "0x",
+                    "description": "Hex-encoded calldata, including the four-byte selector."
+                  },
+                  "valueWei": {
+                    "type": "string",
+                    "pattern": "^(?:0|[1-9][0-9]*|0x[0-9a-fA-F]+)$",
+                    "default": "0",
+                    "description": "Native value in wei, encoded as an unsigned decimal or hex string."
+                  }
+                },
+                "required": [
+                  "from",
+                  "to"
+                ]
+              },
+              "example": {
+                "chainId": 8453,
+                "from": "0x2222222222222222222222222222222222222222",
+                "to": "0x4200000000000000000000000000000000000006",
+                "data": "0x18160ddd",
+                "valueWei": "0"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preflight report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "reportVersion",
+                    "generatedAt",
+                    "chain",
+                    "transaction",
+                    "target",
+                    "execution",
+                    "risk",
+                    "limitations"
+                  ],
+                  "properties": {
+                    "reportVersion": {
+                      "type": "string",
+                      "const": "1.0"
+                    },
+                    "generatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "chain": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "name"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "const": 8453
+                        },
+                        "name": {
+                          "type": "string",
+                          "const": "Base"
+                        }
+                      }
+                    },
+                    "transaction": {
+                      "type": "object",
+                      "required": [
+                        "from",
+                        "to",
+                        "valueWei",
+                        "dataBytes",
+                        "selector",
+                        "recognizedCall"
+                      ],
+                      "properties": {
+                        "from": {
+                          "type": "string"
+                        },
+                        "to": {
+                          "type": "string"
+                        },
+                        "valueWei": {
+                          "type": "string"
+                        },
+                        "dataBytes": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "selector": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "recognizedCall": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    },
+                    "target": {
+                      "type": "object",
+                      "required": [
+                        "kind",
+                        "codeSizeBytes"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "contract",
+                            "externally_owned_account",
+                            "unknown"
+                          ]
+                        },
+                        "codeSizeBytes": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "minimum": 0
+                        }
+                      }
+                    },
+                    "execution": {
+                      "type": "object",
+                      "required": [
+                        "call",
+                        "returnData",
+                        "estimatedGas"
+                      ],
+                      "properties": {
+                        "call": {
+                          "type": "string",
+                          "enum": [
+                            "success",
+                            "reverted",
+                            "unavailable"
+                          ]
+                        },
+                        "returnData": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "estimatedGas": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    },
+                    "risk": {
+                      "type": "object",
+                      "required": [
+                        "level",
+                        "score",
+                        "findings"
+                      ],
+                      "properties": {
+                        "level": {
+                          "type": "string",
+                          "enum": [
+                            "low",
+                            "medium",
+                            "high",
+                            "critical"
+                          ]
+                        },
+                        "score": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100
+                        },
+                        "findings": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "code",
+                              "severity",
+                              "title",
+                              "evidence"
+                            ],
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "severity": {
+                                "type": "string",
+                                "enum": [
+                                  "low",
+                                  "medium",
+                                  "high",
+                                  "critical"
+                                ]
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "evidence": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "limitations": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid transaction payload"
+          },
+          "402": {
+            "description": "x402 payment required"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "502": {
+            "description": "Base RPC analysis unavailable"
+          }
+        }
+      }
+    }
+  }
+}
