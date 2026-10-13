@@ -1,0 +1,3750 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "SolKnife API",
+        "description": "Non-custodial Solana toolkit. Every UI action is reachable over JSON HTTP: the server builds unsigned transactions, the caller signs, the server submits. Also available as an MCP server at /api/mcp.",
+        "version": "1.0.0",
+        "contact": {
+            "email": "admin@solknife.xyz"
+        },
+        "x-guidance": "Every write is a two-step, non-custodial flow: POST to a /build endpoint to get an unsigned base64 VersionedTransaction, sign it with your own key, then POST the signed tx to the matching /execute endpoint. The server never holds your keys. Reads are plain GETs. Paid endpoints answer 402 with an x402 v2 challenge: pay the `exact` entry in USDC and retry with the PAYMENT-SIGNATURE header. Browser users sign in once with SIWS instead (see /api/auth/challenge) and are not charged per call."
+    },
+    "servers": [
+        {
+            "url": "https://solknife.xyz"
+        }
+    ],
+    "paths": {
+        "/api/create-mint/build": {
+            "post": {
+                "operationId": "create_mint_build",
+                "summary": "Generate an unsigned create-mint transaction",
+                "description": "Build an unsigned create-mint tx (extensions incl. confidential transfer).",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "payer": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "mint": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "program": {
+                                        "type": "string",
+                                        "enum": [
+                                            "spl-token",
+                                            "token-2022"
+                                        ]
+                                    },
+                                    "decimals": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 9,
+                                        "description": "Decimal places for the new mint. 9 matches SOL, 6 matches USDC."
+                                    },
+                                    "freezeAuthority": {
+                                        "type": "boolean",
+                                        "description": "Whether the new mint gets a freeze authority. False makes accounts unfreezable forever."
+                                    },
+                                    "extensions": {
+                                        "default": {
+                                            "transferFeeBps": null,
+                                            "interestRateBps": null,
+                                            "closeAuthority": false,
+                                            "confidentialTransfer": false
+                                        },
+                                        "description": "Token-2022 extensions to enable. Omit entirely for program: spl-token.",
+                                        "type": "object",
+                                        "properties": {
+                                            "transferFeeBps": {
+                                                "anyOf": [
+                                                    {
+                                                        "type": "integer",
+                                                        "minimum": 0,
+                                                        "maximum": 10000
+                                                    },
+                                                    {
+                                                        "type": "null"
+                                                    }
+                                                ],
+                                                "description": "Token-2022 transfer fee in basis points (100 = 1%), or null for none."
+                                            },
+                                            "interestRateBps": {
+                                                "anyOf": [
+                                                    {
+                                                        "type": "integer",
+                                                        "minimum": -32768,
+                                                        "maximum": 32767
+                                                    },
+                                                    {
+                                                        "type": "null"
+                                                    }
+                                                ],
+                                                "description": "Token-2022 interest rate in basis points; may be negative. Null for none."
+                                            },
+                                            "closeAuthority": {
+                                                "type": "boolean",
+                                                "description": "Whether the mint may later be closed by its authority."
+                                            },
+                                            "confidentialTransfer": {
+                                                "type": "boolean",
+                                                "description": "Whether to enable Token-2022 confidential transfers on the mint."
+                                            }
+                                        },
+                                        "required": [
+                                            "transferFeeBps",
+                                            "interestRateBps",
+                                            "closeAuthority",
+                                            "confidentialTransfer"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "payer",
+                                    "mint",
+                                    "program",
+                                    "decimals",
+                                    "freezeAuthority"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/create-mint/execute": {
+            "post": {
+                "operationId": "create_mint_execute",
+                "summary": "Submit the signed create-mint tx.",
+                "description": "Submit the signed create-mint tx.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "signedTransaction": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 2500,
+                                        "description": "The base64 VersionedTransaction returned by the matching /build call, signed with your key. Do not submit it yourself; this endpoint submits it."
+                                    },
+                                    "lastValidBlockHeight": {
+                                        "type": "integer",
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 10000000000,
+                                        "description": "The `lastValidBlockHeight` returned alongside the unsigned tx by /build. Past this block height the tx can no longer land."
+                                    }
+                                },
+                                "required": [
+                                    "signedTransaction",
+                                    "lastValidBlockHeight"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/mint-supply/mint": {
+            "get": {
+                "operationId": "mint_supply_read",
+                "summary": "Read a mint's authority state for mint-to.",
+                "description": "Read a mint's authority state for mint-to.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "mint",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                            "description": "A Solana address in base58, 32-44 chars."
+                        }
+                    },
+                    {
+                        "name": "owner",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                            "description": "A Solana address in base58, 32-44 chars."
+                        }
+                    }
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/mint-supply/build": {
+            "post": {
+                "operationId": "mint_supply_build",
+                "summary": "Generate an unsigned mint-to transaction",
+                "description": "Build an unsigned mint-to tx.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "payer": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "mint": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "recipient": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "amount": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 40,
+                                        "description": "Amount to mint, in base units (not decimal). Multiply by 10^decimals yourself."
+                                    }
+                                },
+                                "required": [
+                                    "payer",
+                                    "mint",
+                                    "recipient",
+                                    "amount"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/mint-supply/execute": {
+            "post": {
+                "operationId": "mint_supply_execute",
+                "summary": "Submit the signed mint-to tx.",
+                "description": "Submit the signed mint-to tx.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "signedTransaction": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 2500,
+                                        "description": "The base64 VersionedTransaction returned by the matching /build call, signed with your key. Do not submit it yourself; this endpoint submits it."
+                                    },
+                                    "lastValidBlockHeight": {
+                                        "type": "integer",
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 10000000000,
+                                        "description": "The `lastValidBlockHeight` returned alongside the unsigned tx by /build. Past this block height the tx can no longer land."
+                                    }
+                                },
+                                "required": [
+                                    "signedTransaction",
+                                    "lastValidBlockHeight"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/token-metadata/state": {
+            "get": {
+                "operationId": "token_metadata_read",
+                "summary": "Read a mint's current on-chain Metaplex metadata.",
+                "description": "Read a mint's current on-chain Metaplex metadata.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "mint",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                            "description": "A Solana address in base58, 32-44 chars."
+                        }
+                    },
+                    {
+                        "name": "owner",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                            "description": "A Solana address in base58, 32-44 chars."
+                        }
+                    }
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/token-metadata/build": {
+            "post": {
+                "operationId": "token_metadata_build",
+                "summary": "Generate an unsigned set or update metadata transaction",
+                "description": "Build an unsigned set/update metadata tx.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "payer": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "mint": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 100,
+                                        "description": "On-chain token name, e.g. \"Wrapped SOL\"."
+                                    },
+                                    "symbol": {
+                                        "type": "string",
+                                        "maxLength": 50,
+                                        "description": "On-chain ticker, e.g. \"WSOL\"."
+                                    },
+                                    "uri": {
+                                        "type": "string",
+                                        "maxLength": 400,
+                                        "description": "URL of the off-chain metadata JSON (image, description). Often an Arweave or IPFS link."
+                                    },
+                                    "lock": {
+                                        "type": "boolean",
+                                        "description": "Permanently freeze the metadata after this update. Irreversible."
+                                    }
+                                },
+                                "required": [
+                                    "payer",
+                                    "mint",
+                                    "name",
+                                    "symbol",
+                                    "uri",
+                                    "lock"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/token-metadata/execute": {
+            "post": {
+                "operationId": "token_metadata_execute",
+                "summary": "Submit the signed metadata tx.",
+                "description": "Submit the signed metadata tx.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "signedTransaction": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 2500,
+                                        "description": "The base64 VersionedTransaction returned by the matching /build call, signed with your key. Do not submit it yourself; this endpoint submits it."
+                                    },
+                                    "lastValidBlockHeight": {
+                                        "type": "integer",
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 10000000000,
+                                        "description": "The `lastValidBlockHeight` returned alongside the unsigned tx by /build. Past this block height the tx can no longer land."
+                                    }
+                                },
+                                "required": [
+                                    "signedTransaction",
+                                    "lastValidBlockHeight"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/revoke-authority/mint": {
+            "get": {
+                "operationId": "revoke_authority_read",
+                "summary": "Read a mint's authorities before revoking them",
+                "description": "Read a mint's current mint + freeze authorities.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "mint",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                            "description": "A Solana address in base58, 32-44 chars."
+                        }
+                    },
+                    {
+                        "name": "owner",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                            "description": "A Solana address in base58, 32-44 chars."
+                        }
+                    }
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/revoke-authority/build": {
+            "post": {
+                "operationId": "revoke_authority_build",
+                "summary": "Generate an unsigned revoke-authority transaction",
+                "description": "Build an unsigned revoke-authority tx.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "payer": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "mint": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "revokeMint": {
+                                        "type": "boolean",
+                                        "description": "Permanently revoke the mint authority. Irreversible: no new supply can ever be minted."
+                                    },
+                                    "revokeFreeze": {
+                                        "type": "boolean",
+                                        "description": "Permanently revoke the freeze authority. Irreversible: accounts can never be frozen."
+                                    }
+                                },
+                                "required": [
+                                    "payer",
+                                    "mint",
+                                    "revokeMint",
+                                    "revokeFreeze"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/revoke-authority/execute": {
+            "post": {
+                "operationId": "revoke_authority_execute",
+                "summary": "Submit the signed revoke-authority tx.",
+                "description": "Submit the signed revoke-authority tx.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "signedTransaction": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 2500,
+                                        "description": "The base64 VersionedTransaction returned by the matching /build call, signed with your key. Do not submit it yourself; this endpoint submits it."
+                                    },
+                                    "lastValidBlockHeight": {
+                                        "type": "integer",
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 10000000000,
+                                        "description": "The `lastValidBlockHeight` returned alongside the unsigned tx by /build. Past this block height the tx can no longer land."
+                                    }
+                                },
+                                "required": [
+                                    "signedTransaction",
+                                    "lastValidBlockHeight"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/change-authority/mint": {
+            "get": {
+                "operationId": "change_authority_read",
+                "summary": "Read a mint's authorities before transferring them",
+                "description": "Read a mint's current mint + freeze authorities.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "mint",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                            "description": "A Solana address in base58, 32-44 chars."
+                        }
+                    },
+                    {
+                        "name": "owner",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                            "description": "A Solana address in base58, 32-44 chars."
+                        }
+                    }
+                ]
+            }
+        },
+        "/api/change-authority/build": {
+            "post": {
+                "operationId": "change_authority_build",
+                "summary": "Generate an unsigned change-authority transaction",
+                "description": "Build an unsigned change-authority tx (transfer mint and/or freeze authority to a new address).",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "payer": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "mint": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "newAuthority": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "changeMint": {
+                                        "type": "boolean",
+                                        "description": "Transfer the mint authority to newAuthority."
+                                    },
+                                    "changeFreeze": {
+                                        "type": "boolean",
+                                        "description": "Transfer the freeze authority to newAuthority."
+                                    }
+                                },
+                                "required": [
+                                    "payer",
+                                    "mint",
+                                    "newAuthority",
+                                    "changeMint",
+                                    "changeFreeze"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/change-authority/execute": {
+            "post": {
+                "operationId": "change_authority_execute",
+                "summary": "Submit the signed change-authority tx.",
+                "description": "Submit the signed change-authority tx.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "signedTransaction": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 2500,
+                                        "description": "The base64 VersionedTransaction returned by the matching /build call, signed with your key. Do not submit it yourself; this endpoint submits it."
+                                    },
+                                    "lastValidBlockHeight": {
+                                        "type": "integer",
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 10000000000,
+                                        "description": "The `lastValidBlockHeight` returned alongside the unsigned tx by /build. Past this block height the tx can no longer land."
+                                    }
+                                },
+                                "required": [
+                                    "signedTransaction",
+                                    "lastValidBlockHeight"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/create-account/build": {
+            "post": {
+                "operationId": "create_account_build",
+                "summary": "Generate an unsigned ATA-create transaction",
+                "description": "Build an unsigned ATA-create tx (SPL or Token-2022).",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "owner": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "payer": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "mints": {
+                                        "minItems": 1,
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                            "description": "A Solana address in base58, 32-44 chars."
+                                        }
+                                    }
+                                },
+                                "required": [
+                                    "owner",
+                                    "payer",
+                                    "mints"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/create-account/execute": {
+            "post": {
+                "operationId": "create_account_execute",
+                "summary": "Submit the signed ATA-create tx.",
+                "description": "Submit the signed ATA-create tx.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "signedTransaction": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 2500,
+                                        "description": "The base64 VersionedTransaction returned by the matching /build call, signed with your key. Do not submit it yourself; this endpoint submits it."
+                                    },
+                                    "lastValidBlockHeight": {
+                                        "type": "integer",
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 10000000000,
+                                        "description": "The `lastValidBlockHeight` returned alongside the unsigned tx by /build. Past this block height the tx can no longer land."
+                                    }
+                                },
+                                "required": [
+                                    "signedTransaction",
+                                    "lastValidBlockHeight"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/reclaim-rent/accounts": {
+            "get": {
+                "operationId": "reclaim_rent_list",
+                "summary": "List a wallet's reclaimable empty token accounts.",
+                "description": "List a wallet's reclaimable empty token accounts.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "owner",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                            "description": "A Solana address in base58, 32-44 chars."
+                        }
+                    }
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/reclaim-rent/build": {
+            "post": {
+                "operationId": "reclaim_rent_build",
+                "summary": "Generate unsigned transactions to close empty accounts",
+                "description": "Build chunked close-batch tx(s).",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "owner": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "accounts": {
+                                        "minItems": 1,
+                                        "maxItems": 100,
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                            "description": "A Solana address in base58, 32-44 chars."
+                                        }
+                                    }
+                                },
+                                "required": [
+                                    "owner",
+                                    "accounts"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/reclaim-rent/execute": {
+            "post": {
+                "operationId": "reclaim_rent_execute",
+                "summary": "Submit the signed close-batch tx(s).",
+                "description": "Submit the signed close-batch tx(s).",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "owner": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "signedTransactions": {
+                                        "minItems": 1,
+                                        "maxItems": 20,
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 2500,
+                                            "description": "The base64 VersionedTransaction returned by the matching /build call, signed with your key. Do not submit it yourself; this endpoint submits it."
+                                        },
+                                        "description": "The signed base64 transactions from /build, in the order /build returned them."
+                                    },
+                                    "lastValidBlockHeight": {
+                                        "type": "integer",
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 10000000000,
+                                        "description": "The `lastValidBlockHeight` returned alongside the unsigned tx by /build. Past this block height the tx can no longer land."
+                                    }
+                                },
+                                "required": [
+                                    "owner",
+                                    "signedTransactions",
+                                    "lastValidBlockHeight"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/confidential-transfer/state": {
+            "get": {
+                "operationId": "ct_state",
+                "summary": "Read confidential-transfer state for an owner and mint",
+                "description": "Read CT state for owner + mint (mint extension, account configured, balance ciphertexts).",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "owner",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                            "description": "A Solana address in base58, 32-44 chars."
+                        }
+                    },
+                    {
+                        "name": "mint",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                            "description": "A Solana address in base58, 32-44 chars."
+                        }
+                    }
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/confidential-transfer/orphans/list": {
+            "get": {
+                "operationId": "ct_orphans_list",
+                "summary": "List a wallet's orphan ZK Proof context-state accounts.",
+                "description": "List a wallet's orphan ZK Proof context-state accounts.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "owner",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                            "description": "A Solana address in base58, 32-44 chars."
+                        }
+                    }
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/confidential-transfer/build": {
+            "post": {
+                "operationId": "ct_configure_build",
+                "summary": "Generate an unsigned Configure transaction",
+                "description": "Build the Configure tx. Needs worker-generated PubkeyValidity proof + zero AES ciphertext.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "owner": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "mint": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "pubkeyValidityProof": {
+                                        "type": "string",
+                                        "minLength": 128,
+                                        "maxLength": 160,
+                                        "description": "Base64 of the 96-byte pubkey-validity proof from your ZK worker."
+                                    },
+                                    "decryptableZeroBalance": {
+                                        "type": "string",
+                                        "minLength": 46,
+                                        "maxLength": 60,
+                                        "description": "Base64 of the 36-byte AES-encrypted zero balance your worker computed."
+                                    }
+                                },
+                                "required": [
+                                    "owner",
+                                    "mint",
+                                    "pubkeyValidityProof",
+                                    "decryptableZeroBalance"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/confidential-transfer/deposit/build": {
+            "post": {
+                "operationId": "ct_deposit_build",
+                "summary": "Generate an unsigned Deposit transaction",
+                "description": "Build the Deposit tx: move a public balance to confidential pending.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "owner": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "mint": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "amount": {
+                                        "type": "string",
+                                        "pattern": "^\\d+$",
+                                        "description": "Amount in base units as a decimal string (not a float). For a 6-decimal mint, \"1000000\" is 1 token."
+                                    },
+                                    "decimals": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 255,
+                                        "description": "The mint's decimals. Must match the mint exactly or the transfer fails on-chain."
+                                    }
+                                },
+                                "required": [
+                                    "owner",
+                                    "mint",
+                                    "amount",
+                                    "decimals"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/confidential-transfer/apply-pending/build": {
+            "post": {
+                "operationId": "ct_apply_pending_build",
+                "summary": "Generate an unsigned ApplyPending transaction",
+                "description": "Build the ApplyPending tx. Needs worker-computed new AES decryptable + counter.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "owner": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "mint": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "expectedPendingCounter": {
+                                        "type": "string",
+                                        "pattern": "^\\d+$"
+                                    },
+                                    "newDecryptableAvailable": {
+                                        "type": "string",
+                                        "minLength": 46,
+                                        "maxLength": 60,
+                                        "description": "Base64 of the 36-byte AES-encrypted new available balance your worker computed."
+                                    }
+                                },
+                                "required": [
+                                    "owner",
+                                    "mint",
+                                    "expectedPendingCounter",
+                                    "newDecryptableAvailable"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/confidential-transfer/empty-and-close/build": {
+            "post": {
+                "operationId": "ct_empty_and_close_build",
+                "summary": "Generate an unsigned Empty and Close transaction",
+                "description": "Build the Empty+Close tx. Needs worker-generated zero-ciphertext proof.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "owner": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "mint": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "zeroCiphertextProof": {
+                                        "type": "string",
+                                        "minLength": 128,
+                                        "maxLength": 160,
+                                        "description": "Base64 of the 96-byte zero-ciphertext proof from your ZK worker."
+                                    }
+                                },
+                                "required": [
+                                    "owner",
+                                    "mint",
+                                    "zeroCiphertextProof"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/confidential-transfer/withdraw/build": {
+            "post": {
+                "operationId": "ct_withdraw_build",
+                "summary": "Generate the unsigned Withdraw transaction saga",
+                "description": "Build the 5-tx Withdraw saga. Needs equality + range U64 proofs + new AES decryptable.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "owner": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "mint": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "amount": {
+                                        "type": "string",
+                                        "pattern": "^\\d+$",
+                                        "description": "Amount in base units as a decimal string (not a float). For a 6-decimal mint, \"1000000\" is 1 token."
+                                    },
+                                    "decimals": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 9,
+                                        "description": "The mint's decimals. Must match the mint exactly."
+                                    },
+                                    "equalityContextAccount": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "rangeContextAccount": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "equalityProof": {
+                                        "type": "string",
+                                        "minLength": 420,
+                                        "maxLength": 440,
+                                        "description": "Base64 of the ciphertext-commitment equality proof from your ZK worker."
+                                    },
+                                    "rangeProof": {
+                                        "type": "string",
+                                        "minLength": 1240,
+                                        "maxLength": 1260,
+                                        "description": "Base64 of the range proof from your ZK worker."
+                                    },
+                                    "newDecryptableAvailable": {
+                                        "type": "string",
+                                        "minLength": 46,
+                                        "maxLength": 60,
+                                        "description": "Base64 of the 36-byte AES-encrypted new available balance your worker computed."
+                                    }
+                                },
+                                "required": [
+                                    "owner",
+                                    "mint",
+                                    "amount",
+                                    "decimals",
+                                    "equalityContextAccount",
+                                    "rangeContextAccount",
+                                    "equalityProof",
+                                    "rangeProof",
+                                    "newDecryptableAvailable"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/confidential-transfer/transfer/build": {
+            "post": {
+                "operationId": "ct_transfer_build",
+                "summary": "Generate the unsigned Transfer transaction saga",
+                "description": "Build the 5-tx Transfer saga. Needs equality + 3HV + range U128 proofs + auditor ciphertexts.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "owner": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "mint": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "destinationTokenAccount": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "equalityContextAccount": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "validityContextAccount": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "rangeContextAccount": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "equalityProof": {
+                                        "type": "string",
+                                        "minLength": 420,
+                                        "maxLength": 440,
+                                        "description": "Base64 of the ciphertext-commitment equality proof from your ZK worker."
+                                    },
+                                    "validityProof": {
+                                        "type": "string",
+                                        "minLength": 720,
+                                        "maxLength": 740,
+                                        "description": "Base64 of the batched ciphertext-validity proof from your ZK worker."
+                                    },
+                                    "rangeProof": {
+                                        "type": "string",
+                                        "minLength": 1320,
+                                        "maxLength": 1340,
+                                        "description": "Base64 of the range proof from your ZK worker."
+                                    },
+                                    "newSourceDecryptableAvailable": {
+                                        "type": "string",
+                                        "minLength": 46,
+                                        "maxLength": 60,
+                                        "description": "Base64 of the 36-byte AES-encrypted post-transfer source balance your worker computed."
+                                    },
+                                    "auditorCiphertextLo": {
+                                        "type": "string",
+                                        "minLength": 80,
+                                        "maxLength": 96,
+                                        "description": "Base64 of the low 32 bytes of the auditor ElGamal ciphertext."
+                                    },
+                                    "auditorCiphertextHi": {
+                                        "type": "string",
+                                        "minLength": 80,
+                                        "maxLength": 96,
+                                        "description": "Base64 of the high 32 bytes of the auditor ElGamal ciphertext."
+                                    }
+                                },
+                                "required": [
+                                    "owner",
+                                    "mint",
+                                    "destinationTokenAccount",
+                                    "equalityContextAccount",
+                                    "validityContextAccount",
+                                    "rangeContextAccount",
+                                    "equalityProof",
+                                    "validityProof",
+                                    "rangeProof",
+                                    "newSourceDecryptableAvailable",
+                                    "auditorCiphertextLo",
+                                    "auditorCiphertextHi"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/confidential-transfer/orphans/build": {
+            "post": {
+                "operationId": "ct_orphans_build",
+                "summary": "Generate unsigned transactions to reclaim orphan ZK rent",
+                "description": "Build chunked CloseContextState tx(s) to reclaim orphan ZK ctx rent.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "owner": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "addresses": {
+                                        "minItems": 1,
+                                        "maxItems": 100,
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                            "description": "A Solana address in base58, 32-44 chars."
+                                        }
+                                    }
+                                },
+                                "required": [
+                                    "owner",
+                                    "addresses"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/confidential-transfer/submit": {
+            "post": {
+                "operationId": "ct_submit",
+                "summary": "Submit a signed confidential-transfer transaction or saga",
+                "description": "Submit any signed CT tx or saga. Op discriminator routes to verifier + sequential submitter.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "op": {
+                                        "type": "string",
+                                        "enum": [
+                                            "configure",
+                                            "deposit",
+                                            "apply-pending",
+                                            "empty-and-close",
+                                            "withdraw",
+                                            "transfer",
+                                            "reclaim-orphans"
+                                        ]
+                                    },
+                                    "signedTransaction": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 2500,
+                                        "description": "The base64 VersionedTransaction returned by the matching /build call, signed with your key. Do not submit it yourself; this endpoint submits it."
+                                    },
+                                    "signedTransactions": {
+                                        "minItems": 1,
+                                        "maxItems": 20,
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 2500,
+                                            "description": "The base64 VersionedTransaction returned by the matching /build call, signed with your key. Do not submit it yourself; this endpoint submits it."
+                                        },
+                                        "description": "The signed base64 transactions from /build, in the order /build returned them."
+                                    },
+                                    "lastValidBlockHeight": {
+                                        "type": "integer",
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 10000000000,
+                                        "description": "The `lastValidBlockHeight` returned alongside the unsigned tx by /build. Past this block height the tx can no longer land."
+                                    }
+                                },
+                                "required": [
+                                    "op",
+                                    "lastValidBlockHeight"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/burn-nft/assets": {
+            "get": {
+                "operationId": "burn_nft_list",
+                "summary": "List a wallet's NFT assets (DAS).",
+                "description": "List a wallet's NFT assets (DAS).",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "owner",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                            "description": "A Solana address in base58, 32-44 chars."
+                        }
+                    }
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/burn-nft/build": {
+            "post": {
+                "operationId": "burn_nft_build",
+                "summary": "Generate unsigned burn transactions for selected NFTs",
+                "description": "Build chunked burn tx(s) for selected NFTs.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "owner": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "mints": {
+                                        "minItems": 1,
+                                        "maxItems": 20,
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                            "description": "A Solana address in base58, 32-44 chars."
+                                        }
+                                    }
+                                },
+                                "required": [
+                                    "owner",
+                                    "mints"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/burn-nft/execute": {
+            "post": {
+                "operationId": "burn_nft_execute",
+                "summary": "Submit the signed burn tx(s).",
+                "description": "Submit the signed burn tx(s).",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "signedTransactions": {
+                                        "minItems": 1,
+                                        "maxItems": 20,
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "minLength": 1,
+                                            "maxLength": 2500,
+                                            "description": "The base64 VersionedTransaction returned by the matching /build call, signed with your key. Do not submit it yourself; this endpoint submits it."
+                                        },
+                                        "description": "The signed base64 transactions from /build, in the order /build returned them."
+                                    },
+                                    "lastValidBlockHeight": {
+                                        "type": "integer",
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 10000000000,
+                                        "description": "The `lastValidBlockHeight` returned alongside the unsigned tx by /build. Past this block height the tx can no longer land."
+                                    }
+                                },
+                                "required": [
+                                    "signedTransactions",
+                                    "lastValidBlockHeight"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/arweave/upload": {
+            "post": {
+                "operationId": "arweave_upload_relay",
+                "summary": "Upload a base64 file to Arweave via a funded Irys account",
+                "description": "Agent relay: upload a base64-encoded file to Arweave via SolKnife's funded Irys account. x402-gated.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "fileBase64": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "description": "Base64 of the file bytes. Max 2 MiB decoded."
+                                    },
+                                    "contentType": {
+                                        "type": "string",
+                                        "enum": [
+                                            "image/png",
+                                            "image/jpeg",
+                                            "image/gif",
+                                            "image/webp",
+                                            "application/json"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "fileBase64",
+                                    "contentType"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/check": {
+            "get": {
+                "operationId": "check_scan",
+                "summary": "Check a Solana token for rug risk",
+                "description": "Rug-check a Solana token: freeze authority, sellability, holders, liquidity.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "mint",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                            "description": "A Solana address in base58, 32-44 chars."
+                        }
+                    }
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/token-meta": {
+            "get": {
+                "operationId": "token_meta",
+                "summary": "Fetch token metadata for a mint",
+                "description": "Fetch token metadata (name, symbol, decimals, image) for a mint.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "mint",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                            "description": "A Solana address in base58, 32-44 chars."
+                        }
+                    }
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/portfolio": {
+            "get": {
+                "operationId": "portfolio_holdings",
+                "summary": "List a wallet's priced token holdings.",
+                "description": "List a wallet's priced token holdings.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "owner",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                            "description": "A Solana address in base58, 32-44 chars."
+                        }
+                    }
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/portfolio/compose/plan": {
+            "post": {
+                "operationId": "portfolio_compose_plan",
+                "summary": "Generate a USD-valued portfolio rebalance plan",
+                "description": "Plan a USD-valued portfolio rebalance from target mint percentages.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "owner": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "targets": {
+                                        "minItems": 1,
+                                        "maxItems": 8,
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "mint": {
+                                                    "type": "string",
+                                                    "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                                    "description": "A Solana address in base58, 32-44 chars."
+                                                },
+                                                "bps": {
+                                                    "type": "integer",
+                                                    "minimum": 1,
+                                                    "maximum": 10000,
+                                                    "description": "This target's share in basis points (10000 = 100%). All targets must sum to 10000."
+                                                }
+                                            },
+                                            "required": [
+                                                "mint",
+                                                "bps"
+                                            ]
+                                        },
+                                        "description": "The desired portfolio: each mint and its share in basis points, summing to 10000."
+                                    },
+                                    "slippageBps": {
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 500
+                                    }
+                                },
+                                "required": [
+                                    "owner",
+                                    "targets"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/portfolio/compose/build": {
+            "post": {
+                "operationId": "portfolio_compose_build",
+                "summary": "Generate an unsigned auto-compose transaction",
+                "description": "Build a best-effort single auto-compose transaction for a target portfolio.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "owner": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "targets": {
+                                        "minItems": 1,
+                                        "maxItems": 8,
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "mint": {
+                                                    "type": "string",
+                                                    "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                                    "description": "A Solana address in base58, 32-44 chars."
+                                                },
+                                                "bps": {
+                                                    "type": "integer",
+                                                    "minimum": 1,
+                                                    "maximum": 10000,
+                                                    "description": "This target's share of the portfolio in basis points (10000 = 100%). All targets must sum to 10000."
+                                                }
+                                            },
+                                            "required": [
+                                                "mint",
+                                                "bps"
+                                            ]
+                                        },
+                                        "description": "The desired portfolio: each mint and its share in basis points, summing to 10000."
+                                    },
+                                    "slippageBps": {
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 500
+                                    }
+                                },
+                                "required": [
+                                    "owner",
+                                    "targets"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/portfolio/compose/execute": {
+            "post": {
+                "operationId": "portfolio_compose_execute",
+                "summary": "Submit a wallet-signed portfolio compose transaction.",
+                "description": "Submit a wallet-signed portfolio compose transaction.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "owner": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "signedTransaction": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 2500,
+                                        "description": "The base64 VersionedTransaction returned by the matching /build call, signed with your key. Do not submit it yourself; this endpoint submits it."
+                                    },
+                                    "lastValidBlockHeight": {
+                                        "type": "integer",
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 10000000000,
+                                        "description": "The `lastValidBlockHeight` returned alongside the unsigned tx by /build. Past this block height the tx can no longer land."
+                                    }
+                                },
+                                "required": [
+                                    "owner",
+                                    "signedTransaction",
+                                    "lastValidBlockHeight"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/pool": {
+            "get": {
+                "operationId": "pool_check",
+                "summary": "Read one DLMM pool's depth, volume, fees, and safety",
+                "description": "Read one DLMM pool: depth, volume, fee yield, token safety summary.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "address",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                            "description": "A Solana address in base58, 32-44 chars."
+                        }
+                    }
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/positions": {
+            "get": {
+                "operationId": "positions_list",
+                "summary": "List a wallet's open Meteora DLMM positions with PnL.",
+                "description": "List a wallet's open Meteora DLMM positions with PnL.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "owner",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                            "description": "A Solana address in base58, 32-44 chars."
+                        }
+                    }
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/pool-compare": {
+            "get": {
+                "operationId": "pool_compare",
+                "summary": "Compare every DLMM pool for a token side by side.",
+                "description": "Compare every DLMM pool for a token side by side.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "mint",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                            "description": "A Solana address in base58, 32-44 chars."
+                        }
+                    }
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/swap/order": {
+            "post": {
+                "operationId": "swap_order",
+                "summary": "Fetch a Jupiter quote and unsigned swap transaction",
+                "description": "Jupiter quote + unsigned swap transaction.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 see the x402 challenge in the body and the PAYMENT-REQUIRED header."
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "inputMint": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "outputMint": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "amount": {
+                                        "type": "string",
+                                        "pattern": "^\\d+$",
+                                        "description": "Amount in base units as a decimal string (not a float). For a 6-decimal mint, \"1000000\" is 1 token."
+                                    },
+                                    "taker": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "slippageBps": {
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 10000
+                                    }
+                                },
+                                "required": [
+                                    "inputMint",
+                                    "outputMint",
+                                    "amount",
+                                    "taker"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                }
+            }
+        },
+        "/api/swap/execute": {
+            "post": {
+                "operationId": "swap_execute",
+                "summary": "Submit a wallet-signed swap transaction.",
+                "description": "Submit a wallet-signed swap transaction.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "signedTransaction": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 2500,
+                                        "description": "The base64 VersionedTransaction returned by the matching /build call, signed with your key. Do not submit it yourself; this endpoint submits it."
+                                    },
+                                    "lastValidBlockHeight": {
+                                        "type": "integer",
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 10000000000,
+                                        "description": "The `lastValidBlockHeight` returned alongside the unsigned tx by /build. Past this block height the tx can no longer land."
+                                    }
+                                },
+                                "required": [
+                                    "signedTransaction",
+                                    "lastValidBlockHeight"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/multisig/create/build": {
+            "post": {
+                "operationId": "multisig_create_build",
+                "summary": "Generate an unsigned create-multisig transaction",
+                "description": "Build an unsigned create-multisig tx (members, threshold). Returns the multisig + vault address.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "creator": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "createKey": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "members": {
+                                        "minItems": 1,
+                                        "maxItems": 20,
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "key": {
+                                                    "type": "string",
+                                                    "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                                    "description": "A Solana address in base58, 32-44 chars."
+                                                },
+                                                "permissions": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "initiate": {
+                                                            "type": "boolean",
+                                                            "description": "May create proposals."
+                                                        },
+                                                        "vote": {
+                                                            "type": "boolean",
+                                                            "description": "May approve or reject proposals."
+                                                        },
+                                                        "execute": {
+                                                            "type": "boolean",
+                                                            "description": "May execute a proposal once it reaches threshold."
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "initiate",
+                                                        "vote",
+                                                        "execute"
+                                                    ],
+                                                    "description": "What this member is allowed to do. All three are independent."
+                                                }
+                                            },
+                                            "required": [
+                                                "key"
+                                            ]
+                                        },
+                                        "description": "The multisig members. Omit permissions to grant all three."
+                                    },
+                                    "threshold": {
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 20,
+                                        "description": "Approvals required to execute a proposal. Must not exceed the member count."
+                                    },
+                                    "timeLock": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 7776000
+                                    }
+                                },
+                                "required": [
+                                    "creator",
+                                    "createKey",
+                                    "members",
+                                    "threshold"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/multisig/create/execute": {
+            "post": {
+                "operationId": "multisig_create_execute",
+                "summary": "Submit the signed create-multisig tx.",
+                "description": "Submit the signed create-multisig tx.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "signedTransaction": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 2500,
+                                        "description": "The base64 VersionedTransaction returned by the matching /build call, signed with your key. Do not submit it yourself; this endpoint submits it."
+                                    },
+                                    "lastValidBlockHeight": {
+                                        "type": "integer",
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 10000000000,
+                                        "description": "The `lastValidBlockHeight` returned alongside the unsigned tx by /build. Past this block height the tx can no longer land."
+                                    }
+                                },
+                                "required": [
+                                    "signedTransaction",
+                                    "lastValidBlockHeight"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/multisig/propose/build": {
+            "post": {
+                "operationId": "multisig_propose_build",
+                "summary": "Generate an unsigned propose-transaction transaction",
+                "description": "Build an unsigned propose-transaction tx: a SOL transfer, a token transfer, or arbitrary instructions, run through the vault.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "multisig": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "proposer": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "memo": {
+                                        "type": "string",
+                                        "maxLength": 280
+                                    },
+                                    "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                            "sol-transfer",
+                                            "token-transfer",
+                                            "instructions"
+                                        ]
+                                    },
+                                    "recipient": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "lamports": {
+                                        "type": "integer",
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 1000000000000000
+                                    },
+                                    "mint": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "amount": {
+                                        "type": "string",
+                                        "pattern": "^\\d+$"
+                                    },
+                                    "instructions": {
+                                        "minItems": 1,
+                                        "maxItems": 10,
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "programId": {
+                                                    "type": "string",
+                                                    "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                                    "description": "A Solana address in base58, 32-44 chars."
+                                                },
+                                                "accounts": {
+                                                    "maxItems": 40,
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "pubkey": {
+                                                                "type": "string",
+                                                                "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                                                "description": "A Solana address in base58, 32-44 chars."
+                                                            },
+                                                            "isSigner": {
+                                                                "type": "boolean",
+                                                                "description": "Whether this account must sign the inner instruction."
+                                                            },
+                                                            "isWritable": {
+                                                                "type": "boolean",
+                                                                "description": "Whether the inner instruction mutates this account."
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "pubkey",
+                                                            "isSigner",
+                                                            "isWritable"
+                                                        ]
+                                                    },
+                                                    "description": "The instruction's account metas, in the order the target program expects."
+                                                },
+                                                "data": {
+                                                    "type": "string",
+                                                    "maxLength": 4000,
+                                                    "description": "Base64 of the instruction data bytes."
+                                                }
+                                            },
+                                            "required": [
+                                                "programId",
+                                                "accounts",
+                                                "data"
+                                            ]
+                                        }
+                                    },
+                                    "ephemeralSigners": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 8
+                                    }
+                                },
+                                "required": [
+                                    "multisig",
+                                    "proposer",
+                                    "kind"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/multisig/propose/execute": {
+            "post": {
+                "operationId": "multisig_propose_execute",
+                "summary": "Submit the signed propose-transaction tx.",
+                "description": "Submit the signed propose-transaction tx.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "signedTransaction": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 2500,
+                                        "description": "The base64 VersionedTransaction returned by the matching /build call, signed with your key. Do not submit it yourself; this endpoint submits it."
+                                    },
+                                    "lastValidBlockHeight": {
+                                        "type": "integer",
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 10000000000,
+                                        "description": "The `lastValidBlockHeight` returned alongside the unsigned tx by /build. Past this block height the tx can no longer land."
+                                    }
+                                },
+                                "required": [
+                                    "signedTransaction",
+                                    "lastValidBlockHeight"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/multisig/state": {
+            "get": {
+                "operationId": "multisig_state",
+                "summary": "Read a Squads multisig's members, vault, and proposals",
+                "description": "Read a Squads multisig: members, threshold, vault balance, and pending proposals with vote tallies.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "address",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                            "description": "A Solana address in base58, 32-44 chars."
+                        }
+                    }
+                ]
+            }
+        },
+        "/api/multisig/approve/build": {
+            "post": {
+                "operationId": "multisig_approve_build",
+                "summary": "Generate an unsigned approve or reject vote transaction",
+                "description": "Build an unsigned vote tx: approve or reject a proposal.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "multisig": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "member": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "transactionIndex": {
+                                        "type": "integer",
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 1000000000,
+                                        "description": "The proposal index, as returned by /api/multisig/state."
+                                    },
+                                    "vote": {
+                                        "type": "string",
+                                        "enum": [
+                                            "approve",
+                                            "reject"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "multisig",
+                                    "member",
+                                    "transactionIndex",
+                                    "vote"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/multisig/approve/execute": {
+            "post": {
+                "operationId": "multisig_approve_execute",
+                "summary": "Submit the signed vote tx (pass the same vote value back).",
+                "description": "Submit the signed vote tx (pass the same vote value back).",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "signedTransaction": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 2500,
+                                        "description": "The base64 VersionedTransaction returned by the matching /build call, signed with your key. Do not submit it yourself; this endpoint submits it."
+                                    },
+                                    "lastValidBlockHeight": {
+                                        "type": "integer",
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 10000000000,
+                                        "description": "The `lastValidBlockHeight` returned alongside the unsigned tx by /build. Past this block height the tx can no longer land."
+                                    },
+                                    "vote": {
+                                        "type": "string",
+                                        "enum": [
+                                            "approve",
+                                            "reject"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "signedTransaction",
+                                    "lastValidBlockHeight",
+                                    "vote"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/multisig/execute/build": {
+            "post": {
+                "operationId": "multisig_execute_build",
+                "summary": "Generate an unsigned execute-proposal transaction",
+                "description": "Build an unsigned execute tx for an approved proposal (vault or config, auto-detected).",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "multisig": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "member": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "transactionIndex": {
+                                        "type": "integer",
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 1000000000,
+                                        "description": "The proposal index, as returned by /api/multisig/state."
+                                    },
+                                    "computeUnitLimit": {
+                                        "type": "integer",
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 1400000
+                                    }
+                                },
+                                "required": [
+                                    "multisig",
+                                    "member",
+                                    "transactionIndex"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/multisig/execute/execute": {
+            "post": {
+                "operationId": "multisig_execute_execute",
+                "summary": "Submit the signed execute-proposal transaction",
+                "description": "Submit the signed execute-proposal tx (pass the executeKind back).",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "signedTransaction": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 2500,
+                                        "description": "The base64 VersionedTransaction returned by the matching /build call, signed with your key. Do not submit it yourself; this endpoint submits it."
+                                    },
+                                    "lastValidBlockHeight": {
+                                        "type": "integer",
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 10000000000,
+                                        "description": "The `lastValidBlockHeight` returned alongside the unsigned tx by /build. Past this block height the tx can no longer land."
+                                    },
+                                    "executeKind": {
+                                        "type": "string",
+                                        "enum": [
+                                            "vault",
+                                            "config"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "signedTransaction",
+                                    "lastValidBlockHeight",
+                                    "executeKind"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/multisig/config/build": {
+            "post": {
+                "operationId": "multisig_config_build",
+                "summary": "Generate an unsigned config-change proposal",
+                "description": "Build an unsigned config-change proposal: add a member, remove a member, or change the threshold.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "multisig": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "proposer": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "memo": {
+                                        "type": "string",
+                                        "maxLength": 280
+                                    },
+                                    "op": {
+                                        "type": "string",
+                                        "enum": [
+                                            "add-member",
+                                            "remove-member",
+                                            "change-threshold"
+                                        ]
+                                    },
+                                    "member": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "A Solana address in base58, 32-44 chars."
+                                    },
+                                    "permissions": {
+                                        "type": "object",
+                                        "properties": {
+                                            "initiate": {
+                                                "type": "boolean",
+                                                "description": "May create proposals."
+                                            },
+                                            "vote": {
+                                                "type": "boolean",
+                                                "description": "May approve or reject proposals."
+                                            },
+                                            "execute": {
+                                                "type": "boolean",
+                                                "description": "May execute a proposal once it reaches threshold."
+                                            }
+                                        },
+                                        "required": [
+                                            "initiate",
+                                            "vote",
+                                            "execute"
+                                        ],
+                                        "description": "What this member is allowed to do. All three are independent."
+                                    },
+                                    "threshold": {
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 20
+                                    }
+                                },
+                                "required": [
+                                    "multisig",
+                                    "proposer",
+                                    "op"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/multisig/config/execute": {
+            "post": {
+                "operationId": "multisig_config_execute",
+                "summary": "Submit the signed config-change proposal tx.",
+                "description": "Submit the signed config-change proposal tx.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "signedTransaction": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 2500,
+                                        "description": "The base64 VersionedTransaction returned by the matching /build call, signed with your key. Do not submit it yourself; this endpoint submits it."
+                                    },
+                                    "lastValidBlockHeight": {
+                                        "type": "integer",
+                                        "exclusiveMinimum": 0,
+                                        "maximum": 10000000000,
+                                        "description": "The `lastValidBlockHeight` returned alongside the unsigned tx by /build. Past this block height the tx can no longer land."
+                                    }
+                                },
+                                "required": [
+                                    "signedTransaction",
+                                    "lastValidBlockHeight"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/challenge": {
+            "post": {
+                "operationId": "auth_challenge",
+                "summary": "Generate a SIWS message to sign",
+                "description": "Start a Sign-In With Solana handshake. Returns the exact message bytes to sign, plus the nonce to echo back to /api/auth/verify.",
+                "security": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "wallet": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "The Solana address that will sign, in base58."
+                                    }
+                                },
+                                "required": [
+                                    "wallet"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/verify": {
+            "post": {
+                "operationId": "auth_verify",
+                "summary": "Create a session from a signed SIWS message",
+                "description": "Verify the signature from /api/auth/challenge. On success sets the HttpOnly `solknife-session` cookie; send that cookie on gated calls to skip the per-call x402 charge for its lifetime.",
+                "security": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "wallet": {
+                                        "type": "string",
+                                        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                                        "description": "The same address you passed to /api/auth/challenge."
+                                    },
+                                    "message": {
+                                        "type": "string",
+                                        "description": "The message returned by /api/auth/challenge, byte-for-byte."
+                                    },
+                                    "nonce": {
+                                        "type": "string",
+                                        "description": "The nonce returned by /api/auth/challenge."
+                                    },
+                                    "signatureBase64": {
+                                        "type": "string",
+                                        "description": "Base64 of the Ed25519 signature over the message bytes."
+                                    }
+                                },
+                                "required": [
+                                    "wallet",
+                                    "message",
+                                    "nonce",
+                                    "signatureBase64"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/status": {
+            "get": {
+                "operationId": "auth_status",
+                "summary": "Fetch the current session state",
+                "description": "Returns the signed-in wallet when the `solknife-session` cookie is present and unexpired.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/logout": {
+            "post": {
+                "operationId": "auth_logout",
+                "summary": "Delete the session cookie",
+                "description": "Ends the session; subsequent gated calls are charged again.",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
