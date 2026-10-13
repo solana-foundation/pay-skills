@@ -1,0 +1,679 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "GateCheck by LarryBuildsAI",
+    "version": "0.1.0",
+    "description": "Canonical pay-skills sidecar for GateCheck by LarryBuildsAI paid buyer routes. The live service also exposes documentation, discovery, MCP metadata, product-card, and revenue surfaces; this sidecar focuses on paid x402 scan, health-probe, readiness, launch-pack, and receipt endpoints."
+  },
+  "servers": [
+    {
+      "url": "https://x402-resource-scanner.vercel.app"
+    }
+  ],
+  "paths": {
+    "/v1/x402/scan": {
+      "get": {
+        "description": "Checks public /.well-known/x402 and /openapi.json metadata, price surfaces, and optional marketplace listing staleness. Private/internal targets are rejected by default.",
+        "operationId": "scanX402Resource",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "url",
+            "required": true,
+            "schema": {
+              "format": "uri",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "marketplace_url",
+            "required": false,
+            "schema": {
+              "format": "uri",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_resources",
+            "required": false,
+            "schema": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized scan report with score, issues, next steps, and payment summary"
+          },
+          "400": {
+            "description": "Invalid request, malformed target URL, or private/internal target refused"
+          },
+          "402": {
+            "description": "x402 payment required"
+          }
+        },
+        "summary": "Scan x402 metadata surfaces for a target URL",
+        "tags": [
+          "x402"
+        ],
+        "x-x402-price": {
+          "amount": "0.25",
+          "asset": "USDC"
+        }
+      }
+    },
+    "/v1/x402/health/probe": {
+      "post": {
+        "description": "Sends a conservative unpaid public request, parses PAYMENT-REQUIRED/accepts metadata, compares expected network/asset/price, and returns a deterministic health receipt. v1 does not sign payments or spend funds.",
+        "operationId": "probeX402PaidPathHealth",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "expected": {
+                    "additionalProperties": true,
+                    "properties": {
+                      "asset": {
+                        "type": "string"
+                      },
+                      "network": {
+                        "type": "string"
+                      },
+                      "priceUsd": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "method": {
+                    "default": "GET",
+                    "enum": [
+                      "GET",
+                      "HEAD",
+                      "OPTIONS"
+                    ],
+                    "type": "string"
+                  },
+                  "mode": {
+                    "default": "unpaid_402",
+                    "enum": [
+                      "unpaid_402",
+                      "metadata_only"
+                    ],
+                    "type": "string"
+                  },
+                  "target": {
+                    "format": "uri",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "target"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Paid-path health report with receipt and payment summary"
+          },
+          "400": {
+            "description": "Invalid request, malformed target URL, private/internal target, or unsafe method"
+          },
+          "402": {
+            "description": "x402 payment required"
+          }
+        },
+        "summary": "Probe an x402 paid endpoint's unpaid 402 health",
+        "tags": [
+          "x402"
+        ],
+        "x-x402-price": {
+          "amount": "0.50",
+          "asset": "USDC"
+        }
+      }
+    },
+    "/v1/x402/agent-tools/readiness": {
+      "post": {
+        "description": "Composes the existing public x402 resource scan with agent discovery checks (/llms.txt, /agents.txt, /.well-known/mcp.json, /mcp) and an optional unpaid paid-path health probe. Quick tier checks metadata and discovery; deep adds paid-path health when supplied; report adds a Markdown handoff report. No payment signatures are generated and no funds are spent by this checker.",
+        "operationId": "checkAgentToolReadiness",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "expected": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "expected_resources": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "marketplace_url": {
+                    "format": "uri",
+                    "type": "string"
+                  },
+                  "method": {
+                    "default": "GET",
+                    "enum": [
+                      "GET",
+                      "HEAD",
+                      "OPTIONS"
+                    ],
+                    "type": "string"
+                  },
+                  "paid_path": {
+                    "format": "uri",
+                    "type": "string"
+                  },
+                  "target": {
+                    "format": "uri",
+                    "type": "string"
+                  },
+                  "tier": {
+                    "default": "quick",
+                    "enum": [
+                      "quick",
+                      "deep",
+                      "report"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "target"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Agent tool readiness report with score, checks, issues, fixes, and payment summary"
+          },
+          "400": {
+            "description": "Invalid request, malformed URL, credentialed URL, private/internal target, or unsafe method"
+          },
+          "402": {
+            "description": "x402 payment required"
+          }
+        },
+        "summary": "Check agent-tool readiness for x402 listing and buyer routing",
+        "tags": [
+          "x402"
+        ],
+        "x-bazaar": {
+          "bodyType": "json",
+          "category": "Agent Verification & Security",
+          "description": "LarryBuildsAI readiness checks for x402 and MCP paid-tool launches: public metadata, unpaid 402 probes, agent-discovery checks, launch-pack guidance, and claim boundaries before marketplace listing.",
+          "discoverable": true,
+          "docsUrl": "https://x402-resource-scanner.vercel.app/llms.txt",
+          "homepageUrl": "https://x402-resource-scanner.vercel.app",
+          "inputExample": {
+            "target": "https://x402-resource-scanner.vercel.app",
+            "tier": "quick"
+          },
+          "inputSchema": {
+            "additionalProperties": false,
+            "properties": {
+              "expected": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "expected_resources": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "marketplace_url": {
+                "format": "uri",
+                "type": "string"
+              },
+              "method": {
+                "default": "GET",
+                "enum": [
+                  "GET",
+                  "HEAD",
+                  "OPTIONS"
+                ],
+                "type": "string"
+              },
+              "paid_path": {
+                "format": "uri",
+                "type": "string"
+              },
+              "target": {
+                "description": "Public x402/API/MCP service URL to inspect.",
+                "format": "uri",
+                "type": "string"
+              },
+              "tier": {
+                "default": "quick",
+                "enum": [
+                  "quick",
+                  "deep",
+                  "report"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "target"
+            ],
+            "type": "object"
+          },
+          "mcpUrl": "https://x402-resource-scanner.vercel.app/mcp",
+          "method": "POST",
+          "name": "GateCheck Readiness by LarryBuildsAI",
+          "openapiUrl": "https://x402-resource-scanner.vercel.app/openapi.json",
+          "outputExample": {
+            "claimBoundaries": [
+              "Observed public metadata only; no security certification or marketplace endorsement is implied."
+            ],
+            "issues": [],
+            "ready": true,
+            "recommendedFixes": [],
+            "score": 96
+          },
+          "outputSchema": {
+            "properties": {
+              "checks": {
+                "type": "object"
+              },
+              "claimBoundaries": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "issues": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "ready": {
+                "type": "boolean"
+              },
+              "recommendedFixes": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "score": {
+                "maximum": 100,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "x402Payment": {
+                "type": "object"
+              }
+            },
+            "type": "object"
+          },
+          "provider": "LarryBuildsAI",
+          "providerName": "LarryBuildsAI",
+          "providerUrl": "https://x402-resource-scanner.vercel.app",
+          "service": {
+            "aliases": [
+              "Agent Tool Readiness Checker by LarryBuildsAI",
+              "x402 Resource Scanner",
+              "x402 Launch Pack Generator"
+            ],
+            "category": "Agent Verification & Security",
+            "discoverable": true,
+            "docsUrl": "https://x402-resource-scanner.vercel.app/llms.txt",
+            "homepageUrl": "https://x402-resource-scanner.vercel.app",
+            "id": "x402-resource-scanner",
+            "legacyName": "Boundary Guard x402",
+            "mcpUrl": "https://x402-resource-scanner.vercel.app/mcp",
+            "name": "GateCheck by LarryBuildsAI",
+            "openapiUrl": "https://x402-resource-scanner.vercel.app/openapi.json",
+            "provider": "LarryBuildsAI",
+            "providerName": "LarryBuildsAI",
+            "providerUrl": "https://x402-resource-scanner.vercel.app",
+            "x402WellKnownUrl": "https://x402-resource-scanner.vercel.app/.well-known/x402"
+          },
+          "tags": [
+            "x402",
+            "MCP",
+            "agent-tools",
+            "paid-api",
+            "seller-readiness",
+            "marketplace-readiness",
+            "launch-pack"
+          ],
+          "x402WellKnownUrl": "https://x402-resource-scanner.vercel.app/.well-known/x402"
+        },
+        "x-x402-price": {
+          "amount": "1.00",
+          "asset": "USDC"
+        },
+        "x-x402-pricing-tiers": {
+          "deep": {
+            "amount": "5.00",
+            "asset": "USDC"
+          },
+          "quick": {
+            "amount": "1.00",
+            "asset": "USDC"
+          },
+          "report": {
+            "amount": "10.00",
+            "asset": "USDC"
+          }
+        }
+      }
+    },
+    "/v1/x402/launch-pack": {
+      "post": {
+        "description": "Generates listing copy, buyer FAQ, launch checklist, distribution approval notes, and claim boundaries from readiness evidence. Does not post, submit, contact prospects, sign payments, or spend funds.",
+        "operationId": "generateX402LaunchPack",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "audience": {
+                    "type": "string"
+                  },
+                  "desired_marketplaces": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "expected": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "expected_resources": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "marketplace_url": {
+                    "format": "uri",
+                    "type": "string"
+                  },
+                  "method": {
+                    "default": "GET",
+                    "enum": [
+                      "GET",
+                      "HEAD",
+                      "OPTIONS"
+                    ],
+                    "type": "string"
+                  },
+                  "paid_path": {
+                    "format": "uri",
+                    "type": "string"
+                  },
+                  "primary_use_case": {
+                    "type": "string"
+                  },
+                  "product_name": {
+                    "type": "string"
+                  },
+                  "target": {
+                    "format": "uri",
+                    "type": "string"
+                  },
+                  "tier": {
+                    "default": "single",
+                    "enum": [
+                      "single",
+                      "service",
+                      "premium"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "target"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "x402 launch pack with listing copy, FAQ, checklist, approval packet, report, and payment summary"
+          },
+          "400": {
+            "description": "Invalid request, malformed URL, credentialed URL, private/internal target, or unsafe method"
+          },
+          "402": {
+            "description": "x402 payment required"
+          }
+        },
+        "summary": "Generate marketplace-safe x402 launch artifacts",
+        "tags": [
+          "x402"
+        ],
+        "x-bazaar": {
+          "bodyType": "json",
+          "category": "Agent Verification & Security",
+          "description": "Generates marketplace-safe x402 launch artifacts from readiness evidence: listing copy, buyer FAQ, checklist, approval packet, and claim boundaries.",
+          "discoverable": true,
+          "docsUrl": "https://x402-resource-scanner.vercel.app/llms.txt",
+          "homepageUrl": "https://x402-resource-scanner.vercel.app",
+          "inputExample": {
+            "target": "https://x402-resource-scanner.vercel.app",
+            "tier": "single"
+          },
+          "inputSchema": {
+            "additionalProperties": false,
+            "properties": {
+              "audience": {
+                "type": "string"
+              },
+              "desired_marketplaces": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "expected": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "expected_resources": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "marketplace_url": {
+                "format": "uri",
+                "type": "string"
+              },
+              "method": {
+                "default": "GET",
+                "enum": [
+                  "GET",
+                  "HEAD",
+                  "OPTIONS"
+                ],
+                "type": "string"
+              },
+              "paid_path": {
+                "format": "uri",
+                "type": "string"
+              },
+              "primary_use_case": {
+                "type": "string"
+              },
+              "product_name": {
+                "type": "string"
+              },
+              "target": {
+                "description": "Public x402/API/MCP service URL to package for launch.",
+                "format": "uri",
+                "type": "string"
+              },
+              "tier": {
+                "default": "single",
+                "enum": [
+                  "single",
+                  "service",
+                  "premium"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "target"
+            ],
+            "type": "object"
+          },
+          "mcpUrl": "https://x402-resource-scanner.vercel.app/mcp",
+          "method": "POST",
+          "name": "x402 Launch Pack Generator",
+          "openapiUrl": "https://x402-resource-scanner.vercel.app/openapi.json",
+          "outputExample": {
+            "approvalPacket": {
+              "status": "draft"
+            },
+            "buyerFaq": [],
+            "claimBoundaries": [
+              "Generated pack does not post, submit listings, spend funds, or imply official endorsement."
+            ],
+            "launchChecklist": [],
+            "listingCopy": {
+              "oneLiner": "GateCheck by LarryBuildsAI: x402 readiness and launch-pack artifacts for paid API/MCP builders."
+            }
+          },
+          "outputSchema": {
+            "properties": {
+              "approvalPacket": {
+                "type": "object"
+              },
+              "buyerFaq": {
+                "type": "array"
+              },
+              "claimBoundaries": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "launchChecklist": {
+                "type": "array"
+              },
+              "listingCopy": {
+                "type": "object"
+              },
+              "x402Payment": {
+                "type": "object"
+              }
+            },
+            "type": "object"
+          },
+          "provider": "LarryBuildsAI",
+          "providerName": "LarryBuildsAI",
+          "providerUrl": "https://x402-resource-scanner.vercel.app",
+          "service": {
+            "aliases": [
+              "Agent Tool Readiness Checker by LarryBuildsAI",
+              "x402 Resource Scanner",
+              "x402 Launch Pack Generator"
+            ],
+            "category": "Agent Verification & Security",
+            "discoverable": true,
+            "docsUrl": "https://x402-resource-scanner.vercel.app/llms.txt",
+            "homepageUrl": "https://x402-resource-scanner.vercel.app",
+            "id": "x402-resource-scanner",
+            "legacyName": "Boundary Guard x402",
+            "mcpUrl": "https://x402-resource-scanner.vercel.app/mcp",
+            "name": "GateCheck by LarryBuildsAI",
+            "openapiUrl": "https://x402-resource-scanner.vercel.app/openapi.json",
+            "provider": "LarryBuildsAI",
+            "providerName": "LarryBuildsAI",
+            "providerUrl": "https://x402-resource-scanner.vercel.app",
+            "x402WellKnownUrl": "https://x402-resource-scanner.vercel.app/.well-known/x402"
+          },
+          "tags": [
+            "x402",
+            "MCP",
+            "agent-tools",
+            "paid-api",
+            "seller-readiness",
+            "marketplace-readiness",
+            "launch-pack"
+          ],
+          "x402WellKnownUrl": "https://x402-resource-scanner.vercel.app/.well-known/x402"
+        },
+        "x-x402-price": {
+          "amount": "9.00",
+          "asset": "USDC"
+        },
+        "x-x402-pricing-tiers": {
+          "premium": {
+            "amount": "49.00",
+            "asset": "USDC"
+          },
+          "service": {
+            "amount": "29.00",
+            "asset": "USDC"
+          },
+          "single": {
+            "amount": "9.00",
+            "asset": "USDC"
+          }
+        }
+      }
+    },
+    "/v1/receipts/check": {
+      "post": {
+        "operationId": "createBoundaryGuardReceipt",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Receipt evidence document"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "402": {
+            "description": "x402 payment required"
+          }
+        },
+        "summary": "Create a Boundary Guard-style receipt for request/policy/result evidence",
+        "tags": [
+          "x402"
+        ],
+        "x-x402-price": {
+          "amount": "0.05",
+          "asset": "USDC"
+        }
+      }
+    }
+  },
+  "externalDocs": {
+    "description": "Live public docs, discovery, and agent-readable product surfaces for GateCheck by LarryBuildsAI",
+    "url": "https://x402-resource-scanner.vercel.app/llms.txt"
+  }
+}
