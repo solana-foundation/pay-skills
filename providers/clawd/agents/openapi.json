@@ -1,0 +1,427 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SolanaClawdAgents",
+    "version": "2.0.0",
+    "description": "x402-gated AI agent inference and Solana DeFi intelligence. 80+ specialized agents, 130+ skills, MCP tool access — all payable in USDC on Solana mainnet with no API key."
+  },
+  "servers": [
+    { "url": "https://x402.wtf", "description": "Production (Solana mainnet, x402 USDC)" }
+  ],
+  "paths": {
+    "/api/v1/chat/completions": {
+      "post": {
+        "operationId": "chatCompletions",
+        "summary": "LLM inference (OpenAI-compatible)",
+        "description": "Chat completion endpoint backed by Claude, Grok, or open-source models. x402-gated; first call without X-Payment returns 402 with Solana USDC payment requirement. Retry with X-Payment header to receive the completion.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["model", "messages"],
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "description": "Model ID (e.g. claude-sonnet-4-6, grok-4, llama-3.1-70b)",
+                    "examples": ["claude-sonnet-4-6"]
+                  },
+                  "messages": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": ["role", "content"],
+                      "properties": {
+                        "role": { "type": "string", "enum": ["system", "user", "assistant"] },
+                        "content": { "type": "string" }
+                      }
+                    }
+                  },
+                  "stream": { "type": "boolean", "default": false },
+                  "max_tokens": { "type": "integer" },
+                  "temperature": { "type": "number", "minimum": 0, "maximum": 2 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Completion response (OpenAI-compatible)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "object": { "type": "string", "enum": ["chat.completion"] },
+                    "choices": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "message": {
+                            "type": "object",
+                            "properties": {
+                              "role": { "type": "string" },
+                              "content": { "type": "string" }
+                            }
+                          },
+                          "finish_reason": { "type": "string" }
+                        }
+                      }
+                    },
+                    "usage": {
+                      "type": "object",
+                      "properties": {
+                        "prompt_tokens": { "type": "integer" },
+                        "completion_tokens": { "type": "integer" },
+                        "total_tokens": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required — USDC on Solana mainnet",
+            "headers": {
+              "X-Payment-Required": {
+                "schema": { "type": "string" },
+                "description": "Base64-encoded x402 PaymentRequiredResponse with Solana USDC accept options"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PaymentRequired" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/research": {
+      "post": {
+        "operationId": "agentResearch",
+        "summary": "Deep agent research report",
+        "description": "Runs a multi-agent OODA-loop research pipeline. Synthesizes on-chain data, social signals, and market context into a structured report. Higher cost than a single chat completion; estimated $0.10 USDC.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["query"],
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "Research question or token/wallet to investigate"
+                  },
+                  "depth": {
+                    "type": "string",
+                    "enum": ["quick", "standard", "deep"],
+                    "default": "standard",
+                    "description": "quick=$0.02, standard=$0.10, deep=$0.50 USDC"
+                  },
+                  "context": {
+                    "type": "object",
+                    "description": "Optional: token_mint, wallet_address, or timeframe hints"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Research report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "report": { "type": "string", "description": "Markdown-formatted research report" },
+                    "signals": { "type": "array", "items": { "type": "object" } },
+                    "sources": { "type": "array", "items": { "type": "string" } },
+                    "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+                  }
+                }
+              }
+            }
+          },
+          "402": { "description": "Payment required", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PaymentRequired" } } } }
+        }
+      }
+    },
+    "/api/v1/analyze": {
+      "post": {
+        "operationId": "chainAnalysis",
+        "summary": "On-chain token or wallet analysis",
+        "description": "Deep analysis of a Solana token mint or wallet address. Returns holder distribution, top traders, volume profile, graduation probability (pump.fun tokens), and smart money flows.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token_mint": { "type": "string", "description": "Solana token mint address (Base58)" },
+                  "wallet": { "type": "string", "description": "Solana wallet address (Base58)" },
+                  "depth": {
+                    "type": "string",
+                    "enum": ["quick", "full"],
+                    "default": "full",
+                    "description": "quick=$0.001, full=$0.02 USDC"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Analysis result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": { "type": "string" },
+                    "holders": { "type": "integer" },
+                    "top_wallets": { "type": "array", "items": { "type": "string" } },
+                    "volume_24h": { "type": "string" },
+                    "smart_money_net": { "type": "number" },
+                    "graduation_probability": { "type": "number" },
+                    "security_flags": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          },
+          "402": { "description": "Payment required", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PaymentRequired" } } } }
+        }
+      }
+    },
+    "/api/v1/alpha": {
+      "post": {
+        "operationId": "alphaSignals",
+        "summary": "AI alpha signal detection",
+        "description": "Real-time alpha detection across Solana DEXes and social layers. Returns ranked opportunities filtered by smart money accumulation, bonding curve momentum, and on-chain velocity.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "timeframe": { "type": "string", "enum": ["1h", "6h", "24h"], "default": "6h" },
+                  "filters": {
+                    "type": "object",
+                    "properties": {
+                      "min_liquidity_usd": { "type": "number" },
+                      "min_holders": { "type": "integer" },
+                      "exclude_graduated": { "type": "boolean" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Alpha signals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "signals": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "token_mint": { "type": "string" },
+                          "symbol": { "type": "string" },
+                          "score": { "type": "number" },
+                          "reason": { "type": "string" },
+                          "price_usd": { "type": "number" },
+                          "volume_1h": { "type": "number" }
+                        }
+                      }
+                    },
+                    "generated_at": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          },
+          "402": { "description": "Payment required ($0.10 USDC)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PaymentRequired" } } } }
+        }
+      }
+    },
+    "/api/v1/agents": {
+      "get": {
+        "operationId": "listAgents",
+        "summary": "List available Clawd agents",
+        "description": "Returns the catalog of 80+ available Solana DeFi agents with their capabilities, pricing tiers, and skill tags. Free endpoint — no payment required.",
+        "parameters": [
+          { "name": "category", "in": "query", "schema": { "type": "string" }, "description": "Filter by category (trading, research, analytics, social, infrastructure)" },
+          { "name": "skill", "in": "query", "schema": { "type": "string" }, "description": "Filter by skill tag (e.g. pump.fun, jupiter, vulcan, dflow)" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agent catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "agents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "name": { "type": "string" },
+                          "description": { "type": "string" },
+                          "category": { "type": "string" },
+                          "skills": { "type": "array", "items": { "type": "string" } },
+                          "price_per_call_usdc": { "type": "string" }
+                        }
+                      }
+                    },
+                    "total": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agents/{agentId}/run": {
+      "post": {
+        "operationId": "runAgent",
+        "summary": "Run a named Clawd agent",
+        "description": "Invoke a specific agent by ID. Pricing varies by agent — the 402 challenge discloses the exact USDC amount. Supports streaming (SSE) when `stream: true`.",
+        "parameters": [
+          { "name": "agentId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Agent ID from /api/v1/agents catalog" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["input"],
+                "properties": {
+                  "input": { "type": "string", "description": "Free-text instruction for the agent" },
+                  "context": { "type": "object", "description": "Optional structured context (token_mint, wallet, etc.)" },
+                  "stream": { "type": "boolean", "default": false }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Agent output",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "agent_id": { "type": "string" },
+                    "output": { "type": "string" },
+                    "artifacts": { "type": "array", "items": { "type": "object" } },
+                    "tokens_used": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "402": { "description": "Payment required", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PaymentRequired" } } } }
+        }
+      }
+    },
+    "/api/v1/mcp": {
+      "post": {
+        "operationId": "mcpToolCall",
+        "summary": "MCP tool call (paid)",
+        "description": "Invoke any of 130+ MCP tools exposed by the Clawd runtime. Tools span Solana RPC, pump.fun, DFlow, Kalshi, Vulcan perps, Birdeye, and social APIs. Each tool declares its own price in the 402 challenge.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["tool", "arguments"],
+                "properties": {
+                  "tool": { "type": "string", "description": "MCP tool name (e.g. pump_token_overview, dflow_spot_quote)" },
+                  "arguments": { "type": "object" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tool result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "content": {
+                      "type": "array",
+                      "items": { "type": "object", "properties": { "type": { "type": "string" }, "text": { "type": "string" } } }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": { "description": "Payment required", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PaymentRequired" } } } }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "PaymentRequired": {
+        "type": "object",
+        "properties": {
+          "x402Version": { "type": "integer", "example": 1 },
+          "accepts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "scheme": { "type": "string", "enum": ["exact"] },
+                "network": { "type": "string", "enum": ["solana-mainnet"] },
+                "maxAmountRequired": { "type": "string", "description": "USDC base units (6 decimals). e.g. 1000 = $0.001" },
+                "payTo": { "type": "string", "description": "Solana recipient address (Base58)" },
+                "token": { "type": "string", "description": "USDC mint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" },
+                "resource": { "type": "string" },
+                "description": { "type": "string" }
+              }
+            }
+          },
+          "nonce": { "type": "string" },
+          "expiresAt": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "securitySchemes": {
+      "x402Payment": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Payment",
+        "description": "Base64-encoded x402 PaymentPayload containing a signed Solana USDC transfer. Sign with @pump-fun/x402 or any x402 Solana client."
+      }
+    }
+  }
+}
