@@ -1,0 +1,3436 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "2s",
+    "version": "1",
+    "description": "Unified JSON REST API for AI agents — an ever-expanding catalog of endpoints, pay per call in USDC on Base or Solana via x402, no accounts, no API keys. Fund a wallet on either chain with USDC, hit any endpoint, and your client signs an EIP-3009 authorization (Base) or a partial SPL transfer (Solana) to settle the call. Try before you buy: add ?trial=1 (or header X-2s-Trial: 1) to any endpoint for one free real call per endpoint per hour — no wallet needed — to verify it works before paying. 2s is an open-ended experiment in maximally-comprehensive agent infrastructure — new endpoints land regularly.",
+    "contact": {
+      "name": "2s",
+      "url": "https://2s.io",
+      "email": "alley@2s.io"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://2s.io"
+    }
+  ],
+  "components": {
+    "parameters": {
+      "TrialMode": {
+        "name": "trial",
+        "in": "query",
+        "required": false,
+        "description": "Try before you buy. Set to 1 for one free real call per endpoint per hour — no wallet or payment needed — to verify the endpoint before paying. Equivalent to sending the \"X-2s-Trial: 1\" request header. Works on every endpoint.",
+        "schema": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        }
+      }
+    },
+    "securitySchemes": {
+      "x402Payment": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "PAYMENT-SIGNATURE",
+        "description": "x402 protocol v2: base64-encoded PaymentPayload. Call any paid endpoint without auth to receive a 402 with a multi-network PaymentRequirements envelope. Sign for either rail: EIP-3009 transferWithAuthorization (Base USDC) OR a partial SPL token transfer (Solana USDC). Retry with PAYMENT-SIGNATURE header. X-PAYMENT is also accepted for v1 buyer clients. See https://x402.org."
+      }
+    },
+    "schemas": {
+      "X402PaymentRequiredV2": {
+        "type": "object",
+        "description": "x402 v2 PaymentRequired envelope. Pick any entry from accepts[], sign for that rail, retry with the PAYMENT-SIGNATURE header.",
+        "required": [
+          "x402Version",
+          "accepts"
+        ],
+        "properties": {
+          "x402Version": {
+            "type": "integer",
+            "const": 2
+          },
+          "error": {
+            "type": "string",
+            "description": "Human-readable reason payment is required."
+          },
+          "resource": {
+            "type": "string",
+            "description": "The resource URL being purchased."
+          },
+          "accepts": {
+            "type": "array",
+            "description": "Payment requirement options, one per supported network (Base USDC, Solana USDC).",
+            "items": {
+              "type": "object",
+              "required": [
+                "scheme",
+                "network",
+                "amount",
+                "asset",
+                "payTo",
+                "maxTimeoutSeconds"
+              ],
+              "properties": {
+                "scheme": {
+                  "type": "string",
+                  "enum": [
+                    "exact"
+                  ]
+                },
+                "network": {
+                  "type": "string",
+                  "description": "CAIP-2 network id, e.g. \"eip155:8453\" (Base) or \"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp\"."
+                },
+                "amount": {
+                  "type": "string",
+                  "description": "Price in atomic asset units (USDC has 6 decimals)."
+                },
+                "asset": {
+                  "type": "string",
+                  "description": "Asset contract address / mint."
+                },
+                "payTo": {
+                  "type": "string",
+                  "description": "Treasury address to pay."
+                },
+                "maxTimeoutSeconds": {
+                  "type": "integer"
+                },
+                "extra": {
+                  "type": "object",
+                  "description": "Rail-specific extras (EVM: EIP-712 domain name/version; Solana: feePayer).",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "extensions": {
+            "type": "object",
+            "description": "Optional discovery metadata (e.g. bazaar input/output schemas).",
+            "additionalProperties": true
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/law/attorney-lookup": {
+      "get": {
+        "tags": [
+          "law"
+        ],
+        "summary": "Find US attorneys by name in CourtListener's RECAP corpus...",
+        "description": "Find US attorneys by name in CourtListener's RECAP corpus (PACER-derived attorney directory). Query by name (case-insensitive prefix match: \"Jennifer Lee\" matches \"Jennifer Lee Pasquarella\" but not \"Sara Jennifer Lee\"), optional firm/contact-text contains filter, and limit (1-50, default 10). Returns id, normalized name, parsed firm + mailing address, phone, email, fax, count of known (docket, party) appearances, and canonical CourtListener URL per match. Use for opposing-counsel research, conflict checks, and \"who has filed this type of motion in this district\" queries. Underlying data is public domain (PACER filings); the directory itself is maintained by Free Law Project.",
+        "operationId": "law_attorney-lookup",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = matched attorneys with parsed contact info, case-appearance count, and canonical CourtListener URLs; total = null (upstream does not report a match count); meta.query echoes the search.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "firm": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "address": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "phone": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "email": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "fax": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "caseCount": {
+                                "type": "integer"
+                              },
+                              "url": {
+                                "type": "string",
+                                "format": "uri"
+                              },
+                              "dateModified": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "firm",
+                              "address",
+                              "phone",
+                              "email",
+                              "fax",
+                              "caseCount",
+                              "url",
+                              "dateModified"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "query": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string"
+                                },
+                                "firm": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "limit": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "firm",
+                                "limit"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "query"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0036 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "law.attorney-lookup",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0036,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.003600"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "description": "Attorney name (or name prefix) to search. Case-insensitive prefix match — \"Jennifer Lee\" finds \"Jennifer Lee Pasquarella\" but not \"Sara Jennifer Lee\".",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "firm",
+            "in": "query",
+            "required": false,
+            "description": "Optional contains filter on the firm / contact block (e.g. \"Skadden\").",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Max attorney records to return (1-50). Default 10.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/law/case-search": {
+      "get": {
+        "tags": [
+          "law"
+        ],
+        "summary": "Search US court opinions (SCOTUS, federal circuits, state...",
+        "description": "Search US court opinions (SCOTUS, federal circuits, state appellate/supreme — ~9M opinions). Query by free-text (party names, keywords, docket #, citation). Filter by court slug (e.g., \"scotus\", \"ca9\", \"nysupct\"), filing date range, and order (relevance/dateFiled-desc/dateFiled-asc/citeCount-desc). Returns clusterId, caseName, court, year, docket, reporter citations, citationCount, snippet, canonical URL. Discovery-side complement to case-verify. Backed by CourtListener (Free Law Project); underlying opinions are public domain.",
+        "operationId": "law_case-search",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = matched court opinions (clusterId, caseName, court, year, citations, url); total = upstream match count; meta.query echoes the search.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": {}
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "query": {
+                              "type": "object",
+                              "properties": {
+                                "q": {
+                                  "type": "string"
+                                },
+                                "court": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "filedAfter": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "filedBefore": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "order": {
+                                  "type": "string"
+                                },
+                                "limit": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "q",
+                                "court",
+                                "filedAfter",
+                                "filedBefore",
+                                "order",
+                                "limit"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "query"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0036 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "law.case-search",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0036,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.003600"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "Free-text search query.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 500
+            }
+          },
+          {
+            "name": "court",
+            "in": "query",
+            "required": false,
+            "description": "Court.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{2,40}(,[a-z0-9-]{2,40}){0,9}$"
+            }
+          },
+          {
+            "name": "filedAfter",
+            "in": "query",
+            "required": false,
+            "description": "Filed after.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          {
+            "name": "filedBefore",
+            "in": "query",
+            "required": false,
+            "description": "Filed before.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "description": "Sort direction: asc or desc.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "relevance",
+                "dateFiled-desc",
+                "dateFiled-asc",
+                "citeCount-desc"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of results to return.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20,
+              "default": 10
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/law/case-verify": {
+      "post": {
+        "tags": [
+          "law"
+        ],
+        "summary": "Verify US legal case citations in a passage of text.",
+        "description": "Verify US legal case citations in a passage of text. POST { text } where text contains one or more citations (e.g. \"Marbury v. Madison, 5 U.S. 137 (1803)\"). Returns per-citation results with canonical case name, court, year, docket, citationCount, and a public CourtListener URL — or flags the citation as unverified. Anti-hallucination check for legal LLM output. Underlying opinions are public domain; CourtListener (Free Law Project) is the corpus.",
+        "operationId": "law_case-verify",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = per-citation verification results (one element per citation found in the text); total = citations checked; meta = input echo + verified/unverified counts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": {}
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "input": {
+                              "type": "string",
+                              "description": "Echo of the checked text (truncated past 200 chars)."
+                            },
+                            "verified": {
+                              "type": "integer"
+                            },
+                            "unverified": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "input",
+                            "verified",
+                            "unverified"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.006 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "law.case-verify",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.006,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.006000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 30000,
+                    "description": "Text."
+                  }
+                },
+                "required": [
+                  "text"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/law/cfr-section": {
+      "get": {
+        "tags": [
+          "law"
+        ],
+        "summary": "Fetch the authoritative text of any section of the US Code...",
+        "description": "Fetch the authoritative text of any section of the US Code of Federal Regulations by title and section number — for example title 12, section 1026.43 returns Regulation Z’s ability-to-repay standards. Returns the canonical citation, section heading, full plain text, Federal Register source credit, the as-of date, and a link to the official eCFR page. An optional date parameter (YYYY-MM-DD) retrieves the historical text in force on that date, back to 2017. Data from the Electronic Code of Federal Regulations (US GPO / Office of the Federal Register), public domain, updated daily — verify regulatory citations against the authoritative source instead of relying on model memory.",
+        "operationId": "law_cfr-section",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = [section] (one CFR section: citation, heading, full plain text, source credit, as-of date, official link); total = 1.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "citation": {
+                                "type": "string",
+                                "description": "Canonical citation, e.g. \"12 CFR 1026.43\"."
+                              },
+                              "title": {
+                                "type": "integer",
+                                "description": "CFR title number."
+                              },
+                              "part": {
+                                "type": "string",
+                                "description": "Part identifier (digits before the dot)."
+                              },
+                              "section": {
+                                "type": "string",
+                                "description": "Full section identifier."
+                              },
+                              "heading": {
+                                "type": "string",
+                                "description": "Official section heading."
+                              },
+                              "text": {
+                                "type": "string",
+                                "description": "Plain-text body of the section."
+                              },
+                              "sourceCredit": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "Federal Register source credit (citation history), when present."
+                              },
+                              "asOfDate": {
+                                "type": "string",
+                                "description": "Date (yyyy-mm-dd) the returned text reflects."
+                              },
+                              "truncated": {
+                                "type": "boolean",
+                                "description": "True if text was cut at the response cap (rare, giant sections only)."
+                              },
+                              "url": {
+                                "type": "string",
+                                "description": "Official eCFR page for the section."
+                              }
+                            },
+                            "required": [
+                              "citation",
+                              "title",
+                              "part",
+                              "section",
+                              "heading",
+                              "text",
+                              "sourceCredit",
+                              "asOfDate",
+                              "truncated",
+                              "url"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0018 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "law.cfr-section",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0018,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001800"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "title",
+            "in": "query",
+            "required": true,
+            "description": "CFR title number, 1-50 (e.g. 12 for Banks and Banking, 40 for Protection of Environment).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          },
+          {
+            "name": "section",
+            "in": "query",
+            "required": true,
+            "description": "Section identifier as \"part.section\", e.g. \"1026.43\" or \"240.10b-5\". The part is the digits before the dot.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{1,4}[a-zA-Z]{0,2}\\.[0-9a-zA-Z][0-9a-zA-Z.\\-]{0,18}$"
+            }
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "description": "Optional point-in-time date (YYYY-MM-DD). Returns the text in force on that date; coverage starts 2017-01-03. Defaults to the latest available text.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/law/citation-check": {
+      "post": {
+        "tags": [
+          "law"
+        ],
+        "summary": "Verify legal citations against real case law",
+        "description": "Anti-hallucination checker for legal references — verify that cited cases, US Code sections, and CFR regulations in a passage actually EXIST, and (deterministically) that an attributed QUOTE actually appears in the cited opinion. POST { text } to scan a brief/passage: every case citation (via CourtListener), 'N U.S.C. § X', and 'N C.F.R. § X' is checked for existence with canonical metadata + a source URL, or flagged unverified. POST { quotes: [{ citation, quote }] } to verify specific quotations: each citation is resolved and its opinion full text is checked for the quote (ellipsis-aware), returning quote.present true/false. Pass both. Returns per-reference results + a summary (verified/unverified, quotesPresent/quotesMissing). Catches fabricated cases AND fabricated quotations — the LLM legal-output failure mode that gets attorneys sanctioned. Note: this checks existence + quote presence (facts), NOT whether a case legally supports a proposition. Sources: CourtListener (Free Law Project), US OLRC, eCFR (public domain).",
+        "operationId": "law_citation-check",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = per-reference results (existence + optional quote check); total = references checked; meta.summary = aggregate counts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "case",
+                                  "usc",
+                                  "cfr"
+                                ]
+                              },
+                              "citation": {
+                                "type": "string"
+                              },
+                              "exists": {
+                                "type": "boolean"
+                              },
+                              "title": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "detail": {
+                                "type": "object",
+                                "properties": {
+                                  "court": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "year": {
+                                    "type": "number",
+                                    "nullable": true
+                                  },
+                                  "docketNumber": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "citationCount": {
+                                    "type": "number",
+                                    "nullable": true
+                                  }
+                                },
+                                "required": [
+                                  "court",
+                                  "year",
+                                  "docketNumber",
+                                  "citationCount"
+                                ],
+                                "additionalProperties": false,
+                                "nullable": true
+                              },
+                              "url": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "error": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "quote": {
+                                "type": "object",
+                                "properties": {
+                                  "checked": {
+                                    "type": "boolean"
+                                  },
+                                  "present": {
+                                    "type": "boolean"
+                                  },
+                                  "note": {
+                                    "type": "string",
+                                    "nullable": true
+                                  }
+                                },
+                                "required": [
+                                  "checked",
+                                  "present",
+                                  "note"
+                                ],
+                                "additionalProperties": false,
+                                "nullable": true
+                              }
+                            },
+                            "required": [
+                              "type",
+                              "citation",
+                              "exists",
+                              "title",
+                              "detail",
+                              "url",
+                              "error",
+                              "quote"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "summary": {
+                              "type": "object",
+                              "properties": {
+                                "total": {
+                                  "type": "integer"
+                                },
+                                "verified": {
+                                  "type": "integer"
+                                },
+                                "unverified": {
+                                  "type": "integer"
+                                },
+                                "quotesChecked": {
+                                  "type": "integer"
+                                },
+                                "quotesPresent": {
+                                  "type": "integer"
+                                },
+                                "quotesMissing": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "total",
+                                "verified",
+                                "unverified",
+                                "quotesChecked",
+                                "quotesPresent",
+                                "quotesMissing"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "summary"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0072 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "law.citation-check",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0072,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.007200"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 50000,
+                    "description": "Text."
+                  },
+                  "quotes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "citation": {
+                          "type": "string",
+                          "minLength": 2,
+                          "maxLength": 400,
+                          "description": "Citation."
+                        },
+                        "quote": {
+                          "type": "string",
+                          "minLength": 4,
+                          "maxLength": 4000,
+                          "description": "Quote."
+                        }
+                      },
+                      "required": [
+                        "citation",
+                        "quote"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "maxItems": 10,
+                    "description": "Quotes."
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/law/docket-search": {
+      "get": {
+        "tags": [
+          "law"
+        ],
+        "summary": "Search US federal court dockets - civil and criminal - from...",
+        "description": "Search US federal court dockets — civil and criminal — from the RECAP/PACER archive. Full-text q (case name, party, e.g. \"United States v. Bankman-Fried\"), optional court (CourtListener court id like \"cand\", \"nysd\", \"ca9\"), filedAfter/filedBefore (YYYY-MM-DD), page. Or pass docketNumber (+ court) for exact lookup. Each docket: id, case name, court, docket number, date filed/terminated, nature of suit, assigned judge, public docket URL. Criminal-case research, litigation monitoring, KYC/due-diligence. Sibling endpoints: /api/law/case-search (opinions full-text), /api/law/opinion (full opinion text).",
+        "operationId": "law_docket-search",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = matched federal court dockets; total = upstream match count (null when unknown).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "docketId": {
+                                "type": "number",
+                                "nullable": true
+                              },
+                              "caseName": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "court": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "courtId": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "docketNumber": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "dateFiled": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "dateTerminated": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "natureOfSuit": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "assignedTo": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "url": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            },
+                            "required": [
+                              "docketId",
+                              "caseName",
+                              "court",
+                              "courtId",
+                              "docketNumber",
+                              "dateFiled",
+                              "dateTerminated",
+                              "natureOfSuit",
+                              "assignedTo",
+                              "url"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0048 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "law.docket-search",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0048,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.004800"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Free-text search query.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 300
+            }
+          },
+          {
+            "name": "court",
+            "in": "query",
+            "required": false,
+            "description": "Court.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 15
+            }
+          },
+          {
+            "name": "docketNumber",
+            "in": "query",
+            "required": false,
+            "description": "Docket number.",
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 40
+            }
+          },
+          {
+            "name": "filedAfter",
+            "in": "query",
+            "required": false,
+            "description": "Filed after.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          {
+            "name": "filedBefore",
+            "in": "query",
+            "required": false,
+            "description": "Filed before.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number (1-based) for paginated results.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/law/federal-register": {
+      "get": {
+        "tags": [
+          "law"
+        ],
+        "summary": "Search the US Federal Register - proposed rules, final...",
+        "description": "Search the US Federal Register — proposed rules, final rules, notices, and presidential documents. Filter by free-text term, document type (RULE/PRORULE/NOTICE/PRESDOCU), agency slug (e.g., epa, fda, sec), and publication date range. Returns document_number, type, title, abstract, FR citation, agencies, publication_date, effective_on, comments_close_on, htmlUrl, pdfUrl, rawTextUrl. Public-domain US government data. Real-time — published daily, past LLM training cutoff.",
+        "operationId": "law_federal-register",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = matched Federal Register documents; total = upstream match count; meta.query echoes the search.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": {}
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "query": {
+                              "type": "object",
+                              "properties": {
+                                "term": {
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "agency": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "since": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "until": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "limit": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "term",
+                                "type",
+                                "agency",
+                                "since",
+                                "until",
+                                "limit"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "query"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.001 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "law.federal-register",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.001,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "Free-text search query.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "description": "Filter results by type.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "RULE",
+                "PRORULE",
+                "NOTICE",
+                "PRESDOCU"
+              ]
+            }
+          },
+          {
+            "name": "agency",
+            "in": "query",
+            "required": false,
+            "description": "Agency.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{2,60}$"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "description": "Since.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": false,
+            "description": "Until.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of results to return.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20,
+              "default": 10
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/law/judge-lookup": {
+      "get": {
+        "tags": [
+          "law"
+        ],
+        "summary": "Find US federal + state appellate judges by name in...",
+        "description": "Find US federal + state appellate judges by name in CourtListener's People DB. Query by firstName (case-insensitive prefix), lastName (case-insensitive prefix), or both — at least one required. Returns id, full name + components, dates of birth/death, gender, education (school, degree level, year), political affiliations (party + appointing executive period), count of distinct judicial positions, and canonical CourtListener URL per match. Pairs with law.case-search + law.attorney-lookup to complete the WHO graph of a legal research workflow. Backed by CourtListener (Free Law Project); underlying data is public domain.",
+        "operationId": "law_judge-lookup",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = matched judges with bio, education, political affiliations, position count, and canonical CourtListener URLs; total = null (upstream does not report a match count); meta.query echoes the search.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "firstName": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "middleName": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "lastName": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "suffix": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "dateOfBirth": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "dateOfDeath": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "gender": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "isJudge": {
+                                "type": "boolean"
+                              },
+                              "education": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "school": {
+                                      "type": "string",
+                                      "nullable": true
+                                    },
+                                    "degreeLevel": {
+                                      "type": "string",
+                                      "nullable": true
+                                    },
+                                    "degreeYear": {
+                                      "type": "integer",
+                                      "nullable": true
+                                    }
+                                  },
+                                  "required": [
+                                    "school",
+                                    "degreeLevel",
+                                    "degreeYear"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "politicalAffiliations": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "party": {
+                                      "type": "string",
+                                      "nullable": true
+                                    },
+                                    "source": {
+                                      "type": "string",
+                                      "nullable": true
+                                    },
+                                    "startDate": {
+                                      "type": "string",
+                                      "nullable": true
+                                    },
+                                    "endDate": {
+                                      "type": "string",
+                                      "nullable": true
+                                    }
+                                  },
+                                  "required": [
+                                    "party",
+                                    "source",
+                                    "startDate",
+                                    "endDate"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "positionCount": {
+                                "type": "integer"
+                              },
+                              "url": {
+                                "type": "string",
+                                "format": "uri"
+                              },
+                              "dateModified": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "firstName",
+                              "middleName",
+                              "lastName",
+                              "suffix",
+                              "dateOfBirth",
+                              "dateOfDeath",
+                              "gender",
+                              "isJudge",
+                              "education",
+                              "politicalAffiliations",
+                              "positionCount",
+                              "url",
+                              "dateModified"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "query": {
+                              "type": "object",
+                              "properties": {
+                                "firstName": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "lastName": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "limit": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "firstName",
+                                "lastName",
+                                "limit"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "query"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0036 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "law.judge-lookup",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0036,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.003600"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "firstName",
+            "in": "query",
+            "required": false,
+            "description": "First-name prefix to search (case-insensitive). \"Son\" matches \"Sonia\". Optional, but at least one of firstName/lastName required.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "lastName",
+            "in": "query",
+            "required": false,
+            "description": "Last-name prefix to search (case-insensitive). \"Soto\" matches \"Sotomayor\". Optional, but at least one of firstName/lastName required.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Max judge records to return (1-50). Default 10.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/law/opinion": {
+      "post": {
+        "tags": [
+          "law"
+        ],
+        "summary": "Fetch the full text of a US court opinion by CourtListener...",
+        "description": "Fetch the full text of a US court opinion by CourtListener opinion ID OR by citation. Returns plain text (preferred), HTML fallback, case metadata (case name, court, year, docket, citation), opinion type (lead/concurrence/dissent), author, and a list of alternate opinions in the same cluster. POST { opinionId?: number, citation?: string } — exactly one required. Anti-hallucination follow-up to case-verify: once you confirm the citation exists, fetch the text. Backed by CourtListener (public-domain underlying corpus).",
+        "operationId": "law_opinion",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = [opinion] (single document: full text, case metadata, alternate opinions in cluster); total = 1; meta.query echoes the lookup.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": {}
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "query": {
+                              "type": "object",
+                              "properties": {
+                                "opinionId": {
+                                  "type": "number",
+                                  "nullable": true
+                                },
+                                "citation": {
+                                  "type": "string",
+                                  "nullable": true
+                                }
+                              },
+                              "required": [
+                                "opinionId",
+                                "citation"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "query"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0048 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "law.opinion",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0048,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.004800"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "opinionId": {
+                    "type": "integer",
+                    "exclusiveMinimum": true,
+                    "minimum": 0,
+                    "description": "Opinion ID."
+                  },
+                  "citation": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 500,
+                    "description": "Citation."
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/law/sanctions-check": {
+      "post": {
+        "tags": [
+          "law"
+        ],
+        "summary": "Check a name against sanctions lists (fuzzy match)",
+        "description": "Fuzzy-match a name (person, company, vessel, aircraft) against the US Treasury OFAC Specially Designated Nationals list. POST { query, threshold?, limit?, sourceList? }. Returns ranked matches with similarity scores, entity type, sanctions programs, aliases, and remarks. Threshold default 0.4; scores ≥ 0.85 flagged as hasHighConfidenceMatch. List refreshed daily from public US Treasury data.",
+        "operationId": "law_sanctions-check",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = ranked OFAC SDN matches with similarity scores; total = match count; meta = query echo, threshold, hasHighConfidenceMatch flag.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": {}
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "query": {
+                              "type": "string"
+                            },
+                            "threshold": {
+                              "type": "number"
+                            },
+                            "hasHighConfidenceMatch": {
+                              "type": "boolean",
+                              "description": "True when any match scored ≥ 0.85."
+                            },
+                            "list": {
+                              "type": "string"
+                            },
+                            "refreshCadence": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "query",
+                            "threshold",
+                            "hasHighConfidenceMatch",
+                            "list",
+                            "refreshCadence"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0048 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "law.sanctions-check",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0048,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.004800"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 500,
+                    "description": "Free-text search query."
+                  },
+                  "threshold": {
+                    "type": "number",
+                    "minimum": 0.1,
+                    "maximum": 1,
+                    "description": "Minimum score/threshold required to include a result."
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "description": "Maximum number of results to return."
+                  },
+                  "sourceList": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "description": "Source list."
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/law/trademark-search": {
+      "get": {
+        "tags": [
+          "law"
+        ],
+        "summary": "Search US trademarks by wordmark text, owner name, or...",
+        "description": "Search US trademarks by wordmark text, owner name, or goods/services — the text search the USPTO offers no public API for. Pass `query` for full-text search (ranked best-match first), or `serial` / `registrationNumber` for an exact record. Filter with `field` (mark|owner|all), `status` (live=registered+pending only, default; all=includes dead/abandoned), and `intlClass` (Nice class, e.g. 9). Returns each mark's wordmark, serial, registration number, status (+ live flag), filing/registration/abandonment dates, owner, international classes, and goods/services. Corpus: USPTO full trademark register (public domain). Use law.trademark-status for live USPTO prosecution detail on a known serial.",
+        "operationId": "law_trademark-search",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = matching trademarks (bm25-ranked for text search; ≤1 for exact serial/reg lookup); total = match count; page = pagination block.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "serialNumber": {
+                                "type": "string"
+                              },
+                              "registrationNumber": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "markText": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "The wordmark / literal element."
+                              },
+                              "status": {
+                                "type": "object",
+                                "properties": {
+                                  "code": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "description": "USPTO TRAM status code (e.g. 700)."
+                                  },
+                                  "label": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "description": "Human-readable status, e.g. \"Registered\", \"Abandoned-Failure to Respond\"."
+                                  },
+                                  "date": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "live": {
+                                    "type": "boolean",
+                                    "description": "False for abandoned/cancelled/expired marks; true for registered or in-prosecution."
+                                  }
+                                },
+                                "required": [
+                                  "code",
+                                  "label",
+                                  "date",
+                                  "live"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "filingDate": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "registrationDate": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "abandonmentDate": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "cancellationDate": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "renewalDate": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "owner": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "Primary current owner / applicant."
+                              },
+                              "intlClasses": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "description": "Nice international class codes, zero-padded."
+                              },
+                              "goodsServices": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "Goods/services description (truncated to ~4k chars)."
+                              },
+                              "markDrawingCode": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            },
+                            "required": [
+                              "serialNumber",
+                              "registrationNumber",
+                              "markText",
+                              "status",
+                              "filingDate",
+                              "registrationDate",
+                              "abandonmentDate",
+                              "cancellationDate",
+                              "renewalDate",
+                              "owner",
+                              "intlClasses",
+                              "goodsServices",
+                              "markDrawingCode"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "page": {
+                          "type": "object",
+                          "properties": {
+                            "number": {
+                              "type": "integer"
+                            },
+                            "size": {
+                              "type": "integer"
+                            },
+                            "pages": {
+                              "type": "integer",
+                              "nullable": true
+                            }
+                          },
+                          "required": [
+                            "number",
+                            "size",
+                            "pages"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0024 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "law.trademark-search",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0024,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.002400"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "description": "Free-text search query.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "serial",
+            "in": "query",
+            "required": false,
+            "description": "Serial.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{6,9}$"
+            }
+          },
+          {
+            "name": "registrationNumber",
+            "in": "query",
+            "required": false,
+            "description": "Registration number.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9 ]{1,10}$"
+            }
+          },
+          {
+            "name": "field",
+            "in": "query",
+            "required": false,
+            "description": "Field.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "mark",
+                "owner",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter results by status.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "live",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "intlClass",
+            "in": "query",
+            "required": false,
+            "description": "Intl class.",
+            "schema": {
+              "type": "string",
+              "pattern": "^0*\\d{1,3}$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of results to return.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Number of results to skip before returning (pagination offset).",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/law/trademark-status": {
+      "get": {
+        "tags": [
+          "law"
+        ],
+        "summary": "Verify a US trademark by USPTO serial number (8 digits) or...",
+        "description": "Verify a US trademark by USPTO serial number (8 digits) or registration number. Returns the word mark, LIVE/DEAD status with the detailed status description and date, filing and registration dates, current owner (name, entity type, citizenship), mark type (trademark / service mark / certification mark), standard-character flag, abandonment date when applicable, and the international classes covered with their descriptions. Authoritative real-time USPTO data — confirm a mark exists and is active before relying on it for clearance, licensing, or due-diligence work. Lookup is by number only (no text search); siblings: /api/patents/search, /api/law/case-verify.",
+        "operationId": "law_trademark-status",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = [trademark] (one trademark: mark text, LIVE/DEAD status, owner, dates, classes, official TSDR link); total = 1.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "serialNumber": {
+                                "type": "string"
+                              },
+                              "registrationNumber": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "registrationDate": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "filingDate": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "mark": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "Word mark text; null for design-only marks."
+                              },
+                              "live": {
+                                "type": "boolean",
+                                "description": "True when the mark is LIVE (active application or registration)."
+                              },
+                              "statusCode": {
+                                "type": "number",
+                                "nullable": true
+                              },
+                              "statusDescription": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "TM5 status family, e.g. \"LIVE/REGISTRATION/Issued and Active\"."
+                              },
+                              "statusDetail": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "statusDate": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "dateAbandoned": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "markType": {
+                                "type": "string"
+                              },
+                              "standardCharacterMark": {
+                                "type": "boolean"
+                              },
+                              "supplementalRegister": {
+                                "type": "boolean"
+                              },
+                              "owner": {
+                                "type": "object",
+                                "properties": {
+                                  "name": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "entityType": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "partyType": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "citizenship": {
+                                    "type": "string",
+                                    "nullable": true
+                                  }
+                                },
+                                "required": [
+                                  "name",
+                                  "entityType",
+                                  "partyType",
+                                  "citizenship"
+                                ],
+                                "additionalProperties": false,
+                                "nullable": true
+                              },
+                              "classes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "internationalCode": {
+                                      "type": "string",
+                                      "nullable": true
+                                    },
+                                    "description": {
+                                      "type": "string",
+                                      "nullable": true
+                                    },
+                                    "status": {
+                                      "type": "string",
+                                      "nullable": true
+                                    }
+                                  },
+                                  "required": [
+                                    "internationalCode",
+                                    "description",
+                                    "status"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "url": {
+                                "type": "string",
+                                "description": "Official TSDR page for human review."
+                              }
+                            },
+                            "required": [
+                              "serialNumber",
+                              "registrationNumber",
+                              "registrationDate",
+                              "filingDate",
+                              "mark",
+                              "live",
+                              "statusCode",
+                              "statusDescription",
+                              "statusDetail",
+                              "statusDate",
+                              "dateAbandoned",
+                              "markType",
+                              "standardCharacterMark",
+                              "supplementalRegister",
+                              "owner",
+                              "classes",
+                              "url"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0018 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "law.trademark-status",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0018,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001800"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "serialNumber",
+            "in": "query",
+            "required": false,
+            "description": "Serial number.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{8}$"
+            }
+          },
+          {
+            "name": "registrationNumber",
+            "in": "query",
+            "required": false,
+            "description": "Registration number.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{6,8}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/law/usc-section": {
+      "get": {
+        "tags": [
+          "law"
+        ],
+        "summary": "Fetch the authoritative current text of any United States...",
+        "description": "Fetch the authoritative current text of any United States Code section by title and section number — for example title 17, section 107 returns the fair-use statute. Returns the canonical citation, heading, hierarchy context (title/chapter), full statutory plain text, the Statutes-at-Large source credit, and a link to the official OLRC page; set includeNotes=true to also get editorial notes (amendment history, effective dates). Hyphenated and lettered sections like 1395w-4 or 78j work. Data from the Office of the Law Revision Counsel current (\"prelim\") edition, public domain — verify statutory citations against the authoritative source instead of relying on model memory. For federal regulations see /api/law/cfr-section; for case law see /api/law/case-verify.",
+        "operationId": "law_usc-section",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = [section] (one USC section: citation, heading, context, full statutory text, source credit, optional notes, official link); total = 1.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "citation": {
+                                "type": "string",
+                                "description": "Canonical citation, e.g. \"17 U.S.C. § 107\"."
+                              },
+                              "title": {
+                                "type": "integer",
+                                "description": "USC title number."
+                              },
+                              "section": {
+                                "type": "string",
+                                "description": "Section number as requested."
+                              },
+                              "heading": {
+                                "type": "string",
+                                "description": "Official section heading."
+                              },
+                              "context": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "Hierarchy breadcrumb (title › chapter › …)."
+                              },
+                              "text": {
+                                "type": "string",
+                                "description": "Plain-text statutory body (no editorial notes)."
+                              },
+                              "sourceCredit": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "Statutes-at-Large credit (enactment + amendment cites)."
+                              },
+                              "notes": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "Editorial notes, only when includeNotes=true."
+                              },
+                              "truncated": {
+                                "type": "boolean",
+                                "description": "True if a block was cut at the response cap (rare)."
+                              },
+                              "edition": {
+                                "type": "string",
+                                "description": "USC edition served (\"prelim\" = current law)."
+                              },
+                              "url": {
+                                "type": "string",
+                                "description": "Official uscode.house.gov page for the section."
+                              }
+                            },
+                            "required": [
+                              "citation",
+                              "title",
+                              "section",
+                              "heading",
+                              "context",
+                              "text",
+                              "sourceCredit",
+                              "notes",
+                              "truncated",
+                              "edition",
+                              "url"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0018 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "law.usc-section",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0018,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001800"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "title",
+            "in": "query",
+            "required": true,
+            "description": "USC title number, 1-54 (e.g. 17 for Copyrights, 26 for Internal Revenue Code, 42 for Public Health and Welfare).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 54
+            }
+          },
+          {
+            "name": "section",
+            "in": "query",
+            "required": true,
+            "description": "Section number, e.g. \"107\", \"78j\", or \"1395w-4\".",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{1,5}[a-zA-Z]{0,3}(-[0-9a-zA-Z]{1,8})?$"
+            }
+          },
+          {
+            "name": "includeNotes",
+            "in": "query",
+            "required": false,
+            "description": "Include editorial notes (amendment history, effective dates, cross-references). Default false — notes can be long.",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    }
+  }
+}
