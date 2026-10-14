@@ -1,60 +1,117 @@
 ---
 name: agentfeed
 title: "AgentFeed"
-description: "59 pay-per-call JSON endpoints for crypto market state: spot prices, a cross-venue funding radar, open interest, a full Bybit liquidation tape joined with OKX and Binance, Deribit options IV and GEX, stock perps, a macro calendar and Solana token risk."
-use_case: "Use when an agent needs current derivatives or liquidation state before acting: what is liquidating now, where funding and open interest sit, whether a cascade is building. Also for Solana token-risk and wallet holdings without an API key."
+description: "Crypto market data, Solana pre-trade checks, sanctions screening, papers, utilities and language tasks (OCR, translate, summarize, extract, classify, transcribe) for AI agents: 82 pay-per-call JSON data routes in USDC, no API key needed."
+use_case: "Use when an agent needs live derivatives and liquidation state, a Solana token or wallet check before a trade, a sanctions screen, scholarly papers, a hash, QR code or time conversion, or an OCR, translate, summarize or extract task. No account or key."
 category: data
 service_url: https://x402.ochinimus.app
 openapi:
   path: openapi.json
 ---
 
-AgentFeed is a read-only market-data API for agents, gated per call in USDC.
-No accounts and no API keys: every route answers `402` with an x402 challenge
-(Solana mainnet, Base, Polygon, Arbitrum or Arc), the caller pays, and the same
-request returns JSON. x402 v2 clients read the challenge from the `PAYMENT-REQUIRED`
-header and pay with `PAYMENT-SIGNATURE`; x402 v1 clients read the same challenge
-from the JSON body and pay with `X-PAYMENT`, on Solana or Base.
-`/api/sol-price` and `/api/btc-price` also carry an MPP `solana`/`charge`
-challenge in `WWW-Authenticate` on the same 402, so `pay` can settle either
-protocol. Payment goes to `4a8o45skRPcyjAdyR8yES215Swvh8uTpZD6KLarhxCJ7` on
+AgentFeed is a read-only API for agents, gated per call in USDC. Crypto market data for AI agents (liquidations, funding, open interest, prices), Solana pre-trade checks, OFAC sanctions screening, scholarly papers, utilities and fixed-purpose language tasks (OCR, translate, summarize, extract, classify, prompt-injection check, transcribe).
+There are 82 data routes at $0.001-$0.1 per call; one call to every
+data route once costs $1.136. No accounts, no subscriptions and no API key
+needed: every paid route answers `402` with an x402 challenge, the caller pays,
+and the same request returns JSON. Per-call x402 `exact` payments are accepted
+in USDC on six rails (Solana mainnet, Base, Polygon, Arbitrum, Arc or Algorand).
+x402 v2 clients read the challenge from the `PAYMENT-REQUIRED` header and pay
+with `PAYMENT-SIGNATURE`; x402 v1 clients read the same challenge from the JSON
+body and pay with `X-PAYMENT`, on Solana or Base.
+Every paid route also carries an MPP `tempo`/`charge` challenge, and
+`/api/sol-price` and `/api/btc-price` an MPP `solana`/`charge` challenge, in
+`WWW-Authenticate` on the same 402, so `pay` can settle either protocol.
+Payment goes to `4a8o45skRPcyjAdyR8yES215Swvh8uTpZD6KLarhxCJ7` on
 Solana, `0x22DB3A9686EE5261e7Bf3ed4f91277232E8076e6` on Base, Polygon and
-Arbitrum, and `0x0Cf44185564F2b72E291050DC79E578429E52f83` on Arc.
+Arbitrum, `0x0Cf44185564F2b72E291050DC79E578429E52f83` on Arc and
+`QWOWU2E6BB76HEQRRMXWZ2MU4HAQIYZWEPP2W7Y377ZRDIW7ZKD4MMMEPM` on Algorand.
+Every data route also offers the same call at half price (minimum $0.0005) for
+agents that call often: `batch-settlement` vouchers on Base, Polygon and
+Arbitrum, paid to `0x22DB3A9686EE5261e7Bf3ed4f91277232E8076e6`, and Circle Gateway nanopayments
+(`GatewayWalletBatched`) on Base, Polygon, Arbitrum and Arc, paid to
+`0xA853129ACF56A851f9d51CD8cb47619465260Fa9`. An ordinary client should pick a
+per-call `exact` option.
 Take `payTo` from a fresh 402, never from transaction history:
 lookalikes of the EVM address have sent address-poisoning transfers.
 
-The liquidation data is the part that is hard to get elsewhere: Bybit's
-complete, unthrottled liquidation tape, joined with OKX and Binance, with
-history no exchange publishes itself. The measured market count is published
+The liquidation tape is AgentFeed's own recording: Bybit's complete,
+unthrottled liquidation stream, joined with OKX and Binance, with history no
+exchange publishes itself. The measured market count is published
 live by the service at `/` under `coverage.perp_markets_7d`, recomputed from
 the tape rather than restated here, because a number written into a document
 drifts and the tape does not.
 
-The derivatives endpoints cover funding, open interest, long/short account
-ratios, basis and volatility, plus a funding radar that scores every liquid
-perp's funding on Bybit, OKX and Hyperliquid against each venue's own 30 days; the Solana endpoints cover wallet holdings, token
-metadata, holder concentration and rug-risk flags, priority fees and Jito tips.
+The derivatives endpoints read Hyperliquid, the only venue behind the perp
+routes, and cover funding, open interest, the top accounts' net-long share,
+basis and volatility, plus a funding radar that scores the funding of every
+Hyperliquid perp, main dex and HIP-3 dexes, against its own 30 days; the Solana
+endpoints cover wallet holdings, token metadata, holder concentration and
+rug-risk flags, priority fees and Jito tips. `/api/signal-board` is the
+Hyperliquid perp market in one table ranked by open interest (price change,
+funding, open interest and its change, last-hour liquidations, whale net
+position and the crowding and squeeze flags), and `/api/coin-signal/:coin` is
+the same row for one coin plus the 15-minute cascade probability, the nearest
+liquidation clusters and the top whale positions. Both read only data AgentFeed
+records itself and answer 503, never billed, when a source is stale.
 
-The options endpoints read Deribit for BTC, ETH, SOL, XRP and HYPE:
-`/api/options-summary` returns ATM and 30-day implied vol, 25-delta risk
-reversal and butterfly, DVOL and max pain per expiry; `/api/options-gex`
-returns dealer gamma exposure by strike and the flip level. `/api/tradfi-radar`
-ranks stock, index, commodity and FX perps on Hyperliquid HIP-3 dexes, Bybit,
-Binance and OKX by funding, and `/api/equity-24h` gives an indicative weekend
+`/api/tradfi-radar` ranks stock, index, commodity and FX perps on Hyperliquid
+HIP-3 dexes by funding, and `/api/equity-24h` gives an indicative weekend
 price for a US stock from those perps and its tokenized DEX price.
 `/api/macro-calendar` lists FOMC decisions and CPI, NFP and PCE releases with
-UTC times.
+UTC times. `/api/tradfi-perps` gives 24/7 HIP-3 perp prices for stocks,
+indices, commodities and FX, and `/api/fx-rates` the ECB euro reference rates.
+`/api/sec-filings`, `/api/insider-trades` (Form 4) and `/api/sec-8k` read SEC
+EDGAR; `/api/web-markdown` and `/api/pdf-markdown` turn one URL into markdown.
+Spot prices (`/api/price`, `/api/sol-price`, `/api/btc-price`, `/api/eth-price`)
+are read on-chain from deep DEX pools on Solana, Ethereum and Base, and
+`/api/honeypot-check` simulates a buy and a sell of a token on Base, BNB Chain
+or Ethereum.
+
 The peg endpoints are not stablecoins: they measure tokenized US equities that
 trade on Solana against the stock itself - the on-chain DEX price versus the
 underlying's last real trade, broken out by trading session and ranked across
 every tracked name.
 
-Prices run $0.001–$0.1 per call; the spot prices (`/api/price`, `/api/sol-price`, `/api/btc-price`, `/api/eth-price`) are $0.001. Six endpoints are free and carry no payment
+Solana pre-trade checks: `/api/sol-token-check/:mint` ($0.025) returns
+mint and freeze authority, Token-2022 traps, top holders, the deepest pool and
+its depth, the price impact of a $100 and a $1,000 buy, and a verdict with every
+rule; `/api/sol-token-flow/:mint` ($0.008) shows who is trading the token
+(unique traders, top-5 share of volume, round-trip wallets, brand-new buyers,
+launch-slot bundle size); `/api/sol-holder-clusters/:mint`
+($0.008) groups the top 20 holders by the account that first
+funded them.
+
+Research and compliance: `/api/sanctions-check/:address`
+($0.008) matches a wallet address exactly against the OFAC SDN
+list (no match is not a clearance), `/api/papers` and `/api/paper/:doi` read
+OpenAlex (CC0 data), `/api/wiki` returns a Wikipedia summary with its licence,
+and `/api/email-verify` and `/api/domain/:domain` check an email address (no
+SMTP probe) and a domain's DNS records and TLS certificate. Utilities:
+`/api/hash`, `/api/qr`, `/api/time` and `/api/convert`, each $0.005.
+
+Fixed-purpose language tasks: `/api/ocr`, `/api/summarize`, `/api/extract`,
+`/api/translate`, `/api/classify`, `/api/injection-check` and `/api/transcribe`.
+Each is one fixed task: the caller supplies content, never a prompt, model or
+setting, and a provider failure is a 503 that is never billed. These seven are
+not available in every country: where the underlying language-model API is not
+offered they answer 451 before any payment.
+
+Prepaid API keys, for bots that can set an HTTP header but cannot sign an x402
+payment: six purchase routes sell a key once, `/api/keys/buy-trial` ($0.25), `/api/keys/buy-1` ($1), `/api/keys/buy-5` ($5), `/api/keys/buy-20` ($20), `/api/keys/topup-5` ($5), `/api/keys/topup-20` ($20).
+Send the key as `X-AgentFeed-Key` (or `Authorization: Bearer`) on any paid GET;
+a key call draws half the route's x402 price (minimum $0.0005), and a 400, 404,
+500 or 503 is never drawn. `GET /api/keys/balance` with the key header is free. The key is
+a bearer secret; a balance is non-refundable usage credit with no expiry.
+The purchase routes offer the per-call `exact` rails only. They are purchases,
+not data routes, and are not counted in the 82.
+
+Data routes run $0.001-$0.1 per call; the spot prices (`/api/price`, `/api/sol-price`,
+`/api/btc-price`, `/api/eth-price`) are $0.001. Six endpoints are free and carry no payment
 challenge: `/api/fear-greed`, `/api/last-liquidation`, `/api/exit-method`,
 `/api/forecast-record`, `/api/sample` and `/api/sample/{route}`.
 
-The same tools are exposed over MCP at `POST /mcp` for agents that prefer a
-tool interface to raw HTTP.
+The data routes are also exposed as tools over MCP at `POST /mcp` for agents
+that prefer a tool interface to raw HTTP; the prepaid-key routes are HTTP only.
 
 ## Spend-aware usage
 
@@ -62,16 +119,20 @@ tool interface to raw HTTP.
   and liquidations into one response. Prefer it over calling four endpoints
   separately, which costs more and returns a less coherent snapshot.
 - `/api/market-state` ($0.02) is the regime read for one symbol: spot,
-  realized and implied vol, funding z-score, open interest, long/short,
-  basis, liquidation spike and the next macro event in one response.
+  realized vol, funding z-score, open interest, the top Hyperliquid accounts'
+  net-long share, basis, liquidation spike and the next macro event in one
+  response.
 - `/api/market-snapshot` ($0.005) is the cheaper bundle when you only need
   prices, funding and sentiment.
-- `/api/squeeze-score` ($0.1) is the most expensive call in the catalog, at
+- `/api/squeeze-score` ($0.1) is the most expensive data route, at
   twice the next tier. Reach for it when you specifically want the composite
   squeeze read, not as a general market check.
 - `/api/cascade` ($0.01) covers the five majors. `/api/cascade-scan` ($0.05)
   widens the same detector to every perp in the tape and costs five times as
   much, so use it only when the whole universe is genuinely the question.
+- `/api/signal-board` ($0.01) is one call for the whole Hyperliquid market;
+  `/api/coin-signal/:coin` ($0.004) is the row for one coin. Pick the one that
+  matches how many coins you need.
 - `/api/liquidations` accepts a symbol; scope it rather than pulling the
   default majors set and filtering client-side.
 - Token and wallet endpoints are keyed by mint or address. Cache the identifier
@@ -82,13 +143,17 @@ tool interface to raw HTTP.
 - `/api/sample/{route}` returns a paid route's real captured response for free,
   so the exact shape can be checked before paying for it; `/api/sample` lists
   them.
+- A 400 (a symbol nothing lists, a malformed input) and a 503 (a failed or stale
+  source) are never billed. An agent that calls often can buy a prepaid API key
+  once and pay half the x402 price per call.
 
 <!--
 REVIEW NOTES - the four fields below are proposals, not settled:
 
   category: data
-    Proposed over `finance` because every route is read-only market and
-    on-chain data. Nothing here executes a trade, moves funds or touches
+    Proposed over `finance` because every route is a read-only lookup (market,
+    on-chain and reference data) or a fixed-purpose task on content the caller
+    supplies. Nothing here executes a trade, moves funds or touches
     custody, and `finance` in this registry reads as transactional. If the
     maintainers read `finance` as "financial data", that is the better bucket.
 
@@ -97,12 +162,12 @@ REVIEW NOTES - the four fields below are proposals, not settled:
 
   description
     Written to CONTRIBUTING's rule - capabilities and result shapes, not use
-    cases - and sized into the 180-255 band. Leads with the route count and
-    the JSON result shape so search ranks it on substance.
+    cases - and sized into the 180-255 band. Opens with the service's own
+    scope sentence in its short form, then the data-route count (the prepaid-key
+    purchase routes are not counted) and the JSON result shape.
 
   use_case
-    Written as the "when to pick this over alternatives" field. Leads with the
-    liquidation/derivatives angle because that is the genuinely differentiated
-    data; the Solana on-chain routes are second because several registry
-    providers already cover those.
+    Written as the "when to pick this" field: derivatives and liquidation
+    state first, then the Solana pre-trade checks, sanctions screening,
+    papers, utilities and language tasks.
 -->
