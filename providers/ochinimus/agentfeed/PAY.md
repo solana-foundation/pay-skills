@@ -1,7 +1,7 @@
 ---
 name: agentfeed
 title: "AgentFeed"
-description: "Crypto market data, Solana pre-trade checks, sanctions screening, papers, utilities and language tasks (OCR, translate, summarize, extract, classify, transcribe) for AI agents: 82 pay-per-call JSON data routes in USDC, no API key needed."
+description: "Crypto market data, Solana pre-trade checks, sanctions screening, papers, utilities and language tasks (OCR, translate, summarize, extract, classify, transcribe) for AI agents: 82 pay-per-call JSON data routes, USDC on 9 networks, 11 more on request."
 use_case: "Use when an agent needs live derivatives and liquidation state, a Solana token or wallet check before a trade, a sanctions screen, scholarly papers, a hash, QR code or time conversion, or an OCR, translate, summarize or extract task. No account or key."
 category: data
 service_url: https://x402.ochinimus.app
@@ -9,21 +9,33 @@ openapi:
   path: openapi.json
 ---
 
-AgentFeed is a read-only API for agents, gated per call in USDC. Crypto market data for AI agents (liquidations, funding, open interest, prices), Solana pre-trade checks, OFAC sanctions screening, scholarly papers, utilities and fixed-purpose language tasks (OCR, translate, summarize, extract, classify, prompt-injection check, transcribe).
+AgentFeed is a read-only API for agents, gated per call. Crypto market data for AI agents (liquidations, funding, open interest, prices), Solana pre-trade checks, OFAC sanctions screening, scholarly papers, utilities and fixed-purpose language tasks (OCR, translate, summarize, extract, classify, prompt-injection check, transcribe).
 There are 82 data routes at $0.001-$0.1 per call; one call to every
 data route once costs $1.136. No accounts, no subscriptions and no API key
-needed: every paid route answers `402` with an x402 challenge, the caller pays,
-and the same request returns JSON. Per-call x402 `exact` payments are accepted
-in USDC on six rails (Solana mainnet, Base, Polygon, Arbitrum, Arc or Algorand).
+needed to pay per call: every paid route answers `402` with an x402 challenge,
+the caller pays, and the same request returns JSON.
+Every 402 offers per-call x402 `exact` payments in USDC on 9 networks: Solana
+mainnet, Base, Polygon, Arbitrum, Arc, Algorand, Optimism, Monad and Avalanche.
+11 more networks are offered on request: ask for one with
+`GET /api/<route>|<network>` (the `|` may be sent as `%7C`; the network is its
+CAIP-2 id, for example `/api/sol-price|eip155:42220`) and that route's 402 also
+offers it. They are Celo (eip155:42220, USDC), HyperEVM (eip155:999, USDC),
+Unichain (eip155:130, USDC), Scroll (eip155:534352, USDC), SKALE Base
+(eip155:1187947933, USDC.e), BNB Chain (eip155:56, AUSD), Ethereum (eip155:1,
+USDC), Robinhood Chain (eip155:4663, USDG) and World Chain (eip155:480, USDC);
+on routes priced $0.005 or more only, also Sei (eip155:1329, USDC) and X Layer
+(eip155:196, USDC). The token is not always USDC on these 11 networks.
 x402 v2 clients read the challenge from the `PAYMENT-REQUIRED` header and pay
 with `PAYMENT-SIGNATURE`; x402 v1 clients read the same challenge from the JSON
 body and pay with `X-PAYMENT`, on Solana or Base.
-Every paid route also carries an MPP `tempo`/`charge` challenge, and
-`/api/sol-price` and `/api/btc-price` an MPP `solana`/`charge` challenge, in
-`WWW-Authenticate` on the same 402, so `pay` can settle either protocol.
-Payment goes to `4a8o45skRPcyjAdyR8yES215Swvh8uTpZD6KLarhxCJ7` on
-Solana, `0x22DB3A9686EE5261e7Bf3ed4f91277232E8076e6` on Base, Polygon and
-Arbitrum, `0x0Cf44185564F2b72E291050DC79E578429E52f83` on Arc and
+Every paid route also carries an MPP `tempo`/`charge` challenge (Tempo, paid in
+OUSD or USDC.e), and `/api/sol-price` and `/api/btc-price` an MPP
+`solana`/`charge` challenge, in `WWW-Authenticate` on the same 402, so `pay` can
+settle either protocol. x402 on 20 networks and MPP on Tempo make 21 chains.
+Payment goes to `4a8o45skRPcyjAdyR8yES215Swvh8uTpZD6KLarhxCJ7` on Solana,
+`0x22DB3A9686EE5261e7Bf3ed4f91277232E8076e6` on Base, Polygon, Arbitrum,
+Optimism, Monad, Avalanche and each of the 11 networks offered on request,
+`0x0Cf44185564F2b72E291050DC79E578429E52f83` on Arc and
 `QWOWU2E6BB76HEQRRMXWZ2MU4HAQIYZWEPP2W7Y377ZRDIW7ZKD4MMMEPM` on Algorand.
 Every data route also offers the same call at half price (minimum $0.0005) for
 agents that call often: `batch-settlement` vouchers on Base, Polygon and
@@ -100,15 +112,19 @@ Prepaid API keys, for bots that can set an HTTP header but cannot sign an x402
 payment: six purchase routes sell a key once, `/api/keys/buy-trial` ($0.25), `/api/keys/buy-1` ($1), `/api/keys/buy-5` ($5), `/api/keys/buy-20` ($20), `/api/keys/topup-5` ($5), `/api/keys/topup-20` ($20).
 Send the key as `X-AgentFeed-Key` (or `Authorization: Bearer`) on any paid GET;
 a key call draws half the route's x402 price (minimum $0.0005), and a 400, 404,
-500 or 503 is never drawn. `GET /api/keys/balance` with the key header is free. The key is
-a bearer secret; a balance is non-refundable usage credit with no expiry.
-The purchase routes offer the per-call `exact` rails only. They are purchases,
-not data routes, and are not counted in the 82.
+500 or 503 is never drawn. `GET /api/keys/balance` is free: send the key in the
+`X-AgentFeed-Key` header and it returns balance_usd, calls, spent_usd,
+last_used, rate_per_min and status (a missing or unknown key answers 401). The
+key is a bearer secret; a balance is non-refundable usage credit with no expiry.
+The purchase routes offer the per-call `exact` option only, on the same 9
+networks and, on request, the 11 more; they have no half-price option. They are
+purchases, not data routes, and are not counted in the 82.
 
 Data routes run $0.001-$0.1 per call; the spot prices (`/api/price`, `/api/sol-price`,
-`/api/btc-price`, `/api/eth-price`) are $0.001. Six endpoints are free and carry no payment
+`/api/btc-price`, `/api/eth-price`) are $0.001. Seven endpoints are free and carry no payment
 challenge: `/api/fear-greed`, `/api/last-liquidation`, `/api/exit-method`,
-`/api/forecast-record`, `/api/sample` and `/api/sample/{route}`.
+`/api/forecast-record`, `/api/sample`, `/api/sample/{route}` and
+`/api/keys/balance` (which takes the key header).
 
 The data routes are also exposed as tools over MCP at `POST /mcp` for agents
 that prefer a tool interface to raw HTTP; the prepaid-key routes are HTTP only.
@@ -164,7 +180,8 @@ REVIEW NOTES - the four fields below are proposals, not settled:
     Written to CONTRIBUTING's rule - capabilities and result shapes, not use
     cases - and sized into the 180-255 band. Opens with the service's own
     scope sentence in its short form, then the data-route count (the prepaid-key
-    purchase routes are not counted) and the JSON result shape.
+    purchase routes are not counted), the JSON result shape and the network
+    count (the networks every 402 offers; more are offered on request).
 
   use_case
     Written as the "when to pick this" field: derivatives and liquidation
