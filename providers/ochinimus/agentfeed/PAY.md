@@ -1,7 +1,7 @@
 ---
 name: agentfeed
 title: "AgentFeed"
-description: "Crypto market data, Solana pre-trade checks, sanctions screening, papers, utilities and language tasks (OCR, translate, summarize, extract, classify, transcribe) for AI agents: 82 pay-per-call JSON data routes, USDC on 9 networks, 11 more on request."
+description: "Crypto market data, Solana pre-trade checks, sanctions screening, papers, utilities and language tasks (OCR, translate, summarize, extract, classify, transcribe) for AI agents: 83 pay-per-call JSON data routes, USDC on 9 networks, 11 more on request."
 use_case: "Use when an agent needs live derivatives and liquidation state, a Solana token or wallet check before a trade, a sanctions screen, scholarly papers, a hash, QR code or time conversion, or an OCR, translate, summarize or extract task. No account or key."
 category: data
 service_url: https://x402.ochinimus.app
@@ -10,8 +10,8 @@ openapi:
 ---
 
 AgentFeed is a read-only API for agents, gated per call. Crypto market data for AI agents (liquidations, funding, open interest, prices), Solana pre-trade checks, OFAC sanctions screening, scholarly papers, utilities and fixed-purpose language tasks (OCR, translate, summarize, extract, classify, prompt-injection check, transcribe).
-There are 82 data routes at $0.001-$0.1 per call; one call to every
-data route once costs $1.136. No accounts, no subscriptions and no API key
+There are 83 data routes at $0.001-$0.1 per call; one call to every
+data route once costs $1.137. No accounts, no subscriptions and no API key
 needed to pay per call: every paid route answers `402` with an x402 challenge,
 the caller pays, and the same request returns JSON.
 Every 402 offers per-call x402 `exact` payments in USDC on 9 networks: Solana
@@ -109,7 +109,7 @@ not available in every country: where the underlying language-model API is not
 offered they answer 451 before any payment.
 
 Prepaid API keys, for bots that can set an HTTP header but cannot sign an x402
-payment: six purchase routes sell a key once, `/api/keys/buy-trial` ($0.25), `/api/keys/buy-1` ($1), `/api/keys/buy-5` ($5), `/api/keys/buy-20` ($20), `/api/keys/topup-5` ($5), `/api/keys/topup-20` ($20).
+payment: seven purchase routes sell a key once, `/api/keys/buy-trial` ($0.25), `/api/keys/buy-1` ($1), `/api/keys/buy-5` ($5), `/api/keys/buy-20` ($20), `/api/keys/topup-5` ($5), `/api/keys/topup-20` ($20), and `/api/keys/buy-pass` ($25: a 30-day pass that works only on `/api/liq-feed` and draws nothing per call).
 Send the key as `X-AgentFeed-Key` (or `Authorization: Bearer`) on any paid GET;
 a key call draws half the route's x402 price (minimum $0.0005), and a 400, 404,
 500 or 503 is never drawn. `GET /api/keys/balance` is free: send the key in the
@@ -118,7 +118,7 @@ last_used, rate_per_min and status (a missing or unknown key answers 401). The
 key is a bearer secret; a balance is non-refundable usage credit with no expiry.
 The purchase routes offer the per-call `exact` option only, on the same 9
 networks and, on request, the 11 more; they have no half-price option. They are
-purchases, not data routes, and are not counted in the 82.
+purchases, not data routes, and are not counted in the 83.
 
 Data routes run $0.001-$0.1 per call; the spot prices (`/api/price`, `/api/sol-price`,
 `/api/btc-price`, `/api/eth-price`) are $0.001. Seven endpoints are free and carry no payment
