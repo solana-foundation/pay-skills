@@ -1,0 +1,936 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Treza Video Generation",
+    "version": "3.0.0",
+    "description": "The video product of the Treza API, paid per call with x402 (USDC on Solana mainnet or Base). Snapshot of https://www.trezalabs.com/.well-known/openapi.json."
+  },
+  "servers": [
+    {
+      "url": "https://www.trezalabs.com",
+      "description": "Production"
+    }
+  ],
+  "paths": {
+    "/api/x402/video": {
+      "post": {
+        "operationId": "x402GenerateVideo",
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "dynamic",
+            "currency": "USD",
+            "min": "0.42",
+            "max": "4.90"
+          }
+        },
+        "summary": "Generate a video from a prompt or a first frame, paid with x402",
+        "description": "Generates a video from a text prompt, or animates an image_url from its first frame. The paid response waits about as long as the chosen model usually takes to render and returns the video URL when it is ready, otherwise a statusUrl to poll. Pay via the x402 protocol (HTTP 402): call without payment to receive a 402 challenge carrying the price and networks, sign the payment with an x402-capable wallet, and retry with the payment-signature header. The challenge lists two ways to pay the same amount: USDC on Base (eip155:8453) first, then USDC on Solana mainnet (solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp); a client pays the first one it has a wallet for, and neither needs gas money in the paying wallet. No account, API key, or signup is involved, so the payment is the only credential. A payment presented again after it was redeemed is refused with a 409 (code PAYMENT_ALREADY_REDEEMED) rather than rendered twice. Price is quoted per request and depends on the model and clip length you pick, so send the model and seconds you want and read the amount off the challenge rather than assuming a fixed figure; GET this path with no parameters for every model and price. Only the documented fields are read; a request carrying any other field is refused with a 400 before any payment moves, so nothing you send can be silently ignored and paid for. An image_url with no model renders on the cheapest model that takes an image at the length you ask for (wan-2.7 for 5 or 10 seconds, kling-3.0 for 15, veo-3.1-lite for 4, 6 or 8 or when you name no length), and the 402 quotes that model's price. The image is fetched and checked before the payment settles, so an image that cannot be used is refused (400, or 413 when it is too large, with a code) with nothing charged.\n\nThe paid call answers 200 at once, with the statusUrl in the X-Status-Url header, then sends a whitespace byte every 2 seconds while it waits (JSON parsers ignore it), and ends with one complete JSON object. By default it waits about as long as that model and length usually take to render (at least 45 seconds, about two and a half minutes for 5 seconds on minimax-h3, up to about ten for 15 seconds on seedance-2.5), so a caller that does not poll still gets its video; a client with a fixed timeout, such as the 60 seconds MCP tool calls allow, should send Prefer: wait=N or respond-async, and has the statusUrl in the X-Status-Url header either way. Read status in that body: success carries the video URL; error or partial means the render failed, nothing was charged for it, and retryUrl renders again on the wallet balance the payment left, without paying twice; running means the render is still going, so poll statusUrl. Send Prefer: wait=N to wait up to N seconds instead (at most 720). To get the statusUrl at once, send \"async\": true in the body or the header Prefer: respond-async, and the call answers 202 with a runId and a statusUrl to poll. Preference-Applied echoes the preference that was honoured.",
+        "parameters": [
+          {
+            "name": "Prefer",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional. respond-async answers 202 at once with a statusUrl to poll, like \"async\": true. wait=N sets how long the call waits for the render, in seconds (at most 720), before it ends with status running and the statusUrl. Without it, the call waits about as long as that model and length usually take to render: at least 45 seconds, about two and a half minutes for 5 seconds on minimax-h3, up to about ten minutes for 15 seconds on seedance-2.5. A client with a fixed timeout, such as the 60 seconds MCP tool calls allow, should send wait=N under it or respond-async. Echoed in Preference-Applied."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "prompt"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "prompt": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "description": "What the video should show."
+                  },
+                  "seconds": {
+                    "type": "number",
+                    "enum": [
+                      4,
+                      5,
+                      6,
+                      8,
+                      10,
+                      15
+                    ],
+                    "description": "Clip length. Each model sells its own lengths: minimax-h3, kling-3.0, kling-3.0-pro and seedance-2.5 take 5, 10 or 15; veo-3.1-lite, veo-3.1-fast and veo-3.1 take 4, 6 or 8; wan-2.7 takes 5 or 10. Defaults to the model's shortest. A length the model does not sell is refused with a 400 before payment. The 402 challenge quotes the price for the length and model you send."
+                  },
+                  "aspectRatio": {
+                    "type": "string",
+                    "enum": [
+                      "16:9",
+                      "9:16"
+                    ],
+                    "default": "16:9",
+                    "description": "Landscape or vertical. An image_url is cropped to it (1280x720 or 720x1280)."
+                  },
+                  "model": {
+                    "type": "string",
+                    "enum": [
+                      "minimax-h3",
+                      "veo-3.1-lite",
+                      "wan-2.7",
+                      "veo-3.1-fast",
+                      "kling-3.0",
+                      "kling-3.0-pro",
+                      "seedance-2.5",
+                      "veo-3.1"
+                    ],
+                    "description": "Which video model renders it. Without an image_url it defaults to minimax-h3. With an image_url and no model, the cheapest model that takes an image at the length you ask for: wan-2.7 for 5 or 10 seconds, kling-3.0 for 15, veo-3.1-lite for 4, 6 or 8 or no length. minimax-h3 (MiniMax Hailuo 3, default): 768p with native audio and the fewest prompt refusals; text only, so it cannot take an image_url; $0.42 for 5s, $0.84 for 10s, $1.26 for 15s. veo-3.1-lite (Google Veo 3.1 Lite): Google Veo at its lowest price with native audio, usually ready in about a minute; Google's safety filter returns nothing for some prompts, which is not charged and can be retried; $0.45 for 4s, $0.68 for 6s, $0.90 for 8s. wan-2.7 (Alibaba Wan 2.7): native audio, and the most permissive with photos of real people as a first frame; $0.70 for 5s, $1.40 for 10s. veo-3.1-fast (Google Veo 3.1 Fast): sharper Veo with native audio, typically under two minutes; $0.68 for 4s, $1.01 for 6s, $1.35 for 8s. kling-3.0 (Kling 3.0): 720p with native audio; $0.89 for 5s, $1.77 for 10s, $2.65 for 15s. kling-3.0-pro (Kling 3.0 Pro): Kling's higher-fidelity tier, 720p with native audio; $1.18 for 5s, $2.36 for 10s, $3.53 for 15s. seedance-2.5 (ByteDance Seedance 2.5): 720p with native audio and higher fidelity, with a strict content filter that refuses prompts resembling a brand, a broadcast, or a famous scene, and photos of real people; a refusal is not charged and the response carries a retryUrl; $1.64 for 5s, $3.27 for 10s, $4.90 for 15s. veo-3.1 (Google Veo 3.1): Google's top-fidelity model with synchronized audio, for final shots; $2.24 for 4s, $3.36 for 6s, $4.48 for 8s. Every model except minimax-h3 takes an image_url. GET this path with no parameters for the current list and prices. An unknown value is refused with a 400 before payment."
+                  },
+                  "image_url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "Optional first frame (image-to-video): a public https URL to a JPEG, PNG or WebP of up to 10 MB. It is cropped to the aspectRatio you buy (1280x720 or 720x1280) and the video starts from it. Every model except minimax-h3 takes one. Sent without a model it renders on the cheapest model that takes an image at the length you ask for (wan-2.7 for 5 or 10 seconds, kling-3.0 for 15, veo-3.1-lite for 4, 6 or 8 or no length), and the 402 challenge quotes that price. Sent with model minimax-h3 it is refused with a 400 (code IMAGE_MODEL_MISMATCH) before payment. The image must be fetchable within 4 seconds. It is fetched and checked before the payment settles, so one that cannot be used costs nothing."
+                  },
+                  "async": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "true answers 202 at once with a runId and a statusUrl to poll, instead of waiting for the render. The header Prefer: respond-async does the same."
+                  }
+                }
+              },
+              "example": {
+                "prompt": "a manta ray gliding over a sunlit coral reef, slow cinematic drift",
+                "seconds": 5,
+                "aspectRatio": "16:9",
+                "model": "minimax-h3"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Payment settled and the response waited for the render, by default about as long as that model usually takes (at least 45 seconds), or the Prefer: wait=N asked for. Streamed: the status and headers are sent at once (X-Status-Url carries the statusUrl), then a whitespace byte every 2 seconds, which JSON parsers ignore, then one complete JSON object. The HTTP status is 200 whatever happened to the render, so read status in the body: success carries video; error or partial carries the failure fields and a retryUrl, and nothing was charged for the render; running means the render is still going (it outlasted the wait, or is being collected from the provider, see note), so poll statusUrl.",
+            "headers": {
+              "X-Status-Url": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "The statusUrl, sent before the render finishes, so a caller whose connection drops can still claim the video."
+              },
+              "Preference-Applied": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "The Prefer value honoured, e.g. wait=120."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "success",
+                        "error",
+                        "partial",
+                        "cancelled",
+                        "running"
+                      ],
+                      "example": "success",
+                      "description": "success carries video. error, partial, and cancelled carry the failure fields. running means the render is still going; poll statusUrl."
+                    },
+                    "startedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "finishedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "durationMs": {
+                      "type": "integer"
+                    },
+                    "video": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "URL of the finished video. Use it exactly as given: its query parameters, including c=, are part of it."
+                    },
+                    "outputs": {
+                      "type": "object",
+                      "properties": {
+                        "video": {
+                          "type": "string",
+                          "format": "uri"
+                        }
+                      }
+                    },
+                    "statusUrl": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "The run's status, now and later. It carries its own signed claim ticket, so it needs no other credential. Use it exactly as given: the runId contains '#', encoded as %23."
+                    },
+                    "pollAfterMs": {
+                      "type": "integer",
+                      "description": "Only when status is running: how long to wait before polling statusUrl."
+                    },
+                    "note": {
+                      "type": "string",
+                      "description": "Set while a render that outlasted its deadline is being collected from the provider: status stays running until the clip arrives, then turns success with the video. Retry is refused meanwhile."
+                    },
+                    "paidUsd": {
+                      "type": "number",
+                      "description": "What this request cost, quoted from its model and clip length."
+                    },
+                    "model": {
+                      "type": "string",
+                      "description": "The model that rendered it, echoed from the request or the default."
+                    },
+                    "seconds": {
+                      "type": "number"
+                    },
+                    "aspectRatio": {
+                      "type": "string"
+                    },
+                    "imageUrl": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "The image_url you sent, when you sent one."
+                    },
+                    "network": {
+                      "type": "string",
+                      "description": "Where the payment settled: eip155:8453 (Base) or solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp (Solana)."
+                    },
+                    "transaction": {
+                      "type": "string",
+                      "description": "The settled payment: a 0x transaction hash on Base, a base58 transaction signature on Solana."
+                    },
+                    "payer": {
+                      "type": "string",
+                      "description": "The paying wallet: a 0x address on Base, a base58 address on Solana."
+                    },
+                    "error": {
+                      "type": "string",
+                      "description": "Failed runs only. What went wrong, in the provider's words."
+                    },
+                    "failedStep": {
+                      "type": "string",
+                      "description": "Failed runs only. The step that failed, e.g. Video Generation."
+                    },
+                    "reason": {
+                      "type": "string",
+                      "enum": [
+                        "prompt_refused",
+                        "render_failed"
+                      ],
+                      "description": "Failed runs only. prompt_refused: the model declined the prompt or image, so reword it. render_failed: the render did not finish; the same prompt may succeed."
+                    },
+                    "retryable": {
+                      "type": "boolean",
+                      "description": "Failed runs only. True until the run's one free retry has been used."
+                    },
+                    "retryUrl": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "Failed runs only. POST here to render again on the wallet balance, optionally with {\"prompt\": \"...\"} in the body. Carries the same signed ticket."
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Failed runs only. What happened and what to do, in one sentence."
+                    },
+                    "balanceUsd": {
+                      "type": "number",
+                      "description": "Failed or still-running runs: credit left on the paying wallet, which a retry spends."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Only when the body has \"async\": true or the request carries Prefer: respond-async: payment settled and the render started. Poll statusUrl until status leaves running.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "The statusUrl again, in the header HTTP clients read on a 202. GET it to collect the result."
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds to wait before polling the statusUrl."
+              },
+              "X-Status-Url": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "Same as statusUrl in the body."
+              },
+              "Preference-Applied": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "respond-async, when that header asked for the 202."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "example": "running"
+                    },
+                    "statusUrl": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "Poll this for the finished video. It carries its own signed ticket, so it needs no other credential."
+                    },
+                    "pollAfterMs": {
+                      "type": "integer"
+                    },
+                    "paidUsd": {
+                      "type": "number",
+                      "description": "What this request cost, quoted from its model and clip length."
+                    },
+                    "model": {
+                      "type": "string",
+                      "description": "The model that renders it, echoed from the request or the default."
+                    },
+                    "seconds": {
+                      "type": "number"
+                    },
+                    "aspectRatio": {
+                      "type": "string"
+                    },
+                    "imageUrl": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "The image_url you sent, when you sent one."
+                    },
+                    "balanceUsd": {
+                      "type": "number",
+                      "description": "Credit left on the paying wallet once this render is funded."
+                    },
+                    "network": {
+                      "type": "string",
+                      "description": "eip155:8453 (Base) or solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp (Solana)."
+                    },
+                    "transaction": {
+                      "type": "string",
+                      "description": "A 0x transaction hash on Base, a base58 transaction signature on Solana."
+                    },
+                    "payer": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or oversized prompt, a length or model that is not on sale, an image_url sent with model minimax-h3, an image_url that cannot be used, or a field this endpoint does not read. Refused before settlement, so nothing was charged; the body names what was wrong and what is accepted. Every image_url problem carries a code: IMAGE_URL_INVALID (not a plain https URL: http, a username or password, or a non-default port), IMAGE_URL_BLOCKED (a private, loopback or internal host), IMAGE_MODEL_MISMATCH (sent with minimax-h3, which is text only), IMAGE_FETCH_FAILED (the download failed or took over 4 seconds), IMAGE_UNSUPPORTED_TYPE (not a JPEG, PNG or WebP), or IMAGE_DIMENSIONS.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "IMAGE_URL_INVALID",
+                        "IMAGE_URL_BLOCKED",
+                        "IMAGE_MODEL_MISMATCH",
+                        "IMAGE_FETCH_FAILED",
+                        "IMAGE_UNSUPPORTED_TYPE",
+                        "IMAGE_DIMENSIONS"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required: the challenge response carrying x402 payment instructions"
+          },
+          "413": {
+            "description": "image_url is larger than 10 MB (code IMAGE_TOO_LARGE). Refused before settlement, so nothing was charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "IMAGE_TOO_LARGE"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "This payment was already redeemed for a render (code PAYMENT_ALREADY_REDEEMED). Nothing new was rendered or charged; send a new payment to buy another clip.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "PAYMENT_ALREADY_REDEEMED"
+                      ]
+                    },
+                    "transaction": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Pay-per-video is not enabled on this deployment, or is temporarily unavailable. An image_url that could not be stored on our side answers 503 with code IMAGE_STORE_FAILED; nothing was charged."
+          }
+        }
+      },
+      "get": {
+        "operationId": "x402GetVideoRun",
+        "summary": "Poll a video run bought with an x402 payment",
+        "description": "Returns the run's status and, once it has finished, the video URL. The paid POST returns the result when the render finishes within its wait, so this is for a run whose POST ended with status running, was sent async, or lost its connection: the POST's X-Status-Url header carries this URL from the first byte. The token is the claim ticket handed back by the paid POST, and is the only credential needed. Send the header Prefer: wait=N to hold the answer until the run finishes, for up to N seconds (at most 720), streamed the same way as the paid POST (a whitespace byte every 2 seconds, then the JSON); Preference-Applied echoes it. The video URL carries a download marker (c=) among its query parameters; use it exactly as given. A run that failed answers with the provider's error, a reason (prompt_refused or render_failed), and a retryUrl; nothing is charged for a failed render, so the payment stays on the wallet balance and the retry spends it. Once it has been retried, it answers with retriedBy (the retry's runId and statusUrl) instead, and retryable false. A render that outlasted its deadline reads running with a note while the clip is collected, then success with the video. Called with no query parameters at all, this returns the offer list instead: every model on sale with what it is for, whether it takes a first frame, and its prices, plus the request fields, the limits, and how to buy one.",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required to poll a run. Omit both this and token to get the offer list."
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signed claim ticket from the paid POST. Required to poll a run."
+          },
+          {
+            "name": "Prefer",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional. wait=N holds the answer until the run finishes, for up to N seconds (at most 720), streamed as a whitespace byte every 2 seconds and then the JSON."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Run status plus the video URL once it has finished; or, when called with no query parameters, the offer list (service, description, howToBuy, fields, models[], offers[], limits, delivery)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "title": "Run status",
+                      "required": [
+                        "runId",
+                        "status"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "runId": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "running",
+                            "success",
+                            "partial",
+                            "error",
+                            "cancelled"
+                          ],
+                          "example": "success",
+                          "description": "running until the render finishes; success carries the video; partial, error, and cancelled carry the failure fields."
+                        },
+                        "startedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "finishedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "durationMs": {
+                          "type": "integer"
+                        },
+                        "pollAfterMs": {
+                          "type": "integer",
+                          "description": "While running: how long to wait before polling again."
+                        },
+                        "video": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "URL of the finished video. Use it exactly as given: its query parameters, including c=, are part of it."
+                        },
+                        "outputs": {
+                          "type": "object"
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Failed runs only. What went wrong, in the provider's words."
+                        },
+                        "failedStep": {
+                          "type": "string",
+                          "description": "Failed runs only. The step that failed, e.g. Video Generation."
+                        },
+                        "reason": {
+                          "type": "string",
+                          "enum": [
+                            "prompt_refused",
+                            "render_failed"
+                          ],
+                          "description": "Failed runs only. prompt_refused: the model declined the prompt or image, so reword it. render_failed: the render did not finish; the same prompt may succeed."
+                        },
+                        "retryable": {
+                          "type": "boolean",
+                          "description": "Failed runs only. True until the run's one free retry has been used, then false."
+                        },
+                        "retryUrl": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "Failed runs only, until retried. POST here to render again on the wallet balance, optionally with {\"prompt\": \"...\"} in the body. Carries the same signed ticket."
+                        },
+                        "retriedBy": {
+                          "type": "object",
+                          "description": "Failed runs only, once retried: the retry. Poll its statusUrl for the result.",
+                          "properties": {
+                            "runId": {
+                              "type": "string"
+                            },
+                            "statusUrl": {
+                              "type": "string",
+                              "format": "uri"
+                            }
+                          }
+                        },
+                        "retriedByRunId": {
+                          "type": "string",
+                          "description": "Failed runs only, once retried: the run the retry started (also retriedBy.runId)."
+                        },
+                        "note": {
+                          "type": "string",
+                          "description": "Set while a render that outlasted its deadline is being collected from the provider: status stays running until the clip arrives, then turns success with the video."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Failed runs only. What happened and what to do, in one sentence."
+                        },
+                        "balanceUsd": {
+                          "type": "number",
+                          "description": "Failed runs only. Credit left on the paying wallet, which the retry spends."
+                        },
+                        "retryOf": {
+                          "type": "string",
+                          "description": "Set on a run started by a retry: the failed run it replaces."
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "title": "Menu",
+                      "description": "Returned when the GET carries no query parameters: what is on sale, the prices, and how to buy.",
+                      "required": [
+                        "service",
+                        "howToBuy",
+                        "fields"
+                      ],
+                      "properties": {
+                        "service": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "howToBuy": {
+                          "type": "object",
+                          "description": "The request to send: method, an example body, and how payment works.",
+                          "properties": {
+                            "method": {
+                              "type": "string"
+                            },
+                            "body": {
+                              "type": "object"
+                            },
+                            "note": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "fields": {
+                          "type": "object",
+                          "description": "Each request field and what it takes.",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "models": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "default": {
+                                "type": "boolean"
+                              },
+                              "firstFrame": {
+                                "type": "boolean",
+                                "description": "Whether it takes an image_url."
+                              },
+                              "note": {
+                                "type": "string",
+                                "description": "What it is for."
+                              },
+                              "prices": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "seconds": {
+                                      "type": "number"
+                                    },
+                                    "priceUsd": {
+                                      "type": "number"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "offers": {
+                          "type": "array",
+                          "description": "Every model, length and aspect ratio on sale, with its price.",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "model": {
+                                "type": "string"
+                              },
+                              "seconds": {
+                                "type": "number"
+                              },
+                              "aspectRatio": {
+                                "type": "string"
+                              },
+                              "priceUsd": {
+                                "type": "number"
+                              }
+                            }
+                          }
+                        },
+                        "limits": {
+                          "type": "object",
+                          "description": "maxPromptChars, and the seconds, aspectRatio and model values on sale."
+                        },
+                        "delivery": {
+                          "type": "string",
+                          "description": "How the paid call answers and where the file ends up."
+                        },
+                        "alreadyPaid": {
+                          "type": "string",
+                          "description": "Where a file already paid for can be collected, for a buyer that lost its statusUrl."
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "One of runId and token was given without the other. Supply both to poll a run, or neither to get the offer list. The runId contains '#', so a hand-built URL must keep it encoded as %23; use statusUrl exactly as returned."
+          },
+          "403": {
+            "description": "Invalid, expired, or mismatched token"
+          },
+          "404": {
+            "description": "Run not found"
+          }
+        }
+      }
+    },
+    "/api/x402/video/retry": {
+      "post": {
+        "operationId": "x402RetryVideoRun",
+        "summary": "Render a failed pay-per-video run again, without paying twice",
+        "description": "A render that failed after the payment settled (the model refused the prompt, or the render did not finish) charged nothing, so the payment is still on the wallet's balance. POST here with the failed run's claim ticket to render again on that balance. Send {\"prompt\": \"...\"} to reword the prompt, which is the fix for prompt_refused; send no body to render the original prompt again. The retry renders the same model, length, aspect ratio, and first frame the failed run was sold. Each failed run can be retried once. Like the paid POST, it waits by default about as long as that model usually takes to render (Prefer: wait=N, at most 720) and ends with the result, or with status running and a statusUrl, in the same streamed 200 response; send \"async\": true, or the header Prefer: respond-async, for an immediate 202 with a new runId and statusUrl. A run whose render outlasted its deadline is refused (409) while its clip is being collected.",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The failed run, from its status response."
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signed claim ticket from the paid POST. The retryUrl in the status response carries both."
+          },
+          {
+            "name": "Prefer",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional. respond-async answers 202 at once; wait=N sets how long the call waits for the render, in seconds (at most 720). Without it, the call waits about as long as that model and length usually take to render, as the paid POST does, which can be several minutes."
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "prompt": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "description": "A reworded prompt. Omit to render the original again."
+                  },
+                  "async": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "true answers 202 at once with a statusUrl to poll, instead of waiting for the render."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The retry started and the response waited for it, by default about as long as that model usually takes to render, streamed the same way as the paid POST (X-Status-Url header at once, a whitespace byte every 2 seconds, then the JSON). Same shape as the paid POST's 200, plus retryOf (the failed run) and paidUsd 0. Read status in the body: success carries video; running means the render is still going, so poll statusUrl.",
+            "headers": {
+              "X-Status-Url": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "The retry's statusUrl."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "success",
+                        "error",
+                        "partial",
+                        "cancelled",
+                        "running"
+                      ],
+                      "example": "success"
+                    },
+                    "video": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "URL of the finished video. Use it exactly as given."
+                    },
+                    "outputs": {
+                      "type": "object"
+                    },
+                    "statusUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "retryOf": {
+                      "type": "string"
+                    },
+                    "paidUsd": {
+                      "type": "number",
+                      "example": 0
+                    },
+                    "model": {
+                      "type": "string",
+                      "description": "The model the failed run was sold on; the retry renders on the same one."
+                    },
+                    "seconds": {
+                      "type": "number"
+                    },
+                    "aspectRatio": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string",
+                      "description": "If the retry failed too: what went wrong, in the provider's words."
+                    },
+                    "reason": {
+                      "type": "string",
+                      "enum": [
+                        "prompt_refused",
+                        "render_failed"
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "balanceUsd": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Only with \"async\": true or Prefer: respond-async: the retry started. Same shape as the paid POST's 202, plus retryOf (the failed run) and paidUsd 0.",
+            "headers": {
+              "X-Status-Url": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "The statusUrl, the same as in the body."
+              },
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "The statusUrl again, in the header HTTP clients read on a 202. GET it to collect the result."
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds to wait before polling the statusUrl."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "example": "running"
+                    },
+                    "statusUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "pollAfterMs": {
+                      "type": "integer"
+                    },
+                    "retryOf": {
+                      "type": "string"
+                    },
+                    "paidUsd": {
+                      "type": "number",
+                      "example": 0
+                    },
+                    "model": {
+                      "type": "string",
+                      "description": "The model the failed run was sold on; the retry renders on the same one."
+                    },
+                    "seconds": {
+                      "type": "number"
+                    },
+                    "aspectRatio": {
+                      "type": "string"
+                    },
+                    "balanceUsd": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "runId and token are required, or the prompt sent is empty or too long"
+          },
+          "402": {
+            "description": "The wallet balance no longer covers a render of this size; the body carries balanceUsd, priceUsd, and payUrl for a new paid request"
+          },
+          "403": {
+            "description": "Invalid, expired, or mismatched token"
+          },
+          "404": {
+            "description": "Run not found, or the ticket is not for a pay-per-video run"
+          },
+          "409": {
+            "description": "The run is still rendering, is still being collected from the provider, finished successfully, or has already been retried. An already-retried run's 409 carries retriedBy (the retry's runId and statusUrl): poll that statusUrl for the result."
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Pay-per-video is temporarily unavailable"
+          }
+        }
+      }
+    }
+  }
+}

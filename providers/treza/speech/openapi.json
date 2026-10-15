@@ -1,0 +1,744 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Treza Voiceover",
+    "version": "3.0.0",
+    "description": "The speech product of the Treza API, paid per call with x402 (USDC on Solana mainnet or Base). Snapshot of https://www.trezalabs.com/.well-known/openapi.json."
+  },
+  "servers": [
+    {
+      "url": "https://www.trezalabs.com",
+      "description": "Production"
+    }
+  ],
+  "paths": {
+    "/api/x402/speech": {
+      "post": {
+        "operationId": "x402GenerateSpeech",
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "dynamic",
+            "currency": "USD",
+            "min": "0.02",
+            "max": "1.26"
+          }
+        },
+        "summary": "Generate a voiceover from text (ElevenLabs), paid with x402",
+        "description": "Speaks up to 3000 characters of text in one of 13 ElevenLabs voices and returns an MP3, usually within seconds. Priced per character ($0.42 per 1,000, rounded up to the cent, minimum $0.02); the 402 quotes the exact figure for your text. Pay via the x402 protocol (HTTP 402): call without payment to receive a 402 challenge carrying the price and networks, sign the payment with an x402-capable wallet, and retry with the payment-signature header. The challenge lists two ways to pay the same amount: USDC on Base (eip155:8453) first, then USDC on Solana mainnet (solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp); a client pays the first one it has a wallet for, and neither needs gas money in the paying wallet. No account, API key, or signup is involved, so the payment is the only credential. A payment presented again after it was redeemed is refused with a 409 (code PAYMENT_ALREADY_REDEEMED). Only the documented fields are read; a request carrying any other field is refused with a 400 before any payment moves.\n\nThe paid call answers 200 at once, with the statusUrl in the X-Status-Url header, then sends a whitespace byte every 2 seconds while it waits (JSON parsers ignore it), and ends with one complete JSON object. Read status in that body: success carries audio, the URL of the speech; error means it failed, nothing was charged for it, and retryUrl tries again on the wallet balance the payment left, without paying twice; running means it outlasted the wait (45 seconds by default, Prefer: wait=N for up to 720), so poll statusUrl. Send \"async\": true or Prefer: respond-async for an immediate 202 with a statusUrl.",
+        "parameters": [
+          {
+            "name": "Prefer",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional. respond-async answers 202 at once with a statusUrl to poll, like \"async\": true. wait=N sets how long the call waits, in seconds (default 45, at most 720), before it ends with status running and the statusUrl. Echoed in Preference-Applied."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "text"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "maxLength": 3000,
+                    "description": "What to say."
+                  },
+                  "voice": {
+                    "type": "string",
+                    "enum": [
+                      "george",
+                      "daniel",
+                      "callum",
+                      "alice",
+                      "lily",
+                      "brian",
+                      "adam",
+                      "asher",
+                      "archie",
+                      "mark",
+                      "piper",
+                      "rachel",
+                      "charlie"
+                    ],
+                    "default": "george",
+                    "description": "george: Warm storyteller (UK male). Narration, storytelling. daniel: Deep, authoritative (UK male). News, documentary. callum: Gravelly, intense (male). Noir, character reads. alice: Clear, confident (UK female). News, explainers. lily: Warm, velvety (UK female). Narration. brian: Deep narrator (US male). Documentary, ads. adam: Energetic narrator (US male). Shorts, countdowns, hype reads. asher: Charismatic, playful (UK male). Shorts, countdowns, hype reads. archie: Upbeat social narrator (UK male). Shorts, social media, presenters. mark: Casual, conversational (US male). Conversational, presenters. piper: Upbeat, versatile (US female). Shorts, countdowns, ads. rachel: Calm narrator (US female). Narration, audiobooks. charlie: Casual (Australian male). Conversational."
+                  },
+                  "model": {
+                    "type": "string",
+                    "enum": [
+                      "eleven-v3",
+                      "eleven-multilingual-v2"
+                    ],
+                    "default": "eleven-v3",
+                    "description": "eleven-v3: the most expressive read, and performs inline directions in square brackets ([whispers], [excited]) without speaking them. eleven-multilingual-v2: the steadiest read for long narration, 29 languages."
+                  },
+                  "async": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "true answers 202 at once with a statusUrl to poll."
+                  }
+                }
+              },
+              "example": {
+                "text": "Welcome back. Today we are looking at three small habits that make a big difference.",
+                "voice": "george",
+                "model": "eleven-v3"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Payment settled and the response waited for the speech. Streamed: the status and headers are sent at once (X-Status-Url carries the statusUrl), then a whitespace byte every 2 seconds, then one complete JSON object. The HTTP status is 200 whatever happened, so read status in the body.",
+            "headers": {
+              "X-Status-Url": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "The statusUrl, sent before the speech is ready, so a caller whose connection drops can still claim it."
+              },
+              "Preference-Applied": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "The Prefer value honoured, e.g. wait=120."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "success",
+                        "error",
+                        "partial",
+                        "cancelled",
+                        "running"
+                      ],
+                      "example": "success",
+                      "description": "success carries audio. error, partial, and cancelled carry the failure fields. running means it is still going; poll statusUrl."
+                    },
+                    "startedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "finishedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "durationMs": {
+                      "type": "integer"
+                    },
+                    "audio": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "URL of the finished speech. Use it exactly as given: its query parameters, including c=, are part of it."
+                    },
+                    "statusUrl": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "The run's status, now and later. It carries its own signed claim ticket, so it needs no other credential. Use it exactly as given: the runId contains '#', encoded as %23."
+                    },
+                    "pollAfterMs": {
+                      "type": "integer",
+                      "description": "Only when status is running: how long to wait before polling statusUrl."
+                    },
+                    "paidUsd": {
+                      "type": "number",
+                      "description": "What this request cost."
+                    },
+                    "model": {
+                      "type": "string"
+                    },
+                    "voice": {
+                      "type": "string"
+                    },
+                    "characters": {
+                      "type": "integer",
+                      "description": "Characters spoken: what the price was computed from."
+                    },
+                    "network": {
+                      "type": "string",
+                      "description": "Where the payment settled: eip155:8453 (Base) or solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp (Solana)."
+                    },
+                    "transaction": {
+                      "type": "string",
+                      "description": "The settled payment: a 0x transaction hash on Base, a base58 transaction signature on Solana."
+                    },
+                    "payer": {
+                      "type": "string",
+                      "description": "The paying wallet."
+                    },
+                    "error": {
+                      "type": "string",
+                      "description": "Failed runs only. What went wrong, in the provider's words."
+                    },
+                    "reason": {
+                      "type": "string",
+                      "enum": [
+                        "prompt_refused",
+                        "render_failed"
+                      ],
+                      "description": "Failed runs only. prompt_refused: the model declined the text, so reword it. render_failed: it did not finish; the same text may succeed."
+                    },
+                    "retryable": {
+                      "type": "boolean",
+                      "description": "Failed runs only. True until the run's one free retry has been used."
+                    },
+                    "retryUrl": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "Failed runs only. POST here to try again on the wallet balance, optionally with {\"text\": \"...\"} in the body. Carries the same signed ticket."
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Failed runs only. What happened and what to do, in one sentence."
+                    },
+                    "balanceUsd": {
+                      "type": "number",
+                      "description": "Failed runs only. The wallet balance the retry spends."
+                    }
+                  }
+                },
+                "example": {
+                  "runId": "2026-09-23T18:04:11.000Z#1a2b3c4d",
+                  "status": "success",
+                  "audio": "https://www.trezalabs.com/api/media/generated/x402_speech/1a2b3c4d.mp3?s=...&c=...",
+                  "statusUrl": "https://www.trezalabs.com/api/x402/speech?runId=...&token=...",
+                  "paidUsd": 0.04,
+                  "model": "eleven-v3",
+                  "voice": "george",
+                  "characters": 84,
+                  "transaction": "0x..."
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Only when the body has \"async\": true or the request carries Prefer: respond-async: payment settled and generation started. Poll statusUrl until status leaves running.",
+            "headers": {
+              "X-Status-Url": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "The statusUrl, the same as in the body."
+              },
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "The statusUrl again, in the header HTTP clients read on a 202. GET it to collect the result."
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds to wait before polling the statusUrl."
+              },
+              "Preference-Applied": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "respond-async, when that header asked for the 202."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "running"
+                      ]
+                    },
+                    "statusUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "pollAfterMs": {
+                      "type": "integer"
+                    },
+                    "paidUsd": {
+                      "type": "number"
+                    },
+                    "transaction": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or oversized text, a voice or model that is not on the menu, or a field this endpoint does not read. Refused before settlement, so nothing was charged."
+          },
+          "402": {
+            "description": "Payment required: the challenge response carrying x402 payment instructions"
+          },
+          "409": {
+            "description": "This payment was already redeemed (code PAYMENT_ALREADY_REDEEMED). Nothing new was generated or charged; send a new payment to buy another."
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Pay-per-call speech is not enabled on this deployment, or is temporarily unavailable."
+          }
+        }
+      },
+      "get": {
+        "operationId": "x402GetSpeechRun",
+        "summary": "Poll a speech bought with an x402 payment, or read the menu",
+        "description": "Called with no query parameters, returns the menu: what is on sale, every option and price, and how to buy. With runId and token (the statusUrl the paid POST handed back), returns the run's status and, once finished, audio: the file URL. The token is the claim ticket and the only credential needed. Send Prefer: wait=N to hold the answer until it finishes, for up to N seconds (at most 720), streamed like the paid POST. A failed run answers with the provider's error, a reason, and a retryUrl.",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required to poll a run. Omit both this and token to get the menu."
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signed claim ticket from the paid POST. Required to poll a run."
+          },
+          {
+            "name": "Prefer",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional. wait=N holds the answer until the run finishes, for up to N seconds (at most 720)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Run status plus audio once it has finished; or, with no query parameters, the menu.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "title": "Run status",
+                      "required": [
+                        "runId",
+                        "status"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "runId": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "success",
+                            "error",
+                            "partial",
+                            "cancelled",
+                            "running"
+                          ],
+                          "example": "success",
+                          "description": "success carries audio. error, partial, and cancelled carry the failure fields. running means it is still going; poll statusUrl."
+                        },
+                        "startedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "finishedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "durationMs": {
+                          "type": "integer"
+                        },
+                        "audio": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "URL of the finished speech. Use it exactly as given: its query parameters, including c=, are part of it."
+                        },
+                        "statusUrl": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "The run's status, now and later. It carries its own signed claim ticket, so it needs no other credential. Use it exactly as given: the runId contains '#', encoded as %23."
+                        },
+                        "pollAfterMs": {
+                          "type": "integer",
+                          "description": "Only when status is running: how long to wait before polling statusUrl."
+                        },
+                        "paidUsd": {
+                          "type": "number",
+                          "description": "What this request cost."
+                        },
+                        "model": {
+                          "type": "string"
+                        },
+                        "voice": {
+                          "type": "string"
+                        },
+                        "characters": {
+                          "type": "integer",
+                          "description": "Characters spoken: what the price was computed from."
+                        },
+                        "network": {
+                          "type": "string",
+                          "description": "Where the payment settled: eip155:8453 (Base) or solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp (Solana)."
+                        },
+                        "transaction": {
+                          "type": "string",
+                          "description": "The settled payment: a 0x transaction hash on Base, a base58 transaction signature on Solana."
+                        },
+                        "payer": {
+                          "type": "string",
+                          "description": "The paying wallet."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Failed runs only. What went wrong, in the provider's words."
+                        },
+                        "reason": {
+                          "type": "string",
+                          "enum": [
+                            "prompt_refused",
+                            "render_failed"
+                          ],
+                          "description": "Failed runs only. prompt_refused: the model declined the text, so reword it. render_failed: it did not finish; the same text may succeed."
+                        },
+                        "retryable": {
+                          "type": "boolean",
+                          "description": "Failed runs only. True until the run's one free retry has been used."
+                        },
+                        "retryUrl": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "Failed runs only. POST here to try again on the wallet balance, optionally with {\"text\": \"...\"} in the body. Carries the same signed ticket."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Failed runs only. What happened and what to do, in one sentence."
+                        },
+                        "balanceUsd": {
+                          "type": "number",
+                          "description": "Failed runs only. The wallet balance the retry spends."
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "title": "Menu",
+                      "description": "Returned when the GET carries no query parameters: what is on sale, the prices, and how to buy.",
+                      "required": [
+                        "service",
+                        "howToBuy",
+                        "fields"
+                      ],
+                      "properties": {
+                        "service": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "howToBuy": {
+                          "type": "object",
+                          "description": "The request to send: method, an example body, and how payment works.",
+                          "properties": {
+                            "method": {
+                              "type": "string"
+                            },
+                            "body": {
+                              "type": "object"
+                            },
+                            "note": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "pricing": {
+                          "type": "string",
+                          "description": "How the price is computed."
+                        },
+                        "fields": {
+                          "type": "object",
+                          "description": "Each request field and what it takes.",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "models": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "default": {
+                                "type": "boolean"
+                              },
+                              "note": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "voices": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "description": {
+                                "type": "string"
+                              },
+                              "default": {
+                                "type": "boolean"
+                              }
+                            }
+                          }
+                        },
+                        "limits": {
+                          "type": "object",
+                          "description": "maxTextChars."
+                        },
+                        "delivery": {
+                          "type": "string",
+                          "description": "How the paid call answers and where the file ends up."
+                        },
+                        "alreadyPaid": {
+                          "type": "string",
+                          "description": "Where a file already paid for can be collected, for a buyer that lost its statusUrl."
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "One of runId and token was given without the other. The runId contains '#', so a hand-built URL must encode it as %23."
+          },
+          "403": {
+            "description": "Invalid, expired, or mismatched token"
+          },
+          "404": {
+            "description": "Run not found"
+          }
+        }
+      }
+    },
+    "/api/x402/speech/retry": {
+      "post": {
+        "operationId": "x402RetrySpeechRun",
+        "summary": "Generate a failed speech again, without paying twice",
+        "description": "A speech that failed after the payment settled charged nothing, so the payment is still on the wallet's balance. POST here with the failed run's claim ticket to try again on that balance, with the same settings it was sold with. Send {\"text\": \"...\"} to reword it (the fix for prompt_refused), or no body to use the original. Each failed run can be retried once. Waits and streams like the paid POST; \"async\": true or Prefer: respond-async answers 202 at once.",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The failed run, from its status response."
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Signed claim ticket. The retryUrl carries both."
+          },
+          {
+            "name": "Prefer",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional. respond-async answers 202 at once with a statusUrl to poll, like \"async\": true. wait=N sets how long the call waits, in seconds (default 45, at most 720), before it ends with status running and the statusUrl. Echoed in Preference-Applied."
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "maxLength": 3000,
+                    "description": "A reworded input. Omit to use the original."
+                  },
+                  "async": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "true answers 202 at once with a statusUrl to poll."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The retry started and the response waited for it, streamed the same way as the paid POST. Same shape as the paid POST 200, plus retryOf and paidUsd 0.",
+            "headers": {
+              "X-Status-Url": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "The retry's statusUrl, sent before the render finishes."
+              },
+              "Preference-Applied": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "The Prefer value honoured, e.g. wait=120 or respond-async."
+              }
+            }
+          },
+          "202": {
+            "description": "Only with \"async\": true or Prefer: respond-async: the retry started.",
+            "headers": {
+              "X-Status-Url": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "The statusUrl, the same as in the body."
+              },
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "The statusUrl again, in the header HTTP clients read on a 202. GET it to collect the result."
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds to wait before polling the statusUrl."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "example": "running"
+                    },
+                    "statusUrl": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "Poll this for the finished file. It carries its own signed claim ticket, so it needs no other credential. Use it exactly as given."
+                    },
+                    "pollAfterMs": {
+                      "type": "integer"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Paid for and still rendering: how to collect it. Do not buy it again."
+                    },
+                    "retryOf": {
+                      "type": "string",
+                      "description": "The failed run this retry replaces."
+                    },
+                    "paidUsd": {
+                      "type": "number",
+                      "example": 0
+                    },
+                    "model": {
+                      "type": "string"
+                    },
+                    "voice": {
+                      "type": "string"
+                    },
+                    "characters": {
+                      "type": "integer"
+                    },
+                    "balanceUsd": {
+                      "type": "number",
+                      "description": "Credit left on the paying wallet once this render is funded."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "runId and token are required, or the text sent is empty or too long"
+          },
+          "402": {
+            "description": "The wallet balance does not cover this retry; the body carries balanceUsd, priceUsd, and payUrl for a new paid request"
+          },
+          "403": {
+            "description": "Invalid, expired, or mismatched token"
+          },
+          "404": {
+            "description": "Run not found, or the ticket is not for a pay-per-call speech run"
+          },
+          "409": {
+            "description": "The run is still going, finished successfully, or has already been retried"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Pay-per-call speech is temporarily unavailable"
+          }
+        }
+      }
+    }
+  }
+}

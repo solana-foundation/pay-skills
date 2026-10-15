@@ -1,0 +1,695 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Treza YouTube Clipper",
+    "version": "3.0.0",
+    "description": "The clip product of the Treza API, paid per call with x402 (USDC on Solana mainnet or Base). Snapshot of https://www.trezalabs.com/.well-known/openapi.json."
+  },
+  "servers": [
+    {
+      "url": "https://www.trezalabs.com",
+      "description": "Production"
+    }
+  ],
+  "paths": {
+    "/api/x402/clip": {
+      "post": {
+        "operationId": "x402ClipVideo",
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "dynamic",
+            "currency": "USD",
+            "min": "0.04",
+            "max": "0.87"
+          }
+        },
+        "summary": "Generate a captioned short from a YouTube video, via x402",
+        "description": "Send a YouTube link; get its most shareable 30 to 60 second moment back as a captioned clip reframed on the speaker (9:16 by default, or 4:5, 1:1, 16:9), with a title and caption to post it with. Priced by the source's length: the video is looked up before payment, the 402 quotes the exact price for it ($0.04 for a minute or less, $0.45 for an hour, up to 2 hours), and a video that cannot be clipped (private, age-restricted, live, missing, too long) is refused with a 400 and a code before any payment moves. Only YouTube video links are accepted. Pay via the x402 protocol (HTTP 402), in USDC on Base (eip155:8453) or Solana mainnet; no account, API key, or signup. A clip takes a few minutes: the paid call answers 200 at once with the statusUrl in X-Status-Url, waits about as long as a clip from that length of source usually takes (Prefer: wait=N for up to 720), then ends with status success and video, or status running and the statusUrl to poll. Clip only videos you have the rights to use.",
+        "parameters": [
+          {
+            "name": "Prefer",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional. respond-async answers 202 at once with a statusUrl to poll, like \"async\": true. wait=N sets how long the call waits, in seconds (at most 720), before it ends with status running and the statusUrl. Without it, the call waits about as long as a clip from that length of source usually takes: about two minutes for a 10-minute video, five for an hour, at most 720 seconds. A client with a fixed timeout, such as the 60 seconds MCP tool calls allow, should send wait=N under it or respond-async."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "url"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "A YouTube video link: a watch page, a Short, or a youtu.be link."
+                  },
+                  "aspectRatio": {
+                    "type": "string",
+                    "enum": [
+                      "9:16",
+                      "4:5",
+                      "1:1",
+                      "16:9"
+                    ],
+                    "default": "9:16",
+                    "description": "9:16, 4:5 and 1:1 are cropped on the speaker; 16:9 keeps the original framing."
+                  },
+                  "async": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                }
+              },
+              "example": {
+                "url": "https://www.youtube.com/watch?v=KtTXyBJ2N30",
+                "aspectRatio": "9:16"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Payment settled and the response waited for the clip, streamed (a whitespace byte every 2 seconds, then one JSON object). Read status in the body.",
+            "headers": {
+              "X-Status-Url": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "The statusUrl, sent before the render finishes, so a caller whose connection drops can still claim the file."
+              },
+              "Preference-Applied": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "The Prefer value honoured, e.g. wait=120 or respond-async."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "success",
+                        "error",
+                        "partial",
+                        "cancelled",
+                        "running"
+                      ],
+                      "example": "success",
+                      "description": "success carries video. error, partial, and cancelled carry the failure fields. running means the clip is still rendering; poll statusUrl."
+                    },
+                    "video": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "URL of the finished, captioned clip (MP4). Use it exactly as given: its query parameters, including c=, are part of it."
+                    },
+                    "outputs": {
+                      "type": "object",
+                      "properties": {
+                        "video": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "moment": {
+                          "type": "string",
+                          "description": "The moment picked, as JSON text: {\"start\", \"end\", \"publish\"}, where publish is a title and a caption to post the clip with."
+                        }
+                      }
+                    },
+                    "statusUrl": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "The run's status, now and later, carrying its own signed claim ticket. Use it exactly as given: the runId contains '#', encoded as %23."
+                    },
+                    "pollAfterMs": {
+                      "type": "integer"
+                    },
+                    "paidUsd": {
+                      "type": "number"
+                    },
+                    "aspectRatio": {
+                      "type": "string"
+                    },
+                    "sourceMinutes": {
+                      "type": "integer",
+                      "description": "The source length the price was computed from, rounded up."
+                    },
+                    "source": {
+                      "type": "object",
+                      "description": "What YouTube reported before payment: videoId, title, seconds."
+                    },
+                    "network": {
+                      "type": "string"
+                    },
+                    "transaction": {
+                      "type": "string"
+                    },
+                    "payer": {
+                      "type": "string"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string",
+                      "enum": [
+                        "prompt_refused",
+                        "render_failed"
+                      ]
+                    },
+                    "retryable": {
+                      "type": "boolean"
+                    },
+                    "retryUrl": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "Failed runs only. POST here to clip again on the wallet balance, optionally with {\"url\": \"...\"} for another YouTube video no longer than the one paid for."
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "runId": "2026-09-23T18:04:11.000Z#1a2b3c4d",
+                  "status": "success",
+                  "video": "https://www.trezalabs.com/api/media/generated/x402_captions/1a2b3c4d.mp4?s=...&c=...",
+                  "outputs": {
+                    "moment": "{\"start\":\"00:12:03,120\",\"end\":\"00:12:51,400\",\"publish\":\"...\"}"
+                  },
+                  "statusUrl": "https://www.trezalabs.com/api/x402/clip?runId=...&token=...",
+                  "paidUsd": 0.12,
+                  "aspectRatio": "9:16",
+                  "sourceMinutes": 12,
+                  "transaction": "0x..."
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Only with \"async\": true or Prefer: respond-async: payment settled and the clip started. Poll statusUrl.",
+            "headers": {
+              "X-Status-Url": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "The statusUrl, the same as in the body."
+              },
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "The statusUrl again, in the header HTTP clients read on a 202. GET it to collect the result."
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds to wait before polling the statusUrl."
+              },
+              "Preference-Applied": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "respond-async, when that header asked for the 202."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "example": "running"
+                    },
+                    "statusUrl": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "Poll this for the finished file. It carries its own signed claim ticket, so it needs no other credential. Use it exactly as given."
+                    },
+                    "pollAfterMs": {
+                      "type": "integer"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Paid for and still rendering: how to collect it. Do not buy it again."
+                    },
+                    "paidUsd": {
+                      "type": "number",
+                      "description": "What this request cost."
+                    },
+                    "aspectRatio": {
+                      "type": "string"
+                    },
+                    "sourceMinutes": {
+                      "type": "integer",
+                      "description": "The source length the price was computed from, rounded up."
+                    },
+                    "source": {
+                      "type": "object",
+                      "description": "What YouTube reported before payment: videoId, title, seconds."
+                    },
+                    "network": {
+                      "type": "string",
+                      "description": "eip155:8453 (Base) or solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp (Solana)."
+                    },
+                    "transaction": {
+                      "type": "string",
+                      "description": "A 0x transaction hash on Base, a base58 transaction signature on Solana."
+                    },
+                    "payer": {
+                      "type": "string"
+                    },
+                    "balanceUsd": {
+                      "type": "number",
+                      "description": "Credit left on the paying wallet once this render is funded."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a single YouTube video link (code SOURCE_URL_INVALID), a video that cannot be clipped (codes SOURCE_UNAVAILABLE, SOURCE_LIVE, SOURCE_TOO_SHORT, SOURCE_TOO_LONG), an aspect ratio not on sale, or a field this endpoint does not read. Refused before settlement, so nothing was charged."
+          },
+          "402": {
+            "description": "Payment required: the challenge response carrying x402 payment instructions, priced for the linked video."
+          },
+          "409": {
+            "description": "This payment was already redeemed (code PAYMENT_ALREADY_REDEEMED)."
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Clipping is temporarily unavailable, or YouTube could not be read just now (code SOURCE_LOOKUP_FAILED). Nothing was charged."
+          }
+        }
+      },
+      "get": {
+        "operationId": "x402GetClipRun",
+        "summary": "Poll a clip bought with an x402 payment, or read the menu",
+        "description": "Called with no query parameters, returns the menu. With runId and token (the statusUrl the paid POST handed back), returns the run's status and, once finished, video and outputs.moment. Send Prefer: wait=N to hold the answer until it finishes, for up to N seconds (at most 720).",
+        "parameters": [
+          {
+            "name": "runId",
+            "description": "Required to poll a run. Omit both this and token to get the offer list.",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "token",
+            "description": "Signed claim ticket from the paid POST. Required to poll a run.",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Prefer",
+            "description": "Optional. wait=N holds the answer until the run finishes, for up to N seconds (at most 720), streamed as a whitespace byte every 2 seconds and then the JSON.",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Run status plus video once finished; or, with no query parameters, the menu.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "title": "Run status",
+                      "required": [
+                        "runId",
+                        "status"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "runId": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "success",
+                            "error",
+                            "partial",
+                            "cancelled",
+                            "running"
+                          ],
+                          "example": "success",
+                          "description": "success carries video. error, partial, and cancelled carry the failure fields. running means the clip is still rendering; poll statusUrl."
+                        },
+                        "video": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "URL of the finished, captioned clip (MP4). Use it exactly as given: its query parameters, including c=, are part of it."
+                        },
+                        "outputs": {
+                          "type": "object",
+                          "properties": {
+                            "video": {
+                              "type": "string",
+                              "format": "uri"
+                            },
+                            "moment": {
+                              "type": "string",
+                              "description": "The moment picked, as JSON text: {\"start\", \"end\", \"publish\"}, where publish is a title and a caption to post the clip with."
+                            }
+                          }
+                        },
+                        "statusUrl": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "The run's status, now and later, carrying its own signed claim ticket. Use it exactly as given: the runId contains '#', encoded as %23."
+                        },
+                        "pollAfterMs": {
+                          "type": "integer"
+                        },
+                        "paidUsd": {
+                          "type": "number"
+                        },
+                        "aspectRatio": {
+                          "type": "string"
+                        },
+                        "sourceMinutes": {
+                          "type": "integer",
+                          "description": "The source length the price was computed from, rounded up."
+                        },
+                        "source": {
+                          "type": "object",
+                          "description": "What YouTube reported before payment: videoId, title, seconds."
+                        },
+                        "network": {
+                          "type": "string"
+                        },
+                        "transaction": {
+                          "type": "string"
+                        },
+                        "payer": {
+                          "type": "string"
+                        },
+                        "error": {
+                          "type": "string"
+                        },
+                        "reason": {
+                          "type": "string",
+                          "enum": [
+                            "prompt_refused",
+                            "render_failed"
+                          ]
+                        },
+                        "retryable": {
+                          "type": "boolean"
+                        },
+                        "retryUrl": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "Failed runs only. POST here to clip again on the wallet balance, optionally with {\"url\": \"...\"} for another YouTube video no longer than the one paid for."
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "title": "Menu",
+                      "description": "Returned when the GET carries no query parameters: what is on sale, the prices, and how to buy.",
+                      "required": [
+                        "service",
+                        "howToBuy",
+                        "fields"
+                      ],
+                      "properties": {
+                        "service": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "howToBuy": {
+                          "type": "object",
+                          "description": "The request to send: method, an example body, and how payment works.",
+                          "properties": {
+                            "method": {
+                              "type": "string"
+                            },
+                            "body": {
+                              "type": "object"
+                            },
+                            "note": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "pricing": {
+                          "type": "string",
+                          "description": "How the price is computed."
+                        },
+                        "fields": {
+                          "type": "object",
+                          "description": "Each request field and what it takes.",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "limits": {
+                          "type": "object",
+                          "description": "sourceSeconds and clipSeconds, each {min, max}."
+                        },
+                        "delivery": {
+                          "type": "string",
+                          "description": "How the paid call answers and where the file ends up."
+                        },
+                        "rights": {
+                          "type": "string"
+                        },
+                        "alreadyPaid": {
+                          "type": "string",
+                          "description": "Where a file already paid for can be collected, for a buyer that lost its statusUrl."
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "One of runId and token was given without the other."
+          },
+          "403": {
+            "description": "Invalid, expired, or mismatched token"
+          },
+          "404": {
+            "description": "Run not found"
+          }
+        }
+      }
+    },
+    "/api/x402/clip/retry": {
+      "post": {
+        "operationId": "x402RetryClipRun",
+        "summary": "Render a failed clip again, without paying twice",
+        "description": "A clip that failed after the payment settled charged nothing for the failed steps, so the payment is on the wallet balance. POST here with the failed run's claim ticket to try again, from the same link or, with {\"url\": \"...\"}, another YouTube video no longer than the one paid for. Each failed run can be retried once.",
+        "parameters": [
+          {
+            "name": "runId",
+            "description": "The failed run, from its status response.",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "token",
+            "description": "Signed claim ticket from the paid POST. The retryUrl in the status response carries both.",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Prefer",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional. respond-async answers 202 at once with a statusUrl to poll, like \"async\": true. wait=N sets how long the call waits, in seconds (at most 720), before it ends with status running and the statusUrl. Without it, the call waits about as long as a clip from that length of source usually takes: about two minutes for a 10-minute video, five for an hour, at most 720 seconds. A client with a fixed timeout, such as the 60 seconds MCP tool calls allow, should send wait=N under it or respond-async."
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "async": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The retry started and the response waited for it, streamed like the paid POST.",
+            "headers": {
+              "X-Status-Url": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "The retry's statusUrl, sent before the render finishes."
+              },
+              "Preference-Applied": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "The Prefer value honoured, e.g. wait=120 or respond-async."
+              }
+            }
+          },
+          "202": {
+            "description": "Only with \"async\": true or Prefer: respond-async.",
+            "headers": {
+              "X-Status-Url": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "The statusUrl, the same as in the body."
+              },
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": "The statusUrl again, in the header HTTP clients read on a 202. GET it to collect the result."
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds to wait before polling the statusUrl."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "example": "running"
+                    },
+                    "statusUrl": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "Poll this for the finished file. It carries its own signed claim ticket, so it needs no other credential. Use it exactly as given."
+                    },
+                    "pollAfterMs": {
+                      "type": "integer"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Paid for and still rendering: how to collect it. Do not buy it again."
+                    },
+                    "retryOf": {
+                      "type": "string",
+                      "description": "The failed run this retry replaces."
+                    },
+                    "paidUsd": {
+                      "type": "number",
+                      "example": 0
+                    },
+                    "aspectRatio": {
+                      "type": "string"
+                    },
+                    "sourceMinutes": {
+                      "type": "integer",
+                      "description": "The source length the price was computed from, rounded up."
+                    },
+                    "balanceUsd": {
+                      "type": "number",
+                      "description": "Credit left on the paying wallet once this render is funded."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "runId and token are required, or the url sent is not a YouTube video link"
+          },
+          "402": {
+            "description": "The wallet balance does not cover this retry"
+          },
+          "403": {
+            "description": "Invalid, expired, or mismatched token"
+          },
+          "404": {
+            "description": "Run not found, or the ticket is not for a clip"
+          },
+          "409": {
+            "description": "The run is still going, finished successfully, or has already been retried"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "description": "Clipping is temporarily unavailable"
+          }
+        }
+      }
+    }
+  }
+}
