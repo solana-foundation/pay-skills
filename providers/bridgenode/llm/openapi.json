@@ -1,0 +1,279 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "BridgeNode",
+    "version": "1.0.0",
+    "contact": {
+      "name": "BridgeNode",
+      "url": "https://bridgenode.cc",
+      "email": "eli.BNx@proton.me"
+    },
+    "description": "AI inference bridge — no API keys, pay with Solana USDC via x402",
+    "x-guidance": "BridgeNode is an AI inference bridge: no API keys, pay per request with Solana USDC via x402. POST /v1/chat/completions with {\"model\": <model>, \"messages\": [{\"role\": \"user\", \"content\": \"...\"}]} — the unpaid request returns 402 with exact price (USDC atomic units), payTo (Solana wallet) and memo; sign the Solana USDC transfer and retry with the PAYMENT-SIGNATURE header. GET /v1/models lists models and prices (free). Available models: deepseek-v4-flash, deepseek-v4-pro, groq-llama-3.3-70b. Prices: from $0.0020 per request."
+  },
+  "paths": {
+    "/v1/chat/completions": {
+      "post": {
+        "summary": "Generate an AI chat completion - pay per request via x402",
+        "operationId": "chat_completions_v1_chat_completions_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required — x402 challenge (PAYMENT-REQUIRED header)",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "x402 payment requirements for this request",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "description": "Pay per request with Solana USDC via x402 — no API keys, no accounts, no subscriptions. Generate a chat completion for the selected model. Paid endpoint: an unpaid request returns an x402 challenge (exact price in USDC atomic units, payTo and memo); sign the Solana USDC transfer and retry with the PAYMENT-SIGNATURE header. Provide either model (explicit id) or mode (auto/eco/premium routing); if both are sent, model wins. max_tokens defaults to 4096 and is clamped to the model's max output. To inspect models and prices first, use the free GET /v1/models.",
+        "security": [
+          {
+            "x402": []
+          }
+        ],
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "dynamic",
+            "currency": "USD",
+            "min": "0.002000",
+            "max": "0.905216"
+          }
+        },
+        "x-pay-metering": {
+          "schemes": [
+            "x402-exact"
+          ],
+          "variants": [
+            {
+              "param": "model",
+              "value": "deepseek-v4-flash",
+              "description": "Per-token pricing for deepseek-v4-flash",
+              "dimensions": [
+                {
+                  "direction": "input",
+                  "unit": "tokens",
+                  "scale": 1000000,
+                  "tiers": [
+                    {
+                      "price_usd": 0.2
+                    }
+                  ]
+                },
+                {
+                  "direction": "output",
+                  "unit": "tokens",
+                  "scale": 1000000,
+                  "tiers": [
+                    {
+                      "price_usd": 0.4
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "param": "model",
+              "value": "deepseek-v4-pro",
+              "description": "Per-token pricing for deepseek-v4-pro",
+              "dimensions": [
+                {
+                  "direction": "input",
+                  "unit": "tokens",
+                  "scale": 1000000,
+                  "tiers": [
+                    {
+                      "price_usd": 0.85
+                    }
+                  ]
+                },
+                {
+                  "direction": "output",
+                  "unit": "tokens",
+                  "scale": 1000000,
+                  "tiers": [
+                    {
+                      "price_usd": 1.7
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "param": "model",
+              "value": "groq-llama-3.3-70b",
+              "description": "Per-token pricing for groq-llama-3.3-70b",
+              "dimensions": [
+                {
+                  "direction": "input",
+                  "unit": "tokens",
+                  "scale": 1000000,
+                  "tiers": [
+                    {
+                      "price_usd": 0.79
+                    }
+                  ]
+                },
+                {
+                  "direction": "output",
+                  "unit": "tokens",
+                  "scale": 1000000,
+                  "tiers": [
+                    {
+                      "price_usd": 0.99
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "enum": [
+                      "deepseek-v4-flash",
+                      "deepseek-v4-pro",
+                      "groq-llama-3.3-70b"
+                    ]
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "auto",
+                      "eco",
+                      "premium"
+                    ]
+                  },
+                  "messages": {
+                    "type": "array",
+                    "minItems": 1,
+                    "description": "Chat messages comprising the conversation so far",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "role": {
+                          "type": "string",
+                          "description": "Role of the message author (system, user, or assistant)"
+                        },
+                        "content": {
+                          "type": "string",
+                          "description": "Text content of the message"
+                        }
+                      },
+                      "required": [
+                        "role",
+                        "content"
+                      ]
+                    }
+                  },
+                  "stream": {
+                    "type": "boolean"
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                },
+                "required": [
+                  "messages"
+                ],
+                "anyOf": [
+                  {
+                    "required": [
+                      "model"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "mode"
+                    ]
+                  }
+                ]
+              },
+              "example": {
+                "model": "deepseek-v4-flash",
+                "mode": "auto",
+                "messages": [
+                  {
+                    "role": "user",
+                    "content": "Hello"
+                  }
+                ],
+                "max_tokens": 128
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/models": {
+      "get": {
+        "summary": "List available models and their pricing",
+        "operationId": "models_list_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "description": "List the models BridgeNode serves with their per-token prices (public endpoint, no payment required).",
+        "security": []
+      },
+      "head": {
+        "summary": "List available models and their pricing",
+        "operationId": "models_list_head",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "description": "List the models BridgeNode serves with their per-token prices (public endpoint, no payment required).",
+        "security": []
+      }
+    }
+  },
+  "x-discovery": {
+    "ownershipProofs": [
+      "57VRDHQswwt8WdmRHa2SDQTPai8LVan8bLbao7H3ZUNcrEsA8w6wyWcVTCNAcaR1iCSxhYmBYC1Wu2tRML9i88WC"
+    ]
+  },
+  "components": {
+    "securitySchemes": {
+      "x402": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "PAYMENT-SIGNATURE"
+      }
+    }
+  }
+}
