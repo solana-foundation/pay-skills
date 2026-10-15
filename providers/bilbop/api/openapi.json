@@ -1,0 +1,954 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Bilbop x402 API",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Bilbop",
+      "url": "https://bilbop.org"
+    },
+    "description": "Pay-per-call APIs for AI agents over x402: text summarization, Solana token market briefs, Solana mint on-chain info, human brand feedback (WURK) and self-hosted Piper text-to-speech. Payment in USDC on Solana (x402 'exact' scheme, PayAI facilitator). No API keys or accounts.",
+    "x-guidance": "All paid endpoints are POST with a JSON body. Call without payment to receive an HTTP 402 x402 challenge (JSON body + PAYMENT-REQUIRED header) listing price, asset (USDC mint EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v), network (solana / solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp) and payTo; sign the payment with an x402 client and retry with the X-PAYMENT (v1) or PAYMENT-SIGNATURE (v2) header. POST /v1/summarize {text} returns {summary} ($0.01). POST /v1/sol-token-brief {mint} returns price/mcap/liquidity/volume and a one-line brief ($0.01). POST /v1/sol-mint-info {mint} returns supply, decimals and mint/freeze authorities ($0.01). POST /brand-feedback {brand, question, n?} returns real human replies via WURK, can take minutes ($0.50). POST /v1/tts {text, voice_id?} returns raw audio/wav bytes, max 2500 chars ($0.025). Free: GET /health, GET /piper/v1/voices, GET /.well-known/x402."
+  },
+  "servers": [
+    {
+      "url": "https://api.bilbop.org"
+    }
+  ],
+  "externalDocs": {
+    "url": "https://bilbop.org"
+  },
+  "tags": [
+    {
+      "name": "Text",
+      "description": "Text processing"
+    },
+    {
+      "name": "Solana",
+      "description": "Solana token data"
+    },
+    {
+      "name": "Humans",
+      "description": "Human-in-the-loop tasks"
+    },
+    {
+      "name": "Audio",
+      "description": "Speech synthesis"
+    }
+  ],
+  "paths": {
+    "/v1/summarize": {
+      "post": {
+        "operationId": "summarize",
+        "summary": "Summarize text into 1-3 concise sentences",
+        "description": "Summarize a block of text into 1-3 concise sentences. Use when an agent needs a short digest of an article, doc, or chat log. 0.01 USDC per call on Solana.",
+        "tags": [
+          "Text"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "description": "Text to summarize",
+                    "minLength": 1,
+                    "example": "Summarize this paragraph for an agent."
+                  }
+                },
+                "required": [
+                  "text"
+                ],
+                "example": {
+                  "text": "Summarize this paragraph for an agent."
+                }
+              },
+              "example": {
+                "text": "Agents need short summaries of long documents for routing."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "summary": {
+                      "type": "string"
+                    },
+                    "mock": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "summary"
+                  ],
+                  "example": {
+                    "summary": "A one to three sentence digest of the input text.",
+                    "mock": false
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body (paid requests are validated before settlement)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required. x402 challenge in the JSON body and the base64 PAYMENT-REQUIRED header. Retry with an X-PAYMENT (v1) or PAYMENT-SIGNATURE (v2) header.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 PaymentRequired object (same as the body)",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequired"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Origin temporarily unavailable (tunnel rotating); retry after Retry-After seconds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sol-token-brief": {
+      "post": {
+        "operationId": "solTokenBrief",
+        "summary": "Fetch a Solana SPL token market snapshot and one-line brief",
+        "description": "Price, market cap, FDV, liquidity, 24h volume, holders and a one-line brief for a Solana SPL token, aggregated from Jupiter, GeckoTerminal and Dexscreener. 0.01 USDC per call.",
+        "tags": [
+          "Solana"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mint": {
+                    "type": "string",
+                    "description": "Base58 Solana SPL token mint address (32-44 chars)",
+                    "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                    "minLength": 32,
+                    "maxLength": 44,
+                    "example": "So11111111111111111111111111111111111111112"
+                  }
+                },
+                "required": [
+                  "mint"
+                ],
+                "additionalProperties": false,
+                "example": {
+                  "mint": "So11111111111111111111111111111111111111112"
+                }
+              },
+              "example": {
+                "mint": "So11111111111111111111111111111111111111112"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token brief",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mint": {
+                      "type": "string"
+                    },
+                    "symbol": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "priceUsd": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "mcapUsd": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "fdvUsd": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "liquidityUsd": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "volume24hUsd": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "holders": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "organicScore": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "brief": {
+                      "type": "string"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "asOf": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "disclaimer": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "mint",
+                    "brief",
+                    "sources",
+                    "asOf"
+                  ],
+                  "example": {
+                    "mint": "So11111111111111111111111111111111111111112",
+                    "symbol": "SOL",
+                    "priceUsd": 150.12,
+                    "mcapUsd": 80000000000,
+                    "liquidityUsd": 250000000,
+                    "volume24hUsd": 1500000000,
+                    "brief": "SOL (So11\u20261112) \u00b7 price $150.12 \u00b7 mcap $80B \u00b7 liq $250M \u00b7 vol24h $1.5B. Sources: jupiter, dexscreener. Not financial advice.",
+                    "sources": [
+                      "jupiter",
+                      "geckoterminal",
+                      "dexscreener"
+                    ],
+                    "asOf": "2026-09-28T14:00:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body (paid requests are validated before settlement)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required. x402 challenge in the JSON body and the base64 PAYMENT-REQUIRED header. Retry with an X-PAYMENT (v1) or PAYMENT-SIGNATURE (v2) header.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 PaymentRequired object (same as the body)",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequired"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Origin temporarily unavailable (tunnel rotating); retry after Retry-After seconds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sol-mint-info": {
+      "post": {
+        "operationId": "solMintInfo",
+        "summary": "Fetch on-chain facts for a Solana SPL token mint",
+        "description": "Supply, decimals, mint authority, freeze authority, token program and initialized flag for a Solana SPL token mint. Use to check whether a token can still be minted or frozen. 0.01 USDC per call.",
+        "tags": [
+          "Solana"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mint": {
+                    "type": "string",
+                    "description": "Base58 Solana SPL token mint address (32-44 chars)",
+                    "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                    "minLength": 32,
+                    "maxLength": 44,
+                    "example": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                  }
+                },
+                "required": [
+                  "mint"
+                ],
+                "additionalProperties": false,
+                "example": {
+                  "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                }
+              },
+              "example": {
+                "mint": "So11111111111111111111111111111111111111112"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Mint info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mint": {
+                      "type": "string"
+                    },
+                    "network": {
+                      "type": "string"
+                    },
+                    "decimals": {
+                      "type": "integer"
+                    },
+                    "supply": {
+                      "type": "string"
+                    },
+                    "mintAuthority": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "freezeAuthority": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "tokenProgram": {
+                      "type": "string"
+                    },
+                    "initialized": {
+                      "type": "boolean"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "mint",
+                    "decimals",
+                    "supply"
+                  ],
+                  "example": {
+                    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                    "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                    "decimals": 6,
+                    "supply": "9000000000.000000",
+                    "mintAuthority": "BJE5MMbqXjVwjAF7oxwPYXnTXDyspzZyt4vwenNw5ruG",
+                    "freezeAuthority": "7dGbd2QZcCKcTndnHcTL8q7SMVXAkp688NTQYwrRCrar",
+                    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                    "initialized": true,
+                    "sources": [
+                      "bentlawgic-token-basic"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body (paid requests are validated before settlement)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required. x402 challenge in the JSON body and the base64 PAYMENT-REQUIRED header. Retry with an X-PAYMENT (v1) or PAYMENT-SIGNATURE (v2) header.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 PaymentRequired object (same as the body)",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequired"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Origin temporarily unavailable (tunnel rotating); retry after Retry-After seconds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/brand-feedback": {
+      "post": {
+        "operationId": "brandFeedback",
+        "summary": "Fetch real human feedback about a brand or product",
+        "description": "Routes a short question about a brand or product to real human respondents via the WURK human-task marketplace and returns their replies with a sentiment aggregate. Replies can take minutes. 0.50 USDC per call.",
+        "tags": [
+          "Humans"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.50"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "brand": {
+                    "type": "string",
+                    "description": "Brand or product name",
+                    "minLength": 1,
+                    "example": "Acme"
+                  },
+                  "question": {
+                    "type": "string",
+                    "description": "Question to ask human respondents",
+                    "minLength": 1,
+                    "example": "Would you buy again?"
+                  },
+                  "n": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50,
+                    "default": 5,
+                    "description": "Number of human respondents (default 5)",
+                    "example": 1
+                  }
+                },
+                "required": [
+                  "brand",
+                  "question"
+                ],
+                "example": {
+                  "brand": "Acme",
+                  "question": "Would you buy again?",
+                  "n": 1
+                }
+              },
+              "example": {
+                "question": "Is bilbop a useful API for agents?",
+                "brand": "bilbop"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Human replies",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "brand": {
+                      "type": "string"
+                    },
+                    "question": {
+                      "type": "string"
+                    },
+                    "n": {
+                      "type": "integer"
+                    },
+                    "responses": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "text": {
+                            "type": "string"
+                          },
+                          "sentiment": {
+                            "type": "string",
+                            "enum": [
+                              "positive",
+                              "neutral",
+                              "negative"
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "aggregate": {
+                      "type": "object",
+                      "properties": {
+                        "positive": {
+                          "type": "integer"
+                        },
+                        "neutral": {
+                          "type": "integer"
+                        },
+                        "negative": {
+                          "type": "integer"
+                        },
+                        "summary": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "mock": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "brand",
+                    "responses"
+                  ],
+                  "example": {
+                    "brand": "Acme",
+                    "question": "Would you buy again?",
+                    "n": 1,
+                    "responses": [
+                      {
+                        "text": "Yes, the quality was good for the price.",
+                        "sentiment": "positive"
+                      }
+                    ],
+                    "aggregate": {
+                      "positive": 1,
+                      "neutral": 0,
+                      "negative": 0,
+                      "summary": "1/1 positive."
+                    },
+                    "mock": false
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body (paid requests are validated before settlement)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required. x402 challenge in the JSON body and the base64 PAYMENT-REQUIRED header. Retry with an X-PAYMENT (v1) or PAYMENT-SIGNATURE (v2) header.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 PaymentRequired object (same as the body)",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequired"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Origin temporarily unavailable (tunnel rotating); retry after Retry-After seconds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tts": {
+      "post": {
+        "operationId": "textToSpeech",
+        "summary": "Generate speech audio from text with self-hosted Piper TTS",
+        "description": "Turn up to 2500 characters of English text into a natural voice WAV file using self-hosted open-source Piper voices. Response body is raw audio/wav bytes (mono, 22.05 kHz). 0.025 USDC per call.",
+        "tags": [
+          "Audio"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.025"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "description": "Text to speak (max 2500 chars)",
+                    "minLength": 1,
+                    "maxLength": 2500,
+                    "example": "Hello from Piper"
+                  },
+                  "voice_id": {
+                    "type": "string",
+                    "description": "Optional Piper voice id (GET /piper/v1/voices)",
+                    "default": "en_US-lessac-medium",
+                    "example": "en_US-lessac-medium"
+                  }
+                },
+                "required": [
+                  "text"
+                ],
+                "example": {
+                  "text": "Hello from Piper",
+                  "voice_id": "en_US-lessac-medium"
+                }
+              },
+              "example": {
+                "text": "Hello from bilbop"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Raw WAV audio bytes",
+            "headers": {
+              "X-TTS-Voice-Id": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-TTS-Format": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "audio/wav": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary",
+                  "contentMediaType": "audio/wav"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body (paid requests are validated before settlement)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required. x402 challenge in the JSON body and the base64 PAYMENT-REQUIRED header. Retry with an X-PAYMENT (v1) or PAYMENT-SIGNATURE (v2) header.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 PaymentRequired object (same as the body)",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequired"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Upstream failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Origin temporarily unavailable (tunnel rotating); retry after Retry-After seconds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "PaymentRequired": {
+        "type": "object",
+        "description": "x402 PaymentRequired challenge",
+        "properties": {
+          "x402Version": {
+            "type": "integer"
+          },
+          "error": {
+            "type": "string"
+          },
+          "accepts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "scheme": {
+                  "type": "string",
+                  "example": "exact"
+                },
+                "network": {
+                  "type": "string",
+                  "example": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                },
+                "amount": {
+                  "type": "string",
+                  "description": "Token atomic units (USDC 6 decimals)"
+                },
+                "maxAmountRequired": {
+                  "type": "string",
+                  "description": "Token atomic units (legacy v1 field)"
+                },
+                "resource": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "mimeType": {
+                  "type": "string"
+                },
+                "payTo": {
+                  "type": "string"
+                },
+                "maxTimeoutSeconds": {
+                  "type": "integer"
+                },
+                "asset": {
+                  "type": "string"
+                },
+                "extra": {
+                  "type": "object"
+                }
+              },
+              "required": [
+                "scheme",
+                "network",
+                "payTo",
+                "asset"
+              ]
+            }
+          },
+          "resource": {
+            "type": "object"
+          },
+          "extensions": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "x402Version",
+          "accepts"
+        ]
+      }
+    }
+  }
+}
