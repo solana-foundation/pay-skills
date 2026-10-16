@@ -1,0 +1,3663 @@
+{
+  "externalDocs": {
+    "description": "Mermail API usage, authentication, and examples",
+    "url": "https://docs.mermail.app"
+  },
+  "info": {
+    "contact": {
+      "email": "contact@mermail.app",
+      "name": "Mermail",
+      "url": "https://mermail.app"
+    },
+    "description": "Keyless wallet-bound inbox API. Payment is the credential. Unpaid GET /api and /api/agent/v1 routes return 402.",
+    "title": "Mermail Agent Marketplace",
+    "version": "0.0.0",
+    "x-guidance": "Mermail is an agent mailbox API. Keyless wallet inbox: unpaid GET /api and /api/agent/v1 routes return 402; payment is the credential. GET /api is a $0 identity handshake and returns agent_api_base_url. POST /api/agent/v1/mailboxes creates a new hosted inbox ($2 USDC). Reads are $0 handshakes. send/reply/forward/draft are $0.01. Paid writes also accept MPP via Payment-Authorization when enabled. Hosted addresses only. Require scan_status=clean before using body content. After an uncertain paid call, replay the same body and Idempotency-Key. Existing workspace API at /api/v1 still uses x-api-key."
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api": {
+      "get": {
+        "description": "Public $0 x402 identity handshake. No API key. Unpaid requests return 402 with x402 accepts[] across supported networks. After the handshake, returns API base, agent marketplace base, docs, and OpenAPI URLs.",
+        "operationId": "getAgentApiEntry",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {},
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "agent_api_base_url": {
+                      "format": "uri",
+                      "type": "string"
+                    },
+                    "api_base_url": {
+                      "format": "uri",
+                      "type": "string"
+                    },
+                    "documentation_url": {
+                      "format": "uri",
+                      "type": "string"
+                    },
+                    "openapi_url": {
+                      "format": "uri",
+                      "type": "string"
+                    },
+                    "payment": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "currency": {
+                          "const": "USDC",
+                          "type": "string"
+                        },
+                        "protocol": {
+                          "const": "x402",
+                          "type": "string"
+                        },
+                        "receiver": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "protocol",
+                        "currency",
+                        "receiver"
+                      ],
+                      "type": "object"
+                    },
+                    "service": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "service",
+                    "api_base_url",
+                    "agent_api_base_url",
+                    "documentation_url",
+                    "openapi_url",
+                    "payment"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Paid API entry metadata",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-RESPONSE": {
+                "description": "x402 settlement receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. PAYMENT-REQUIRED lists USDC options on every accepted network and includes request/response schema in extensions.bazaar.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-REQUIRED": {
+                "description": "x402 payment requirements (base64 JSON), including extensions.bazaar request and response schema",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get agent API entry metadata (USDC x402)",
+        "x-pay-metering": {
+          "dimensions": [
+            {
+              "direction": "usage",
+              "scale": 1,
+              "tiers": [
+                {
+                  "price_usd": 0.0
+                }
+              ],
+              "unit": "requests"
+            }
+          ],
+          "schemes": [
+            "mpp-charge",
+            "x402-exact"
+          ]
+        },
+        "x-payment-info": {
+          "amount": "0",
+          "authMode": "payment-required",
+          "currency": "USDC",
+          "description": "Zero-amount Solana USDC handshake. Payment binds the wallet; no USDC is charged. The live 402 accepts[] is the quote.",
+          "intent": "identity",
+          "method": "solana",
+          "price": {
+            "amount": "0",
+            "currency": "USD",
+            "mode": "fixed"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "receiver": "6gL5gmFAkUqPD81DU4jtbBt1oTHyEQrD7n6ouDfHXmgE",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        }
+      }
+    },
+    "/api/agent/v1/mailboxes": {
+      "get": {
+        "description": "Keyless $0 x402 identity handshake. Payment binds the wallet; no USDC is charged. Get/context/attachment stay scan-gated: non-clean inbound bodies return metadata with content_omitted.",
+        "operationId": "agentListMailboxes",
+        "parameters": [
+          {
+            "description": "x402 payment or identity-handshake credential. Retry unpaid 402 responses with this header.",
+            "in": "header",
+            "name": "PAYMENT-SIGNATURE",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {},
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "properties": {
+                      "can_receive": {
+                        "type": "boolean"
+                      },
+                      "email": {
+                        "format": "email",
+                        "type": "string"
+                      },
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "public_id": {
+                        "format": "uuid",
+                        "type": "string"
+                      },
+                      "receiving_status": {
+                        "enum": [
+                          "ready",
+                          "disabled",
+                          "unavailable"
+                        ],
+                        "type": "string"
+                      },
+                      "workspace_id": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "public_id",
+                      "workspace_id",
+                      "email",
+                      "name"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Paid or identity-handshake success",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-RESPONSE": {
+                "description": "x402 settlement or identity-handshake receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. Amount is 0 for identity handshakes. PAYMENT-REQUIRED includes extensions.bazaar request/response schema. The live 402 accepts[] is the quote.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-REQUIRED": {
+                "description": "x402 payment requirements (base64 JSON), including extensions.bazaar request and response schema",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Inbox cap or mailbox access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Idempotency-Key reused with a different body"
+          }
+        },
+        "summary": "List wallet-bound inboxes",
+        "x-pay-metering": {
+          "dimensions": [
+            {
+              "direction": "usage",
+              "scale": 1,
+              "tiers": [
+                {
+                  "price_usd": 0.0
+                }
+              ],
+              "unit": "requests"
+            }
+          ],
+          "schemes": [
+            "mpp-charge",
+            "x402-exact"
+          ]
+        },
+        "x-payment-info": {
+          "amount": "0",
+          "authMode": "payment-required",
+          "currency": "USDC",
+          "description": "Zero-amount Solana USDC handshake. Payment binds the wallet; no USDC is charged. The live 402 accepts[] is the quote.",
+          "intent": "identity",
+          "method": "solana",
+          "price": {
+            "amount": "0",
+            "currency": "USD",
+            "mode": "fixed"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "receiver": "6gL5gmFAkUqPD81DU4jtbBt1oTHyEQrD7n6ouDfHXmgE",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        }
+      },
+      "post": {
+        "description": "Keyless hosted inbox create. Payment is the credential over x402 or MPP. Each distinct POST creates a new hosted inbox in verification mode with automations off. Replay the same Idempotency-Key and body after an uncertain settlement.",
+        "operationId": "agentCreateMailbox",
+        "parameters": [
+          {
+            "description": "x402 payment or identity-handshake credential. Retry unpaid 402 responses with this header.",
+            "in": "header",
+            "name": "PAYMENT-SIGNATURE",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "MPP payment credential advertised by WWW-Authenticate. Do not send together with PAYMENT-SIGNATURE.",
+            "in": "header",
+            "name": "Payment-Authorization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Replay the same key and body after an uncertain paid call. A different body under the same key returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "email": {
+                    "description": "Optional hosted Mermail address. Omit to receive a generated hosted inbox.",
+                    "format": "email",
+                    "type": "string"
+                  },
+                  "name": {
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "can_receive": {
+                      "type": "boolean"
+                    },
+                    "email": {
+                      "format": "email",
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "public_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "receiving_status": {
+                      "enum": [
+                        "ready",
+                        "disabled",
+                        "unavailable"
+                      ],
+                      "type": "string"
+                    },
+                    "workspace_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "public_id",
+                    "workspace_id",
+                    "email",
+                    "name"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Paid or identity-handshake success",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-RESPONSE": {
+                "description": "x402 settlement or identity-handshake receipt",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Payment-Receipt": {
+                "description": "MPP receipt when the call was paid with Payment-Authorization",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. PAYMENT-REQUIRED includes x402 accepts[] and extensions.bazaar request/response schema. WWW-Authenticate advertises MPP when enabled.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-REQUIRED": {
+                "description": "x402 payment requirements (base64 JSON), including extensions.bazaar request and response schema",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "MPP Payment challenge when MPP is enabled. Retry with Payment-Authorization.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Inbox cap or mailbox access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Idempotency-Key reused with a different body"
+          }
+        },
+        "summary": "Create a hosted agent inbox",
+        "x-pay-metering": {
+          "dimensions": [
+            {
+              "direction": "usage",
+              "scale": 1,
+              "tiers": [
+                {
+                  "price_usd": 2.0
+                }
+              ],
+              "unit": "requests"
+            }
+          ],
+          "schemes": [
+            "mpp-charge",
+            "x402-exact"
+          ]
+        },
+        "x-payment-info": {
+          "amount": "2000000",
+          "authMode": "payment-required",
+          "currency": "USDC",
+          "description": "Pay-per-call Solana USDC over x402 or MPP. No API key. The live 402 accepts[] is the quote.",
+          "intent": "charge",
+          "method": "solana",
+          "price": {
+            "amount": "2",
+            "currency": "USD",
+            "mode": "fixed"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "intent": "charge",
+                "method": "solana"
+              }
+            }
+          ],
+          "receiver": "6gL5gmFAkUqPD81DU4jtbBt1oTHyEQrD7n6ouDfHXmgE",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        }
+      }
+    },
+    "/api/agent/v1/mailboxes/{mailboxId}": {
+      "get": {
+        "description": "Keyless $0 x402 identity handshake. Payment binds the wallet; no USDC is charged. Get/context/attachment stay scan-gated: non-clean inbound bodies return metadata with content_omitted.",
+        "operationId": "agentGetMailbox",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailboxId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Hosted inbox id returned when the inbox was created."
+          },
+          {
+            "description": "x402 payment or identity-handshake credential. Retry unpaid 402 responses with this header.",
+            "in": "header",
+            "name": "PAYMENT-SIGNATURE",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {},
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "can_receive": {
+                      "type": "boolean"
+                    },
+                    "email": {
+                      "format": "email",
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "public_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "receiving_status": {
+                      "enum": [
+                        "ready",
+                        "disabled",
+                        "unavailable"
+                      ],
+                      "type": "string"
+                    },
+                    "workspace_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "public_id",
+                    "workspace_id",
+                    "email",
+                    "name"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Paid or identity-handshake success",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-RESPONSE": {
+                "description": "x402 settlement or identity-handshake receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. Amount is 0 for identity handshakes. PAYMENT-REQUIRED includes extensions.bazaar request/response schema. The live 402 accepts[] is the quote.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-REQUIRED": {
+                "description": "x402 payment requirements (base64 JSON), including extensions.bazaar request and response schema",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Inbox cap or mailbox access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Idempotency-Key reused with a different body"
+          }
+        },
+        "summary": "Get a wallet-bound inbox",
+        "x-pay-metering": {
+          "dimensions": [
+            {
+              "direction": "usage",
+              "scale": 1,
+              "tiers": [
+                {
+                  "price_usd": 0.0
+                }
+              ],
+              "unit": "requests"
+            }
+          ],
+          "schemes": [
+            "mpp-charge",
+            "x402-exact"
+          ]
+        },
+        "x-payment-info": {
+          "amount": "0",
+          "authMode": "payment-required",
+          "currency": "USDC",
+          "description": "Zero-amount Solana USDC handshake. Payment binds the wallet; no USDC is charged. The live 402 accepts[] is the quote.",
+          "intent": "identity",
+          "method": "solana",
+          "price": {
+            "amount": "0",
+            "currency": "USD",
+            "mode": "fixed"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "receiver": "6gL5gmFAkUqPD81DU4jtbBt1oTHyEQrD7n6ouDfHXmgE",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        }
+      }
+    },
+    "/api/agent/v1/mailboxes/{mailboxId}/attachments/{attachmentId}": {
+      "get": {
+        "description": "Keyless $0 Solana USDC identity handshake. A clean attachment is returned as raw file bytes: Content-Type is the file mimetype and Content-Disposition is attachment with the filename. When scan_status is not clean, the response is JSON metadata with content_omitted true and no file bytes.",
+        "operationId": "agentGetAttachment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailboxId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Hosted inbox id returned when the inbox was created."
+          },
+          {
+            "in": "path",
+            "name": "attachmentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Attachment id on a message in this inbox."
+          },
+          {
+            "description": "x402 payment or identity-handshake credential. Retry unpaid 402 responses with this header.",
+            "in": "header",
+            "name": "PAYMENT-SIGNATURE",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {},
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary",
+                  "description": "Attachment bytes. The response Content-Type is the file mimetype."
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "content_omission_reason": {
+                      "type": "string"
+                    },
+                    "content_omitted": {
+                      "type": "boolean"
+                    },
+                    "filename": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "mimetype": {
+                      "type": "string"
+                    },
+                    "size": {
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Clean attachment bytes, or JSON metadata when the file is withheld.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-RESPONSE": {
+                "description": "x402 settlement or identity-handshake receipt",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Disposition": {
+                "description": "Present on a clean download: attachment with the original filename.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. Amount is 0 for identity handshakes. PAYMENT-REQUIRED includes extensions.bazaar request/response schema. The live 402 accepts[] is the quote.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-REQUIRED": {
+                "description": "x402 payment requirements (base64 JSON), including extensions.bazaar request and response schema",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Inbox cap or mailbox access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Idempotency-Key reused with a different body"
+          }
+        },
+        "summary": "Download a clean attachment from an inbox",
+        "x-pay-metering": {
+          "dimensions": [
+            {
+              "direction": "usage",
+              "scale": 1,
+              "tiers": [
+                {
+                  "price_usd": 0.0
+                }
+              ],
+              "unit": "requests"
+            }
+          ],
+          "schemes": [
+            "mpp-charge",
+            "x402-exact"
+          ]
+        },
+        "x-payment-info": {
+          "amount": "0",
+          "authMode": "payment-required",
+          "currency": "USDC",
+          "description": "Zero-amount Solana USDC handshake. Payment binds the wallet; no USDC is charged. The live 402 accepts[] is the quote.",
+          "intent": "identity",
+          "method": "solana",
+          "price": {
+            "amount": "0",
+            "currency": "USD",
+            "mode": "fixed"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "receiver": "6gL5gmFAkUqPD81DU4jtbBt1oTHyEQrD7n6ouDfHXmgE",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        }
+      }
+    },
+    "/api/agent/v1/mailboxes/{mailboxId}/custom-labels": {
+      "get": {
+        "description": "Keyless $0 x402 identity handshake. Payment binds the wallet; no USDC is charged. Get/context/attachment stay scan-gated: non-clean inbound bodies return metadata with content_omitted.",
+        "operationId": "agentListCustomLabels",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailboxId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Hosted inbox id returned when the inbox was created."
+          },
+          {
+            "description": "x402 payment or identity-handshake credential. Retry unpaid 402 responses with this header.",
+            "in": "header",
+            "name": "PAYMENT-SIGNATURE",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {},
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Paid or identity-handshake success",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-RESPONSE": {
+                "description": "x402 settlement or identity-handshake receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. Amount is 0 for identity handshakes. PAYMENT-REQUIRED includes extensions.bazaar request/response schema. The live 402 accepts[] is the quote.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-REQUIRED": {
+                "description": "x402 payment requirements (base64 JSON), including extensions.bazaar request and response schema",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Inbox cap or mailbox access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Idempotency-Key reused with a different body"
+          }
+        },
+        "summary": "List custom labels on a hosted inbox",
+        "x-pay-metering": {
+          "dimensions": [
+            {
+              "direction": "usage",
+              "scale": 1,
+              "tiers": [
+                {
+                  "price_usd": 0.0
+                }
+              ],
+              "unit": "requests"
+            }
+          ],
+          "schemes": [
+            "mpp-charge",
+            "x402-exact"
+          ]
+        },
+        "x-payment-info": {
+          "amount": "0",
+          "authMode": "payment-required",
+          "currency": "USDC",
+          "description": "Zero-amount Solana USDC handshake. Payment binds the wallet; no USDC is charged. The live 402 accepts[] is the quote.",
+          "intent": "identity",
+          "method": "solana",
+          "price": {
+            "amount": "0",
+            "currency": "USD",
+            "mode": "fixed"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "receiver": "6gL5gmFAkUqPD81DU4jtbBt1oTHyEQrD7n6ouDfHXmgE",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        }
+      }
+    },
+    "/api/agent/v1/mailboxes/{mailboxId}/drafts": {
+      "post": {
+        "description": "Keyless $0.01 USDC send path over x402 or MPP. Payment is the credential. Replay the same Idempotency-Key and body after an uncertain settlement.",
+        "operationId": "agentSaveDraft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailboxId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Hosted inbox id returned when the inbox was created."
+          },
+          {
+            "description": "x402 payment or identity-handshake credential. Retry unpaid 402 responses with this header.",
+            "in": "header",
+            "name": "PAYMENT-SIGNATURE",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "MPP payment credential advertised by WWW-Authenticate. Do not send together with PAYMENT-SIGNATURE.",
+            "in": "header",
+            "name": "Payment-Authorization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Replay the same key and body after an uncertain paid call. A different body under the same key returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "properties": {
+                  "attachments": {
+                    "items": {
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "bcc": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    ]
+                  },
+                  "body": {
+                    "type": "string",
+                    "description": "Plain-text body stored on the draft."
+                  },
+                  "body_format": {
+                    "enum": [
+                      "html",
+                      "text"
+                    ],
+                    "type": "string"
+                  },
+                  "cc": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    ]
+                  },
+                  "draft_id": {
+                    "type": "string"
+                  },
+                  "in_reply_to": {
+                    "type": "string"
+                  },
+                  "subject": {
+                    "type": "string"
+                  },
+                  "thread_id": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "body"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "body": {
+                      "type": "string"
+                    },
+                    "content_omitted": {
+                      "type": "boolean"
+                    },
+                    "date": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "read": {
+                      "type": "boolean"
+                    },
+                    "recipient": {
+                      "type": "string"
+                    },
+                    "scan_status": {
+                      "enum": [
+                        "clean",
+                        "flagged",
+                        "skipped",
+                        null
+                      ],
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "sender": {
+                      "type": "string"
+                    },
+                    "snippet": {
+                      "type": "string"
+                    },
+                    "subject": {
+                      "type": "string"
+                    },
+                    "thread_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "subject",
+                    "sender",
+                    "recipient",
+                    "date"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Paid or identity-handshake success",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-RESPONSE": {
+                "description": "x402 settlement or identity-handshake receipt",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Payment-Receipt": {
+                "description": "MPP receipt when the call was paid with Payment-Authorization",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. PAYMENT-REQUIRED includes x402 accepts[] and extensions.bazaar request/response schema. WWW-Authenticate advertises MPP when enabled.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-REQUIRED": {
+                "description": "x402 payment requirements (base64 JSON), including extensions.bazaar request and response schema",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "MPP Payment challenge when MPP is enabled. Retry with Payment-Authorization.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Inbox cap or mailbox access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Idempotency-Key reused with a different body"
+          }
+        },
+        "summary": "Create a draft in a hosted inbox",
+        "x-pay-metering": {
+          "dimensions": [
+            {
+              "direction": "usage",
+              "scale": 1,
+              "tiers": [
+                {
+                  "price_usd": 0.01
+                }
+              ],
+              "unit": "requests"
+            }
+          ],
+          "schemes": [
+            "mpp-charge",
+            "x402-exact"
+          ]
+        },
+        "x-payment-info": {
+          "amount": "10000",
+          "authMode": "payment-required",
+          "currency": "USDC",
+          "description": "Pay-per-call Solana USDC over x402 or MPP. No API key. The live 402 accepts[] is the quote.",
+          "intent": "charge",
+          "method": "solana",
+          "price": {
+            "amount": "0.01",
+            "currency": "USD",
+            "mode": "fixed"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "intent": "charge",
+                "method": "solana"
+              }
+            }
+          ],
+          "receiver": "6gL5gmFAkUqPD81DU4jtbBt1oTHyEQrD7n6ouDfHXmgE",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        }
+      }
+    },
+    "/api/agent/v1/mailboxes/{mailboxId}/emails": {
+      "get": {
+        "description": "Keyless $0 x402 identity handshake. Payment binds the wallet; no USDC is charged. Get/context/attachment stay scan-gated: non-clean inbound bodies return metadata with content_omitted.",
+        "operationId": "agentListEmails",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailboxId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Hosted inbox id returned when the inbox was created."
+          },
+          {
+            "in": "query",
+            "name": "folder",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Mailbox folder to read, such as inbox or sent."
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "description": "Maximum number of items to return in this page."
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Pagination cursor returned by the previous page."
+          },
+          {
+            "in": "query",
+            "name": "sortColumn",
+            "required": false,
+            "schema": {
+              "enum": [
+                "id",
+                "subject",
+                "sender",
+                "recipient",
+                "date",
+                "read",
+                "starred"
+              ],
+              "type": "string"
+            },
+            "description": "Field used to sort the message list."
+          },
+          {
+            "in": "query",
+            "name": "sortDirection",
+            "required": false,
+            "schema": {
+              "enum": [
+                "ASC",
+                "DESC"
+              ],
+              "type": "string"
+            },
+            "description": "Sort direction for the message list."
+          },
+          {
+            "in": "query",
+            "name": "metadata_only",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "When true, return message metadata without body content."
+          },
+          {
+            "in": "query",
+            "name": "require_scan_status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "clean",
+                "flagged",
+                "skipped"
+              ],
+              "type": "string"
+            },
+            "description": "Scan status required before message content is returned."
+          },
+          {
+            "in": "query",
+            "name": "agent_safe_content",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "When true, return the agent-safe content view."
+          },
+          {
+            "description": "x402 payment or identity-handshake credential. Retry unpaid 402 responses with this header.",
+            "in": "header",
+            "name": "PAYMENT-SIGNATURE",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "emails": {
+                      "items": {
+                        "additionalProperties": true,
+                        "properties": {
+                          "body": {
+                            "type": "string"
+                          },
+                          "content_omitted": {
+                            "type": "boolean"
+                          },
+                          "date": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "read": {
+                            "type": "boolean"
+                          },
+                          "recipient": {
+                            "type": "string"
+                          },
+                          "scan_status": {
+                            "enum": [
+                              "clean",
+                              "flagged",
+                              "skipped",
+                              null
+                            ],
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "sender": {
+                            "type": "string"
+                          },
+                          "snippet": {
+                            "type": "string"
+                          },
+                          "subject": {
+                            "type": "string"
+                          },
+                          "thread_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "subject",
+                          "sender",
+                          "recipient",
+                          "date"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "totalCount": {
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "emails",
+                    "totalCount"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Paid or identity-handshake success",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-RESPONSE": {
+                "description": "x402 settlement or identity-handshake receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. Amount is 0 for identity handshakes. PAYMENT-REQUIRED includes extensions.bazaar request/response schema. The live 402 accepts[] is the quote.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-REQUIRED": {
+                "description": "x402 payment requirements (base64 JSON), including extensions.bazaar request and response schema",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Inbox cap or mailbox access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Idempotency-Key reused with a different body"
+          }
+        },
+        "summary": "List messages in a hosted inbox",
+        "x-pay-metering": {
+          "dimensions": [
+            {
+              "direction": "usage",
+              "scale": 1,
+              "tiers": [
+                {
+                  "price_usd": 0.0
+                }
+              ],
+              "unit": "requests"
+            }
+          ],
+          "schemes": [
+            "mpp-charge",
+            "x402-exact"
+          ]
+        },
+        "x-payment-info": {
+          "amount": "0",
+          "authMode": "payment-required",
+          "currency": "USDC",
+          "description": "Zero-amount Solana USDC handshake. Payment binds the wallet; no USDC is charged. The live 402 accepts[] is the quote.",
+          "intent": "identity",
+          "method": "solana",
+          "price": {
+            "amount": "0",
+            "currency": "USD",
+            "mode": "fixed"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "receiver": "6gL5gmFAkUqPD81DU4jtbBt1oTHyEQrD7n6ouDfHXmgE",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        }
+      },
+      "post": {
+        "description": "Keyless $0.01 USDC send path over x402 or MPP. Payment is the credential. Replay the same Idempotency-Key and body after an uncertain settlement.",
+        "operationId": "agentSendEmail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailboxId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Hosted inbox id returned when the inbox was created."
+          },
+          {
+            "description": "x402 payment or identity-handshake credential. Retry unpaid 402 responses with this header.",
+            "in": "header",
+            "name": "PAYMENT-SIGNATURE",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "MPP payment credential advertised by WWW-Authenticate. Do not send together with PAYMENT-SIGNATURE.",
+            "in": "header",
+            "name": "Payment-Authorization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Replay the same key and body after an uncertain paid call. A different body under the same key returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "anyOf": [
+                  {
+                    "required": [
+                      "html"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "text"
+                    ]
+                  }
+                ],
+                "properties": {
+                  "attachments": {
+                    "items": {
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "bcc": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "items": {
+                          "format": "email",
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    ]
+                  },
+                  "cc": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "items": {
+                          "format": "email",
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    ]
+                  },
+                  "client_send_id": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "from": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "properties": {
+                          "email": {
+                            "format": "email",
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "email",
+                          "name"
+                        ],
+                        "type": "object"
+                      }
+                    ],
+                    "description": "Hosted From address that belongs to this inbox."
+                  },
+                  "html": {
+                    "type": "string"
+                  },
+                  "in_reply_to": {
+                    "type": "string"
+                  },
+                  "references": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "source_draft_id": {
+                    "type": "string"
+                  },
+                  "subject": {
+                    "type": "string",
+                    "description": "Subject line of the email."
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "thread_id": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "items": {
+                          "format": "email",
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    ],
+                    "description": "Recipient addresses for this email."
+                  }
+                },
+                "required": [
+                  "to",
+                  "from",
+                  "subject"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Paid or identity-handshake success",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-RESPONSE": {
+                "description": "x402 settlement or identity-handshake receipt",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Payment-Receipt": {
+                "description": "MPP receipt when the call was paid with Payment-Authorization",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. PAYMENT-REQUIRED includes x402 accepts[] and extensions.bazaar request/response schema. WWW-Authenticate advertises MPP when enabled.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-REQUIRED": {
+                "description": "x402 payment requirements (base64 JSON), including extensions.bazaar request and response schema",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "MPP Payment challenge when MPP is enabled. Retry with Payment-Authorization.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Inbox cap or mailbox access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Idempotency-Key reused with a different body"
+          }
+        },
+        "summary": "Send an email from a hosted inbox",
+        "x-pay-metering": {
+          "dimensions": [
+            {
+              "direction": "usage",
+              "scale": 1,
+              "tiers": [
+                {
+                  "price_usd": 0.01
+                }
+              ],
+              "unit": "requests"
+            }
+          ],
+          "schemes": [
+            "mpp-charge",
+            "x402-exact"
+          ]
+        },
+        "x-payment-info": {
+          "amount": "10000",
+          "authMode": "payment-required",
+          "currency": "USDC",
+          "description": "Pay-per-call Solana USDC over x402 or MPP. No API key. The live 402 accepts[] is the quote.",
+          "intent": "charge",
+          "method": "solana",
+          "price": {
+            "amount": "0.01",
+            "currency": "USD",
+            "mode": "fixed"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "intent": "charge",
+                "method": "solana"
+              }
+            }
+          ],
+          "receiver": "6gL5gmFAkUqPD81DU4jtbBt1oTHyEQrD7n6ouDfHXmgE",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        }
+      }
+    },
+    "/api/agent/v1/mailboxes/{mailboxId}/emails/{emailId}": {
+      "get": {
+        "description": "Keyless $0 x402 identity handshake. Payment binds the wallet; no USDC is charged. Get/context/attachment stay scan-gated: non-clean inbound bodies return metadata with content_omitted.",
+        "operationId": "agentGetEmail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailboxId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Hosted inbox id returned when the inbox was created."
+          },
+          {
+            "in": "path",
+            "name": "emailId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Message id from a list, search, or thread result."
+          },
+          {
+            "description": "x402 payment or identity-handshake credential. Retry unpaid 402 responses with this header.",
+            "in": "header",
+            "name": "PAYMENT-SIGNATURE",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {},
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "body": {
+                      "type": "string"
+                    },
+                    "content_omitted": {
+                      "type": "boolean"
+                    },
+                    "date": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "read": {
+                      "type": "boolean"
+                    },
+                    "recipient": {
+                      "type": "string"
+                    },
+                    "scan_status": {
+                      "enum": [
+                        "clean",
+                        "flagged",
+                        "skipped",
+                        null
+                      ],
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "sender": {
+                      "type": "string"
+                    },
+                    "snippet": {
+                      "type": "string"
+                    },
+                    "subject": {
+                      "type": "string"
+                    },
+                    "thread_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "subject",
+                    "sender",
+                    "recipient",
+                    "date"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Paid or identity-handshake success",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-RESPONSE": {
+                "description": "x402 settlement or identity-handshake receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. Amount is 0 for identity handshakes. PAYMENT-REQUIRED includes extensions.bazaar request/response schema. The live 402 accepts[] is the quote.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-REQUIRED": {
+                "description": "x402 payment requirements (base64 JSON), including extensions.bazaar request and response schema",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Inbox cap or mailbox access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Idempotency-Key reused with a different body"
+          }
+        },
+        "summary": "Get one message from a hosted inbox",
+        "x-pay-metering": {
+          "dimensions": [
+            {
+              "direction": "usage",
+              "scale": 1,
+              "tiers": [
+                {
+                  "price_usd": 0.0
+                }
+              ],
+              "unit": "requests"
+            }
+          ],
+          "schemes": [
+            "mpp-charge",
+            "x402-exact"
+          ]
+        },
+        "x-payment-info": {
+          "amount": "0",
+          "authMode": "payment-required",
+          "currency": "USDC",
+          "description": "Zero-amount Solana USDC handshake. Payment binds the wallet; no USDC is charged. The live 402 accepts[] is the quote.",
+          "intent": "identity",
+          "method": "solana",
+          "price": {
+            "amount": "0",
+            "currency": "USD",
+            "mode": "fixed"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "receiver": "6gL5gmFAkUqPD81DU4jtbBt1oTHyEQrD7n6ouDfHXmgE",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        }
+      }
+    },
+    "/api/agent/v1/mailboxes/{mailboxId}/emails/{emailId}/context": {
+      "get": {
+        "description": "Keyless $0 x402 identity handshake. Payment binds the wallet; no USDC is charged. Get/context/attachment stay scan-gated: non-clean inbound bodies return metadata with content_omitted.",
+        "operationId": "agentGetEmailContext",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailboxId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Hosted inbox id returned when the inbox was created."
+          },
+          {
+            "in": "path",
+            "name": "emailId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Message id from a list, search, or thread result."
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "description": "Maximum number of items to return in this page."
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 2048,
+              "type": "string"
+            },
+            "description": "Pagination cursor returned by the previous page."
+          },
+          {
+            "description": "x402 payment or identity-handshake credential. Retry unpaid 402 responses with this header.",
+            "in": "header",
+            "name": "PAYMENT-SIGNATURE",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "email": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "body": {
+                          "type": "string"
+                        },
+                        "content_omitted": {
+                          "type": "boolean"
+                        },
+                        "date": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "read": {
+                          "type": "boolean"
+                        },
+                        "recipient": {
+                          "type": "string"
+                        },
+                        "scan_status": {
+                          "enum": [
+                            "clean",
+                            "flagged",
+                            "skipped",
+                            null
+                          ],
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "sender": {
+                          "type": "string"
+                        },
+                        "snippet": {
+                          "type": "string"
+                        },
+                        "subject": {
+                          "type": "string"
+                        },
+                        "thread_id": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "subject",
+                        "sender",
+                        "recipient",
+                        "date"
+                      ],
+                      "type": "object"
+                    },
+                    "thread": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "has_more": {
+                          "type": "boolean"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "messages": {
+                          "items": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "body": {
+                                "type": "string"
+                              },
+                              "content_omitted": {
+                                "type": "boolean"
+                              },
+                              "date": {
+                                "format": "date-time",
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "read": {
+                                "type": "boolean"
+                              },
+                              "recipient": {
+                                "type": "string"
+                              },
+                              "scan_status": {
+                                "enum": [
+                                  "clean",
+                                  "flagged",
+                                  "skipped",
+                                  null
+                                ],
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "sender": {
+                                "type": "string"
+                              },
+                              "snippet": {
+                                "type": "string"
+                              },
+                              "subject": {
+                                "type": "string"
+                              },
+                              "thread_id": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "subject",
+                              "sender",
+                              "recipient",
+                              "date"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "next_cursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "total_count": {
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "messages",
+                        "total_count",
+                        "has_more",
+                        "next_cursor"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "email",
+                    "thread"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Paid or identity-handshake success",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-RESPONSE": {
+                "description": "x402 settlement or identity-handshake receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. Amount is 0 for identity handshakes. PAYMENT-REQUIRED includes extensions.bazaar request/response schema. The live 402 accepts[] is the quote.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-REQUIRED": {
+                "description": "x402 payment requirements (base64 JSON), including extensions.bazaar request and response schema",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Inbox cap or mailbox access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Idempotency-Key reused with a different body"
+          }
+        },
+        "summary": "Get safe message context",
+        "x-pay-metering": {
+          "dimensions": [
+            {
+              "direction": "usage",
+              "scale": 1,
+              "tiers": [
+                {
+                  "price_usd": 0.0
+                }
+              ],
+              "unit": "requests"
+            }
+          ],
+          "schemes": [
+            "mpp-charge",
+            "x402-exact"
+          ]
+        },
+        "x-payment-info": {
+          "amount": "0",
+          "authMode": "payment-required",
+          "currency": "USDC",
+          "description": "Zero-amount Solana USDC handshake. Payment binds the wallet; no USDC is charged. The live 402 accepts[] is the quote.",
+          "intent": "identity",
+          "method": "solana",
+          "price": {
+            "amount": "0",
+            "currency": "USD",
+            "mode": "fixed"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "receiver": "6gL5gmFAkUqPD81DU4jtbBt1oTHyEQrD7n6ouDfHXmgE",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        }
+      }
+    },
+    "/api/agent/v1/mailboxes/{mailboxId}/emails/{emailId}/forward": {
+      "post": {
+        "description": "Keyless $0.01 USDC send path over x402 or MPP. Payment is the credential. Replay the same Idempotency-Key and body after an uncertain settlement.",
+        "operationId": "agentForwardEmail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailboxId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Hosted inbox id returned when the inbox was created."
+          },
+          {
+            "in": "path",
+            "name": "emailId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Message id from a list, search, or thread result."
+          },
+          {
+            "description": "x402 payment or identity-handshake credential. Retry unpaid 402 responses with this header.",
+            "in": "header",
+            "name": "PAYMENT-SIGNATURE",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "MPP payment credential advertised by WWW-Authenticate. Do not send together with PAYMENT-SIGNATURE.",
+            "in": "header",
+            "name": "Payment-Authorization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Replay the same key and body after an uncertain paid call. A different body under the same key returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "anyOf": [
+                  {
+                    "required": [
+                      "html"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "text"
+                    ]
+                  }
+                ],
+                "properties": {
+                  "attachments": {
+                    "items": {
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "bcc": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "items": {
+                          "format": "email",
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    ]
+                  },
+                  "cc": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "items": {
+                          "format": "email",
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    ]
+                  },
+                  "client_send_id": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "from": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "properties": {
+                          "email": {
+                            "format": "email",
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "email",
+                          "name"
+                        ],
+                        "type": "object"
+                      }
+                    ],
+                    "description": "Hosted From address that belongs to this inbox."
+                  },
+                  "html": {
+                    "type": "string"
+                  },
+                  "in_reply_to": {
+                    "type": "string"
+                  },
+                  "references": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "source_draft_id": {
+                    "type": "string"
+                  },
+                  "subject": {
+                    "type": "string",
+                    "description": "Subject line of the email."
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "thread_id": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "items": {
+                          "format": "email",
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    ],
+                    "description": "Recipient addresses for this email."
+                  }
+                },
+                "required": [
+                  "to",
+                  "from",
+                  "subject"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Paid or identity-handshake success",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-RESPONSE": {
+                "description": "x402 settlement or identity-handshake receipt",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Payment-Receipt": {
+                "description": "MPP receipt when the call was paid with Payment-Authorization",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. PAYMENT-REQUIRED includes x402 accepts[] and extensions.bazaar request/response schema. WWW-Authenticate advertises MPP when enabled.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-REQUIRED": {
+                "description": "x402 payment requirements (base64 JSON), including extensions.bazaar request and response schema",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "MPP Payment challenge when MPP is enabled. Retry with Payment-Authorization.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Inbox cap or mailbox access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Idempotency-Key reused with a different body"
+          }
+        },
+        "summary": "Send a forward from a hosted inbox",
+        "x-pay-metering": {
+          "dimensions": [
+            {
+              "direction": "usage",
+              "scale": 1,
+              "tiers": [
+                {
+                  "price_usd": 0.01
+                }
+              ],
+              "unit": "requests"
+            }
+          ],
+          "schemes": [
+            "mpp-charge",
+            "x402-exact"
+          ]
+        },
+        "x-payment-info": {
+          "amount": "10000",
+          "authMode": "payment-required",
+          "currency": "USDC",
+          "description": "Pay-per-call Solana USDC over x402 or MPP. No API key. The live 402 accepts[] is the quote.",
+          "intent": "charge",
+          "method": "solana",
+          "price": {
+            "amount": "0.01",
+            "currency": "USD",
+            "mode": "fixed"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "intent": "charge",
+                "method": "solana"
+              }
+            }
+          ],
+          "receiver": "6gL5gmFAkUqPD81DU4jtbBt1oTHyEQrD7n6ouDfHXmgE",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        }
+      }
+    },
+    "/api/agent/v1/mailboxes/{mailboxId}/emails/{emailId}/reply": {
+      "post": {
+        "description": "Keyless $0.01 USDC send path over x402 or MPP. Payment is the credential. Replay the same Idempotency-Key and body after an uncertain settlement.",
+        "operationId": "agentReplyToEmail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailboxId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Hosted inbox id returned when the inbox was created."
+          },
+          {
+            "in": "path",
+            "name": "emailId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Message id from a list, search, or thread result."
+          },
+          {
+            "description": "x402 payment or identity-handshake credential. Retry unpaid 402 responses with this header.",
+            "in": "header",
+            "name": "PAYMENT-SIGNATURE",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "MPP payment credential advertised by WWW-Authenticate. Do not send together with PAYMENT-SIGNATURE.",
+            "in": "header",
+            "name": "Payment-Authorization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Replay the same key and body after an uncertain paid call. A different body under the same key returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "anyOf": [
+                  {
+                    "required": [
+                      "html"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "text"
+                    ]
+                  }
+                ],
+                "properties": {
+                  "attachments": {
+                    "items": {
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "bcc": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "items": {
+                          "format": "email",
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    ]
+                  },
+                  "cc": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "items": {
+                          "format": "email",
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    ]
+                  },
+                  "client_send_id": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "from": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "properties": {
+                          "email": {
+                            "format": "email",
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "email",
+                          "name"
+                        ],
+                        "type": "object"
+                      }
+                    ],
+                    "description": "Hosted From address that belongs to this inbox."
+                  },
+                  "html": {
+                    "type": "string"
+                  },
+                  "in_reply_to": {
+                    "type": "string"
+                  },
+                  "references": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "source_draft_id": {
+                    "type": "string"
+                  },
+                  "subject": {
+                    "type": "string",
+                    "description": "Subject line of the email."
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "thread_id": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "items": {
+                          "format": "email",
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    ],
+                    "description": "Recipient addresses for this email."
+                  }
+                },
+                "required": [
+                  "to",
+                  "from",
+                  "subject"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Paid or identity-handshake success",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-RESPONSE": {
+                "description": "x402 settlement or identity-handshake receipt",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Payment-Receipt": {
+                "description": "MPP receipt when the call was paid with Payment-Authorization",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. PAYMENT-REQUIRED includes x402 accepts[] and extensions.bazaar request/response schema. WWW-Authenticate advertises MPP when enabled.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-REQUIRED": {
+                "description": "x402 payment requirements (base64 JSON), including extensions.bazaar request and response schema",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "WWW-Authenticate": {
+                "description": "MPP Payment challenge when MPP is enabled. Retry with Payment-Authorization.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Inbox cap or mailbox access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Idempotency-Key reused with a different body"
+          }
+        },
+        "summary": "Send a reply from a hosted inbox",
+        "x-pay-metering": {
+          "dimensions": [
+            {
+              "direction": "usage",
+              "scale": 1,
+              "tiers": [
+                {
+                  "price_usd": 0.01
+                }
+              ],
+              "unit": "requests"
+            }
+          ],
+          "schemes": [
+            "mpp-charge",
+            "x402-exact"
+          ]
+        },
+        "x-payment-info": {
+          "amount": "10000",
+          "authMode": "payment-required",
+          "currency": "USDC",
+          "description": "Pay-per-call Solana USDC over x402 or MPP. No API key. The live 402 accepts[] is the quote.",
+          "intent": "charge",
+          "method": "solana",
+          "price": {
+            "amount": "0.01",
+            "currency": "USD",
+            "mode": "fixed"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            },
+            {
+              "mpp": {
+                "intent": "charge",
+                "method": "solana"
+              }
+            }
+          ],
+          "receiver": "6gL5gmFAkUqPD81DU4jtbBt1oTHyEQrD7n6ouDfHXmgE",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        }
+      }
+    },
+    "/api/agent/v1/mailboxes/{mailboxId}/folders": {
+      "get": {
+        "description": "Keyless $0 x402 identity handshake. Payment binds the wallet; no USDC is charged. Get/context/attachment stay scan-gated: non-clean inbound bodies return metadata with content_omitted.",
+        "operationId": "agentListFolders",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailboxId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Hosted inbox id returned when the inbox was created."
+          },
+          {
+            "description": "x402 payment or identity-handshake credential. Retry unpaid 402 responses with this header.",
+            "in": "header",
+            "name": "PAYMENT-SIGNATURE",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {},
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Paid or identity-handshake success",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-RESPONSE": {
+                "description": "x402 settlement or identity-handshake receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. Amount is 0 for identity handshakes. PAYMENT-REQUIRED includes extensions.bazaar request/response schema. The live 402 accepts[] is the quote.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-REQUIRED": {
+                "description": "x402 payment requirements (base64 JSON), including extensions.bazaar request and response schema",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Inbox cap or mailbox access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Idempotency-Key reused with a different body"
+          }
+        },
+        "summary": "List folders in a hosted inbox",
+        "x-pay-metering": {
+          "dimensions": [
+            {
+              "direction": "usage",
+              "scale": 1,
+              "tiers": [
+                {
+                  "price_usd": 0.0
+                }
+              ],
+              "unit": "requests"
+            }
+          ],
+          "schemes": [
+            "mpp-charge",
+            "x402-exact"
+          ]
+        },
+        "x-payment-info": {
+          "amount": "0",
+          "authMode": "payment-required",
+          "currency": "USDC",
+          "description": "Zero-amount Solana USDC handshake. Payment binds the wallet; no USDC is charged. The live 402 accepts[] is the quote.",
+          "intent": "identity",
+          "method": "solana",
+          "price": {
+            "amount": "0",
+            "currency": "USD",
+            "mode": "fixed"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "receiver": "6gL5gmFAkUqPD81DU4jtbBt1oTHyEQrD7n6ouDfHXmgE",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        }
+      }
+    },
+    "/api/agent/v1/mailboxes/{mailboxId}/search": {
+      "get": {
+        "description": "Keyless $0 x402 identity handshake. Payment binds the wallet; no USDC is charged. Get/context/attachment stay scan-gated: non-clean inbound bodies return metadata with content_omitted.",
+        "operationId": "agentSearchEmails",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailboxId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Hosted inbox id returned when the inbox was created."
+          },
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Search text matched against inbox message content."
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Sender address filter."
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Recipient address filter."
+          },
+          {
+            "in": "query",
+            "name": "subject",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Subject line filter."
+          },
+          {
+            "in": "query",
+            "name": "date_start",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "description": "Include messages on or after this timestamp."
+          },
+          {
+            "in": "query",
+            "name": "date_end",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "description": "Include messages on or before this timestamp."
+          },
+          {
+            "in": "query",
+            "name": "folder",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Mailbox folder to read, such as inbox or sent."
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "description": "Maximum number of items to return in this page."
+          },
+          {
+            "in": "query",
+            "name": "require_scan_status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "clean",
+                "flagged",
+                "skipped"
+              ],
+              "type": "string"
+            },
+            "description": "Scan status required before message content is returned."
+          },
+          {
+            "in": "query",
+            "name": "metadata_only",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "When true, return message metadata without body content."
+          },
+          {
+            "in": "query",
+            "name": "agent_safe_content",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "When true, return the agent-safe content view."
+          },
+          {
+            "description": "x402 payment or identity-handshake credential. Retry unpaid 402 responses with this header.",
+            "in": "header",
+            "name": "PAYMENT-SIGNATURE",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "emails": {
+                      "items": {
+                        "additionalProperties": true,
+                        "properties": {
+                          "body": {
+                            "type": "string"
+                          },
+                          "content_omitted": {
+                            "type": "boolean"
+                          },
+                          "date": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "read": {
+                            "type": "boolean"
+                          },
+                          "recipient": {
+                            "type": "string"
+                          },
+                          "scan_status": {
+                            "enum": [
+                              "clean",
+                              "flagged",
+                              "skipped",
+                              null
+                            ],
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "sender": {
+                            "type": "string"
+                          },
+                          "snippet": {
+                            "type": "string"
+                          },
+                          "subject": {
+                            "type": "string"
+                          },
+                          "thread_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "subject",
+                          "sender",
+                          "recipient",
+                          "date"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "totalCount": {
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "emails",
+                    "totalCount"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Paid or identity-handshake success",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-RESPONSE": {
+                "description": "x402 settlement or identity-handshake receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. Amount is 0 for identity handshakes. PAYMENT-REQUIRED includes extensions.bazaar request/response schema. The live 402 accepts[] is the quote.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-REQUIRED": {
+                "description": "x402 payment requirements (base64 JSON), including extensions.bazaar request and response schema",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Inbox cap or mailbox access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Idempotency-Key reused with a different body"
+          }
+        },
+        "summary": "Search messages in a hosted inbox",
+        "x-pay-metering": {
+          "dimensions": [
+            {
+              "direction": "usage",
+              "scale": 1,
+              "tiers": [
+                {
+                  "price_usd": 0.0
+                }
+              ],
+              "unit": "requests"
+            }
+          ],
+          "schemes": [
+            "mpp-charge",
+            "x402-exact"
+          ]
+        },
+        "x-payment-info": {
+          "amount": "0",
+          "authMode": "payment-required",
+          "currency": "USDC",
+          "description": "Zero-amount Solana USDC handshake. Payment binds the wallet; no USDC is charged. The live 402 accepts[] is the quote.",
+          "intent": "identity",
+          "method": "solana",
+          "price": {
+            "amount": "0",
+            "currency": "USD",
+            "mode": "fixed"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "receiver": "6gL5gmFAkUqPD81DU4jtbBt1oTHyEQrD7n6ouDfHXmgE",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        }
+      }
+    },
+    "/api/agent/v1/mailboxes/{mailboxId}/threads/{threadId}": {
+      "get": {
+        "description": "Keyless $0 x402 identity handshake. Payment binds the wallet; no USDC is charged. Get/context/attachment stay scan-gated: non-clean inbound bodies return metadata with content_omitted.",
+        "operationId": "agentGetThread",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailboxId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Hosted inbox id returned when the inbox was created."
+          },
+          {
+            "in": "path",
+            "name": "threadId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Conversation thread id for messages in this inbox."
+          },
+          {
+            "description": "x402 payment or identity-handshake credential. Retry unpaid 402 responses with this header.",
+            "in": "header",
+            "name": "PAYMENT-SIGNATURE",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {},
+                "type": "object"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "emails": {
+                      "items": {
+                        "additionalProperties": true,
+                        "properties": {
+                          "body": {
+                            "type": "string"
+                          },
+                          "content_omitted": {
+                            "type": "boolean"
+                          },
+                          "date": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "read": {
+                            "type": "boolean"
+                          },
+                          "recipient": {
+                            "type": "string"
+                          },
+                          "scan_status": {
+                            "enum": [
+                              "clean",
+                              "flagged",
+                              "skipped",
+                              null
+                            ],
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "sender": {
+                            "type": "string"
+                          },
+                          "snippet": {
+                            "type": "string"
+                          },
+                          "subject": {
+                            "type": "string"
+                          },
+                          "thread_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "subject",
+                          "sender",
+                          "recipient",
+                          "date"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "totalCount": {
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "emails",
+                    "totalCount"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Paid or identity-handshake success",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-RESPONSE": {
+                "description": "x402 settlement or identity-handshake receipt",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. Amount is 0 for identity handshakes. PAYMENT-REQUIRED includes extensions.bazaar request/response schema. The live 402 accepts[] is the quote.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "const": "no-store",
+                  "type": "string"
+                }
+              },
+              "PAYMENT-REQUIRED": {
+                "description": "x402 payment requirements (base64 JSON), including extensions.bazaar request and response schema",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Inbox cap or mailbox access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Idempotency-Key reused with a different body"
+          }
+        },
+        "summary": "Get one message thread from an inbox",
+        "x-pay-metering": {
+          "dimensions": [
+            {
+              "direction": "usage",
+              "scale": 1,
+              "tiers": [
+                {
+                  "price_usd": 0.0
+                }
+              ],
+              "unit": "requests"
+            }
+          ],
+          "schemes": [
+            "mpp-charge",
+            "x402-exact"
+          ]
+        },
+        "x-payment-info": {
+          "amount": "0",
+          "authMode": "payment-required",
+          "currency": "USDC",
+          "description": "Zero-amount Solana USDC handshake. Payment binds the wallet; no USDC is charged. The live 402 accepts[] is the quote.",
+          "intent": "identity",
+          "method": "solana",
+          "price": {
+            "amount": "0",
+            "currency": "USD",
+            "mode": "fixed"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "receiver": "6gL5gmFAkUqPD81DU4jtbBt1oTHyEQrD7n6ouDfHXmgE",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://mermail-pay.vercel.app"
+    }
+  ]
+}
