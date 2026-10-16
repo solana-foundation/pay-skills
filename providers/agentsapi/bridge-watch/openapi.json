@@ -1,0 +1,4405 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "bridge-watch API",
+    "version": "0.1.0",
+    "description": "On-chain risk intelligence API for AI agents on Base: address labels, transaction explain, sybil clustering, CCTP tracking, alerts. Pay per request with USDC via x402 (HTTP 402 auto-negotiated).",
+    "x-guidance": "All /v1/* endpoints are paid via x402: call without auth, read the 402/401 response body for the PaymentRequired challenge, pay with USDC on Base (eip155:8453) to payTo 0x381cdbb664608bf7b1dd4f9403a572c1c57332c2, then retry with X-Payment header or Authorization: Bearer <payment-address>. /healthz and /statusz are free. See /.well-known/x402 for the full manifest.",
+    "contact": {
+      "name": "mavisCrypto",
+      "url": "https://agentsapi.top",
+      "email": "ops@agentsapi.top"
+    },
+    "x-version": {
+      "restSpec": "0.1.0",
+      "product": "0.3.1",
+      "mcpServer": "0.3.1",
+      "note": "restSpec is the version of this OpenAPI document; product/mcpServer are the live bridge-watch release, sourced from GET /mcp and MCP initialize at build time",
+      "source": [
+        "GET https://agentsapi.top/mcp",
+        "POST https://agentsapi.top/mcp initialize",
+        "POST https://agentsapi.top/mcp tools/list"
+      ]
+    },
+    "x-mcp": {
+      "endpoint": "https://agentsapi.top/mcp",
+      "transport": "streamable-http",
+      "registry": "top.agentsapi/bridge-watch",
+      "serverInfo": {
+        "name": "bridge-watch",
+        "version": "0.3.1"
+      },
+      "protocolVersion": "2025-06-18",
+      "freeTier": {
+        "enabled": true,
+        "tools": [
+          "get_label",
+          "explain_transaction",
+          "detect_cluster",
+          "query_alerts",
+          "alert_stats",
+          "track_cctp",
+          "list_paid_endpoints"
+        ],
+        "perIp": 7,
+        "dailyCap": 500,
+        "perTool": 1
+      },
+      "tools": [
+        {
+          "name": "get_label",
+          "credits": 1,
+          "usdc": "0.01",
+          "description": "Look up the identity label of an EVM address (Base, open eth-labels dataset; mostly category tags rather than named entities). Returns which entity the address belongs to; unlabelled addresses return null. Call with no arguments for a free demo result.",
+          "readOnly": true
+        },
+        {
+          "name": "explain_transaction",
+          "credits": 2,
+          "usdc": "0.02",
+          "description": "Explain what a transaction did: status, sender/receiver (with identity labels), transfer details, and whether it looks like a cross-chain bridge operation.",
+          "readOnly": true
+        },
+        {
+          "name": "detect_cluster",
+          "credits": 5,
+          "usdc": "0.05",
+          "description": "Detect the set of addresses funded by a single funder (shared funding-source cluster). Useful for sybil / entity detection.",
+          "readOnly": true
+        },
+        {
+          "name": "query_alerts",
+          "credits": 1,
+          "usdc": "0.01",
+          "description": "Query historical alert records; filterable by address, rule kind, severity, and time range.",
+          "readOnly": true
+        },
+        {
+          "name": "alert_stats",
+          "credits": 1,
+          "usdc": "0.01",
+          "description": "Alert statistics overview: totals, breakdown by kind / severity / address, and the latest alert time.",
+          "readOnly": true
+        },
+        {
+          "name": "track_cctp",
+          "credits": 3,
+          "usdc": "0.03",
+          "description": "CCTP cross-chain transfer tracking: given a source-chain tx hash, find which transfer it belongs to, how much moved, the destination chain, and whether it arrived. Supports Base → Ethereum and other CCTP chains.",
+          "readOnly": true
+        },
+        {
+          "name": "list_paid_endpoints",
+          "credits": 1,
+          "usdc": "0.01",
+          "description": "List every paid HTTP endpoint of this service with its live per-call price in USDC on Base. Takes no arguments. Call this first to discover what you can buy and what it costs.",
+          "readOnly": true
+        }
+      ],
+      "payment": {
+        "protocol": "x402 v2 (v1 X-PAYMENT compatible)",
+        "network": "base",
+        "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+        "asset": "USDC",
+        "creditPerUsdc": 100
+      },
+      "howToCall": [
+        "POST https://agentsapi.top/mcp with Content-Type: application/json and Accept: application/json, text/event-stream",
+        "Body is JSON-RPC 2.0: initialize (free) → tools/list (free) → tools/call (paid)",
+        "A paid tool/call returns a PaymentRequired object inside the JSON-RPC result; the /mcp protocol plane itself never returns HTTP 402",
+        "Pay USDC on Base to payTo, then retry tools/call with the payer address as Authorization: Bearer <address> (or x402 payment-signature header)",
+        "Anonymous free tier: 7 tool calls per IP per day, 1 per tool across all 7 tools (get_label, explain_transaction, detect_cluster, query_alerts, alert_stats, track_cctp, list_paid_endpoints; no wallet, no signup)"
+      ],
+      "machineReadable": {
+        "mcpDescriptor": "https://agentsapi.top/.well-known/mcp.json",
+        "serverCard": "https://agentsapi.top/.well-known/mcp/server-card.json",
+        "x402Manifest": "https://agentsapi.top/.well-known/x402",
+        "skill": "https://agentsapi.top/skill.md",
+        "llmsTxt": "https://agentsapi.top/llms.txt"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://agentsapi.top"
+    }
+  ],
+  "tags": [
+    {
+      "name": "label",
+      "description": "Address identity labels"
+    },
+    {
+      "name": "explain",
+      "description": "Transaction explanation"
+    },
+    {
+      "name": "cluster",
+      "description": "Entity clustering / sybil detection"
+    },
+    {
+      "name": "cctp",
+      "description": "CCTP cross-chain USDC tracking"
+    },
+    {
+      "name": "alerts",
+      "description": "On-chain alerts"
+    },
+    {
+      "name": "subscription",
+      "description": "Alert subscriptions"
+    },
+    {
+      "name": "filings",
+      "description": "SEC 8-K material-event filings"
+    },
+    {
+      "name": "mcp",
+      "description": "Model Context Protocol (JSON-RPC 2.0 over HTTP) endpoint — 7 paid tools with an anonymous free tier"
+    }
+  ],
+  "paths": {
+    "/v1/label/{address}": {
+      "get": {
+        "summary": "Address tag lookup",
+        "description": "Address tag lookup on Base: 104,209 entries from the open eth-labels dataset, mostly category tags (79.8% generic such as token-contract/stablecoin/burn, 18.7% exchange) rather than named entities. Unknown addresses return label:null and are still charged per call; measured hit rate on real inbound requests was 37.5% of unique addresses. Pay per call with USDC via x402.",
+        "tags": [
+          "label"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{40}$"
+            }
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "address": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+                  "label": null
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "address": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "address",
+                    "label"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required - x402 negotiation (see 402 response body for payment requirements)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "x402Version": 2,
+                  "error": "Payment Required",
+                  "hint": "向 payTo 转入 USDC，并以同一地址作为 Bearer 身份继续调用",
+                  "freeTierReason": null,
+                  "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                  "docs": "https://agentsapi.top/",
+                  "resource": {
+                    "url": "https://agentsapi.top/v1/label/0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                    "description": "Address tag lookup on Base: 104,209 entries from the open eth-labels dataset, mostly category tags (79.8% generic such as token-contract/stablecoin/burn, 18.7% exchange) rather than named entities. Unknown addresses return label:null and are still charged per call; measured hit rate on real inbound requests was 37.5% of unique addresses. Pay per call with USDC via x402.",
+                    "tags": [
+                      "base",
+                      "onchain",
+                      "address-labels",
+                      "risk"
+                    ],
+                    "mimeType": "application/json"
+                  },
+                  "accepts": [
+                    {
+                      "x402Version": 2,
+                      "scheme": "exact",
+                      "network": "eip155:8453",
+                      "maxAmountRequired": "10000",
+                      "resource": "https://agentsapi.top/v1/label/0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                      "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                      "maxTimeoutSeconds": 300,
+                      "facilitator": {
+                        "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                      },
+                      "amount": "10000",
+                      "extra": {
+                        "name": "USD Coin",
+                        "version": "2"
+                      }
+                    }
+                  ],
+                  "extensions": {
+                    "bazaar": {
+                      "info": {
+                        "input": {
+                          "type": "http",
+                          "method": "GET",
+                          "discoverable": true
+                        },
+                        "output": {
+                          "type": "json",
+                          "example": {
+                            "address": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+                            "label": null
+                          }
+                        }
+                      },
+                      "schema": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "object",
+                            "required": [
+                              "address"
+                            ],
+                            "properties": {
+                              "address": {
+                                "type": "string",
+                                "format": "evm-address"
+                              }
+                            }
+                          },
+                          "output": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "example": {
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "input"
+                        ]
+                      }
+                    }
+                  },
+                  "x402": {
+                    "x402Version": 2,
+                    "scheme": "exact",
+                    "network": "eip155:8453",
+                    "maxAmountRequired": "10000",
+                    "resource": "https://agentsapi.top/v1/label/0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                    "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "maxTimeoutSeconds": 300,
+                    "facilitator": {
+                      "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "payment-required": {
+                "description": "Base64-encoded PaymentRequired challenge (identical object to the JSON body). Present on every 402 response (captured 15/15 on 2026-10-10).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-payment-requirements": {
+                "description": "Single x402 v2 payment requirement: network eip155:8453, asset (USDC), payTo, maxAmountRequired (atomic units, 6 decimals), facilitator URL.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Address tag lookup",
+        "description": "Address tag lookup on Base: 104,209 entries from the open eth-labels dataset, mostly category tags (79.8% generic such as token-contract/stablecoin/burn, 18.7% exchange) rather than named entities. Unknown addresses return label:null and are still charged per call; measured hit rate on real inbound requests was 37.5% of unique addresses. Pay per call with USDC via x402.",
+        "tags": [
+          "label"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{40}$"
+            }
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "address": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+                  "label": null
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "address": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "address",
+                    "label"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required - x402 negotiation (see 402 response body for payment requirements)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "x402Version": 2,
+                  "error": "Payment Required",
+                  "hint": "向 payTo 转入 USDC，并以同一地址作为 Bearer 身份继续调用",
+                  "freeTierReason": null,
+                  "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                  "docs": "https://agentsapi.top/",
+                  "resource": {
+                    "url": "https://agentsapi.top/v1/label/0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                    "description": "Address tag lookup on Base: 104,209 entries from the open eth-labels dataset, mostly category tags (79.8% generic such as token-contract/stablecoin/burn, 18.7% exchange) rather than named entities. Unknown addresses return label:null and are still charged per call; measured hit rate on real inbound requests was 37.5% of unique addresses. Pay per call with USDC via x402.",
+                    "tags": [
+                      "base",
+                      "onchain",
+                      "address-labels",
+                      "risk"
+                    ],
+                    "mimeType": "application/json"
+                  },
+                  "accepts": [
+                    {
+                      "x402Version": 2,
+                      "scheme": "exact",
+                      "network": "eip155:8453",
+                      "maxAmountRequired": "10000",
+                      "resource": "https://agentsapi.top/v1/label/0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                      "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                      "maxTimeoutSeconds": 300,
+                      "facilitator": {
+                        "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                      },
+                      "amount": "10000",
+                      "extra": {
+                        "name": "USD Coin",
+                        "version": "2"
+                      }
+                    }
+                  ],
+                  "extensions": {
+                    "bazaar": {
+                      "info": {
+                        "input": {
+                          "type": "http",
+                          "method": "POST",
+                          "bodyType": "json",
+                          "discoverable": true
+                        },
+                        "output": {
+                          "type": "json",
+                          "example": {
+                            "address": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+                            "label": null
+                          }
+                        }
+                      },
+                      "schema": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "object",
+                            "required": [
+                              "address"
+                            ],
+                            "properties": {
+                              "address": {
+                                "type": "string",
+                                "format": "evm-address"
+                              }
+                            }
+                          },
+                          "output": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "example": {
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "input"
+                        ]
+                      }
+                    }
+                  },
+                  "x402": {
+                    "x402Version": 2,
+                    "scheme": "exact",
+                    "network": "eip155:8453",
+                    "maxAmountRequired": "10000",
+                    "resource": "https://agentsapi.top/v1/label/0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                    "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "maxTimeoutSeconds": 300,
+                    "facilitator": {
+                      "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "payment-required": {
+                "description": "Base64-encoded PaymentRequired challenge (identical object to the JSON body). Present on every 402 response (captured 15/15 on 2026-10-10).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-payment-requirements": {
+                "description": "Single x402 v2 payment requirement: network eip155:8453, asset (USDC), payTo, maxAmountRequired (atomic units, 6 decimals), facilitator URL.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "op_post"
+      }
+    },
+    "/v1/explain/{txHash}": {
+      "get": {
+        "summary": "Explain a transaction",
+        "description": "Plain-language explanation of a Base transaction: what happened, who paid whom, which contracts were involved.",
+        "tags": [
+          "explain"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "txHash",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{64}$"
+            }
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.020000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "explanation": {
+                    "txHash": "0x648c0d9b7743e63e8ef542f3e285e8e2eaf964c92fc8df5122cb7e7bcf084279",
+                    "status": "success",
+                    "from": "0x8f5cb67b49555e614892b7233cfddebfb746e531",
+                    "to": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                    "nativeValue": "0",
+                    "transfers": [
+                      {
+                        "from": "0xC533Bf5268A2F64aDDe58dcE380651f70Aa92D7A",
+                        "to": "0x381CdBb664608bf7b1dd4f9403A572c1c57332c2",
+                        "value": "10000"
+                      }
+                    ],
+                    "labels": {
+                      "from": null,
+                      "to": {
+                        "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                        "name": "token-contract",
+                        "category": "other",
+                        "source": "eth-labels",
+                        "confidence": 0.8,
+                        "chainId": 8453
+                      }
+                    },
+                    "isBridgeRelated": false,
+                    "bridgeHint": null
+                  },
+                  "text": "交易   : 0x648c0d9b7743e63e8ef542f3e285e8e2eaf964c92fc8df5122cb7e7bcf084279\n状态   : ✅ 成功\n发起方 : 0x8f5cb67b49555e614892b7233cfddebfb746e531\n接收方 : 0x833589fcd6edb6e08f4c7c32d4f71b54bda02913 (token-contract)\nUSDC 转账 (1 笔):\n  0xC533Bf5268A2F64aDDe58dcE380651f70Aa92D7A → 0x381CdBb664608bf7b1dd4f9403A572c1c57332c2 : 0.01 USDC"
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "explanation": {
+                      "type": "object"
+                    },
+                    "text": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "explanation",
+                    "text"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required - x402 negotiation (see 402 response body for payment requirements)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "x402Version": 2,
+                  "error": "Payment Required",
+                  "hint": "向 payTo 转入 USDC，并以同一地址作为 Bearer 身份继续调用",
+                  "freeTierReason": null,
+                  "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                  "docs": "https://agentsapi.top/",
+                  "resource": {
+                    "url": "https://agentsapi.top/v1/explain/0x648c0d9b7743e63e8ef542f3e285e8e2eaf964c92fc8df5122cb7e7bcf084279",
+                    "description": "Plain-language explanation of a Base transaction: what happened, who paid whom, which contracts were involved.",
+                    "tags": [
+                      "base",
+                      "onchain",
+                      "transaction",
+                      "analytics"
+                    ],
+                    "mimeType": "application/json"
+                  },
+                  "accepts": [
+                    {
+                      "x402Version": 2,
+                      "scheme": "exact",
+                      "network": "eip155:8453",
+                      "maxAmountRequired": "20000",
+                      "resource": "https://agentsapi.top/v1/explain/0x648c0d9b7743e63e8ef542f3e285e8e2eaf964c92fc8df5122cb7e7bcf084279",
+                      "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                      "maxTimeoutSeconds": 300,
+                      "facilitator": {
+                        "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                      },
+                      "amount": "20000",
+                      "extra": {
+                        "name": "USD Coin",
+                        "version": "2"
+                      }
+                    }
+                  ],
+                  "extensions": {
+                    "bazaar": {
+                      "info": {
+                        "input": {
+                          "type": "http",
+                          "method": "GET",
+                          "discoverable": true
+                        },
+                        "output": {
+                          "type": "json",
+                          "example": {
+                            "explanation": {
+                              "txHash": "0x648c0d9b7743e63e8ef542f3e285e8e2eaf964c92fc8df5122cb7e7bcf084279",
+                              "status": "success",
+                              "from": "0x8f5cb67b49555e614892b7233cfddebfb746e531",
+                              "to": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                              "nativeValue": "0",
+                              "transfers": [
+                                {
+                                  "from": "0xC533Bf5268A2F64aDDe58dcE380651f70Aa92D7A",
+                                  "to": "0x381CdBb664608bf7b1dd4f9403A572c1c57332c2",
+                                  "value": "10000"
+                                }
+                              ],
+                              "labels": {
+                                "from": null,
+                                "to": {
+                                  "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                                  "name": "token-contract",
+                                  "category": "other",
+                                  "source": "eth-labels",
+                                  "confidence": 0.8,
+                                  "chainId": 8453
+                                }
+                              },
+                              "isBridgeRelated": false,
+                              "bridgeHint": null
+                            },
+                            "text": "交易   : 0x648c0d9b7743e63e8ef542f3e285e8e2eaf964c92fc8df5122cb7e7bcf084279\n状态   : ✅ 成功\n发起方 : 0x8f5cb67b49555e614892b7233cfddebfb746e531\n接收方 : 0x833589fcd6edb6e08f4c7c32d4f71b54bda02913 (token-contract)\nUSDC 转账 (1 笔):\n  0xC533Bf5268A2F64aDDe58dcE380651f70Aa92D7A → 0x381CdBb664608bf7b1dd4f9403A572c1c57332c2 : 0.01 USDC"
+                          }
+                        }
+                      },
+                      "schema": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "object",
+                            "required": [
+                              "txHash"
+                            ],
+                            "properties": {
+                              "txHash": {
+                                "type": "string",
+                                "format": "tx-hash"
+                              }
+                            }
+                          },
+                          "output": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "example": {
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "input"
+                        ]
+                      }
+                    }
+                  },
+                  "x402": {
+                    "x402Version": 2,
+                    "scheme": "exact",
+                    "network": "eip155:8453",
+                    "maxAmountRequired": "20000",
+                    "resource": "https://agentsapi.top/v1/explain/0x648c0d9b7743e63e8ef542f3e285e8e2eaf964c92fc8df5122cb7e7bcf084279",
+                    "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "maxTimeoutSeconds": 300,
+                    "facilitator": {
+                      "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "payment-required": {
+                "description": "Base64-encoded PaymentRequired challenge (identical object to the JSON body). Present on every 402 response (captured 15/15 on 2026-10-10).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-payment-requirements": {
+                "description": "Single x402 v2 payment requirement: network eip155:8453, asset (USDC), payTo, maxAmountRequired (atomic units, 6 decimals), facilitator URL.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Explain a transaction",
+        "description": "Plain-language explanation of a Base transaction: what happened, who paid whom, which contracts were involved.",
+        "tags": [
+          "explain"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "txHash",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{64}$"
+            }
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.020000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "explanation": {
+                    "txHash": "0x648c0d9b7743e63e8ef542f3e285e8e2eaf964c92fc8df5122cb7e7bcf084279",
+                    "status": "success",
+                    "from": "0x8f5cb67b49555e614892b7233cfddebfb746e531",
+                    "to": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                    "nativeValue": "0",
+                    "transfers": [
+                      {
+                        "from": "0xC533Bf5268A2F64aDDe58dcE380651f70Aa92D7A",
+                        "to": "0x381CdBb664608bf7b1dd4f9403A572c1c57332c2",
+                        "value": "10000"
+                      }
+                    ],
+                    "labels": {
+                      "from": null,
+                      "to": {
+                        "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                        "name": "token-contract",
+                        "category": "other",
+                        "source": "eth-labels",
+                        "confidence": 0.8,
+                        "chainId": 8453
+                      }
+                    },
+                    "isBridgeRelated": false,
+                    "bridgeHint": null
+                  },
+                  "text": "交易   : 0x648c0d9b7743e63e8ef542f3e285e8e2eaf964c92fc8df5122cb7e7bcf084279\n状态   : ✅ 成功\n发起方 : 0x8f5cb67b49555e614892b7233cfddebfb746e531\n接收方 : 0x833589fcd6edb6e08f4c7c32d4f71b54bda02913 (token-contract)\nUSDC 转账 (1 笔):\n  0xC533Bf5268A2F64aDDe58dcE380651f70Aa92D7A → 0x381CdBb664608bf7b1dd4f9403A572c1c57332c2 : 0.01 USDC"
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "explanation": {
+                      "type": "object"
+                    },
+                    "text": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "explanation",
+                    "text"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required - x402 negotiation (see 402 response body for payment requirements)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "x402Version": 2,
+                  "error": "Payment Required",
+                  "hint": "向 payTo 转入 USDC，并以同一地址作为 Bearer 身份继续调用",
+                  "freeTierReason": null,
+                  "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                  "docs": "https://agentsapi.top/",
+                  "resource": {
+                    "url": "https://agentsapi.top/v1/explain/0x648c0d9b7743e63e8ef542f3e285e8e2eaf964c92fc8df5122cb7e7bcf084279",
+                    "description": "Plain-language explanation of a Base transaction: what happened, who paid whom, which contracts were involved.",
+                    "tags": [
+                      "base",
+                      "onchain",
+                      "transaction",
+                      "analytics"
+                    ],
+                    "mimeType": "application/json"
+                  },
+                  "accepts": [
+                    {
+                      "x402Version": 2,
+                      "scheme": "exact",
+                      "network": "eip155:8453",
+                      "maxAmountRequired": "20000",
+                      "resource": "https://agentsapi.top/v1/explain/0x648c0d9b7743e63e8ef542f3e285e8e2eaf964c92fc8df5122cb7e7bcf084279",
+                      "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                      "maxTimeoutSeconds": 300,
+                      "facilitator": {
+                        "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                      },
+                      "amount": "20000",
+                      "extra": {
+                        "name": "USD Coin",
+                        "version": "2"
+                      }
+                    }
+                  ],
+                  "extensions": {
+                    "bazaar": {
+                      "info": {
+                        "input": {
+                          "type": "http",
+                          "method": "POST",
+                          "bodyType": "json",
+                          "discoverable": true
+                        },
+                        "output": {
+                          "type": "json",
+                          "example": {
+                            "explanation": {
+                              "txHash": "0x648c0d9b7743e63e8ef542f3e285e8e2eaf964c92fc8df5122cb7e7bcf084279",
+                              "status": "success",
+                              "from": "0x8f5cb67b49555e614892b7233cfddebfb746e531",
+                              "to": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                              "nativeValue": "0",
+                              "transfers": [
+                                {
+                                  "from": "0xC533Bf5268A2F64aDDe58dcE380651f70Aa92D7A",
+                                  "to": "0x381CdBb664608bf7b1dd4f9403A572c1c57332c2",
+                                  "value": "10000"
+                                }
+                              ],
+                              "labels": {
+                                "from": null,
+                                "to": {
+                                  "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                                  "name": "token-contract",
+                                  "category": "other",
+                                  "source": "eth-labels",
+                                  "confidence": 0.8,
+                                  "chainId": 8453
+                                }
+                              },
+                              "isBridgeRelated": false,
+                              "bridgeHint": null
+                            },
+                            "text": "交易   : 0x648c0d9b7743e63e8ef542f3e285e8e2eaf964c92fc8df5122cb7e7bcf084279\n状态   : ✅ 成功\n发起方 : 0x8f5cb67b49555e614892b7233cfddebfb746e531\n接收方 : 0x833589fcd6edb6e08f4c7c32d4f71b54bda02913 (token-contract)\nUSDC 转账 (1 笔):\n  0xC533Bf5268A2F64aDDe58dcE380651f70Aa92D7A → 0x381CdBb664608bf7b1dd4f9403A572c1c57332c2 : 0.01 USDC"
+                          }
+                        }
+                      },
+                      "schema": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "object",
+                            "required": [
+                              "txHash"
+                            ],
+                            "properties": {
+                              "txHash": {
+                                "type": "string",
+                                "format": "tx-hash"
+                              }
+                            }
+                          },
+                          "output": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "example": {
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "input"
+                        ]
+                      }
+                    }
+                  },
+                  "x402": {
+                    "x402Version": 2,
+                    "scheme": "exact",
+                    "network": "eip155:8453",
+                    "maxAmountRequired": "20000",
+                    "resource": "https://agentsapi.top/v1/explain/0x648c0d9b7743e63e8ef542f3e285e8e2eaf964c92fc8df5122cb7e7bcf084279",
+                    "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "maxTimeoutSeconds": 300,
+                    "facilitator": {
+                      "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "payment-required": {
+                "description": "Base64-encoded PaymentRequired challenge (identical object to the JSON body). Present on every 402 response (captured 15/15 on 2026-10-10).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-payment-requirements": {
+                "description": "Single x402 v2 payment requirement: network eip155:8453, asset (USDC), payTo, maxAmountRequired (atomic units, 6 decimals), facilitator URL.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "op_post"
+      }
+    },
+    "/v1/cluster/{funder}": {
+      "get": {
+        "summary": "Entity clustering (sybil detection)",
+        "description": "Sybil / funding-cluster analysis: addresses funded by the same funder on Base.",
+        "tags": [
+          "cluster"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{40}$"
+            }
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.050000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "funder": "0x17fe9197970454875df742a74b74ed5f984b645a",
+                  "cluster": {
+                    "reason": "共享资金来源（funder 0x17fe9197970454875df742a74b74ed5f984b645a 在近 2000 块内向 43 个地址转出）",
+                    "members": [
+                      "0x17fe9197970454875df742a74b74ed5f984b645a",
+                      "0xe637be7e3F0c835d5D4F15A370f8a7B2C8973A17",
+                      "0x379a33855709FC21bBf2cc8FFbA69d5098d23c69",
+                      "0xf9D4d374caF66C0289305ab0784652d77B5379bd",
+                      "0x300697F05554b80eCC64631d8c1FEFa231b0AC2d",
+                      "0xfEf733867546323Cbc9bc36752598Cf3ddE72b66",
+                      "0x69834c6A55b959845D84FcD2aF3b3c2DF44C3A46",
+                      "0x94d7a076BBa895c88D67C727f9419f6b6aa9ccBe",
+                      "0xD8Dcf88C03A312B8643B55Ee360682fD50880c3C",
+                      "0x3f98bEB42c618D31C4F60008De15401bDc84f83f",
+                      "0xE71494D5d8D9651fF4A66b28a8b9bF1ee5609864",
+                      "0xDdA2a33F024d3D55018c930eE98f3F68Ec0668ce",
+                      "0x82D4C63c27AE251F4532069Df5FDA5d66f2E9c69",
+                      "0x039A592DD681CAFc5F91aD9cD9CE5a9d03Dc7576",
+                      "0xe0feefD764A3Be3A3c8476E4B3e18E3e03D44966",
+                      "0xe31D358a3852Ad21aeEe0Be568B25c0ceC8E91A6",
+                      "0xfeC0cD186927ee80D0BD5f7837EfbeeC0F7f7c11",
+                      "0xc9903b65Bf749AFb664DB78dF9cd752EAb37E1b2",
+                      "0x68113f5b49562Ef01D81b3A61986Df05cef3A951",
+                      "0xa5Dd28E677A935734fDA73B9fe028261057a111D",
+                      "0xb79c15ae129425C39E87e5c21f0944FDE2cEf417",
+                      "0x7AdE4f6cF4FC96669FD595Fc1447B894Dc8C48B9",
+                      "0x0eE97D4C13EEAc66E7f113F6A9a0901F1146b2dc",
+                      "0xc0BC3B6dB3cfA58FF1eDbC34c1309DB522B4f7c8",
+                      "0x8029384bBA3082Cc98778A976211C6424F9e1709",
+                      "0x6ABe04772BC57094Fc52791bca21db3Bd5279e04",
+                      "0x15f9553C581edb51A3E07bA6A0623c6888B313aD",
+                      "0xfed6eb7A2f46e952130051DbA21dC3228950e82e",
+                      "0x2aF16AAF2331E34E44C9f504f63eF4760c7C4255",
+                      "0x68d6A15E662F4f12f178DAB23Ab6F2723ad2f62f",
+                      "0x3801726830565896a075cEf2f7483302Cb086D88",
+                      "0xdfa3D40e16faE230187Ceb738800D2BdaD646124",
+                      "0xE0dfc4acc6c37Ef9851f4658ddDAF8044676428a",
+                      "0x51F20A45EDf917f17C87ea2e6Da0E8cB312b96f2",
+                      "0xCefEc4802caa5d5BcDF9D65FbA9050648405eb6f",
+                      "0xa4f13Ba4a92C1EebFFb5a9838c3967ABa696F73F",
+                      "0x0b3EA7Ec936C81Dd4b621a7c2F99C7c424d890Ea",
+                      "0x2645A518EBFC203339bAb10ACf1DBBb2F8318f49",
+                      "0x436E0bfb8151d2349B848dF870dBC2ad5Dc3e06B",
+                      "0xcAd1342107BCB16162b85EeD07874eF4691643f7",
+                      "0x8EE477BfCB931b64b5e8c4Cb0eff69aC7989B9CA",
+                      "0x946aed12fA5e43E738816045A331E6EA112813c0",
+                      "0x08140A16a4fDf891096a2F1b1bc2140D182bF82F",
+                      "0xC5dD0c82813a31eb9d77Cd510D7Bfc6f2a7A1BF4"
+                    ],
+                    "confidence": 0.4
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "funder": {
+                      "type": "string"
+                    },
+                    "cluster": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "funder",
+                    "cluster"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required - x402 negotiation (see 402 response body for payment requirements)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "x402Version": 2,
+                  "error": "Payment Required",
+                  "hint": "向 payTo 转入 USDC，并以同一地址作为 Bearer 身份继续调用",
+                  "freeTierReason": null,
+                  "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                  "docs": "https://agentsapi.top/",
+                  "resource": {
+                    "url": "https://agentsapi.top/v1/cluster/0x17fe9197970454875df742a74b74ed5f984b645a",
+                    "description": "Sybil / funding-cluster analysis: addresses funded by the same funder on Base.",
+                    "tags": [
+                      "base",
+                      "onchain",
+                      "sybil-detection",
+                      "risk"
+                    ],
+                    "mimeType": "application/json"
+                  },
+                  "accepts": [
+                    {
+                      "x402Version": 2,
+                      "scheme": "exact",
+                      "network": "eip155:8453",
+                      "maxAmountRequired": "50000",
+                      "resource": "https://agentsapi.top/v1/cluster/0x17fe9197970454875df742a74b74ed5f984b645a",
+                      "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                      "maxTimeoutSeconds": 300,
+                      "facilitator": {
+                        "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                      },
+                      "amount": "50000",
+                      "extra": {
+                        "name": "USD Coin",
+                        "version": "2"
+                      }
+                    }
+                  ],
+                  "extensions": {
+                    "bazaar": {
+                      "info": {
+                        "input": {
+                          "type": "http",
+                          "method": "GET",
+                          "discoverable": true
+                        },
+                        "output": {
+                          "type": "json",
+                          "example": {
+                            "funder": "0x17fe9197970454875df742a74b74ed5f984b645a",
+                            "cluster": {
+                              "reason": "共享资金来源（funder 0x17fe9197970454875df742a74b74ed5f984b645a 在近 2000 块内向 43 个地址转出）",
+                              "members": [
+                                "0x17fe9197970454875df742a74b74ed5f984b645a",
+                                "0xe637be7e3F0c835d5D4F15A370f8a7B2C8973A17",
+                                "0x379a33855709FC21bBf2cc8FFbA69d5098d23c69",
+                                "0xf9D4d374caF66C0289305ab0784652d77B5379bd",
+                                "0x300697F05554b80eCC64631d8c1FEFa231b0AC2d",
+                                "0xfEf733867546323Cbc9bc36752598Cf3ddE72b66",
+                                "0x69834c6A55b959845D84FcD2aF3b3c2DF44C3A46",
+                                "0x94d7a076BBa895c88D67C727f9419f6b6aa9ccBe",
+                                "0xD8Dcf88C03A312B8643B55Ee360682fD50880c3C",
+                                "0x3f98bEB42c618D31C4F60008De15401bDc84f83f",
+                                "0xE71494D5d8D9651fF4A66b28a8b9bF1ee5609864",
+                                "0xDdA2a33F024d3D55018c930eE98f3F68Ec0668ce",
+                                "0x82D4C63c27AE251F4532069Df5FDA5d66f2E9c69",
+                                "0x039A592DD681CAFc5F91aD9cD9CE5a9d03Dc7576",
+                                "0xe0feefD764A3Be3A3c8476E4B3e18E3e03D44966",
+                                "0xe31D358a3852Ad21aeEe0Be568B25c0ceC8E91A6",
+                                "0xfeC0cD186927ee80D0BD5f7837EfbeeC0F7f7c11",
+                                "0xc9903b65Bf749AFb664DB78dF9cd752EAb37E1b2",
+                                "0x68113f5b49562Ef01D81b3A61986Df05cef3A951",
+                                "0xa5Dd28E677A935734fDA73B9fe028261057a111D",
+                                "0xb79c15ae129425C39E87e5c21f0944FDE2cEf417",
+                                "0x7AdE4f6cF4FC96669FD595Fc1447B894Dc8C48B9",
+                                "0x0eE97D4C13EEAc66E7f113F6A9a0901F1146b2dc",
+                                "0xc0BC3B6dB3cfA58FF1eDbC34c1309DB522B4f7c8",
+                                "0x8029384bBA3082Cc98778A976211C6424F9e1709",
+                                "0x6ABe04772BC57094Fc52791bca21db3Bd5279e04",
+                                "0x15f9553C581edb51A3E07bA6A0623c6888B313aD",
+                                "0xfed6eb7A2f46e952130051DbA21dC3228950e82e",
+                                "0x2aF16AAF2331E34E44C9f504f63eF4760c7C4255",
+                                "0x68d6A15E662F4f12f178DAB23Ab6F2723ad2f62f",
+                                "0x3801726830565896a075cEf2f7483302Cb086D88",
+                                "0xdfa3D40e16faE230187Ceb738800D2BdaD646124",
+                                "0xE0dfc4acc6c37Ef9851f4658ddDAF8044676428a",
+                                "0x51F20A45EDf917f17C87ea2e6Da0E8cB312b96f2",
+                                "0xCefEc4802caa5d5BcDF9D65FbA9050648405eb6f",
+                                "0xa4f13Ba4a92C1EebFFb5a9838c3967ABa696F73F",
+                                "0x0b3EA7Ec936C81Dd4b621a7c2F99C7c424d890Ea",
+                                "0x2645A518EBFC203339bAb10ACf1DBBb2F8318f49",
+                                "0x436E0bfb8151d2349B848dF870dBC2ad5Dc3e06B",
+                                "0xcAd1342107BCB16162b85EeD07874eF4691643f7",
+                                "0x8EE477BfCB931b64b5e8c4Cb0eff69aC7989B9CA",
+                                "0x946aed12fA5e43E738816045A331E6EA112813c0",
+                                "0x08140A16a4fDf891096a2F1b1bc2140D182bF82F",
+                                "0xC5dD0c82813a31eb9d77Cd510D7Bfc6f2a7A1BF4"
+                              ],
+                              "confidence": 0.4
+                            }
+                          }
+                        }
+                      },
+                      "schema": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "object",
+                            "required": [
+                              "funder"
+                            ],
+                            "properties": {
+                              "funder": {
+                                "type": "string",
+                                "format": "evm-address"
+                              }
+                            }
+                          },
+                          "output": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "example": {
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "input"
+                        ]
+                      }
+                    }
+                  },
+                  "x402": {
+                    "x402Version": 2,
+                    "scheme": "exact",
+                    "network": "eip155:8453",
+                    "maxAmountRequired": "50000",
+                    "resource": "https://agentsapi.top/v1/cluster/0x17fe9197970454875df742a74b74ed5f984b645a",
+                    "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "maxTimeoutSeconds": 300,
+                    "facilitator": {
+                      "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "payment-required": {
+                "description": "Base64-encoded PaymentRequired challenge (identical object to the JSON body). Present on every 402 response (captured 15/15 on 2026-10-10).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-payment-requirements": {
+                "description": "Single x402 v2 payment requirement: network eip155:8453, asset (USDC), payTo, maxAmountRequired (atomic units, 6 decimals), facilitator URL.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Entity clustering (sybil detection)",
+        "description": "Sybil / funding-cluster analysis: addresses funded by the same funder on Base.",
+        "tags": [
+          "cluster"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{40}$"
+            }
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.050000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "funder": "0x17fe9197970454875df742a74b74ed5f984b645a",
+                  "cluster": {
+                    "reason": "共享资金来源（funder 0x17fe9197970454875df742a74b74ed5f984b645a 在近 2000 块内向 43 个地址转出）",
+                    "members": [
+                      "0x17fe9197970454875df742a74b74ed5f984b645a",
+                      "0xe637be7e3F0c835d5D4F15A370f8a7B2C8973A17",
+                      "0x379a33855709FC21bBf2cc8FFbA69d5098d23c69",
+                      "0xf9D4d374caF66C0289305ab0784652d77B5379bd",
+                      "0x300697F05554b80eCC64631d8c1FEFa231b0AC2d",
+                      "0xfEf733867546323Cbc9bc36752598Cf3ddE72b66",
+                      "0x69834c6A55b959845D84FcD2aF3b3c2DF44C3A46",
+                      "0x94d7a076BBa895c88D67C727f9419f6b6aa9ccBe",
+                      "0xD8Dcf88C03A312B8643B55Ee360682fD50880c3C",
+                      "0x3f98bEB42c618D31C4F60008De15401bDc84f83f",
+                      "0xE71494D5d8D9651fF4A66b28a8b9bF1ee5609864",
+                      "0xDdA2a33F024d3D55018c930eE98f3F68Ec0668ce",
+                      "0x82D4C63c27AE251F4532069Df5FDA5d66f2E9c69",
+                      "0x039A592DD681CAFc5F91aD9cD9CE5a9d03Dc7576",
+                      "0xe0feefD764A3Be3A3c8476E4B3e18E3e03D44966",
+                      "0xe31D358a3852Ad21aeEe0Be568B25c0ceC8E91A6",
+                      "0xfeC0cD186927ee80D0BD5f7837EfbeeC0F7f7c11",
+                      "0xc9903b65Bf749AFb664DB78dF9cd752EAb37E1b2",
+                      "0x68113f5b49562Ef01D81b3A61986Df05cef3A951",
+                      "0xa5Dd28E677A935734fDA73B9fe028261057a111D",
+                      "0xb79c15ae129425C39E87e5c21f0944FDE2cEf417",
+                      "0x7AdE4f6cF4FC96669FD595Fc1447B894Dc8C48B9",
+                      "0x0eE97D4C13EEAc66E7f113F6A9a0901F1146b2dc",
+                      "0xc0BC3B6dB3cfA58FF1eDbC34c1309DB522B4f7c8",
+                      "0x8029384bBA3082Cc98778A976211C6424F9e1709",
+                      "0x6ABe04772BC57094Fc52791bca21db3Bd5279e04",
+                      "0x15f9553C581edb51A3E07bA6A0623c6888B313aD",
+                      "0xfed6eb7A2f46e952130051DbA21dC3228950e82e",
+                      "0x2aF16AAF2331E34E44C9f504f63eF4760c7C4255",
+                      "0x68d6A15E662F4f12f178DAB23Ab6F2723ad2f62f",
+                      "0x3801726830565896a075cEf2f7483302Cb086D88",
+                      "0xdfa3D40e16faE230187Ceb738800D2BdaD646124",
+                      "0xE0dfc4acc6c37Ef9851f4658ddDAF8044676428a",
+                      "0x51F20A45EDf917f17C87ea2e6Da0E8cB312b96f2",
+                      "0xCefEc4802caa5d5BcDF9D65FbA9050648405eb6f",
+                      "0xa4f13Ba4a92C1EebFFb5a9838c3967ABa696F73F",
+                      "0x0b3EA7Ec936C81Dd4b621a7c2F99C7c424d890Ea",
+                      "0x2645A518EBFC203339bAb10ACf1DBBb2F8318f49",
+                      "0x436E0bfb8151d2349B848dF870dBC2ad5Dc3e06B",
+                      "0xcAd1342107BCB16162b85EeD07874eF4691643f7",
+                      "0x8EE477BfCB931b64b5e8c4Cb0eff69aC7989B9CA",
+                      "0x946aed12fA5e43E738816045A331E6EA112813c0",
+                      "0x08140A16a4fDf891096a2F1b1bc2140D182bF82F",
+                      "0xC5dD0c82813a31eb9d77Cd510D7Bfc6f2a7A1BF4"
+                    ],
+                    "confidence": 0.4
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "funder": {
+                      "type": "string"
+                    },
+                    "cluster": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "funder",
+                    "cluster"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required - x402 negotiation (see 402 response body for payment requirements)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "x402Version": 2,
+                  "error": "Payment Required",
+                  "hint": "向 payTo 转入 USDC，并以同一地址作为 Bearer 身份继续调用",
+                  "freeTierReason": null,
+                  "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                  "docs": "https://agentsapi.top/",
+                  "resource": {
+                    "url": "https://agentsapi.top/v1/cluster/0x17fe9197970454875df742a74b74ed5f984b645a",
+                    "description": "Sybil / funding-cluster analysis: addresses funded by the same funder on Base.",
+                    "tags": [
+                      "base",
+                      "onchain",
+                      "sybil-detection",
+                      "risk"
+                    ],
+                    "mimeType": "application/json"
+                  },
+                  "accepts": [
+                    {
+                      "x402Version": 2,
+                      "scheme": "exact",
+                      "network": "eip155:8453",
+                      "maxAmountRequired": "50000",
+                      "resource": "https://agentsapi.top/v1/cluster/0x17fe9197970454875df742a74b74ed5f984b645a",
+                      "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                      "maxTimeoutSeconds": 300,
+                      "facilitator": {
+                        "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                      },
+                      "amount": "50000",
+                      "extra": {
+                        "name": "USD Coin",
+                        "version": "2"
+                      }
+                    }
+                  ],
+                  "extensions": {
+                    "bazaar": {
+                      "info": {
+                        "input": {
+                          "type": "http",
+                          "method": "POST",
+                          "bodyType": "json",
+                          "discoverable": true
+                        },
+                        "output": {
+                          "type": "json",
+                          "example": {
+                            "funder": "0x17fe9197970454875df742a74b74ed5f984b645a",
+                            "cluster": {
+                              "reason": "共享资金来源（funder 0x17fe9197970454875df742a74b74ed5f984b645a 在近 2000 块内向 43 个地址转出）",
+                              "members": [
+                                "0x17fe9197970454875df742a74b74ed5f984b645a",
+                                "0xe637be7e3F0c835d5D4F15A370f8a7B2C8973A17",
+                                "0x379a33855709FC21bBf2cc8FFbA69d5098d23c69",
+                                "0xf9D4d374caF66C0289305ab0784652d77B5379bd",
+                                "0x300697F05554b80eCC64631d8c1FEFa231b0AC2d",
+                                "0xfEf733867546323Cbc9bc36752598Cf3ddE72b66",
+                                "0x69834c6A55b959845D84FcD2aF3b3c2DF44C3A46",
+                                "0x94d7a076BBa895c88D67C727f9419f6b6aa9ccBe",
+                                "0xD8Dcf88C03A312B8643B55Ee360682fD50880c3C",
+                                "0x3f98bEB42c618D31C4F60008De15401bDc84f83f",
+                                "0xE71494D5d8D9651fF4A66b28a8b9bF1ee5609864",
+                                "0xDdA2a33F024d3D55018c930eE98f3F68Ec0668ce",
+                                "0x82D4C63c27AE251F4532069Df5FDA5d66f2E9c69",
+                                "0x039A592DD681CAFc5F91aD9cD9CE5a9d03Dc7576",
+                                "0xe0feefD764A3Be3A3c8476E4B3e18E3e03D44966",
+                                "0xe31D358a3852Ad21aeEe0Be568B25c0ceC8E91A6",
+                                "0xfeC0cD186927ee80D0BD5f7837EfbeeC0F7f7c11",
+                                "0xc9903b65Bf749AFb664DB78dF9cd752EAb37E1b2",
+                                "0x68113f5b49562Ef01D81b3A61986Df05cef3A951",
+                                "0xa5Dd28E677A935734fDA73B9fe028261057a111D",
+                                "0xb79c15ae129425C39E87e5c21f0944FDE2cEf417",
+                                "0x7AdE4f6cF4FC96669FD595Fc1447B894Dc8C48B9",
+                                "0x0eE97D4C13EEAc66E7f113F6A9a0901F1146b2dc",
+                                "0xc0BC3B6dB3cfA58FF1eDbC34c1309DB522B4f7c8",
+                                "0x8029384bBA3082Cc98778A976211C6424F9e1709",
+                                "0x6ABe04772BC57094Fc52791bca21db3Bd5279e04",
+                                "0x15f9553C581edb51A3E07bA6A0623c6888B313aD",
+                                "0xfed6eb7A2f46e952130051DbA21dC3228950e82e",
+                                "0x2aF16AAF2331E34E44C9f504f63eF4760c7C4255",
+                                "0x68d6A15E662F4f12f178DAB23Ab6F2723ad2f62f",
+                                "0x3801726830565896a075cEf2f7483302Cb086D88",
+                                "0xdfa3D40e16faE230187Ceb738800D2BdaD646124",
+                                "0xE0dfc4acc6c37Ef9851f4658ddDAF8044676428a",
+                                "0x51F20A45EDf917f17C87ea2e6Da0E8cB312b96f2",
+                                "0xCefEc4802caa5d5BcDF9D65FbA9050648405eb6f",
+                                "0xa4f13Ba4a92C1EebFFb5a9838c3967ABa696F73F",
+                                "0x0b3EA7Ec936C81Dd4b621a7c2F99C7c424d890Ea",
+                                "0x2645A518EBFC203339bAb10ACf1DBBb2F8318f49",
+                                "0x436E0bfb8151d2349B848dF870dBC2ad5Dc3e06B",
+                                "0xcAd1342107BCB16162b85EeD07874eF4691643f7",
+                                "0x8EE477BfCB931b64b5e8c4Cb0eff69aC7989B9CA",
+                                "0x946aed12fA5e43E738816045A331E6EA112813c0",
+                                "0x08140A16a4fDf891096a2F1b1bc2140D182bF82F",
+                                "0xC5dD0c82813a31eb9d77Cd510D7Bfc6f2a7A1BF4"
+                              ],
+                              "confidence": 0.4
+                            }
+                          }
+                        }
+                      },
+                      "schema": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "object",
+                            "required": [
+                              "funder"
+                            ],
+                            "properties": {
+                              "funder": {
+                                "type": "string",
+                                "format": "evm-address"
+                              }
+                            }
+                          },
+                          "output": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "example": {
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "input"
+                        ]
+                      }
+                    }
+                  },
+                  "x402": {
+                    "x402Version": 2,
+                    "scheme": "exact",
+                    "network": "eip155:8453",
+                    "maxAmountRequired": "50000",
+                    "resource": "https://agentsapi.top/v1/cluster/0x17fe9197970454875df742a74b74ed5f984b645a",
+                    "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "maxTimeoutSeconds": 300,
+                    "facilitator": {
+                      "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "payment-required": {
+                "description": "Base64-encoded PaymentRequired challenge (identical object to the JSON body). Present on every 402 response (captured 15/15 on 2026-10-10).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-payment-requirements": {
+                "description": "Single x402 v2 payment requirement: network eip155:8453, asset (USDC), payTo, maxAmountRequired (atomic units, 6 decimals), facilitator URL.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "op_post"
+      }
+    },
+    "/v1/track/cctp/{txHash}": {
+      "get": {
+        "summary": "CCTP cross-chain USDC tracking",
+        "description": "CCTP cross-chain USDC tracking: given the source-chain tx hash, returns burn/mint status and whether funds arrived on Base.",
+        "tags": [
+          "cctp"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "txHash",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{64}$"
+            }
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.030000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "isCctp": false,
+                  "message": "不是 CCTP 跨链转账（未发现 DepositForBurn 事件）"
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "isCctp": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "isCctp",
+                    "message"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required - x402 negotiation (see 402 response body for payment requirements)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "x402Version": 2,
+                  "error": "Payment Required",
+                  "hint": "向 payTo 转入 USDC，并以同一地址作为 Bearer 身份继续调用",
+                  "freeTierReason": null,
+                  "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                  "docs": "https://agentsapi.top/",
+                  "resource": {
+                    "url": "https://agentsapi.top/v1/track/cctp/0x648c0d9b7743e63e8ef542f3e285e8e2eaf964c92fc8df5122cb7e7bcf084279",
+                    "description": "CCTP cross-chain USDC tracking: given the source-chain tx hash, returns burn/mint status and whether funds arrived on Base.",
+                    "tags": [
+                      "base",
+                      "cctp",
+                      "cross-chain",
+                      "usdc"
+                    ],
+                    "mimeType": "application/json"
+                  },
+                  "accepts": [
+                    {
+                      "x402Version": 2,
+                      "scheme": "exact",
+                      "network": "eip155:8453",
+                      "maxAmountRequired": "30000",
+                      "resource": "https://agentsapi.top/v1/track/cctp/0x648c0d9b7743e63e8ef542f3e285e8e2eaf964c92fc8df5122cb7e7bcf084279",
+                      "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                      "maxTimeoutSeconds": 300,
+                      "facilitator": {
+                        "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                      },
+                      "amount": "30000",
+                      "extra": {
+                        "name": "USD Coin",
+                        "version": "2"
+                      }
+                    }
+                  ],
+                  "extensions": {
+                    "bazaar": {
+                      "info": {
+                        "input": {
+                          "type": "http",
+                          "method": "GET",
+                          "discoverable": true
+                        },
+                        "output": {
+                          "type": "json",
+                          "example": {
+                            "isCctp": false,
+                            "message": "不是 CCTP 跨链转账（未发现 DepositForBurn 事件）"
+                          }
+                        }
+                      },
+                      "schema": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "object",
+                            "required": [
+                              "txHash"
+                            ],
+                            "properties": {
+                              "txHash": {
+                                "type": "string",
+                                "format": "tx-hash"
+                              }
+                            }
+                          },
+                          "output": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "example": {
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "input"
+                        ]
+                      }
+                    }
+                  },
+                  "x402": {
+                    "x402Version": 2,
+                    "scheme": "exact",
+                    "network": "eip155:8453",
+                    "maxAmountRequired": "30000",
+                    "resource": "https://agentsapi.top/v1/track/cctp/0x648c0d9b7743e63e8ef542f3e285e8e2eaf964c92fc8df5122cb7e7bcf084279",
+                    "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "maxTimeoutSeconds": 300,
+                    "facilitator": {
+                      "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "payment-required": {
+                "description": "Base64-encoded PaymentRequired challenge (identical object to the JSON body). Present on every 402 response (captured 15/15 on 2026-10-10).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-payment-requirements": {
+                "description": "Single x402 v2 payment requirement: network eip155:8453, asset (USDC), payTo, maxAmountRequired (atomic units, 6 decimals), facilitator URL.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "CCTP cross-chain USDC tracking",
+        "description": "CCTP cross-chain USDC tracking: given the source-chain tx hash, returns burn/mint status and whether funds arrived on Base.",
+        "tags": [
+          "cctp"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "txHash",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{64}$"
+            }
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.030000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "isCctp": false,
+                  "message": "不是 CCTP 跨链转账（未发现 DepositForBurn 事件）"
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "isCctp": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "isCctp",
+                    "message"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required - x402 negotiation (see 402 response body for payment requirements)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "x402Version": 2,
+                  "error": "Payment Required",
+                  "hint": "向 payTo 转入 USDC，并以同一地址作为 Bearer 身份继续调用",
+                  "freeTierReason": null,
+                  "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                  "docs": "https://agentsapi.top/",
+                  "resource": {
+                    "url": "https://agentsapi.top/v1/track/cctp/0x648c0d9b7743e63e8ef542f3e285e8e2eaf964c92fc8df5122cb7e7bcf084279",
+                    "description": "CCTP cross-chain USDC tracking: given the source-chain tx hash, returns burn/mint status and whether funds arrived on Base.",
+                    "tags": [
+                      "base",
+                      "cctp",
+                      "cross-chain",
+                      "usdc"
+                    ],
+                    "mimeType": "application/json"
+                  },
+                  "accepts": [
+                    {
+                      "x402Version": 2,
+                      "scheme": "exact",
+                      "network": "eip155:8453",
+                      "maxAmountRequired": "30000",
+                      "resource": "https://agentsapi.top/v1/track/cctp/0x648c0d9b7743e63e8ef542f3e285e8e2eaf964c92fc8df5122cb7e7bcf084279",
+                      "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                      "maxTimeoutSeconds": 300,
+                      "facilitator": {
+                        "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                      },
+                      "amount": "30000",
+                      "extra": {
+                        "name": "USD Coin",
+                        "version": "2"
+                      }
+                    }
+                  ],
+                  "extensions": {
+                    "bazaar": {
+                      "info": {
+                        "input": {
+                          "type": "http",
+                          "method": "POST",
+                          "bodyType": "json",
+                          "discoverable": true
+                        },
+                        "output": {
+                          "type": "json",
+                          "example": {
+                            "isCctp": false,
+                            "message": "不是 CCTP 跨链转账（未发现 DepositForBurn 事件）"
+                          }
+                        }
+                      },
+                      "schema": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "object",
+                            "required": [
+                              "txHash"
+                            ],
+                            "properties": {
+                              "txHash": {
+                                "type": "string",
+                                "format": "tx-hash"
+                              }
+                            }
+                          },
+                          "output": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "example": {
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "input"
+                        ]
+                      }
+                    }
+                  },
+                  "x402": {
+                    "x402Version": 2,
+                    "scheme": "exact",
+                    "network": "eip155:8453",
+                    "maxAmountRequired": "30000",
+                    "resource": "https://agentsapi.top/v1/track/cctp/0x648c0d9b7743e63e8ef542f3e285e8e2eaf964c92fc8df5122cb7e7bcf084279",
+                    "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "maxTimeoutSeconds": 300,
+                    "facilitator": {
+                      "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "payment-required": {
+                "description": "Base64-encoded PaymentRequired challenge (identical object to the JSON body). Present on every 402 response (captured 15/15 on 2026-10-10).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-payment-requirements": {
+                "description": "Single x402 v2 payment requirement: network eip155:8453, asset (USDC), payTo, maxAmountRequired (atomic units, 6 decimals), facilitator URL.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "op_post"
+      }
+    },
+    "/v1/alerts": {
+      "get": {
+        "summary": "Historical on-chain alerts",
+        "description": "Historical on-chain alerts on Base (filter by address / kind / severity / since).",
+        "tags": [
+          "alerts"
+        ],
+        "security": [],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "alerts": [
+                    {
+                      "kind": "large_inflow",
+                      "severity": "info",
+                      "address": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF",
+                      "title": "大额转入提示",
+                      "fields": {
+                        "金额": "2215.718502 USDC",
+                        "来源": "0x4cD00E387622C35bDDB9b4c962C136462338BC31",
+                        "交易": "0x7df7348cc3e684dad30e142133ba1a748e41a224fe52e9955763e75d93762f40",
+                        "区块": "52380308"
+                      },
+                      "ts": 1791549993492
+                    },
+                    {
+                      "kind": "large_outflow",
+                      "severity": "critical",
+                      "address": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF",
+                      "title": "大额转出告警",
+                      "fields": {
+                        "金额": "26.0887 USDC",
+                        "转出到": "0xEca76567AD29E0082A7eB1c90e444B7A9F8da145",
+                        "交易": "0xacc5de2b86cb5ae6be570624733dcd8c843302958b33ebdbf96bc55aa438b852",
+                        "区块": "52380293"
+                      },
+                      "ts": 1791549963472
+                    },
+                    {
+                      "kind": "large_inflow",
+                      "severity": "info",
+                      "address": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF",
+                      "title": "大额转入提示",
+                      "fields": {
+                        "金额": "4305.927222 USDC",
+                        "来源": "0x4cD00E387622C35bDDB9b4c962C136462338BC31",
+                        "交易": "0x3deca009678bf03dc9dc824746e9a139b28d6f30a19fa041d5d838e9ba9bdb8d",
+                        "区块": "52380008"
+                      },
+                      "ts": 1791549393046
+                    }
+                  ]
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "alerts": {
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "alerts"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required - x402 negotiation (see 402 response body for payment requirements)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "x402Version": 2,
+                  "error": "Payment Required",
+                  "hint": "向 payTo 转入 USDC，并以同一地址作为 Bearer 身份继续调用",
+                  "freeTierReason": null,
+                  "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                  "docs": "https://agentsapi.top/",
+                  "resource": {
+                    "url": "https://agentsapi.top/v1/alerts",
+                    "description": "Historical on-chain alerts on Base (filter by address / kind / severity / since).",
+                    "tags": [
+                      "base",
+                      "alerts",
+                      "monitoring"
+                    ],
+                    "mimeType": "application/json"
+                  },
+                  "accepts": [
+                    {
+                      "x402Version": 2,
+                      "scheme": "exact",
+                      "network": "eip155:8453",
+                      "maxAmountRequired": "10000",
+                      "resource": "https://agentsapi.top/v1/alerts",
+                      "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                      "maxTimeoutSeconds": 300,
+                      "facilitator": {
+                        "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                      },
+                      "amount": "10000",
+                      "extra": {
+                        "name": "USD Coin",
+                        "version": "2"
+                      }
+                    }
+                  ],
+                  "extensions": {
+                    "bazaar": {
+                      "info": {
+                        "input": {
+                          "type": "http",
+                          "method": "GET",
+                          "discoverable": true,
+                          "queryParams": {
+                            "address": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+                            "limit": "50"
+                          }
+                        },
+                        "output": {
+                          "type": "json",
+                          "example": {
+                            "alerts": [
+                              {
+                                "kind": "large_inflow",
+                                "severity": "info",
+                                "address": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF",
+                                "title": "大额转入提示",
+                                "fields": {
+                                  "金额": "2215.718502 USDC",
+                                  "来源": "0x4cD00E387622C35bDDB9b4c962C136462338BC31",
+                                  "交易": "0x7df7348cc3e684dad30e142133ba1a748e41a224fe52e9955763e75d93762f40",
+                                  "区块": "52380308"
+                                },
+                                "ts": 1791549993492
+                              },
+                              {
+                                "kind": "large_outflow",
+                                "severity": "critical",
+                                "address": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF",
+                                "title": "大额转出告警",
+                                "fields": {
+                                  "金额": "26.0887 USDC",
+                                  "转出到": "0xEca76567AD29E0082A7eB1c90e444B7A9F8da145",
+                                  "交易": "0xacc5de2b86cb5ae6be570624733dcd8c843302958b33ebdbf96bc55aa438b852",
+                                  "区块": "52380293"
+                                },
+                                "ts": 1791549963472
+                              },
+                              {
+                                "kind": "large_inflow",
+                                "severity": "info",
+                                "address": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF",
+                                "title": "大额转入提示",
+                                "fields": {
+                                  "金额": "4305.927222 USDC",
+                                  "来源": "0x4cD00E387622C35bDDB9b4c962C136462338BC31",
+                                  "交易": "0x3deca009678bf03dc9dc824746e9a139b28d6f30a19fa041d5d838e9ba9bdb8d",
+                                  "区块": "52380008"
+                                },
+                                "ts": 1791549393046
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      "schema": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "object",
+                            "properties": {
+                              "address": {
+                                "type": "string"
+                              },
+                              "limit": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "output": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "example": {
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "input"
+                        ]
+                      }
+                    }
+                  },
+                  "x402": {
+                    "x402Version": 2,
+                    "scheme": "exact",
+                    "network": "eip155:8453",
+                    "maxAmountRequired": "10000",
+                    "resource": "https://agentsapi.top/v1/alerts",
+                    "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "maxTimeoutSeconds": 300,
+                    "facilitator": {
+                      "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "payment-required": {
+                "description": "Base64-encoded PaymentRequired challenge (identical object to the JSON body). Present on every 402 response (captured 15/15 on 2026-10-10).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-payment-requirements": {
+                "description": "Single x402 v2 payment requirement: network eip155:8453, asset (USDC), payTo, maxAmountRequired (atomic units, 6 decimals), facilitator URL.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Historical on-chain alerts",
+        "description": "Historical on-chain alerts on Base (filter by address / kind / severity / since).",
+        "tags": [
+          "alerts"
+        ],
+        "security": [],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "alerts": [
+                    {
+                      "kind": "large_inflow",
+                      "severity": "info",
+                      "address": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF",
+                      "title": "大额转入提示",
+                      "fields": {
+                        "金额": "2215.718502 USDC",
+                        "来源": "0x4cD00E387622C35bDDB9b4c962C136462338BC31",
+                        "交易": "0x7df7348cc3e684dad30e142133ba1a748e41a224fe52e9955763e75d93762f40",
+                        "区块": "52380308"
+                      },
+                      "ts": 1791549993492
+                    },
+                    {
+                      "kind": "large_outflow",
+                      "severity": "critical",
+                      "address": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF",
+                      "title": "大额转出告警",
+                      "fields": {
+                        "金额": "26.0887 USDC",
+                        "转出到": "0xEca76567AD29E0082A7eB1c90e444B7A9F8da145",
+                        "交易": "0xacc5de2b86cb5ae6be570624733dcd8c843302958b33ebdbf96bc55aa438b852",
+                        "区块": "52380293"
+                      },
+                      "ts": 1791549963472
+                    },
+                    {
+                      "kind": "large_inflow",
+                      "severity": "info",
+                      "address": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF",
+                      "title": "大额转入提示",
+                      "fields": {
+                        "金额": "4305.927222 USDC",
+                        "来源": "0x4cD00E387622C35bDDB9b4c962C136462338BC31",
+                        "交易": "0x3deca009678bf03dc9dc824746e9a139b28d6f30a19fa041d5d838e9ba9bdb8d",
+                        "区块": "52380008"
+                      },
+                      "ts": 1791549393046
+                    }
+                  ]
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "alerts": {
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "alerts"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required - x402 negotiation (see 402 response body for payment requirements)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "x402Version": 2,
+                  "error": "Payment Required",
+                  "hint": "向 payTo 转入 USDC，并以同一地址作为 Bearer 身份继续调用",
+                  "freeTierReason": null,
+                  "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                  "docs": "https://agentsapi.top/",
+                  "resource": {
+                    "url": "https://agentsapi.top/v1/alerts",
+                    "description": "Historical on-chain alerts on Base (filter by address / kind / severity / since).",
+                    "tags": [
+                      "base",
+                      "alerts",
+                      "monitoring"
+                    ],
+                    "mimeType": "application/json"
+                  },
+                  "accepts": [
+                    {
+                      "x402Version": 2,
+                      "scheme": "exact",
+                      "network": "eip155:8453",
+                      "maxAmountRequired": "10000",
+                      "resource": "https://agentsapi.top/v1/alerts",
+                      "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                      "maxTimeoutSeconds": 300,
+                      "facilitator": {
+                        "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                      },
+                      "amount": "10000",
+                      "extra": {
+                        "name": "USD Coin",
+                        "version": "2"
+                      }
+                    }
+                  ],
+                  "extensions": {
+                    "bazaar": {
+                      "info": {
+                        "input": {
+                          "type": "http",
+                          "method": "POST",
+                          "bodyType": "json",
+                          "discoverable": true
+                        },
+                        "output": {
+                          "type": "json",
+                          "example": {
+                            "alerts": [
+                              {
+                                "kind": "large_inflow",
+                                "severity": "info",
+                                "address": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF",
+                                "title": "大额转入提示",
+                                "fields": {
+                                  "金额": "2215.718502 USDC",
+                                  "来源": "0x4cD00E387622C35bDDB9b4c962C136462338BC31",
+                                  "交易": "0x7df7348cc3e684dad30e142133ba1a748e41a224fe52e9955763e75d93762f40",
+                                  "区块": "52380308"
+                                },
+                                "ts": 1791549993492
+                              },
+                              {
+                                "kind": "large_outflow",
+                                "severity": "critical",
+                                "address": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF",
+                                "title": "大额转出告警",
+                                "fields": {
+                                  "金额": "26.0887 USDC",
+                                  "转出到": "0xEca76567AD29E0082A7eB1c90e444B7A9F8da145",
+                                  "交易": "0xacc5de2b86cb5ae6be570624733dcd8c843302958b33ebdbf96bc55aa438b852",
+                                  "区块": "52380293"
+                                },
+                                "ts": 1791549963472
+                              },
+                              {
+                                "kind": "large_inflow",
+                                "severity": "info",
+                                "address": "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF",
+                                "title": "大额转入提示",
+                                "fields": {
+                                  "金额": "4305.927222 USDC",
+                                  "来源": "0x4cD00E387622C35bDDB9b4c962C136462338BC31",
+                                  "交易": "0x3deca009678bf03dc9dc824746e9a139b28d6f30a19fa041d5d838e9ba9bdb8d",
+                                  "区块": "52380008"
+                                },
+                                "ts": 1791549393046
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      "schema": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "object",
+                            "properties": {
+                              "address": {
+                                "type": "string"
+                              },
+                              "limit": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "output": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "example": {
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "input"
+                        ]
+                      }
+                    }
+                  },
+                  "x402": {
+                    "x402Version": 2,
+                    "scheme": "exact",
+                    "network": "eip155:8453",
+                    "maxAmountRequired": "10000",
+                    "resource": "https://agentsapi.top/v1/alerts",
+                    "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "maxTimeoutSeconds": 300,
+                    "facilitator": {
+                      "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "payment-required": {
+                "description": "Base64-encoded PaymentRequired challenge (identical object to the JSON body). Present on every 402 response (captured 15/15 on 2026-10-10).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-payment-requirements": {
+                "description": "Single x402 v2 payment requirement: network eip155:8453, asset (USDC), payTo, maxAmountRequired (atomic units, 6 decimals), facilitator URL.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "op_post"
+      }
+    },
+    "/v1/alerts/stats": {
+      "get": {
+        "summary": "Alert aggregate statistics",
+        "description": "Aggregate statistics over historical on-chain alerts on Base.",
+        "tags": [
+          "alerts"
+        ],
+        "security": [],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "stats": {
+                    "total": 6974,
+                    "byKind": {
+                      "large_outflow": 3498,
+                      "large_inflow": 3465,
+                      "balance_drain": 11
+                    },
+                    "bySeverity": {
+                      "critical": 3509,
+                      "info": 3465
+                    },
+                    "byAddress": {
+                      "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF": 6974
+                    },
+                    "latestTs": 1791549993492
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stats": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "stats"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required - x402 negotiation (see 402 response body for payment requirements)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "x402Version": 2,
+                  "error": "Payment Required",
+                  "hint": "向 payTo 转入 USDC，并以同一地址作为 Bearer 身份继续调用",
+                  "freeTierReason": null,
+                  "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                  "docs": "https://agentsapi.top/",
+                  "resource": {
+                    "url": "https://agentsapi.top/v1/alerts/stats",
+                    "description": "Aggregate statistics over historical on-chain alerts on Base.",
+                    "tags": [
+                      "base",
+                      "alerts",
+                      "monitoring",
+                      "stats"
+                    ],
+                    "mimeType": "application/json"
+                  },
+                  "accepts": [
+                    {
+                      "x402Version": 2,
+                      "scheme": "exact",
+                      "network": "eip155:8453",
+                      "maxAmountRequired": "10000",
+                      "resource": "https://agentsapi.top/v1/alerts/stats",
+                      "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                      "maxTimeoutSeconds": 300,
+                      "facilitator": {
+                        "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                      },
+                      "amount": "10000",
+                      "extra": {
+                        "name": "USD Coin",
+                        "version": "2"
+                      }
+                    }
+                  ],
+                  "extensions": {
+                    "bazaar": {
+                      "info": {
+                        "input": {
+                          "type": "http",
+                          "method": "GET",
+                          "discoverable": true,
+                          "queryParams": {
+                            "since": "1757000000"
+                          }
+                        },
+                        "output": {
+                          "type": "json",
+                          "example": {
+                            "stats": {
+                              "total": 6974,
+                              "byKind": {
+                                "large_outflow": 3498,
+                                "large_inflow": 3465,
+                                "balance_drain": 11
+                              },
+                              "bySeverity": {
+                                "critical": 3509,
+                                "info": 3465
+                              },
+                              "byAddress": {
+                                "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF": 6974
+                              },
+                              "latestTs": 1791549993492
+                            }
+                          }
+                        }
+                      },
+                      "schema": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "object",
+                            "properties": {
+                              "since": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "output": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "example": {
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "input"
+                        ]
+                      }
+                    }
+                  },
+                  "x402": {
+                    "x402Version": 2,
+                    "scheme": "exact",
+                    "network": "eip155:8453",
+                    "maxAmountRequired": "10000",
+                    "resource": "https://agentsapi.top/v1/alerts/stats",
+                    "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "maxTimeoutSeconds": 300,
+                    "facilitator": {
+                      "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "payment-required": {
+                "description": "Base64-encoded PaymentRequired challenge (identical object to the JSON body). Present on every 402 response (captured 15/15 on 2026-10-10).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-payment-requirements": {
+                "description": "Single x402 v2 payment requirement: network eip155:8453, asset (USDC), payTo, maxAmountRequired (atomic units, 6 decimals), facilitator URL.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Alert aggregate statistics",
+        "description": "Aggregate statistics over historical on-chain alerts on Base.",
+        "tags": [
+          "alerts"
+        ],
+        "security": [],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "stats": {
+                    "total": 6974,
+                    "byKind": {
+                      "large_outflow": 3498,
+                      "large_inflow": 3465,
+                      "balance_drain": 11
+                    },
+                    "bySeverity": {
+                      "critical": 3509,
+                      "info": 3465
+                    },
+                    "byAddress": {
+                      "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF": 6974
+                    },
+                    "latestTs": 1791549993492
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "stats": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "stats"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required - x402 negotiation (see 402 response body for payment requirements)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "x402Version": 2,
+                  "error": "Payment Required",
+                  "hint": "向 payTo 转入 USDC，并以同一地址作为 Bearer 身份继续调用",
+                  "freeTierReason": null,
+                  "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                  "docs": "https://agentsapi.top/",
+                  "resource": {
+                    "url": "https://agentsapi.top/v1/alerts/stats",
+                    "description": "Aggregate statistics over historical on-chain alerts on Base.",
+                    "tags": [
+                      "base",
+                      "alerts",
+                      "monitoring",
+                      "stats"
+                    ],
+                    "mimeType": "application/json"
+                  },
+                  "accepts": [
+                    {
+                      "x402Version": 2,
+                      "scheme": "exact",
+                      "network": "eip155:8453",
+                      "maxAmountRequired": "10000",
+                      "resource": "https://agentsapi.top/v1/alerts/stats",
+                      "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                      "maxTimeoutSeconds": 300,
+                      "facilitator": {
+                        "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                      },
+                      "amount": "10000",
+                      "extra": {
+                        "name": "USD Coin",
+                        "version": "2"
+                      }
+                    }
+                  ],
+                  "extensions": {
+                    "bazaar": {
+                      "info": {
+                        "input": {
+                          "type": "http",
+                          "method": "POST",
+                          "bodyType": "json",
+                          "discoverable": true
+                        },
+                        "output": {
+                          "type": "json",
+                          "example": {
+                            "stats": {
+                              "total": 6974,
+                              "byKind": {
+                                "large_outflow": 3498,
+                                "large_inflow": 3465,
+                                "balance_drain": 11
+                              },
+                              "bySeverity": {
+                                "critical": 3509,
+                                "info": 3465
+                              },
+                              "byAddress": {
+                                "0xf70da97812CB96acDF810712Aa562db8dfA3dbEF": 6974
+                              },
+                              "latestTs": 1791549993492
+                            }
+                          }
+                        }
+                      },
+                      "schema": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "object",
+                            "properties": {
+                              "since": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "output": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "example": {
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "input"
+                        ]
+                      }
+                    }
+                  },
+                  "x402": {
+                    "x402Version": 2,
+                    "scheme": "exact",
+                    "network": "eip155:8453",
+                    "maxAmountRequired": "10000",
+                    "resource": "https://agentsapi.top/v1/alerts/stats",
+                    "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "maxTimeoutSeconds": 300,
+                    "facilitator": {
+                      "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "payment-required": {
+                "description": "Base64-encoded PaymentRequired challenge (identical object to the JSON body). Present on every 402 response (captured 15/15 on 2026-10-10).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-payment-requirements": {
+                "description": "Single x402 v2 payment requirement: network eip155:8453, asset (USDC), payTo, maxAmountRequired (atomic units, 6 decimals), facilitator URL.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "op_post"
+      }
+    },
+    "/v1/alerts/subscribe": {
+      "post": {
+        "summary": "Subscribe to future alerts",
+        "description": "Subscribe an agent to future on-chain alerts on Base, delivered via webhook or Telegram.",
+        "tags": [
+          "subscription"
+        ],
+        "security": [],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "ok": true,
+                  "subscription": {
+                    "id": "sub_1789561036359_502mic",
+                    "type": "webhook",
+                    "until": 1794745036359,
+                    "payer": "0x0f47420e4df64c2aef923ea2355ee57090713077"
+                  }
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "subscription": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "ok",
+                    "subscription"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required - x402 negotiation (see 402 response body for payment requirements)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "x402Version": 2,
+                  "error": "Payment Required",
+                  "hint": "向 payTo 转入 USDC，并以同一地址作为 Bearer 身份继续调用",
+                  "freeTierReason": null,
+                  "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                  "docs": "https://agentsapi.top/",
+                  "resource": {
+                    "url": "https://agentsapi.top/v1/alerts/subscribe",
+                    "description": "Subscribe an agent to future on-chain alerts on Base, delivered via webhook or Telegram.",
+                    "tags": [
+                      "base",
+                      "alerts",
+                      "webhook",
+                      "telegram"
+                    ],
+                    "mimeType": "application/json"
+                  },
+                  "accepts": [
+                    {
+                      "x402Version": 2,
+                      "scheme": "exact",
+                      "network": "eip155:8453",
+                      "maxAmountRequired": "10000",
+                      "resource": "https://agentsapi.top/v1/alerts/subscribe",
+                      "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                      "maxTimeoutSeconds": 300,
+                      "facilitator": {
+                        "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                      },
+                      "amount": "10000",
+                      "extra": {
+                        "name": "USD Coin",
+                        "version": "2"
+                      }
+                    }
+                  ],
+                  "extensions": {
+                    "bazaar": {
+                      "info": {
+                        "input": {
+                          "type": "http",
+                          "method": "POST",
+                          "bodyType": "json",
+                          "discoverable": true,
+                          "body": {
+                            "type": "webhook",
+                            "url": "https://example.com/hook"
+                          }
+                        },
+                        "output": {
+                          "type": "json",
+                          "example": {
+                            "ok": true,
+                            "subscription": {
+                              "id": "sub_1789561036359_502mic",
+                              "type": "webhook",
+                              "until": 1794745036359,
+                              "payer": "0x0f47420e4df64c2aef923ea2355ee57090713077"
+                            }
+                          }
+                        }
+                      },
+                      "schema": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "output": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "example": {
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "input"
+                        ]
+                      }
+                    }
+                  },
+                  "x402": {
+                    "x402Version": 2,
+                    "scheme": "exact",
+                    "network": "eip155:8453",
+                    "maxAmountRequired": "10000",
+                    "resource": "https://agentsapi.top/v1/alerts/subscribe",
+                    "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "maxTimeoutSeconds": 300,
+                    "facilitator": {
+                      "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "payment-required": {
+                "description": "Base64-encoded PaymentRequired challenge (identical object to the JSON body). Present on every 402 response (captured 15/15 on 2026-10-10).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-payment-requirements": {
+                "description": "Single x402 v2 payment requirement: network eip155:8453, asset (USDC), payTo, maxAmountRequired (atomic units, 6 decimals), facilitator URL.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/filings/8k": {
+      "get": {
+        "summary": "Latest US SEC 8-K material-event filings",
+        "description": "Latest US SEC 8-K material-event filings (M&A, executive changes, earnings, delisting, bankruptcy). Live stream from SEC EDGAR.",
+        "tags": [
+          "filings"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            },
+            "description": "Max number of filings to return (default 20, max 50)."
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "filings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "cik": {
+                            "type": "string"
+                          },
+                          "company": {
+                            "type": "string"
+                          },
+                          "date": {
+                            "type": "string"
+                          },
+                          "form": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "remaining": {
+                      "type": "integer",
+                      "description": "Credits remaining after this call"
+                    }
+                  }
+                },
+                "example": {
+                  "filings": [
+                    {
+                      "title": "8-K - Navan, Inc. (0001639723) (Filer)",
+                      "company": "Navan, Inc.",
+                      "cik": "1639723",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1639723/000162828026065496/0001628280-26-065496-index.htm",
+                      "publishedAt": "2026-10-09T08:51:24-04:00"
+                    },
+                    {
+                      "title": "8-K - ENERPAC TOOL GROUP CORP (0000006955) (Filer)",
+                      "company": "ENERPAC TOOL GROUP CORP",
+                      "cik": "6955",
+                      "url": "https://www.sec.gov/Archives/edgar/data/6955/000000695526000050/0000006955-26-000050-index.htm",
+                      "publishedAt": "2026-10-09T08:40:32-04:00"
+                    },
+                    {
+                      "title": "8-K - CEMTREX INC (0001435064) (Filer)",
+                      "company": "CEMTREX INC",
+                      "cik": "1435064",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1435064/000143774926032398/0001437749-26-032398-index.htm",
+                      "publishedAt": "2026-10-09T08:36:23-04:00"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required - x402 negotiation (see 402 response body for payment requirements)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "x402Version": 2,
+                  "error": "Payment Required",
+                  "hint": "向 payTo 转入 USDC，并以同一地址作为 Bearer 身份继续调用",
+                  "freeTierReason": null,
+                  "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                  "docs": "https://agentsapi.top/",
+                  "resource": {
+                    "url": "https://agentsapi.top/api/filings/8k",
+                    "description": "Latest US SEC 8-K material-event filings (M&A, executive changes, earnings, delisting, bankruptcy). Live stream from SEC EDGAR.",
+                    "tags": [
+                      "sec",
+                      "8-k",
+                      "filings",
+                      "market-events"
+                    ],
+                    "mimeType": "application/json"
+                  },
+                  "accepts": [
+                    {
+                      "x402Version": 2,
+                      "scheme": "exact",
+                      "network": "eip155:8453",
+                      "maxAmountRequired": "10000",
+                      "resource": "https://agentsapi.top/api/filings/8k",
+                      "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                      "maxTimeoutSeconds": 300,
+                      "facilitator": {
+                        "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                      },
+                      "amount": "10000",
+                      "extra": {
+                        "name": "USD Coin",
+                        "version": "2"
+                      }
+                    }
+                  ],
+                  "extensions": {
+                    "bazaar": {
+                      "info": {
+                        "input": {
+                          "type": "http",
+                          "method": "GET",
+                          "discoverable": true,
+                          "queryParams": {
+                            "limit": "20"
+                          }
+                        },
+                        "output": {
+                          "type": "json",
+                          "example": {
+                            "filings": [
+                              {
+                                "title": "8-K - Navan, Inc. (0001639723) (Filer)",
+                                "company": "Navan, Inc.",
+                                "cik": "1639723",
+                                "url": "https://www.sec.gov/Archives/edgar/data/1639723/000162828026065496/0001628280-26-065496-index.htm",
+                                "publishedAt": "2026-10-09T08:51:24-04:00"
+                              },
+                              {
+                                "title": "8-K - ENERPAC TOOL GROUP CORP (0000006955) (Filer)",
+                                "company": "ENERPAC TOOL GROUP CORP",
+                                "cik": "6955",
+                                "url": "https://www.sec.gov/Archives/edgar/data/6955/000000695526000050/0000006955-26-000050-index.htm",
+                                "publishedAt": "2026-10-09T08:40:32-04:00"
+                              },
+                              {
+                                "title": "8-K - CEMTREX INC (0001435064) (Filer)",
+                                "company": "CEMTREX INC",
+                                "cik": "1435064",
+                                "url": "https://www.sec.gov/Archives/edgar/data/1435064/000143774926032398/0001437749-26-032398-index.htm",
+                                "publishedAt": "2026-10-09T08:36:23-04:00"
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      "schema": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "object",
+                            "properties": {
+                              "limit": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "output": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "example": {
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "input"
+                        ]
+                      }
+                    }
+                  },
+                  "x402": {
+                    "x402Version": 2,
+                    "scheme": "exact",
+                    "network": "eip155:8453",
+                    "maxAmountRequired": "10000",
+                    "resource": "https://agentsapi.top/api/filings/8k",
+                    "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "maxTimeoutSeconds": 300,
+                    "facilitator": {
+                      "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                    }
+                  },
+                  "sample": [
+                    {
+                      "title": "8-K - AUTOZONE INC (0000866787) (Filer)",
+                      "company": "AUTOZONE INC",
+                      "cik": "866787",
+                      "url": "https://www.sec.gov/Archives/edgar/data/866787/000117184326006565/0001171843-26-006565-index.htm",
+                      "publishedAt": "2026-10-09T17:30:15-04:00"
+                    },
+                    {
+                      "title": "8-K/A - Gentherm Inc (0000903129) (Filer)",
+                      "company": "Gentherm Inc (0000903129) (Filer)",
+                      "cik": "903129",
+                      "url": "https://www.sec.gov/Archives/edgar/data/903129/000119312526419232/0001193125-26-419232-index.htm",
+                      "publishedAt": "2026-10-09T17:29:14-04:00"
+                    },
+                    {
+                      "title": "8-K/A - Wheels Up Experience Inc. (0001819516) (Filer)",
+                      "company": "Wheels Up Experience Inc. (0001819516) (Filer)",
+                      "cik": "1819516",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1819516/000162828026065562/0001628280-26-065562-index.htm",
+                      "publishedAt": "2026-10-09T17:27:20-04:00"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "payment-required": {
+                "description": "Base64-encoded PaymentRequired challenge (identical object to the JSON body). Present on every 402 response (captured 15/15 on 2026-10-10).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-payment-requirements": {
+                "description": "Single x402 v2 payment requirement: network eip155:8453, asset (USDC), payTo, maxAmountRequired (atomic units, 6 decimals), facilitator URL.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/filings/today": {
+      "get": {
+        "summary": "Today's US SEC 8-K material-event filings",
+        "description": "Today’s US SEC 8-K material-event filings (M&A, executive changes, earnings, delisting, bankruptcy), newest first. Same SEC EDGAR live stream as /api/filings/8k, fixed at the 50 most recent filings.",
+        "tags": [
+          "filings"
+        ],
+        "security": [],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "filings": [
+                    {
+                      "title": "8-K - GOLDENWELL BIOTECH, INC. (0001800373) (Filer)",
+                      "company": "GOLDENWELL BIOTECH, INC.",
+                      "cik": "1800373",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1800373/000147793226006138/0001477932-26-006138-index.htm",
+                      "publishedAt": "2026-10-09T09:50:45-04:00"
+                    },
+                    {
+                      "title": "8-K - IT TECH PACKAGING, INC. (0001358190) (Filer)",
+                      "company": "IT TECH PACKAGING, INC.",
+                      "cik": "1358190",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1358190/000121390026108255/0001213900-26-108255-index.htm",
+                      "publishedAt": "2026-10-09T09:30:12-04:00"
+                    },
+                    {
+                      "title": "8-K - FULLER H B CO (0000039368) (Filer)",
+                      "company": "FULLER H B CO",
+                      "cik": "39368",
+                      "url": "https://www.sec.gov/Archives/edgar/data/39368/000143774926032400/0001437749-26-032400-index.htm",
+                      "publishedAt": "2026-10-09T09:21:32-04:00"
+                    },
+                    {
+                      "title": "8-K - MARZETTI CO (0000057515) (Filer)",
+                      "company": "MARZETTI CO",
+                      "cik": "57515",
+                      "url": "https://www.sec.gov/Archives/edgar/data/57515/000005751526000023/0000057515-26-000023-index.htm",
+                      "publishedAt": "2026-10-09T09:12:32-04:00"
+                    },
+                    {
+                      "title": "8-K - ATMOS ENERGY CORP (0000731802) (Filer)",
+                      "company": "ATMOS ENERGY CORP",
+                      "cik": "731802",
+                      "url": "https://www.sec.gov/Archives/edgar/data/731802/000119312526418579/0001193125-26-418579-index.htm",
+                      "publishedAt": "2026-10-09T09:10:06-04:00"
+                    },
+                    {
+                      "title": "8-K - PILGRIMS PRIDE CORP (0000802481) (Filer)",
+                      "company": "PILGRIMS PRIDE CORP",
+                      "cik": "802481",
+                      "url": "https://www.sec.gov/Archives/edgar/data/802481/000080248126000070/0000802481-26-000070-index.htm",
+                      "publishedAt": "2026-10-09T09:03:54-04:00"
+                    },
+                    {
+                      "title": "8-K - Jazz Pharmaceuticals plc (0001232524) (Filer)",
+                      "company": "Jazz Pharmaceuticals plc",
+                      "cik": "1232524",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1232524/000162828026065497/0001628280-26-065497-index.htm",
+                      "publishedAt": "2026-10-09T09:02:20-04:00"
+                    },
+                    {
+                      "title": "8-K - HUBSPOT INC (0001404655) (Filer)",
+                      "company": "HUBSPOT INC",
+                      "cik": "1404655",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1404655/000119312526418574/0001193125-26-418574-index.htm",
+                      "publishedAt": "2026-10-09T09:00:12-04:00"
+                    },
+                    {
+                      "title": "8-K - STARRY SEA ACQUISITION CORP (0002059165) (Filer)",
+                      "company": "STARRY SEA ACQUISITION CORP",
+                      "cik": "2059165",
+                      "url": "https://www.sec.gov/Archives/edgar/data/2059165/000182912626010950/0001829126-26-010950-index.htm",
+                      "publishedAt": "2026-10-09T08:55:13-04:00"
+                    },
+                    {
+                      "title": "8-K - Navan, Inc. (0001639723) (Filer)",
+                      "company": "Navan, Inc.",
+                      "cik": "1639723",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1639723/000162828026065496/0001628280-26-065496-index.htm",
+                      "publishedAt": "2026-10-09T08:51:24-04:00"
+                    },
+                    {
+                      "title": "8-K - ENERPAC TOOL GROUP CORP (0000006955) (Filer)",
+                      "company": "ENERPAC TOOL GROUP CORP",
+                      "cik": "6955",
+                      "url": "https://www.sec.gov/Archives/edgar/data/6955/000000695526000050/0000006955-26-000050-index.htm",
+                      "publishedAt": "2026-10-09T08:40:32-04:00"
+                    },
+                    {
+                      "title": "8-K - CEMTREX INC (0001435064) (Filer)",
+                      "company": "CEMTREX INC",
+                      "cik": "1435064",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1435064/000143774926032398/0001437749-26-032398-index.htm",
+                      "publishedAt": "2026-10-09T08:36:23-04:00"
+                    },
+                    {
+                      "title": "8-K - TruGolf Holdings, Inc. (0001857086) (Filer)",
+                      "company": "TruGolf Holdings, Inc.",
+                      "cik": "1857086",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1857086/000149315226046435/0001493152-26-046435-index.htm",
+                      "publishedAt": "2026-10-09T08:33:51-04:00"
+                    },
+                    {
+                      "title": "8-K - Evolution Metals &amp; Technologies Corp. (0001866226) (Filer)",
+                      "company": "Evolution Metals &amp; Technologies Corp.",
+                      "cik": "1866226",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1866226/000121390026108232/0001213900-26-108232-index.htm",
+                      "publishedAt": "2026-10-09T08:30:12-04:00"
+                    },
+                    {
+                      "title": "8-K - APPLIED ENERGETICS, INC. (0000879911) (Filer)",
+                      "company": "APPLIED ENERGETICS, INC.",
+                      "cik": "879911",
+                      "url": "https://www.sec.gov/Archives/edgar/data/879911/000121390026108233/0001213900-26-108233-index.htm",
+                      "publishedAt": "2026-10-09T08:30:12-04:00"
+                    },
+                    {
+                      "title": "8-K - ALTRIA GROUP, INC. (0000764180) (Filer)",
+                      "company": "ALTRIA GROUP, INC.",
+                      "cik": "764180",
+                      "url": "https://www.sec.gov/Archives/edgar/data/764180/000076418026000105/0000764180-26-000105-index.htm",
+                      "publishedAt": "2026-10-09T08:28:09-04:00"
+                    },
+                    {
+                      "title": "8-K - ATOSSA THERAPEUTICS, INC. (0001488039) (Filer)",
+                      "company": "ATOSSA THERAPEUTICS, INC.",
+                      "cik": "1488039",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1488039/000119312526418560/0001193125-26-418560-index.htm",
+                      "publishedAt": "2026-10-09T08:15:15-04:00"
+                    },
+                    {
+                      "title": "8-K - Stride, Inc. (0001157408) (Filer)",
+                      "company": "Stride, Inc.",
+                      "cik": "1157408",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1157408/000110465926114863/0001104659-26-114863-index.htm",
+                      "publishedAt": "2026-10-09T08:11:59-04:00"
+                    },
+                    {
+                      "title": "8-K - Iron Horse Acquisition II Corp. (0002051985) (Filer)",
+                      "company": "Iron Horse Acquisition II Corp.",
+                      "cik": "2051985",
+                      "url": "https://www.sec.gov/Archives/edgar/data/2051985/000121390026108221/0001213900-26-108221-index.htm",
+                      "publishedAt": "2026-10-09T08:02:00-04:00"
+                    },
+                    {
+                      "title": "8-K - authID Inc. (0001534154) (Filer)",
+                      "company": "authID Inc.",
+                      "cik": "1534154",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1534154/000121390026108219/0001213900-26-108219-index.htm",
+                      "publishedAt": "2026-10-09T08:00:19-04:00"
+                    },
+                    {
+                      "title": "8-K - Marwynn Holdings, Inc. (0002030522) (Filer)",
+                      "company": "Marwynn Holdings, Inc.",
+                      "cik": "2030522",
+                      "url": "https://www.sec.gov/Archives/edgar/data/2030522/000121390026108218/0001213900-26-108218-index.htm",
+                      "publishedAt": "2026-10-09T08:00:18-04:00"
+                    },
+                    {
+                      "title": "8-K - Quince Therapeutics, Inc. (0001662774) (Filer)",
+                      "company": "Quince Therapeutics, Inc.",
+                      "cik": "1662774",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1662774/000119312526418538/0001193125-26-418538-index.htm",
+                      "publishedAt": "2026-10-09T07:59:32-04:00"
+                    },
+                    {
+                      "title": "8-K - New Horizon Aircraft Ltd. (0001930021) (Filer)",
+                      "company": "New Horizon Aircraft Ltd.",
+                      "cik": "1930021",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1930021/000121390026108213/0001213900-26-108213-index.htm",
+                      "publishedAt": "2026-10-09T07:24:51-04:00"
+                    },
+                    {
+                      "title": "8-K - AVIENT CORP (0001122976) (Filer)",
+                      "company": "AVIENT CORP",
+                      "cik": "1122976",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1122976/000119312526418501/0001193125-26-418501-index.htm",
+                      "publishedAt": "2026-10-09T07:10:32-04:00"
+                    },
+                    {
+                      "title": "8-K - MANHATTAN BRIDGE CAPITAL, INC (0001080340) (Filer)",
+                      "company": "MANHATTAN BRIDGE CAPITAL, INC",
+                      "cik": "1080340",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1080340/000149315226046424/0001493152-26-046424-index.htm",
+                      "publishedAt": "2026-10-09T07:05:21-04:00"
+                    },
+                    {
+                      "title": "8-K - Victoria&#39;s Secret &amp; Co. (0001856437) (Filer)",
+                      "company": "Victoria&#39;s Secret &amp; Co.",
+                      "cik": "1856437",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1856437/000185643726000023/0001856437-26-000023-index.htm",
+                      "publishedAt": "2026-10-09T07:00:53-04:00"
+                    },
+                    {
+                      "title": "8-K - Invesco Ltd. (0000914208) (Filer)",
+                      "company": "Invesco Ltd.",
+                      "cik": "914208",
+                      "url": "https://www.sec.gov/Archives/edgar/data/914208/000091420826000353/0000914208-26-000353-index.htm",
+                      "publishedAt": "2026-10-09T06:58:10-04:00"
+                    },
+                    {
+                      "title": "8-K - Ranger Energy Services, Inc. (0001699039) (Filer)",
+                      "company": "Ranger Energy Services, Inc.",
+                      "cik": "1699039",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1699039/000162828026065491/0001628280-26-065491-index.htm",
+                      "publishedAt": "2026-10-09T06:32:27-04:00"
+                    },
+                    {
+                      "title": "8-K - DELTA AIR LINES, INC. (0000027904) (Filer)",
+                      "company": "DELTA AIR LINES, INC.",
+                      "cik": "27904",
+                      "url": "https://www.sec.gov/Archives/edgar/data/27904/000002790426000035/0000027904-26-000035-index.htm",
+                      "publishedAt": "2026-10-09T06:30:47-04:00"
+                    },
+                    {
+                      "title": "8-K - GRAY MEDIA, INC (0000043196) (Filer)",
+                      "company": "GRAY MEDIA, INC",
+                      "cik": "43196",
+                      "url": "https://www.sec.gov/Archives/edgar/data/43196/000143774926032392/0001437749-26-032392-index.htm",
+                      "publishedAt": "2026-10-09T06:20:52-04:00"
+                    },
+                    {
+                      "title": "8-K/A - Atrium Therapeutics, Inc. (0002093101) (Filer)",
+                      "company": "Atrium Therapeutics, Inc. (0002093101) (Filer)",
+                      "cik": "2093101",
+                      "url": "https://www.sec.gov/Archives/edgar/data/2093101/000119312526418417/0001193125-26-418417-index.htm",
+                      "publishedAt": "2026-10-09T06:17:57-04:00"
+                    },
+                    {
+                      "title": "8-K - Transocean Ltd. (0001451505) (Filer)",
+                      "company": "Transocean Ltd.",
+                      "cik": "1451505",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1451505/000145150526000072/0001451505-26-000072-index.htm",
+                      "publishedAt": "2026-10-09T06:06:57-04:00"
+                    },
+                    {
+                      "title": "8-K - PRUDENTIAL FINANCIAL INC (0001137774) (Filer)",
+                      "company": "PRUDENTIAL FINANCIAL INC",
+                      "cik": "1137774",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1137774/000119312526418407/0001193125-26-418407-index.htm",
+                      "publishedAt": "2026-10-09T06:06:55-04:00"
+                    },
+                    {
+                      "title": "8-K - GigCapital8 Corp. (0002080019) (Filer)",
+                      "company": "GigCapital8 Corp.",
+                      "cik": "2080019",
+                      "url": "https://www.sec.gov/Archives/edgar/data/2080019/000119312526418405/0001193125-26-418405-index.htm",
+                      "publishedAt": "2026-10-09T06:05:31-04:00"
+                    },
+                    {
+                      "title": "8-K - HUMANA INC (0000049071) (Filer)",
+                      "company": "HUMANA INC",
+                      "cik": "49071",
+                      "url": "https://www.sec.gov/Archives/edgar/data/49071/000004907126000057/0000049071-26-000057-index.htm",
+                      "publishedAt": "2026-10-09T06:01:26-04:00"
+                    },
+                    {
+                      "title": "8-K - Avalanche Treasury Corp (0002092446) (Filer)",
+                      "company": "Avalanche Treasury Corp",
+                      "cik": "2092446",
+                      "url": "https://www.sec.gov/Archives/edgar/data/2092446/000110465926114805/0001104659-26-114805-index.htm",
+                      "publishedAt": "2026-10-09T06:00:27-04:00"
+                    },
+                    {
+                      "title": "8-K - Velo3D, Inc. (0001825079) (Filer)",
+                      "company": "Velo3D, Inc.",
+                      "cik": "1825079",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1825079/000149315226046400/0001493152-26-046400-index.htm",
+                      "publishedAt": "2026-10-08T20:38:58-04:00"
+                    },
+                    {
+                      "title": "8-K - Sky Quarry Inc. (0001812447) (Filer)",
+                      "company": "Sky Quarry Inc.",
+                      "cik": "1812447",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1812447/000109690626001527/0001096906-26-001527-index.htm",
+                      "publishedAt": "2026-10-08T20:00:02-04:00"
+                    },
+                    {
+                      "title": "8-K - NEWS CORP (0001564708) (Filer)",
+                      "company": "NEWS CORP",
+                      "cik": "1564708",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1564708/000156470826000219/0001564708-26-000219-index.htm",
+                      "publishedAt": "2026-10-08T19:53:56-04:00"
+                    },
+                    {
+                      "title": "8-K - CLOVER HEALTH INVESTMENTS, CORP. /DE (0001801170) (Filer)",
+                      "company": "CLOVER HEALTH INVESTMENTS, CORP. /DE",
+                      "cik": "1801170",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1801170/000180117026000250/0001801170-26-000250-index.htm",
+                      "publishedAt": "2026-10-08T19:13:53-04:00"
+                    }
+                  ]
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "filings": {
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "filings"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required - x402 negotiation (see 402 response body for payment requirements)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "x402Version": 2,
+                  "error": "Payment Required",
+                  "hint": "向 payTo 转入 USDC，并以同一地址作为 Bearer 身份继续调用",
+                  "freeTierReason": null,
+                  "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                  "docs": "https://agentsapi.top/",
+                  "resource": {
+                    "url": "https://agentsapi.top/api/filings/today",
+                    "description": "Paid API endpoint on agentsapi.top",
+                    "mimeType": "application/json"
+                  },
+                  "accepts": [
+                    {
+                      "x402Version": 2,
+                      "scheme": "exact",
+                      "network": "eip155:8453",
+                      "maxAmountRequired": "10000",
+                      "resource": "https://agentsapi.top/api/filings/today",
+                      "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                      "maxTimeoutSeconds": 300,
+                      "facilitator": {
+                        "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                      },
+                      "amount": "10000",
+                      "extra": {
+                        "name": "USD Coin",
+                        "version": "2"
+                      }
+                    }
+                  ],
+                  "x402": {
+                    "x402Version": 2,
+                    "scheme": "exact",
+                    "network": "eip155:8453",
+                    "maxAmountRequired": "10000",
+                    "resource": "https://agentsapi.top/api/filings/today",
+                    "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "maxTimeoutSeconds": 300,
+                    "facilitator": {
+                      "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                    }
+                  },
+                  "sample": [
+                    {
+                      "title": "8-K - AUTOZONE INC (0000866787) (Filer)",
+                      "company": "AUTOZONE INC",
+                      "cik": "866787",
+                      "url": "https://www.sec.gov/Archives/edgar/data/866787/000117184326006565/0001171843-26-006565-index.htm",
+                      "publishedAt": "2026-10-09T17:30:15-04:00"
+                    },
+                    {
+                      "title": "8-K/A - Gentherm Inc (0000903129) (Filer)",
+                      "company": "Gentherm Inc (0000903129) (Filer)",
+                      "cik": "903129",
+                      "url": "https://www.sec.gov/Archives/edgar/data/903129/000119312526419232/0001193125-26-419232-index.htm",
+                      "publishedAt": "2026-10-09T17:29:14-04:00"
+                    },
+                    {
+                      "title": "8-K/A - Wheels Up Experience Inc. (0001819516) (Filer)",
+                      "company": "Wheels Up Experience Inc. (0001819516) (Filer)",
+                      "cik": "1819516",
+                      "url": "https://www.sec.gov/Archives/edgar/data/1819516/000162828026065562/0001628280-26-065562-index.htm",
+                      "publishedAt": "2026-10-09T17:27:20-04:00"
+                    }
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "payment-required": {
+                "description": "Base64-encoded PaymentRequired challenge (identical object to the JSON body). Present on every 402 response (captured 15/15 on 2026-10-10).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-payment-requirements": {
+                "description": "Single x402 v2 payment requirement: network eip155:8453, asset (USDC), payTo, maxAmountRequired (atomic units, 6 decimals), facilitator URL.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/healthz": {
+      "get": {
+        "summary": "Health check",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "example": {
+                  "ok": true,
+                  "ts": 1791555131125
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/statusz": {
+      "get": {
+        "summary": "Status / metrics",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "example": {
+                  "ok": true,
+                  "ts": 1791555132659,
+                  "uptimeSec": 3146,
+                  "access": {
+                    "logFile": "/opt/bridge-watch/data/access.jsonl",
+                    "sampled": 20000,
+                    "last24h": 3723,
+                    "last": "2026-10-09T14:12:11.126Z",
+                    "topPaths": [
+                      {
+                        "value": "/mcp",
+                        "count": 1165
+                      },
+                      {
+                        "value": "/v1/label/:address",
+                        "count": 642
+                      },
+                      {
+                        "value": "/",
+                        "count": 234
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me": {
+      "get": {
+        "operationId": "getMe",
+        "summary": "Query current API key balance",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "example": {
+                  "apiKey": "0xcadc…d426",
+                  "remaining": 9
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "getMe_post",
+        "summary": "Query current API key balance (POST alias)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "example": {
+                  "apiKey": "0xcadc…d426",
+                  "remaining": 9
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/label": {
+      "get": {
+        "summary": "Address tag lookup (query-parameter alias)",
+        "description": "Address tag lookup on Base: 104,209 entries from the open eth-labels dataset, mostly category tags (79.8% generic such as token-contract/stablecoin/burn, 18.7% exchange) rather than named entities. Unknown addresses return label:null and are still charged per call; measured hit rate on real inbound requests was 37.5% of unique addresses. Pay per call with USDC via x402.",
+        "tags": [
+          "label"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "address",
+            "in": "query",
+            "required": false,
+            "description": "EVM address to look up. Omit it and the endpoint answers with an x402 payment challenge at the same price; no payment is ever accepted for an unsubstituted parameter.",
+            "schema": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{40}$"
+            },
+            "example": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.010000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "address": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+                  "label": null
+                },
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "address": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "address",
+                    "label"
+                  ],
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required - x402 negotiation (see 402 response body for payment requirements)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "x402Version": 2,
+                  "error": "Payment Required",
+                  "hint": "向 payTo 转入 USDC，并以同一地址作为 Bearer 身份继续调用",
+                  "freeTierReason": null,
+                  "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                  "docs": "https://agentsapi.top/",
+                  "resource": {
+                    "url": "https://agentsapi.top/v1/label",
+                    "description": "Address tag lookup on Base: 104,209 entries from the open eth-labels dataset, mostly category tags (79.8% generic such as token-contract/stablecoin/burn, 18.7% exchange) rather than named entities. Unknown addresses return label:null and are still charged per call; measured hit rate on real inbound requests was 37.5% of unique addresses. Pay per call with USDC via x402.",
+                    "tags": [
+                      "base",
+                      "onchain",
+                      "address-labels",
+                      "risk",
+                      "query-alias"
+                    ],
+                    "mimeType": "application/json"
+                  },
+                  "accepts": [
+                    {
+                      "x402Version": 2,
+                      "scheme": "exact",
+                      "network": "eip155:8453",
+                      "maxAmountRequired": "10000",
+                      "resource": "https://agentsapi.top/v1/label",
+                      "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                      "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                      "maxTimeoutSeconds": 300,
+                      "facilitator": {
+                        "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                      },
+                      "amount": "10000",
+                      "extra": {
+                        "name": "USD Coin",
+                        "version": "2"
+                      }
+                    }
+                  ],
+                  "extensions": {
+                    "bazaar": {
+                      "info": {
+                        "input": {
+                          "type": "http",
+                          "method": "GET",
+                          "discoverable": true,
+                          "queryParams": {
+                            "address": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045"
+                          }
+                        },
+                        "output": {
+                          "type": "json",
+                          "example": {
+                            "address": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+                            "label": null
+                          }
+                        }
+                      },
+                      "schema": {
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "type": "object",
+                        "properties": {
+                          "input": {
+                            "type": "object",
+                            "properties": {
+                              "address": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "output": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "example": {
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "input"
+                        ]
+                      }
+                    }
+                  },
+                  "x402": {
+                    "x402Version": 2,
+                    "scheme": "exact",
+                    "network": "eip155:8453",
+                    "maxAmountRequired": "10000",
+                    "resource": "https://agentsapi.top/v1/label",
+                    "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "maxTimeoutSeconds": 300,
+                    "facilitator": {
+                      "url": "https://api.cdp.coinbase.com/platform/v2/x402"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mcp": {
+      "post": {
+        "tags": [
+          "mcp"
+        ],
+        "summary": "MCP JSON-RPC 2.0 endpoint (7 tools, x402 metered)",
+        "description": "Streamable-HTTP MCP endpoint. Protocol methods initialize / tools/list / ping are free; tools/call is metered in USDC on Base via x402. The protocol plane answers HTTP 200 — a payment requirement is delivered as a PaymentRequired object inside the JSON-RPC result, not as HTTP 402. Anonymous callers get 7 free tool calls per IP per day, 1 per tool, covering all 7 tools: get_label, explain_transaction, detect_cluster, query_alerts, alert_stats, track_cctp, list_paid_endpoints.",
+        "operationId": "mcpRpc",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "jsonrpc",
+                  "id",
+                  "method"
+                ],
+                "properties": {
+                  "jsonrpc": {
+                    "type": "string",
+                    "enum": [
+                      "2.0"
+                    ]
+                  },
+                  "id": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ]
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "initialize",
+                      "tools/list",
+                      "tools/call",
+                      "ping"
+                    ]
+                  },
+                  "params": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "enum": [
+                          "get_label",
+                          "explain_transaction",
+                          "detect_cluster",
+                          "query_alerts",
+                          "alert_stats",
+                          "track_cctp",
+                          "list_paid_endpoints"
+                        ],
+                        "description": "Tool name, required for tools/call"
+                      },
+                      "arguments": {
+                        "type": "object",
+                        "additionalProperties": true
+                      },
+                      "protocolVersion": {
+                        "type": "string"
+                      },
+                      "capabilities": {
+                        "type": "object"
+                      },
+                      "clientInfo": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              },
+              "examples": {
+                "toolsList": {
+                  "value": {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "tools/list",
+                    "params": {}
+                  }
+                },
+                "toolCall": {
+                  "value": {
+                    "jsonrpc": "2.0",
+                    "id": 3,
+                    "method": "tools/call",
+                    "params": {
+                      "name": "get_label",
+                      "arguments": {}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "JSON-RPC 2.0 response (application/json or text/event-stream)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "jsonrpc": "2.0",
+                  "id": 2,
+                  "result": {
+                    "tools": [
+                      {
+                        "name": "get_label",
+                        "description": "Look up the identity label of an EVM address (Base, open eth-labels dataset; mostly category tags rather than named entities). Returns which entity the address belongs to; unlabelled addresses return null. Call with no arguments for a free demo result."
+                      },
+                      {
+                        "name": "explain_transaction",
+                        "description": "Explain what a transaction did: status, sender/receiver (with identity labels), transfer details, and whether it looks like a cross-chain bridge operation."
+                      },
+                      {
+                        "name": "detect_cluster",
+                        "description": "Detect the set of addresses funded by a single funder (shared funding-source cluster). Useful for sybil / entity detection."
+                      },
+                      {
+                        "name": "query_alerts",
+                        "description": "Query historical alert records; filterable by address, rule kind, severity, and time range."
+                      },
+                      {
+                        "name": "alert_stats",
+                        "description": "Alert statistics overview: totals, breakdown by kind / severity / address, and the latest alert time."
+                      },
+                      {
+                        "name": "track_cctp",
+                        "description": "CCTP cross-chain transfer tracking: given a source-chain tx hash, find which transfer it belongs to, how much moved, the destination chain, and whether it arrived. Supports Base → Ethereum and other CCTP chains."
+                      },
+                      {
+                        "name": "list_paid_endpoints",
+                        "description": "List every paid HTTP endpoint of this service with its live per-call price in USDC on Base. Takes no arguments. Call this first to discover what you can buy and what it costs."
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-x402": {
+          "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+          "network": "eip155:8453",
+          "asset": "USDC",
+          "creditPerUsdc": 100,
+          "perToolUsdc": {
+            "get_label": "0.01",
+            "explain_transaction": "0.02",
+            "detect_cluster": "0.05",
+            "query_alerts": "0.01",
+            "alert_stats": "0.01",
+            "track_cctp": "0.03",
+            "list_paid_endpoints": "0.01"
+          },
+          "protocolPlaneStatus": "never 402"
+        }
+      },
+      "get": {
+        "tags": [
+          "mcp"
+        ],
+        "summary": "Open the MCP SSE stream, or fetch the machine-readable endpoint card",
+        "description": "With Accept: text/event-stream this opens the MCP SSE stream (spec-compliant clients). With Accept: application/json it returns the machine-readable endpoint card listing all 7 tools with live per-call USDC prices. Both are free and unauthenticated.",
+        "operationId": "mcpCardOrStream",
+        "responses": {
+          "200": {
+            "description": "SSE stream (text/event-stream) or endpoint card (application/json)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "ok": true,
+                  "service": "bridge-watch MCP",
+                  "serverInfo": {
+                    "name": "bridge-watch",
+                    "version": "0.3.1"
+                  },
+                  "tools": [
+                    {
+                      "name": "get_label",
+                      "credits": 1,
+                      "usdc": "0.01"
+                    },
+                    {
+                      "name": "explain_transaction",
+                      "credits": 2,
+                      "usdc": "0.02"
+                    },
+                    {
+                      "name": "detect_cluster",
+                      "credits": 5,
+                      "usdc": "0.05"
+                    },
+                    {
+                      "name": "query_alerts",
+                      "credits": 1,
+                      "usdc": "0.01"
+                    },
+                    {
+                      "name": "alert_stats",
+                      "credits": 1,
+                      "usdc": "0.01"
+                    },
+                    {
+                      "name": "track_cctp",
+                      "credits": 3,
+                      "usdc": "0.03"
+                    },
+                    {
+                      "name": "list_paid_endpoints",
+                      "credits": 1,
+                      "usdc": "0.01"
+                    }
+                  ],
+                  "freeTier": {
+                    "enabled": true,
+                    "tools": [
+                      "get_label",
+                      "explain_transaction",
+                      "detect_cluster",
+                      "query_alerts",
+                      "alert_stats",
+                      "track_cctp",
+                      "list_paid_endpoints"
+                    ],
+                    "perIp": 7,
+                    "dailyCap": 500,
+                    "perTool": 1
+                  },
+                  "payment": {
+                    "protocol": "x402 v2 (v1 X-PAYMENT compatible)",
+                    "network": "base",
+                    "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+                    "asset": "USDC",
+                    "creditPerUsdc": 100
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/.well-known/mcp.json": {
+      "get": {
+        "tags": [
+          "mcp"
+        ],
+        "summary": "MCP client descriptor (auto-discovery: agents look here for /mcp)",
+        "description": "Static descriptor advertising the MCP endpoint so that agent tooling without a wallet can discover and connect to https://agentsapi.top/mcp automatically. Same-source with GET /mcp and MCP initialize.",
+        "operationId": "wellKnownMcpJson",
+        "responses": {
+          "200": {
+            "description": "MCP descriptor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "mcpServers": {
+                    "bridge-watch": {
+                      "type": "http",
+                      "url": "https://agentsapi.top/mcp"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "API key or funded payment address"
+      }
+    }
+  },
+  "x-mcp": {
+    "endpoint": "https://agentsapi.top/mcp",
+    "transport": "streamable-http",
+    "registry": "top.agentsapi/bridge-watch",
+    "serverInfo": {
+      "name": "bridge-watch",
+      "version": "0.3.1"
+    },
+    "protocolVersion": "2025-06-18",
+    "freeTier": {
+      "enabled": true,
+      "tools": [
+        "get_label",
+        "explain_transaction",
+        "detect_cluster",
+        "query_alerts",
+        "alert_stats",
+        "track_cctp",
+        "list_paid_endpoints"
+      ],
+      "perIp": 7,
+      "dailyCap": 500,
+      "perTool": 1
+    },
+    "tools": [
+      {
+        "name": "get_label",
+        "credits": 1,
+        "usdc": "0.01",
+        "description": "Look up the identity label of an EVM address (Base, open eth-labels dataset; mostly category tags rather than named entities). Returns which entity the address belongs to; unlabelled addresses return null. Call with no arguments for a free demo result.",
+        "readOnly": true
+      },
+      {
+        "name": "explain_transaction",
+        "credits": 2,
+        "usdc": "0.02",
+        "description": "Explain what a transaction did: status, sender/receiver (with identity labels), transfer details, and whether it looks like a cross-chain bridge operation.",
+        "readOnly": true
+      },
+      {
+        "name": "detect_cluster",
+        "credits": 5,
+        "usdc": "0.05",
+        "description": "Detect the set of addresses funded by a single funder (shared funding-source cluster). Useful for sybil / entity detection.",
+        "readOnly": true
+      },
+      {
+        "name": "query_alerts",
+        "credits": 1,
+        "usdc": "0.01",
+        "description": "Query historical alert records; filterable by address, rule kind, severity, and time range.",
+        "readOnly": true
+      },
+      {
+        "name": "alert_stats",
+        "credits": 1,
+        "usdc": "0.01",
+        "description": "Alert statistics overview: totals, breakdown by kind / severity / address, and the latest alert time.",
+        "readOnly": true
+      },
+      {
+        "name": "track_cctp",
+        "credits": 3,
+        "usdc": "0.03",
+        "description": "CCTP cross-chain transfer tracking: given a source-chain tx hash, find which transfer it belongs to, how much moved, the destination chain, and whether it arrived. Supports Base → Ethereum and other CCTP chains.",
+        "readOnly": true
+      },
+      {
+        "name": "list_paid_endpoints",
+        "credits": 1,
+        "usdc": "0.01",
+        "description": "List every paid HTTP endpoint of this service with its live per-call price in USDC on Base. Takes no arguments. Call this first to discover what you can buy and what it costs.",
+        "readOnly": true
+      }
+    ],
+    "payment": {
+      "protocol": "x402 v2 (v1 X-PAYMENT compatible)",
+      "network": "base",
+      "payTo": "0x381cdbb664608bf7b1dd4f9403a572c1c57332c2",
+      "asset": "USDC",
+      "creditPerUsdc": 100
+    },
+    "howToCall": [
+      "POST https://agentsapi.top/mcp with Content-Type: application/json and Accept: application/json, text/event-stream",
+      "Body is JSON-RPC 2.0: initialize (free) → tools/list (free) → tools/call (paid)",
+      "A paid tool/call returns a PaymentRequired object inside the JSON-RPC result; the /mcp protocol plane itself never returns HTTP 402",
+      "Pay USDC on Base to payTo, then retry tools/call with the payer address as Authorization: Bearer <address> (or x402 payment-signature header)",
+      "Anonymous free tier: 7 tool calls per IP per day, 1 per tool across all 7 tools (get_label, explain_transaction, detect_cluster, query_alerts, alert_stats, track_cctp, list_paid_endpoints; no wallet, no signup)"
+    ],
+    "machineReadable": {
+      "mcpDescriptor": "https://agentsapi.top/.well-known/mcp.json",
+      "serverCard": "https://agentsapi.top/.well-known/mcp/server-card.json",
+      "x402Manifest": "https://agentsapi.top/.well-known/x402",
+      "skill": "https://agentsapi.top/skill.md",
+      "llmsTxt": "https://agentsapi.top/llms.txt"
+    }
+  }
+}
