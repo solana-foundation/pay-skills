@@ -1,0 +1,352 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "PayBot",
+    "version": "0.2.0",
+    "description": "Send naira to any Nigerian bank account from an agent wallet. USDC on Solana in, naira out, via PAJ. Bank-verified recipient names before every payment. PayBot never holds keys or funds: the agent pays the PAJ address directly.",
+    "x-guidance": "PayBot sends naira to any Nigerian bank account, paid in USDC on Solana. Flow for PayBox agents: (1) POST https://paybot-562g.onrender.com/prepare with {bank, accountNumber, ngn, expectedName?}. It costs $0.01 over x402 (USDC on Base or Solana) and returns the bank-verified account name, a payoutId, a statusUrl, and pay {chain, token, to, amount}. If expectedName is given and the bank's name differs, it returns 422 and you are not charged. (2) Show the user the response's confirm text (verified name, bank, account number, naira, USDC) and wait for an explicit yes. Never pay without it. (3) Pay with PayBox request_transfer {credential_id: your Solana wallet, chain: \"solana:mainnet\", to: pay.to, amount: pay.amount, token: \"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v\"}, exactly once, within 15 minutes. Poll get_request with the same request_id; never re-call request_transfer. (4) Check statusUrl until status is COMPLETED, using PayBox use_service with mode \"probe\" (free, live, never cached; plain web readers may show a stale page). ERROR can be temporary: keep checking, never pay again. Users usually ask in one line, e.g. \"Send 5,000 naira to GTBank 0123456789, Tunde Bakare\": map it to bank \"GTBank\", accountNumber \"0123456789\", ngn 5000, expectedName \"Tunde Bakare\". Free helpers: GET https://paybot-562g.onrender.com/banks?search=opay and GET https://paybot-562g.onrender.com/quote?ngn=5000. The paying wallet needs about 0.0021 SOL for network fees.",
+    "contact": {
+      "name": "Jedi Labs",
+      "url": "https://github.com/MELcodes99/paybot"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://paybot-562g.onrender.com"
+    }
+  ],
+  "paths": {
+    "/prepare": {
+      "post": {
+        "operationId": "prepare_payout",
+        "summary": "Create a naira payout to a Nigerian bank account",
+        "description": "Verifies the account with the bank and creates a payout. Returns the bank-verified account name, the exact USDC amount and the Solana address to pay, and a status link. No money moves until the agent pays pay.to. Errors return 422 and are not charged.",
+        "x-payment-info": {
+          "price": {
+            "amount": "0.010000",
+            "currency": "USD",
+            "mode": "fixed"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "description": "Prepare a naira payout"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "bank",
+                  "accountNumber",
+                  "ngn"
+                ],
+                "properties": {
+                  "bank": {
+                    "type": "string",
+                    "description": "Bank name as the user said it, e.g. GTBank, Opay, Access, Kuda",
+                    "example": "GTBank"
+                  },
+                  "accountNumber": {
+                    "type": "string",
+                    "description": "10-digit NUBAN account number",
+                    "example": "0123456789"
+                  },
+                  "ngn": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Naira the recipient should receive",
+                    "example": 5000
+                  },
+                  "expectedName": {
+                    "type": "string",
+                    "description": "Recipient name the user gave. If the bank says otherwise, nothing is created and you are not charged.",
+                    "example": "Tunde Bakare"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Payout prepared",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "payoutId",
+                    "recipient",
+                    "ngn",
+                    "usdc",
+                    "pay",
+                    "confirm",
+                    "statusUrl"
+                  ],
+                  "properties": {
+                    "payoutId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "awaiting_payment"
+                      ]
+                    },
+                    "recipient": {
+                      "type": "object",
+                      "properties": {
+                        "accountName": {
+                          "type": "string"
+                        },
+                        "bank": {
+                          "type": "string"
+                        },
+                        "accountNumber": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "ngn": {
+                      "type": "integer"
+                    },
+                    "usdc": {
+                      "type": "number",
+                      "description": "USDC to pay, fees included"
+                    },
+                    "rate": {
+                      "type": "number"
+                    },
+                    "pay": {
+                      "type": "object",
+                      "properties": {
+                        "chain": {
+                          "type": "string",
+                          "enum": [
+                            "solana:mainnet"
+                          ]
+                        },
+                        "token": {
+                          "type": "string",
+                          "enum": [
+                            "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                          ]
+                        },
+                        "to": {
+                          "type": "string",
+                          "description": "PAJ deposit address for this payout"
+                        },
+                        "amount": {
+                          "type": "string",
+                          "description": "USDC base units (6 decimals) for request_transfer.amount"
+                        }
+                      }
+                    },
+                    "confirm": {
+                      "type": "string",
+                      "description": "Show this to the user and wait for a yes"
+                    },
+                    "statusUrl": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required (x402)"
+          },
+          "422": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/status/{payoutId}": {
+      "get": {
+        "operationId": "payout_status",
+        "summary": "Fetch the status of a prepared naira payout",
+        "parameters": [
+          {
+            "name": "payoutId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{24}$"
+            },
+            "description": "payoutId returned by /prepare"
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "From statusUrl"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "INIT",
+                        "PAID",
+                        "PROCESSING",
+                        "ERROR",
+                        "COMPLETED"
+                      ]
+                    },
+                    "done": {
+                      "type": "boolean"
+                    },
+                    "ngn": {
+                      "type": "number"
+                    },
+                    "usdc": {
+                      "type": "number"
+                    },
+                    "txSignature": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "note": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/banks": {
+      "get": {
+        "operationId": "list_banks",
+        "summary": "Search Nigerian banks and fintechs PayBot can pay into",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "opay"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Banks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/quote": {
+      "get": {
+        "operationId": "quote",
+        "summary": "Fetch the live naira payout rate and a USDC estimate",
+        "parameters": [
+          {
+            "name": "ngn",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number"
+            },
+            "description": "Naira amount to estimate the USDC cost for",
+            "example": 5000
+          },
+          {
+            "name": "usdc",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number"
+            },
+            "description": "USDC amount to estimate the naira payout for",
+            "example": 10
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rate and estimate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
