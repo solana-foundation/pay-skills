@@ -1,0 +1,987 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TokenTrace API",
+    "version": "0.1.0",
+    "description": "Evidence-backed Solana launch intelligence for autonomous agents. Use TokenTrace to monitor verified token launches and retrieve only material state changes since a cursor, with creator, transaction, slot, deterministic transition IDs, and provenance."
+  },
+  "servers": [
+    { "url": "https://api-tokentrace.tailtracedata.com", "description": "Production" },
+    { "url": "http://127.0.0.1:3000", "description": "Local development server" }
+  ],
+  "tags": [
+    { "name": "system", "description": "Service status" },
+    { "name": "solana", "description": "Solana V1 intelligence" },
+    {
+      "name": "provenance",
+      "description": "Evidence-backed chain assertions and deterministic rules"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "tags": ["system"],
+        "responses": {
+          "200": {
+            "description": "Liveness only; does not imply ingestion readiness",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/HealthResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "operationId": "getReadiness",
+        "tags": ["system"],
+        "summary": "Check read-projection readiness",
+        "description": "Checks database connectivity in PostgreSQL mode. This is free operational metadata.",
+        "responses": {
+          "200": {
+            "description": "Read projection is ready",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ReadinessResponse" } }
+            }
+          },
+          "503": {
+            "description": "Read projection unavailable",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/v1/solana/discover": {
+      "get": {
+        "operationId": "discoverSolanaTokens",
+        "tags": ["solana"],
+        "summary": "Find recent launches with material state changes",
+        "description": "Find newly observed Solana launches that meet explicit filters. Every returned item includes evidence references; absent metrics are never represented as fabricated values.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": { "type": "string", "minLength": 1, "maxLength": 512 }
+          },
+          {
+            "name": "max_age_seconds",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 60, "maximum": 2592000 }
+          },
+          {
+            "name": "min_liquidity_usd",
+            "in": "query",
+            "schema": { "type": "number", "minimum": 0 }
+          },
+          {
+            "name": "min_holders",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 0, "maximum": 10000000 }
+          },
+          {
+            "name": "launch_venue",
+            "in": "query",
+            "schema": { "type": "string", "minLength": 1, "maxLength": 64 }
+          },
+          {
+            "name": "material_change",
+            "in": "query",
+            "schema": {
+              "enum": [
+                "token_created",
+                "new_pool",
+                "liquidity_increase",
+                "liquidity_decrease",
+                "creator_sale",
+                "creator_transfer",
+                "holder_growth",
+                "holder_concentration_change",
+                "authority_change",
+                "graduated",
+                "dex_migration",
+                "volume_acceleration",
+                "volume_deceleration"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transition-ranked launches",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DiscoverResponse" },
+                "examples": {
+                  "empty": {
+                    "summary": "No qualifying launches",
+                    "value": {
+                      "data": { "items": [], "next_cursor": null, "has_more": false },
+                      "meta": {
+                        "request_id": "00000000-0000-4000-8000-000000000000",
+                        "generated_at": "2026-10-08T00:00:00.000Z",
+                        "chain": "solana",
+                        "network": "mainnet",
+                        "data_mode": "postgres",
+                        "schema_version": "1.0.0"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "404": {
+            "description": "Token not covered",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "503": {
+            "description": "Read projection is not ready",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/v1/solana/token/{mint}/changes": {
+      "get": {
+        "operationId": "getSolanaTokenChanges",
+        "tags": ["solana"],
+        "summary": "Poll incremental Solana launch state changes after a cursor",
+        "description": "Monitor verified Solana token launch state changes since a cursor without repeatedly rescanning the chain or buying full token snapshots. This paid x402 V2 `exact` endpoint costs $0.005 USDC on Solana mainnet. It returns evidence-backed token lifecycle transitions with mint, creator, transaction signature, slot, deterministic transition IDs, and provenance. Send `PAYMENT-SIGNATURE` after receiving `PAYMENT-REQUIRED`; successful responses include `PAYMENT-RESPONSE`. Results are ordered by effective time, slot, and transition ID. `cursor` is the preferred exclusive opaque checkpoint for repeat polling; unchanged state returns an empty `changes` array and the same `next_cursor`. For an initial bounded query with no prior cursor, provide exactly one of `since` or `since_slot`. `cursor`, `since`, and `since_slot` are mutually exclusive; combining any of them returns `400 AMBIGUOUS_CHANGE_WINDOW`.",
+        "x-x402": {
+          "version": 2,
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "currency": "USDC",
+          "price_usd": "0.005",
+          "payment_required_header": "PAYMENT-REQUIRED",
+          "payment_signature_header": "PAYMENT-SIGNATURE",
+          "payment_response_header": "PAYMENT-RESPONSE"
+        },
+        "parameters": [
+          {
+            "name": "mint",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" }
+          },
+          {
+            "name": "PAYMENT-SIGNATURE",
+            "in": "header",
+            "required": false,
+            "description": "x402 V2 payment payload supplied only when retrying a 402 challenge.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Preferred incremental-polling checkpoint from a prior TokenTrace `next_cursor`. It is exclusive: do not combine it with `since` or `since_slot`.",
+            "schema": { "type": "string", "minLength": 1, "maxLength": 512 }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "description": "Initial bounded query when no prior cursor is available. Returns transitions strictly after this effective timestamp. It is mutually exclusive with `cursor` and `since_slot`.",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "since_slot",
+            "in": "query",
+            "description": "Initial bounded query when no prior cursor is available. Returns transitions strictly after this slot. It is mutually exclusive with `cursor` and `since`.",
+            "schema": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 100 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ordered material transitions and next cursor",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "description": "x402 V2 settlement receipt, present after a successful paid request.",
+                "schema": { "type": "string" }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ChangesResponse" },
+                "examples": {
+                  "no_change": {
+                    "summary": "Explicit no-change response",
+                    "value": {
+                      "data": {
+                        "token": {
+                          "mint": "EPuZ1X6pPzac3ELPsT59LStmgaSr4kBJvaAbL15Fpump",
+                          "token_program": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                          "name": null,
+                          "symbol": null,
+                          "decimals": 6
+                        },
+                        "window": {
+                          "from_cursor": "postgres:v1:after:00000000-0000-4000-8000-000000000001",
+                          "from_slot": null,
+                          "from_observed_at": null,
+                          "to_slot": "454699667",
+                          "to_observed_at": "2026-10-08T00:00:00.000Z"
+                        },
+                        "changes": [],
+                        "has_material_changes": false,
+                        "next_cursor": "postgres:v1:after:00000000-0000-4000-8000-000000000001",
+                        "has_more": false
+                      },
+                      "meta": {
+                        "request_id": "00000000-0000-4000-8000-000000000000",
+                        "generated_at": "2026-10-08T00:00:00.000Z",
+                        "chain": "solana",
+                        "network": "mainnet",
+                        "data_mode": "postgres",
+                        "schema_version": "1.0.0"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "402": {
+            "description": "x402 V2 payment required or payment validation/settlement failed",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Canonical base64-encoded x402 V2 PaymentRequired challenge.",
+                "schema": { "type": "string" }
+              }
+            },
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "404": {
+            "description": "Token not covered",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "503": {
+            "description": "Read projection is not ready",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/v1/solana/token/{mint}/preflight": {
+      "get": {
+        "operationId": "getSolanaTokenPreflight",
+        "tags": ["solana"],
+        "summary": "Get the current evidence package",
+        "description": "Return the current evidence-backed state package for an agent before it acts. It is returned only when the complete V1 preflight observation set is available; TokenTrace does not fill unknown facts with defaults.",
+        "parameters": [
+          {
+            "name": "mint",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current evidence package",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/PreflightResponse" } }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "404": {
+            "description": "Token not covered",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          },
+          "503": {
+            "description": "Read projection is not ready",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "EvidenceRef": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "evidence_id",
+          "source",
+          "source_type",
+          "chain",
+          "network",
+          "slot",
+          "transaction_signature",
+          "observed_at",
+          "retrieved_at",
+          "parser_version"
+        ],
+        "properties": {
+          "evidence_id": { "type": "string", "format": "uuid" },
+          "source": { "type": "string", "minLength": 1 },
+          "source_type": { "enum": ["on_chain", "protocol_api", "third_party", "derived"] },
+          "chain": { "const": "solana" },
+          "network": { "enum": ["mainnet", "devnet", "testnet"] },
+          "slot": {
+            "oneOf": [{ "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }, { "type": "null" }]
+          },
+          "transaction_signature": { "type": ["string", "null"] },
+          "observed_at": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+            "format": "date-time"
+          },
+          "retrieved_at": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+            "format": "date-time"
+          },
+          "parser_version": { "type": "string", "minLength": 1 },
+          "decoder_revision": { "type": ["string", "null"], "minLength": 1 }
+        }
+      },
+      "TokenIdentity": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["mint", "token_program", "name", "symbol", "decimals"],
+        "properties": {
+          "mint": { "type": "string", "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" },
+          "token_program": { "type": "string", "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" },
+          "name": { "type": ["string", "null"] },
+          "symbol": { "type": ["string", "null"] },
+          "decimals": { "type": "integer", "minimum": 0, "maximum": 255 }
+        }
+      },
+      "ApiMeta": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "request_id",
+          "generated_at",
+          "chain",
+          "network",
+          "data_mode",
+          "schema_version"
+        ],
+        "properties": {
+          "request_id": { "type": "string", "format": "uuid" },
+          "generated_at": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+            "format": "date-time"
+          },
+          "chain": { "const": "solana" },
+          "network": { "const": "mainnet" },
+          "data_mode": { "enum": ["fixture", "postgres"] },
+          "schema_version": { "const": "1.0.0" }
+        }
+      },
+      "MaterialChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "transition_id",
+          "kind",
+          "field",
+          "previous",
+          "current",
+          "unit",
+          "absolute_change",
+          "pct_change",
+          "direction",
+          "materiality_rule",
+          "effective_at",
+          "slot",
+          "evidence"
+        ],
+        "properties": {
+          "transition_id": { "type": "string", "format": "uuid" },
+          "kind": {
+            "enum": [
+              "token_created",
+              "new_pool",
+              "liquidity_increase",
+              "liquidity_decrease",
+              "creator_sale",
+              "creator_transfer",
+              "holder_growth",
+              "holder_concentration_change",
+              "authority_change",
+              "graduated",
+              "dex_migration",
+              "volume_acceleration",
+              "volume_deceleration"
+            ]
+          },
+          "field": { "type": "string", "minLength": 1 },
+          "previous": { "type": ["string", "number", "boolean", "null"] },
+          "current": { "type": ["string", "number", "boolean", "null"] },
+          "unit": { "enum": ["usd", "percent", "count", "boolean", "address", "state"] },
+          "absolute_change": {
+            "oneOf": [
+              { "type": "string", "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$" },
+              { "type": "null" }
+            ]
+          },
+          "pct_change": {
+            "oneOf": [
+              { "type": "string", "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$" },
+              { "type": "null" }
+            ]
+          },
+          "direction": { "enum": ["increase", "decrease", "changed"] },
+          "materiality_rule": { "type": "string", "minLength": 1 },
+          "effective_at": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+            "format": "date-time"
+          },
+          "slot": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
+          "provenance": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "token_mint",
+              "creator",
+              "source_protocol",
+              "source_instruction",
+              "instruction_discriminator"
+            ],
+            "properties": {
+              "token_mint": { "type": "string", "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" },
+              "creator": { "type": "string", "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" },
+              "source_protocol": { "type": "string", "minLength": 1 },
+              "source_instruction": { "type": "string", "minLength": 1 },
+              "instruction_discriminator": { "type": "string", "pattern": "^[a-f0-9]{16}$" }
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#/components/schemas/EvidenceRef" }
+          }
+        }
+      },
+      "Warning": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "severity", "message", "deterministic_rule", "evidence"],
+        "properties": {
+          "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" },
+          "severity": { "enum": ["info", "caution", "critical"] },
+          "message": { "type": "string", "minLength": 1 },
+          "deterministic_rule": { "type": "string", "minLength": 1 },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#/components/schemas/EvidenceRef" }
+          }
+        }
+      },
+      "Pool": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "address",
+          "venue",
+          "quote_mint",
+          "created_at",
+          "liquidity_usd",
+          "base_reserve_atomic",
+          "quote_reserve_atomic",
+          "evidence"
+        ],
+        "properties": {
+          "address": { "type": "string", "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" },
+          "venue": { "type": "string", "minLength": 1 },
+          "quote_mint": { "type": "string", "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" },
+          "created_at": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+            "format": "date-time"
+          },
+          "liquidity_usd": { "type": "string", "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$" },
+          "base_reserve_atomic": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
+          "quote_reserve_atomic": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#/components/schemas/EvidenceRef" }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "message", "request_id", "details"],
+            "properties": {
+              "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]+$" },
+              "message": { "type": "string" },
+              "request_id": { "type": "string", "format": "uuid" },
+              "details": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["path", "issue"],
+                  "properties": { "path": { "type": "string" }, "issue": { "type": "string" } }
+                }
+              }
+            }
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status", "service", "version", "data_mode", "time"],
+        "properties": {
+          "status": { "const": "ok" },
+          "service": { "const": "tokentrace-api" },
+          "version": { "type": "string" },
+          "data_mode": { "enum": ["fixture", "postgres"] },
+          "time": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+            "format": "date-time"
+          }
+        }
+      },
+      "ReadinessResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status", "service", "version", "data_mode", "time"],
+        "properties": {
+          "status": { "const": "ready" },
+          "service": { "const": "tokentrace-api" },
+          "version": { "type": "string" },
+          "data_mode": { "enum": ["fixture", "postgres"] },
+          "time": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+            "format": "date-time"
+          }
+        }
+      },
+      "DiscoverItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "token",
+          "created_at",
+          "age_seconds",
+          "launch_venue",
+          "launch_state",
+          "liquidity_usd",
+          "holders",
+          "unique_buyers_1h",
+          "creator_holdings_pct",
+          "material_changes",
+          "latest_transition_at",
+          "evidence"
+        ],
+        "properties": {
+          "token": { "$ref": "#/components/schemas/TokenIdentity" },
+          "created_at": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+            "format": "date-time"
+          },
+          "age_seconds": { "type": "integer", "minimum": 0 },
+          "launch_venue": { "type": "string", "minLength": 1 },
+          "launch_state": { "enum": ["bonding", "graduated", "dex_pool", "unknown"] },
+          "liquidity_usd": { "type": "string", "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$" },
+          "holders": { "type": "integer", "minimum": 0 },
+          "unique_buyers_1h": { "type": "integer", "minimum": 0 },
+          "creator_holdings_pct": {
+            "type": "string",
+            "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+          },
+          "material_changes": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "token_created",
+                "new_pool",
+                "liquidity_increase",
+                "liquidity_decrease",
+                "creator_sale",
+                "creator_transfer",
+                "holder_growth",
+                "holder_concentration_change",
+                "authority_change",
+                "graduated",
+                "dex_migration",
+                "volume_acceleration",
+                "volume_deceleration"
+              ]
+            }
+          },
+          "latest_transition_at": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+            "format": "date-time"
+          },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#/components/schemas/EvidenceRef" }
+          }
+        }
+      },
+      "DiscoverResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["data", "meta"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["items", "next_cursor", "has_more"],
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/DiscoverItem" }
+              },
+              "next_cursor": { "type": ["string", "null"] },
+              "has_more": { "type": "boolean" }
+            }
+          },
+          "meta": { "$ref": "#/components/schemas/ApiMeta" }
+        }
+      },
+      "ChangesResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["data", "meta"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "token",
+              "window",
+              "changes",
+              "has_material_changes",
+              "next_cursor",
+              "has_more"
+            ],
+            "properties": {
+              "token": { "$ref": "#/components/schemas/TokenIdentity" },
+              "window": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "from_cursor",
+                  "from_slot",
+                  "from_observed_at",
+                  "to_slot",
+                  "to_observed_at"
+                ],
+                "properties": {
+                  "from_cursor": { "type": ["string", "null"] },
+                  "from_slot": {
+                    "oneOf": [
+                      { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
+                      { "type": "null" }
+                    ]
+                  },
+                  "from_observed_at": {
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+                        "format": "date-time"
+                      },
+                      { "type": "null" }
+                    ]
+                  },
+                  "to_slot": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
+                  "to_observed_at": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+                    "format": "date-time"
+                  }
+                }
+              },
+              "changes": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/MaterialChange" }
+              },
+              "has_material_changes": { "type": "boolean" },
+              "next_cursor": { "type": "string", "minLength": 1 },
+              "has_more": { "type": "boolean" }
+            }
+          },
+          "meta": { "$ref": "#/components/schemas/ApiMeta" }
+        }
+      },
+      "PreflightResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["data", "meta"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "token",
+              "as_of",
+              "supply_atomic",
+              "authorities",
+              "launch",
+              "market",
+              "holders",
+              "deployer_history",
+              "recent_changes",
+              "warnings",
+              "evidence"
+            ],
+            "properties": {
+              "token": { "$ref": "#/components/schemas/TokenIdentity" },
+              "as_of": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["slot", "observed_at"],
+                "properties": {
+                  "slot": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
+                  "observed_at": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+                    "format": "date-time"
+                  }
+                }
+              },
+              "supply_atomic": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" },
+              "authorities": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "mint_authority",
+                  "freeze_authority",
+                  "permanent_delegate",
+                  "transfer_hook_program",
+                  "default_account_state",
+                  "transfer_fee_bps"
+                ],
+                "properties": {
+                  "mint_authority": {
+                    "oneOf": [
+                      { "type": "string", "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" },
+                      { "type": "null" }
+                    ]
+                  },
+                  "freeze_authority": {
+                    "oneOf": [
+                      { "type": "string", "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" },
+                      { "type": "null" }
+                    ]
+                  },
+                  "permanent_delegate": {
+                    "oneOf": [
+                      { "type": "string", "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" },
+                      { "type": "null" }
+                    ]
+                  },
+                  "transfer_hook_program": {
+                    "oneOf": [
+                      { "type": "string", "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" },
+                      { "type": "null" }
+                    ]
+                  },
+                  "default_account_state": { "type": ["string", "null"] },
+                  "transfer_fee_bps": {
+                    "oneOf": [
+                      { "type": "integer", "minimum": 0, "maximum": 10000 },
+                      { "type": "null" }
+                    ]
+                  }
+                }
+              },
+              "launch": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["venue", "creator", "created_at", "state", "graduated_at"],
+                "properties": {
+                  "venue": { "type": "string" },
+                  "creator": { "type": "string", "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" },
+                  "created_at": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+                    "format": "date-time"
+                  },
+                  "state": { "type": "string" },
+                  "graduated_at": {
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+                        "format": "date-time"
+                      },
+                      { "type": "null" }
+                    ]
+                  }
+                }
+              },
+              "market": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "liquidity_usd",
+                  "pools",
+                  "volume_1h_usd",
+                  "buys_1h",
+                  "sells_1h",
+                  "unique_buyers_1h"
+                ],
+                "properties": {
+                  "liquidity_usd": {
+                    "type": "string",
+                    "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                  },
+                  "pools": { "type": "array", "items": { "$ref": "#/components/schemas/Pool" } },
+                  "volume_1h_usd": {
+                    "type": "string",
+                    "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+                  },
+                  "buys_1h": { "type": "integer", "minimum": 0 },
+                  "sells_1h": { "type": "integer", "minimum": 0 },
+                  "unique_buyers_1h": { "type": "integer", "minimum": 0 }
+                }
+              },
+              "holders": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["count", "top_10_pct", "creator_pct"],
+                "properties": {
+                  "count": { "type": "integer", "minimum": 0 },
+                  "top_10_pct": { "type": "string", "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$" },
+                  "creator_pct": { "type": "string", "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$" }
+                }
+              },
+              "deployer_history": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "launches_observed",
+                  "graduated",
+                  "active_after_7d",
+                  "failed_within_24h",
+                  "coverage_started_at"
+                ],
+                "properties": {
+                  "launches_observed": { "type": "integer", "minimum": 0 },
+                  "graduated": { "type": "integer", "minimum": 0 },
+                  "active_after_7d": { "type": "integer", "minimum": 0 },
+                  "failed_within_24h": { "type": "integer", "minimum": 0 },
+                  "coverage_started_at": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+                    "format": "date-time"
+                  }
+                }
+              },
+              "recent_changes": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/MaterialChange" }
+              },
+              "warnings": { "type": "array", "items": { "$ref": "#/components/schemas/Warning" } },
+              "evidence": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "$ref": "#/components/schemas/EvidenceRef" }
+              }
+            }
+          },
+          "meta": { "$ref": "#/components/schemas/ApiMeta" }
+        }
+      }
+    }
+  }
+}
