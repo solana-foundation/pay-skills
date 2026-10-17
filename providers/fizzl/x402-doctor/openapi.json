@@ -1,0 +1,622 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "x402 Doctor",
+    "version": "2.3.0",
+    "description": "Diagnoses why an x402-payable endpoint's payment flow is broken, without a funded wallet: challenge format, accepts[], resource URL, Solana settlement readiness, discovery and browser paywall.",
+    "x-guidance": "Before paying an unknown x402 endpoint, call GET /api/v1/preflight?url=<endpoint>&max_usd=<budget> ($0.001): it answers go, caution or no_go with the recommended payment option and the reasons. To debug your own endpoint, call GET /api/v1/diagnose?url=<endpoint> ($0.01): every check with pass/warn/fail and a fix hint. To get the code that fixes it, call GET /api/v1/fix?url=<endpoint> ($0.05): per problem the concrete change for your stack, filled in with your own values. None of them ever pays the endpoint."
+  },
+  "servers": [
+    {
+      "url": "https://x402-doctor.onrender.com"
+    }
+  ],
+  "paths": {
+    "/api/v1/diagnose": {
+      "get": {
+        "operationId": "diagnoseX402Endpoint",
+        "summary": "Check an x402 endpoint for payment problems",
+        "tags": [
+          "x402",
+          "developer-tools"
+        ],
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          },
+          "networks": [
+            "eip155:8453",
+            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+          ],
+          "asset": "USDC"
+        },
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "example": "https://ichimoku-signal.onrender.com/signal/BTC-USDT",
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "The x402 endpoint to diagnose"
+          },
+          {
+            "name": "method",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "GET",
+                "POST"
+              ]
+            },
+            "description": "Endpoint method; default tries GET then POST"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Diagnosis report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    },
+                    "method": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "GET",
+                        "POST",
+                        null
+                      ]
+                    },
+                    "overall": {
+                      "type": "string",
+                      "enum": [
+                        "pass",
+                        "warn",
+                        "fail"
+                      ]
+                    },
+                    "checks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "group": {
+                            "type": "string",
+                            "enum": [
+                              "challenge",
+                              "accepts",
+                              "resource",
+                              "settlement",
+                              "wallets",
+                              "discovery",
+                              "browser"
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "pass",
+                              "warn",
+                              "fail",
+                              "info",
+                              "skip"
+                            ]
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "hint": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "status",
+                          "message"
+                        ]
+                      }
+                    },
+                    "wallets": {
+                      "type": "array",
+                      "description": "Which wallets can pay: per wallet, the networks where payment works (yes) and where it fails, with the reason (no).",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "wallet": {
+                            "type": "string"
+                          },
+                          "agent": {
+                            "type": "boolean"
+                          },
+                          "yes": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "no": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "network": {
+                                  "type": "string"
+                                },
+                                "reason": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "challenge": {
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "url",
+                    "overall",
+                    "checks"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input (rejected before payment)"
+          },
+          "402": {
+            "description": "Payment required (x402 challenge in the PAYMENT-REQUIRED header, mirrored in the body)"
+          }
+        }
+      }
+    },
+    "/api/v1/preflight": {
+      "get": {
+        "operationId": "preflightX402Payment",
+        "summary": "Check an x402 endpoint before paying it",
+        "tags": [
+          "x402",
+          "payments"
+        ],
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "networks": [
+            "eip155:8453",
+            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+          ],
+          "asset": "USDC"
+        },
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "example": "https://ichimoku-signal.onrender.com/signal/BTC-USDT",
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "The x402 endpoint you are about to pay"
+          },
+          {
+            "name": "method",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "GET",
+                "POST"
+              ]
+            },
+            "description": "Method you will call it with; default tries GET then POST"
+          },
+          {
+            "name": "max_usd",
+            "in": "query",
+            "required": false,
+            "example": "0.05",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Your budget per call in USD; above it the verdict is no_go"
+          },
+          {
+            "name": "network",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "CAIP-2 network you want to pay on, e.g. eip155:8453"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verdict (go / caution / no_go), recommended option and reasons",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    },
+                    "method": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "verdict": {
+                      "type": "string",
+                      "enum": [
+                        "go",
+                        "caution",
+                        "no_go"
+                      ]
+                    },
+                    "safe_to_pay": {
+                      "type": "boolean"
+                    },
+                    "summary": {
+                      "type": "string"
+                    },
+                    "recommended_option": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "options": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "index": {
+                            "type": "integer"
+                          },
+                          "network": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "network_name": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "asset_symbol": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "amount": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "usd": {
+                            "type": [
+                              "number",
+                              "null"
+                            ]
+                          },
+                          "pay_to": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "payable": {
+                            "type": "boolean"
+                          },
+                          "problems": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "index",
+                          "payable",
+                          "problems"
+                        ]
+                      }
+                    },
+                    "signals": {
+                      "type": "object"
+                    },
+                    "reasons": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "level": {
+                            "type": "string",
+                            "enum": [
+                              "no_go",
+                              "caution",
+                              "info"
+                            ]
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "level",
+                          "code",
+                          "message"
+                        ]
+                      }
+                    },
+                    "checked_at": {
+                      "type": "string"
+                    },
+                    "cached": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "url",
+                    "verdict",
+                    "safe_to_pay",
+                    "summary",
+                    "options",
+                    "reasons"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input (rejected before payment)"
+          },
+          "402": {
+            "description": "Payment required (x402 challenge in the PAYMENT-REQUIRED header, mirrored in the body)"
+          }
+        }
+      }
+    },
+    "/api/v1/fix": {
+      "get": {
+        "operationId": "fixX402Endpoint",
+        "summary": "Get the code that fixes an x402 endpoint",
+        "tags": [
+          "x402",
+          "developer-tools"
+        ],
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.05"
+          },
+          "networks": [
+            "eip155:8453",
+            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+          ],
+          "asset": "USDC"
+        },
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "example": "https://x402-doctor.onrender.com/demo/broken",
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Your x402 endpoint"
+          },
+          {
+            "name": "method",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "GET",
+                "POST"
+              ]
+            },
+            "description": "Endpoint method; default tries GET then POST"
+          },
+          {
+            "name": "stack",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "express",
+                "next",
+                "hono",
+                "node",
+                "python",
+                "generic"
+              ]
+            },
+            "description": "Your stack, if detection from the response headers is wrong"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Per problem: why, steps and code for your stack",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    },
+                    "overall": {
+                      "type": "string",
+                      "enum": [
+                        "pass",
+                        "warn",
+                        "fail"
+                      ]
+                    },
+                    "stack": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "enum": [
+                            "express",
+                            "next",
+                            "hono",
+                            "node",
+                            "python",
+                            "generic"
+                          ]
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "detected_from": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "summary": {
+                      "type": "string"
+                    },
+                    "fixes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "recipe": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "fail",
+                              "warn"
+                            ]
+                          },
+                          "checks": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "why": {
+                            "type": "string"
+                          },
+                          "steps": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "code": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "language": {
+                                  "type": "string"
+                                },
+                                "stack": {
+                                  "type": "string"
+                                },
+                                "label": {
+                                  "type": "string"
+                                },
+                                "snippet": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          },
+                          "verify": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "title",
+                          "why",
+                          "steps",
+                          "code"
+                        ]
+                      }
+                    },
+                    "unfixed": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  },
+                  "required": [
+                    "url",
+                    "fixes"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input (rejected before payment)"
+          },
+          "402": {
+            "description": "Payment required (x402 challenge in the PAYMENT-REQUIRED header, mirrored in the body)"
+          }
+        }
+      }
+    }
+  }
+}
