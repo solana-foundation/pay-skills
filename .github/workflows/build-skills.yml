@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "Build mode — incremental (only providers changed in this commit) or rebuild (every provider)."
+        description: "Build mode — incremental (providers changed since the last publish) or rebuild (every provider)."
         type: choice
         options:
           - incremental
@@ -15,6 +15,12 @@ on:
 
 env:
   PAY_IMAGE: ghcr.io/solana-foundation/pay:latest
+
+# Runs publish in push order. Publish deletes unmatched objects, so two
+# runs that overlap could otherwise delete what the other one published.
+concurrency:
+  group: build-skills-publish
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -27,9 +33,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          # Need at least one parent commit so we can diff what this merge
-          # actually changed (the Solana-compat re-gate + --only computation).
-          fetch-depth: 2
+          # Full history so we can diff from the last published commit,
+          # however far back it is (the Solana-compat re-gate + --only
+          # computation). Commits and trees only; blobs load on demand.
+          fetch-depth: 0
+          filter: blob:none
 
       - uses: google-github-actions/auth@v2
         with:
@@ -52,17 +60,74 @@ jobs:
           echo "mode=$MODE" >> "$GITHUB_OUTPUT"
           echo "Run mode: $MODE"
 
-      # Detect provider directories whose contents changed in this merge. We
-      # consider any file under `providers/` (not just PAY.md): a change to a
-      # sidecar like `openapi.json` or `schemas/req.json` must rebuild the
+      # Read the commit the last publish was built from. It lives outside
+      # v1/, so the circuit breaker's delete-sync leaves it in place.
+      # `rebuild` mode skips it and rebuilds every provider.
+      - name: Read last published commit (incremental mode only)
+        id: published
+        if: steps.mode.outputs.mode == 'incremental'
+        continue-on-error: true
+        run: |
+          if gcloud storage cp gs://pay-skills/state/source-sha source-sha 2>/dev/null; then
+            echo "sha=$(tr -dc '0-9a-f' < source-sha | head -c 40)" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Detect provider directories changed since the last publish. We diff
+      # from the commit that publish was built from, not `HEAD~1`, so every
+      # commit counts: several in one push, a push whose queued run was
+      # cancelled, or one whose publish failed. When that commit cannot be
+      # proven (none recorded, force push, `rebuild` mode) we set `full=true`
+      # and the build rebuilds every provider; `files` then still holds only
+      # HEAD~1's changes, so the Solana-compat gate keeps its old scope.
+      # A run whose commit is older than the published one is stale and
+      # skips build and publish, unless it is the tip of main: then main
+      # was rolled back, and it takes the full-rebuild path.
+      # We consider any file under `providers/` (not just PAY.md): a change to
+      # a sidecar like `openapi.json` or `schemas/req.json` must rebuild the
       # owning provider's dist entry. For each changed file we walk up to the
       # nearest ancestor directory holding a PAY.md and emit that PAY.md.
-      - name: Detect providers changed in this commit
+      # Deletions count too: a deleted PAY.md is emitted under `removed` so
+      # the provider leaves the index, and `--no-renames` reports a moved
+      # provider as a deletion plus an addition.
+      - name: Detect providers changed since the last publish
         id: changed
+        env:
+          PUBLISHED: ${{ steps.published.outputs.sha }}
         run: |
-          ALL=$(git diff --name-only --diff-filter=ACMR HEAD~1...HEAD -- 'providers/**')
+          FULL=false
+          BASE="$PUBLISHED"
+          if [ -n "$PUBLISHED" ] && [ "$PUBLISHED" != "$(git rev-parse HEAD)" ] \
+             && git merge-base --is-ancestor HEAD "$PUBLISHED" 2>/dev/null; then
+            git fetch --quiet origin main
+            if [ "$(git rev-parse HEAD)" != "$(git rev-parse FETCH_HEAD)" ]; then
+              echo "full=false" >> "$GITHUB_OUTPUT"
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              echo "::notice::$(git rev-parse --short HEAD) is older than the published $(git rev-parse --short "$PUBLISHED") — not building."
+              exit 0
+            fi
+            echo "::notice::main was rolled back below the published $(git rev-parse --short "$PUBLISHED") — full rebuild."
+          fi
+          if [ -z "$PUBLISHED" ] \
+             || ! git cat-file -e "$PUBLISHED^{commit}" 2>/dev/null \
+             || ! git merge-base --is-ancestor "$PUBLISHED" HEAD; then
+            FULL=true
+            BASE=$(git rev-parse --verify --quiet HEAD~1 || true)
+            echo "No published commit to diff from — full rebuild."
+          fi
+          echo "full=$FULL" >> "$GITHUB_OUTPUT"
+          ALL=""
+          if [ -n "$BASE" ]; then
+            ALL=$(git diff --name-only --no-renames --diff-filter=ACMD "$BASE" HEAD -- 'providers/**')
+          fi
           PAY_FILES=""
+          REMOVED_FILES=""
           for f in $ALL; do
+            # A deleted PAY.md is a removed provider, even when a parent
+            # directory still holds its own PAY.md.
+            if [ "$(basename "$f")" = "PAY.md" ] && [ ! -f "$f" ]; then
+              REMOVED_FILES="$REMOVED_FILES $f"
+              continue
+            fi
             dir="$f"
             while [ -n "$dir" ] && [ "$dir" != "providers" ] && [ "$dir" != "." ] && [ ! -f "$dir/PAY.md" ]; do
               dir=$(dirname "$dir")
@@ -72,22 +137,29 @@ jobs:
             fi
           done
           UNIQ=$(echo $PAY_FILES | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/[[:space:]]*$//')
+          REMOVED=$(echo $REMOVED_FILES | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/[[:space:]]*$//')
           echo "files=$UNIQ" >> "$GITHUB_OUTPUT"
-          if [ -z "$UNIQ" ]; then
+          echo "removed=$REMOVED" >> "$GITHUB_OUTPUT"
+          if [ -n "$REMOVED" ]; then
+            echo "Removed providers since the last publish:"
+            for f in $REMOVED; do echo "  $f"; done
+          fi
+          if [ "$FULL" = "false" ] && [ -z "$UNIQ" ] && [ -z "$REMOVED" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "No provider changes in this merge."
+            echo "No provider changes since the last publish."
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "Changed providers in this merge:"
+            echo "Changed providers since the last publish:"
             for f in $UNIQ; do echo "  $f"; done
           fi
 
-      # Re-run the Solana-compat gate against this merge's changes so a
+      # Re-run the Solana-compat gate against this push's changes so a
       # bypassed PR can't silently publish a broken provider. The PAY.md
       # list was already resolved in the previous step; pass it as
-      # `--files` so we don't need git inside the container.
+      # `--files` so we don't need git inside the container. A push that only
+      # removes providers has nothing to validate.
       - name: Solana-compat validation (gate)
-        if: steps.changed.outputs.skip == 'false'
+        if: steps.changed.outputs.files != ''
         env:
           CHANGED_FILES: ${{ steps.changed.outputs.files }}
         run: |
@@ -123,12 +195,15 @@ jobs:
 
       - name: Compute --only FQNs for partial rebuild
         id: only
-        if: steps.mode.outputs.mode == 'incremental' && steps.prev.outputs.have_prev == 'true' && steps.changed.outputs.skip == 'false'
+        if: steps.mode.outputs.mode == 'incremental' && steps.prev.outputs.have_prev == 'true' && steps.changed.outputs.skip == 'false' && steps.changed.outputs.full != 'true'
         env:
           CHANGED_FILES: ${{ steps.changed.outputs.files }}
+          REMOVED_FILES: ${{ steps.changed.outputs.removed }}
         run: |
-          # Translate "providers/<fqn>/PAY.md" → "<fqn>", comma-joined.
-          ONLY=$(echo "$CHANGED_FILES" | tr ' ' '\n' | \
+          # Translate "providers/<fqn>/PAY.md" → "<fqn>", comma-joined. A
+          # removed FQN has no PAY.md left to walk, so listing it rebuilds
+          # nothing; it keeps a removal-only push incremental.
+          ONLY=$(echo "$CHANGED_FILES $REMOVED_FILES" | tr ' ' '\n' | \
             sed -E 's|^providers/(.+)/PAY\.md$|\1|' | grep -v '^$' | paste -sd, -)
           echo "fqns=$ONLY" >> "$GITHUB_OUTPUT"
           echo "Partial rebuild scope: $ONLY"
@@ -136,7 +211,7 @@ jobs:
       # Probe-driven build: each endpoint's pricing / protocol[] /
       # supported_usd is reconstructed from the live 402 challenge.
       #
-      # - `incremental` (default): only the providers changed in this commit
+      # - `incremental` (default): only the providers changed in this push
       #   are re-probed; everyone else is copied verbatim from the prior
       #   dist. Fast (seconds per provider) and idempotent.
       # - `rebuild` (manual): full re-resolve + re-probe of every provider.
@@ -204,12 +279,39 @@ jobs:
           name: skills-dist
           path: dist/
 
+      # `--delete-unmatched-destination-objects` removes a deleted provider's
+      # detail JSON from the bucket, as circuit-breaker.yml already does.
+      # After the sync, record the commit this dist was built from.
+      # Only the tip of main publishes: an older build would delete objects
+      # that newer pushes published. A first attempt that is no longer the
+      # tip skips (the newer run publishes); a re-run of one fails. A push
+      # that lands after this check queues behind this run in the
+      # concurrency group and publishes after it, diffing from our record.
+      # A dispatch from another branch builds but does not publish.
       - name: Publish to GCS
         if: steps.mode.outputs.mode == 'rebuild' || steps.changed.outputs.skip == 'false'
+        env:
+          RUN_ATTEMPT: ${{ github.run_attempt }}
         run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::notice::Built from $GITHUB_REF, not main — not publishing."
+            exit 0
+          fi
+          git fetch --quiet origin main
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse FETCH_HEAD)" ]; then
+            if [ "$RUN_ATTEMPT" = "1" ]; then
+              echo "::notice::$(git rev-parse --short HEAD) is not the tip of main ($(git rev-parse --short FETCH_HEAD)) — not publishing; the newer run publishes."
+              exit 0
+            fi
+            echo "::error::Re-run of $(git rev-parse --short HEAD), but main is at $(git rev-parse --short FETCH_HEAD). Publishing would delete newer objects; dispatch a run on main instead."
+            exit 1
+          fi
           gcloud storage rsync dist/ gs://pay-skills/v1/ \
             --recursive \
+            --delete-unmatched-destination-objects \
             --cache-control="public, max-age=300" \
             --checksums-only
           gcloud storage cp dist/skills.json gs://pay-skills/v1/skills.json \
             --cache-control="public, max-age=60"
+          git rev-parse HEAD > source-sha
+          gcloud storage cp source-sha gs://pay-skills/state/source-sha
