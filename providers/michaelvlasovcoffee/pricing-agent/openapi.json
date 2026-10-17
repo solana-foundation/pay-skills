@@ -1,0 +1,342 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Pricing Agent",
+    "version": "1.0.0",
+    "contact": {
+      "email": "michael.vlasov.coffee@gmail.com"
+    },
+    "x-guidance": "Create an unpaid order with 1–3 public HTTPS pricing page URLs on one hostname. Keep order_token private, then POST execute_url with X-Order-Token to receive the x402 challenge. Pay 0.20 USDT on Solana mainnet using the advertised mint, recipient and memo. Reuse the same order and token for recovery. This is a multi-step API: a probe with an unknown order ID receives 404, not a payment challenge. Reference client: https://github.com/michaelvlasovcoffee/pricing-agent",
+    "description": "Source-backed SaaS pricing. Mode: mainnet. Create an order, keep its private token, then execute with x402 v2. Settlement happens only after extraction succeeds. Poll the same order if settlement is pending. Do not create a replacement order for an uncertain payment."
+  },
+  "servers": [
+    {
+      "url": "https://pricing-agent-production-6581.up.railway.app"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "summary": "Fetch service health and operating mode",
+        "responses": {
+          "200": {
+            "description": "Process health and operating mode"
+          }
+        }
+      }
+    },
+    "/v1/orders": {
+      "post": {
+        "operationId": "createOrder",
+        "summary": "Create an unpaid order; returns a private token",
+        "parameters": [
+          {
+            "name": "X-Pricing-Source",
+            "in": "header",
+            "required": false,
+            "description": "Optional acquisition source, e.g. github or pay-skills. No identity is needed.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "urls"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "urls": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 3,
+                    "items": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "description": "HTTPS public pages from one hostname"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Unpaid order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "order_id",
+                    "order_token",
+                    "execute_url",
+                    "status_url"
+                  ],
+                  "properties": {
+                    "order_id": {
+                      "type": "string"
+                    },
+                    "order_token": {
+                      "type": "string"
+                    },
+                    "execute_url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "status_url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "price": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid URLs"
+          },
+          "429": {
+            "description": "Rate limit"
+          }
+        }
+      }
+    },
+    "/v1/orders/{id}/execute": {
+      "post": {
+        "operationId": "executeOrder",
+        "summary": "Generate cited SaaS pricing for an existing order",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The 48-character order_id returned by createOrder.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{48}$"
+            }
+          },
+          {
+            "name": "X-Order-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Private capability returned by createOrder; never publish it."
+          },
+          {
+            "name": "PAYMENT-SIGNATURE",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Base64 x402 v2 payload. Missing payment returns 402 and PAYMENT-REQUIRED."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paid result, or replay of the same result without another charge",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResult"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Settlement pending: poll status_url with X-Order-Token; never pay again until resolved"
+          },
+          "402": {
+            "description": "Payment required, rejected, or not submitted; retry the SAME order",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Extraction failed: no payment was submitted"
+          },
+          "429": {
+            "description": "Busy; retry later"
+          },
+          "503": {
+            "description": "Budget, gas or provider unavailable"
+          }
+        }
+      }
+    },
+    "/v1/orders/{id}": {
+      "get": {
+        "operationId": "getOrder",
+        "summary": "Fetch order status or retrieve its paid result",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The 48-character order_id returned by createOrder.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{48}$"
+            }
+          },
+          {
+            "name": "X-Order-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Private capability returned by createOrder; never publish it."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Order or token invalid"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Fact": {
+        "type": "object",
+        "required": [
+          "value",
+          "source_url",
+          "quote"
+        ],
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "source_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "quote": {
+            "type": "string"
+          }
+        }
+      },
+      "Plan": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/Fact"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Fact"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "billing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Fact"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Fact"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Fact"
+            }
+          }
+        }
+      },
+      "OrderResult": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "created",
+              "processing",
+              "ready",
+              "settling",
+              "paid",
+              "failed"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "plans": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Plan"
+                }
+              },
+              "generated_at": {
+                "type": "string"
+              },
+              "fetched_at": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "validation": {
+                "type": "string"
+              }
+            }
+          },
+          "receipt": {
+            "type": "object"
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
