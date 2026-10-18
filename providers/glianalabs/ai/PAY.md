@@ -1,7 +1,7 @@
 ---
 name: ai
 title: "GlianaAI — Pay-per-call AI Inference"
-description: "Pay-per-call AI across 100+ models (LLM chat, image, video, music, speech) plus 50 utility tools. No signup or API key: each call is paid from your own wallet via x402 or MPP, USDC on Solana mainnet (also Base/Tempo). Quote the price, then run it."
+description: "Pay-per-call AI across 120+ models (LLM chat, image, video, music, speech) plus 60+ utility tools. No signup or API key: each call is paid from your own wallet via x402 or MPP, USDC on Solana mainnet (also Base/Tempo). Quote the price, then run it."
 use_case: "Use for LLM chat, text-to-image, text-to-video, image-to-video, text-to-speech, speech-to-text, music, and tools for SEC filings, market data and swap quotes. Pick one, get the exact per-call price up front, and pay per result in USDC with no account."
 category: ai_ml
 service_url: https://api.glianalabs.com
@@ -9,7 +9,7 @@ openapi:
   path: openapi.json
 ---
 
-GlianaAI is a pay-per-call generative AI gateway: one endpoint over 100+ LLM chat, image,
+GlianaAI is a pay-per-call generative AI gateway: one endpoint over 120+ LLM chat, image,
 video, music, and speech models from providers like Google, OpenAI, ByteDance,
 Black Forest Labs, MiniMax, Runway, and xAI. No signup, no API key, no prepaid
 balance — each request is settled from the caller's own wallet, so an autonomous
