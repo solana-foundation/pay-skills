@@ -109,12 +109,12 @@ not available in every country: where the underlying language-model API is not
 offered they answer 451 before any payment.
 
 Prepaid API keys, for bots that can set an HTTP header but cannot sign an x402
-payment: seven purchase routes sell a key once, `/api/keys/buy-trial` ($0.25), `/api/keys/buy-1` ($1), `/api/keys/buy-5` ($5), `/api/keys/buy-20` ($20), `/api/keys/topup-5` ($5), `/api/keys/topup-20` ($20), and `/api/keys/buy-pass` ($25: a 30-day pass that works only on `/api/liq-feed` and draws nothing per call).
+payment: six purchase routes sell a key once, `/api/keys/buy-trial` ($0.25), `/api/keys/buy-1` ($1), `/api/keys/buy-5` ($5), `/api/keys/buy-20` ($20), `/api/keys/buy-pass` ($25: a 30-day pass that works only on `/api/liq-feed` and draws nothing per call) and `/api/keys/buy-day-pass` ($1: a 24-hour pass that works only on `/api/liq-feed` and `/api/liquidations`, draws nothing per call and answers each of the two routes once every 10 seconds per key; $1 is the most a default `@x402/fetch` client will pay).
 Send the key as `X-AgentFeed-Key` (or `Authorization: Bearer`) on any paid GET;
 a key call draws half the route's x402 price (minimum $0.0005), and a 400, 404,
 500 or 503 is never drawn. `GET /api/keys/balance` is free: send the key in the
 `X-AgentFeed-Key` header and it returns balance_usd, calls, spent_usd,
-last_used, rate_per_min and status (a missing or unknown key answers 401). The
+last_used, rate_per_min and status, plus a `pass` object (kind, routes, expires_at, days_left, hours_left) on a pass key (a missing or unknown key answers 401). The
 key is a bearer secret; a balance is non-refundable usage credit with no expiry.
 The purchase routes offer the per-call `exact` option only, on the same 9
 networks and, on request, the 11 more; they have no half-price option. They are
