@@ -1,0 +1,278 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Pump Data",
+    "version": "0.3.0",
+    "summary": "Every pump.fun trade, ever, for trading agents, by the call.",
+    "description": "Every pump.fun trade since pump.fun's first day, bonding curve and PumpSwap, every mint (including those whose address does not end in \"pump\"), every balance change, and each wallet's record over the whole history. Four calls, paid per call in USDC over x402 on Solana; no account, no key. Every call answers. Not affiliated with pump.fun. Plain-text overview at /llms.txt.",
+    "contact": { "email": "support@pumpdata.fun" },
+    "x-status": "live",
+    "x-payment": { "protocol": "x402", "asset": "USDC", "network": "solana" },
+    "x-discovery": { "wellKnown": "https://pumpdata.fun/.well-known/x402" }
+  },
+  "servers": [{ "url": "https://pumpdata.fun", "description": "live: every call answers here, paid per call (x402). Every answer carries X-Data-From and X-Data-As-Of." }],
+  "paths": {
+    "/wallets": {
+      "post": {
+        "operationId": "wallet_records",
+        "summary": "Fetch what these wallets have been, since day one",
+        "description": "Up to 50 wallet addresses in, and optionally the coin they are buying; for each, its class by rule (winner, bot, supply_seller, new, none) and the numbers behind it: SOL put in and taken out, coins traded, first seen. Records run to the last weekly build and are filled from the live recorder since; the build's date is in the X-Data-As-Of header. $0.01 a call.",
+        "x-price-usd": 0.01,
+        "x-payment-info": { "protocols": ["x402"], "price": { "mode": "fixed", "currency": "USD", "amount": "0.01" } },
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object", "required": ["addresses"],
+          "properties": {
+            "addresses": { "type": "array", "minItems": 1, "maxItems": 50, "items": { "type": "string", "description": "a Solana wallet address, base58" } },
+            "mint": { "type": "string", "description": "the coin these wallets are buying, base58; new means no record before its creation. Without it, new means no record before today (UTC)" }
+          }
+        } } } },
+        "responses": {
+          "200": { "description": "one record per address", "content": { "application/json": { "schema": {
+            "type": "object", "additionalProperties": { "$ref": "#/components/schemas/WalletRecord" }
+          } } } },
+          "402": { "$ref": "#/components/responses/PaymentRequired" }
+        }
+      }
+    },
+    "/launch/{mint}": {
+      "get": {
+        "operationId": "launch_record",
+        "summary": "Fetch this launch's record, historically",
+        "description": "The deployer's record (launches, graduations, best run, gaps), the bundle at creation, the supply insiders hold, how far along the curve it is; then the launches that looked the same at the same age, graduated or dead, and how they went over the next day, as a spread. Mints minutes old answer from the live recorder. $0.005 a call.",
+        "x-price-usd": 0.005,
+        "x-payment-info": { "protocols": ["x402"], "price": { "mode": "fixed", "currency": "USD", "amount": "0.005" } },
+        "parameters": [{ "name": "mint", "in": "path", "required": true, "schema": { "type": "string" }, "description": "the token's mint address, base58", "example": "D27Lb9LA6D4dFpogGoXMXvZYkRsZ7UuctxAFpFQ3pump" }],
+        "responses": {
+          "200": { "description": "the launch and its matches", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LaunchRecord" } } } },
+          "402": { "$ref": "#/components/responses/PaymentRequired" },
+          "404": { "description": "no such mint in the warehouse" }
+        }
+      }
+    },
+    "/baserate": {
+      "get": {
+        "operationId": "base_rate",
+        "summary": "Get how often it happens anyway in a market-cap band",
+        "description": "How many coins first traded inside a market-cap band in a window, how many of those then reached 2x, 5x, 10x and 20x within 3 h, and the median peak. A crossing is a coin's first trade with a market cap inside the band (a coin that jumps over the band in one trade has none); the peak is the highest market cap, curve or pool, in the 3 h after it; USD is at the SOL price of the trade's hour. The check to run before believing a winners-only screenshot, or your own agent. $0.005 a call.",
+        "x-price-usd": 0.005,
+        "x-payment-info": { "protocols": ["x402"], "price": { "mode": "fixed", "currency": "USD", "amount": "0.005" } },
+        "parameters": [
+          { "name": "band", "in": "query", "required": true, "schema": { "type": "string", "pattern": "^[0-9]+k-[0-9]+k$", "examples": ["15k-28k"] }, "description": "market cap band in USD; each edge snaps to the nearest of 5k, 10k, 15k, 20k, 28k, 40k, 60k, 100k, 250k, 1000k, and the answer says the band it used" },
+          { "name": "from", "in": "query", "required": true, "schema": { "type": "string", "format": "date-time" } },
+          { "name": "to", "in": "query", "required": true, "schema": { "type": "string", "format": "date-time" }, "description": "crossings up to here count; at most 31 days after from (split a longer window: 400 window_too_long); each needs its 3 h after, so a window ending under 3 h before the data's as-of (X-Data-As-Of) is cut there" },
+          { "name": "venue", "in": "query", "schema": { "type": "string", "enum": ["curve", "pool", "any"], "default": "any" }, "description": "curve crossings are held from 10 Mar 2025, pool crossings from 15 Jul 2026 (any = the earliest of either per coin); the answer's X-Data-From header says where its venue begins, and a window starting earlier is clamped, with a note in the body" }
+        ],
+        "responses": {
+          "200": { "description": "the crossings and what became of them", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BaseRate" } } } },
+          "402": { "$ref": "#/components/responses/PaymentRequired" },
+          "404": { "description": "no data for that window (it ends before the venue's X-Data-From); nothing is charged" }
+        }
+      }
+    },
+    "/deployer/{address}": {
+      "get": {
+        "operationId": "deployer_record",
+        "summary": "Fetch a deployer's record and its next launch's base rate, no coin needed",
+        "description": "The deployer's launches, graduations, best first-day peak, the gap between its last two launches and its last launch (the weekly tables plus the live recorder); over the last 90 days, its launches measured at minute five and how many doubled, did 10x, held at 2x at the close of the day or were dead; its ten newest launches; and the base rate for its next launch: launches of the last 90 days whose deployer had the same record bucket. A wallet with no launches gets the first-launch base rate. Facts, no score. $0.005 a call.",
+        "x-price-usd": 0.005,
+        "x-payment-info": { "protocols": ["x402"], "price": { "mode": "fixed", "currency": "USD", "amount": "0.005" } },
+        "parameters": [
+          { "name": "address", "in": "path", "required": true, "schema": { "type": "string" }, "description": "the deployer's wallet address, base58", "example": "7ufmve7ZSFCzuNcKRunYrGtyb2Ka1MXzkWwf7jZhVsmL" }
+        ],
+        "responses": {
+          "200": { "description": "the record", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeployerRecord" } } } },
+          "402": { "$ref": "#/components/responses/PaymentRequired" }
+        }
+      }
+    },
+    "/similar/{mint}": {
+      "get": {
+        "operationId": "similar_launches",
+        "summary": "Fetch the launches most like this one, and how each went",
+        "description": "The comparables: the same deployer's prior launches first, then the nearest launches of the last 90 days in this coin's /launch bucket (the deployer's launches and graduations, the first-10 s buyers, the insiders' share and the curve progress at minute 5), each named with its mint, when it launched, its state at 5 min, how it went over the 24 h after (peak, close, dead or graduated) and a sentence on why it is similar. Only launches whose 24 h window is complete. Not a prediction. $0.005 a call.",
+        "x-price-usd": 0.005,
+        "x-payment-info": { "protocols": ["x402"], "price": { "mode": "fixed", "currency": "USD", "amount": "0.005" } },
+        "parameters": [
+          { "name": "mint", "in": "path", "required": true, "schema": { "type": "string" }, "description": "the token's mint address, base58", "example": "D27Lb9LA6D4dFpogGoXMXvZYkRsZ7UuctxAFpFQ3pump" },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 25, "default": 10 }, "description": "comparables to return" }
+        ],
+        "responses": {
+          "200": { "description": "the comparables", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SimilarLaunches" } } } },
+          "402": { "$ref": "#/components/responses/PaymentRequired" },
+          "404": { "description": "no such mint, or no curve reading to place it by" }
+        }
+      }
+    },
+    "/replay": {
+      "post": {
+        "operationId": "replay",
+        "summary": "Run your picks through an honest replay, dead coins counted",
+        "description": "Picks with timestamps and sizes in; what they made, pick by pick and in sum, every pick counted, the dead ones included, filled at the PumpSwap pool as it stood after your latency, with every fee, the fixed costs and the bankroll you set. The most recent eight weeks come back apart from the rest, once per rule to each payer; a changed rule reads them again, so the result counts this payer's reads. A run is a queued job: 202 with an id, then GET /replay/{id}. $2 a run; a run that fails is rerun free on the same id. Today: up to 500 picks a run (split a larger list), on coins that reached the pool (graduates); bonding-curve picks, and picks outside the archive, are counted in skipped_not_covered (each with its reason in by_pick[].skipped) until curve fills ship.",
+        "x-price-usd": 2,
+        "x-payment-info": { "protocols": ["x402"], "price": { "mode": "fixed", "currency": "USD", "amount": "2" } },
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object", "required": ["picks"],
+          "properties": {
+            "picks": { "type": "array", "description": "your picks: each a coin, when your rule decided, and the size in SOL", "minItems": 1, "maxItems": 500, "items": { "type": "object", "required": ["mint", "at", "size_sol"], "properties": {
+              "mint": { "type": "string", "description": "the coin's mint address, base58" }, "at": { "type": "string", "format": "date-time", "description": "when your rule decided" }, "size_sol": { "type": "number", "exclusiveMinimum": 0, "description": "the size of the buy, in SOL" }
+            } } },
+            "latency_s": { "type": "number", "default": 3, "description": "seconds from the decision to the fill" },
+            "bankroll_sol": { "type": "number", "description": "SOL at risk at once; a pick with no room is skipped" },
+            "exit": { "type": "object", "description": "take (x the entry), trail (share off the high), hold (seconds); any combination", "properties": {
+              "take": { "type": "number" }, "trail": { "type": "number" }, "hold_s": { "type": "integer" }
+            } }
+          }
+        } } } },
+        "responses": {
+          "202": { "description": "queued", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ReplayJob" } } } },
+          "402": { "$ref": "#/components/responses/PaymentRequired" }
+        }
+      }
+    },
+    "/replay/{id}": {
+      "get": {
+        "operationId": "replay_result",
+        "summary": "Fetch a replay's state and its result",
+        "description": "The job's state, and its result once done. Free; the id is the receipt.",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "the replay id that POST /replay returned with its 202" }],
+        "responses": {
+          "200": { "description": "the job, with the replay once done and the execution model it charged", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ReplayJob" } } } },
+          "404": { "description": "no such job" }
+        }
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "PaymentRequired": { "description": "x402: the price and where to pay, in the headers; pay and retry the same request" }
+    },
+    "schemas": {
+      "WalletRecord": {
+        "type": "object",
+        "properties": {
+          "class": { "type": "string", "enum": ["winner", "bot", "supply_seller", "new", "none"], "description": "by rule: winner took out more than it put in over 20+ coin-weeks; bot trades a coin 20+ times a week or 500+ coins; supply_seller took out 1.5x what it put in, 100 SOL or more; new has no record before the mint given, or before today without one; none has a record that fits no rule (most wallets). The first rule that fits, in this order: bot, supply_seller, winner" },
+          "pnl_sol": { "type": "number", "description": "took_out - put_in, SOL, over every trade since day one on pump.fun's venues only (the bonding curve and PumpSwap pools of pump.fun coins against SOL). A cross-DEX arbitrage bot that buys here and sells on another DEX shows its buy legs only, so its pnl here runs deeply negative; its class is bot." }, "put_in": { "type": "number", "description": "SOL" }, "took_out": { "type": "number", "description": "SOL" },
+          "coins": { "type": "integer" }, "first_seen": { "type": ["string", "null"], "format": "date-time" },
+          "summary": { "type": "string", "description": "one plain sentence built only from this record's own fields (class, SOL in and out, coins, first seen); a missing field is left out" },
+          "compare_to": { "$ref": "#/components/schemas/CompareTo" },
+          "next_steps": { "type": "array", "items": { "$ref": "#/components/schemas/NextStep" }, "description": "follow-up calls that answer now, the same for every wallet in the answer: GET /launch/{mint} when a mint was given, GET /baserate for compare_to's band and window" },
+          "freshness": { "$ref": "#/components/schemas/Freshness" }
+        }
+      },
+      "DeployerRecord": {
+        "type": "object",
+        "properties": {
+          "address": { "type": "string" },
+          "record": { "type": "object", "description": "launches, graduations, graduation_rate, best_peak_usd, last_launch_gap_s, launches_last_day, last_launch, launches_after_build" },
+          "last_90_days": { "type": ["object", "null"], "description": "launches_measured, doubled, doubled_share, ten_x, ten_x_share, held_2x, held_2x_share, dead_next_day, dead_share, graduated_by_5m" },
+          "recent_launches": { "type": "array", "items": { "type": "object", "description": "mint, created, market_cap_usd_at_5m, buyers_first_10s, peak_mult_24h, close_mult_24h, dead_next_day, graduated" } },
+          "next_launch": { "type": "object", "description": "buckets (b_launches, b_grads) and launches_like_it: the same outcomes for launches of the last 90 days from deployers with that record, plus graduated and graduated_share" },
+          "definitions": { "type": "object" }
+        }
+      },
+      "SimilarLaunches": {
+        "type": "object",
+        "properties": {
+          "mint": { "type": "string" },
+          "at_age_s": { "type": "integer", "description": "the age the resemblance is judged at (300)" },
+          "key": { "type": "object", "description": "the /launch bucket: b_launches, b_grads, b_bundle, b_insider, b_curve" },
+          "yours": { "type": "object", "description": "this coin's five features at the age" },
+          "same_bucket_n": { "type": "integer", "description": "launches of the last 90 days in the same bucket" },
+          "comparables": { "type": "array", "items": { "type": "object", "properties": {
+            "mint": { "type": "string" }, "created": { "type": "string", "format": "date-time" }, "deployer": { "type": "string" }, "same_deployer": { "type": "boolean" },
+            "at_5m": { "type": "object", "description": "market_cap_usd, buyers_first_10s, bundle_supply_share, insider_share, curve_progress, graduated, deployer_launches_before, deployer_graduations_before" },
+            "next_24h": { "type": "object", "description": "dead (no trade at all in the 24 h after minute 5), peak_mult and close_mult over the market cap at minute 5" },
+            "similar_because": { "type": "string" }, "age_days": { "type": "integer" } } } },
+          "summary": { "type": "string", "description": "one sentence over the comparables: how many died, how many closed at or above their 5-minute market cap, the median peak" },
+          "definitions": { "type": "object" }
+        }
+      },
+      "LaunchRecord": {
+        "type": "object",
+        "properties": {
+          "mint": { "type": "string" }, "created": { "type": "string", "format": "date-time" },
+          "deployer": { "type": "object", "properties": { "address": { "type": "string" }, "launches": { "type": "integer" }, "graduations": { "type": "integer" }, "best_peak": { "type": ["number", "null"] }, "last_launch_gap_s": { "type": ["integer", "null"] }, "launches_last_day": { "type": "integer" } } },
+          "bundle_at_creation": { "type": "object", "properties": { "buyers_first_10s": { "type": "integer" }, "supply_share": { "type": "number" } } },
+          "insider_supply_share": { "type": "number" },
+          "age_s": { "type": "integer", "description": "seconds since creation, at the moment of the call" },
+          "curve_progress": { "type": "number", "description": "share of the curve sold, 0 to 1; 1 once migrated" },
+          "migrated_at": { "type": ["string", "null"], "format": "date-time" },
+          "market_cap_usd_at_age": { "type": ["object", "null"], "description": "the launch's market cap in USD at the age its matches are looked up at, from the tables' build; null when the tables have no row for it or the record is from the live recorder (which has no USD market cap)", "properties": { "usd": { "type": "number" }, "at_age_s": { "type": "integer" } } },
+          "matches": { "type": "object", "description": "launches that matched at the same age on the deployer's record, the bundle, the insider share and the curve progress, graduated or not, and how they went from that age", "properties": {
+            "n": { "type": "integer" },
+            "graduated_share": { "type": "number", "description": "share of the matches that reached the pool" },
+            "peak_day1": { "type": "object", "description": "quantiles of the peak over the next 24 h, as a multiple of the market cap at the matching age; the dead count", "additionalProperties": { "type": "number" } },
+            "close_day1": { "type": "object", "description": "quantiles of the market cap 24 h on, as the same multiple; a dead coin is near 0", "additionalProperties": { "type": "number" } }
+          } },
+          "summary": { "type": "string", "description": "one plain sentence built only from this answer's own fields (age, the deployer's counts, the bundle, the shares, the matches) and compare_to when present; a missing field is left out" },
+          "compare_to": { "$ref": "#/components/schemas/CompareTo" },
+          "next_steps": { "type": "array", "items": { "$ref": "#/components/schemas/NextStep" }, "description": "follow-up calls that answer now: POST /wallets with the deployer's address and this mint, GET /baserate for compare_to's band and window, POST /replay" },
+          "freshness": { "$ref": "#/components/schemas/Freshness" }
+        }
+      },
+      "CompareTo": {
+        "type": ["object", "null"],
+        "description": "yesterday's (UTC) base rate for one band, venue any, as GET /public/baserate.json holds it (refreshed hourly), read at the moment of the call; null until that file is first written",
+        "properties": {
+          "band": { "type": "string" }, "venue": { "type": "string" },
+          "from": { "type": "string", "format": "date-time" }, "to": { "type": "string", "format": "date-time" },
+          "crossed": { "type": ["integer", "null"] },
+          "reached": { "type": ["object", "null"], "additionalProperties": { "type": "number" }, "description": "as BaseRate.reached" },
+          "median_peak": { "type": ["number", "null"] },
+          "basis": { "type": "string", "description": "why this band: the public band holding the launch's USD market cap when the answer carries one, else the headline band 15k-28k, and which" },
+          "source": { "type": "string", "const": "/public/baserate.json" }
+        }
+      },
+      "NextStep": {
+        "type": "object",
+        "description": "a follow-up call, listed only while that call answers",
+        "properties": {
+          "call": { "type": "string", "enum": ["baserate", "wallets", "launch", "replay"] },
+          "method": { "type": "string", "enum": ["GET", "POST"] },
+          "path": { "type": "string", "description": "the path with this answer's values filled in" },
+          "price_usd": { "type": "number" },
+          "why": { "type": "string" },
+          "body": { "type": "object", "description": "the POST body, when this answer fills it in" }
+        }
+      },
+      "Freshness": {
+        "type": "object",
+        "properties": {
+          "data_as_of": { "type": ["string", "null"], "format": "date-time", "description": "the answer's X-Data-As-Of" },
+          "lag_s": { "type": ["integer", "null"], "description": "seconds from data_as_of to the moment of the call" }
+        }
+      },
+      "BaseRate": {
+        "type": "object",
+        "properties": {
+          "band": { "type": "string" }, "from": { "type": "string" }, "to": { "type": "string" },
+          "crossed": { "type": "integer" }, "per_day": { "type": "number" },
+          "reached": { "type": "object", "description": "share of the crossings whose peak within 3 h reached each multiple", "properties": { "2x": { "type": "number" }, "5x": { "type": "number" }, "10x": { "type": "number" }, "20x": { "type": "number" } } },
+          "median_peak": { "type": "number" }, "peak_within_s": { "type": "integer", "const": 10800 },
+          "venue": { "type": "string", "enum": ["curve", "pool", "any"], "description": "Venue filter actually applied (default any)." },
+          "gaps": { "type": "array", "items": { "type": "array", "items": { "type": "string", "format": "date-time" }, "minItems": 2, "maxItems": 2 }, "description": "Present when the window overlaps hours the warehouse holds no data for (a seam between sources): each [from, to); the count is low by that much and the note says so" },
+          "note": { "type": "string", "description": "Present when the service adjusted the request or the data has a hole in the window: e.g. from clamped to the coverage start; no data for N h inside this window. Echoed from/to are the window actually used." }
+        },
+        "example": { "band": "15k-28k", "from": "2026-10-16T00:00:00Z", "to": "2026-10-17T00:00:00Z", "venue": "any", "crossed": 2059, "per_day": 2059, "reached": { "2x": 0.343, "5x": 0.112, "10x": 0.051, "20x": 0.02 }, "median_peak": 1.464, "peak_within_s": 10800 }
+      },
+      "ReplayJob": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }, "state": { "type": "string", "enum": ["queued", "running", "done", "failed"] }, "position": { "type": ["integer", "null"] },
+          "result": { "$ref": "#/components/schemas/Replay" }, "error": { "type": ["string", "null"] }
+        }
+      },
+      "Replay": {
+        "type": "object",
+        "properties": {
+          "sum_sol": { "type": "number" }, "picks": { "type": "integer" }, "filled": { "type": "integer" }, "skipped_no_room": { "type": "integer" }, "skipped_not_covered": { "type": "integer", "description": "picks the replay cannot fill yet: on the bonding curve until curve fills ship, before the pool's first trade, or outside the archive" },
+          "by_pick": { "type": "array", "items": { "type": "object", "properties": { "mint": { "type": "string" }, "at": { "type": "string" }, "fill_price": { "type": ["number", "null"] }, "fill_rate": { "type": "number" }, "fee_bps": { "type": "array", "items": { "type": "number" }, "description": "the fee charged on each fill (entry, then exit), as pump.fun charged it at that venue, market-cap tier and time" }, "exit_at": { "type": ["string", "null"] }, "skipped": { "type": ["string", "null"], "description": "why this pick was not filled (on the bonding curve, no pool trade yet at the fill, outside the archive, no room in the bankroll); null when filled" }, "return": { "type": "number", "description": "net of fees, the fixed costs and the tip lost on a failed try" } } } },
+          "by_week": { "type": "object", "additionalProperties": { "type": "number" } },
+          "held_out_weeks": { "type": "array", "items": { "type": "string" }, "description": "the most recent eight weeks, returned once per rule signature to each payer; later reads of the same signature get them withheld" },
+          "held_out_reads": { "type": "integer", "description": "how many runs this payer has read the held-out weeks in, this one included; more than one is tuning" },
+          "execution_model": { "type": "object", "description": "what was charged: fill latency, the fee on each fill (by venue, market-cap tier and date, as pump.fun charged it then), fixed lamports a side (entry and exit), fill rate by the minute, bankroll, exits" }
+        }
+      }
+    }
+  }
+}
