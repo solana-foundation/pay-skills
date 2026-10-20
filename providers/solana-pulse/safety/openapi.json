@@ -1,0 +1,1255 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Solana Pulse",
+    "version": "0.6.0",
+    "description": "Safety checks and answers for AI agents on Solana: check a transaction before signing (drainers, failures, exact balance changes), confirm it matches the request, token safety verdicts, fees, amounts and plain-words explanations. Every fact comes from live mainnet data with its source.",
+    "contact": {
+      "name": "Solana Pulse",
+      "url": "https://github.com/Timothymycompc/solana-pulse-ai-agent-gateway"
+    },
+    "license": {
+      "name": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://solana-pulse-gateway-1021990235790.us-central1.run.app"
+    }
+  ],
+  "paths": {
+    "/api/tools/check_tx": {
+      "post": {
+        "operationId": "check_tx",
+        "summary": "Check a Solana transaction before signing it",
+        "description": "Run on every transaction before signing. Shows what each wallet gains and loses, blocks drainer tricks, and catches failures and expired blockhashes before you pay a fee. Decodes each step, dry-runs it on live mainnet, finds each wallet's SOL and token changes, and answers OK, REVIEW or BLOCK with reasons. Price: $0.02 USDC per call on Solana (x402), after 25 free calls a day (from the first call through the pay tool).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tx": {
+                    "type": "string",
+                    "minLength": 20,
+                    "description": "Base64 transaction, signed or not, legacy, v0 or v1. Before signing: Buffer.from(tx.serialize({ requireAllSignatures: false })).toString('base64'), or an aggregator's swap tx."
+                  },
+                  "network": {
+                    "default": "mainnet-beta",
+                    "description": "Default \"mainnet-beta\" (real money). \"devnet\" only for test wallets.",
+                    "type": "string",
+                    "enum": [
+                      "mainnet-beta",
+                      "devnet"
+                    ]
+                  }
+                },
+                "required": [
+                  "tx"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The answer, every field explained.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "verdict": {
+                      "description": "verdict (\"OK\" | \"REVIEW\" | \"BLOCK\"): The answer. BLOCK: don't sign. REVIEW: a person or your rules should look first. OK: nothing wrong found. The worst check wins: any fail is BLOCK, any warn is REVIEW, otherwise OK."
+                    },
+                    "summary": {
+                      "description": "summary (string): One sentence: the verdict and the main reason. Built from the worst check and what your wallet sends."
+                    },
+                    "fee_payer": {
+                      "description": "fee_payer / signers (string / string[]): The wallet paying the fee, and every wallet that signs. Read from the transaction."
+                    },
+                    "checks": {
+                      "description": "checks[].name (string): Which check: simulation, blockhash, already_landed, fee_payer_balance, token_approval, authority_change, wallet_reassigned, close_to_other, unknown_programs, priority_fee or outflow. A fixed list.\nchecks[].result (\"pass\" | \"info\" | \"warn\" | \"fail\"): How the check came out. simulation fails if the dry run errors. blockhash warns if expired. already_landed fails if this exact signed transaction is already on chain (only checked for signed ones; info and unknown if the lookup fails). fee_payer_balance fails if the payer can't cover fees. Approvals to non-signers, authority changes, reassigning a signer and closing to a non-signer fail. Unknown programs warn. A priority fee over 0.01 SOL warns. Money leaving your wallet is info.\nchecks[].detail (string): What the check found, in plain words. Built from the decoded steps and the dry run."
+                    },
+                    "balance_changes": {
+                      "description": "balance_changes[].wallet (string): The wallet whose balance changes. For SOL, the account itself. For tokens, the owner of the token account.\nbalance_changes[].is_you (boolean): True when this wallet signs the transaction, so it's you. The wallet is one of the required signers.\nbalance_changes[].token / symbol (string): \"SOL\" or the token address, and its ticker. From the account data. Ticker from Jupiter.\nbalance_changes[].before / after / change (string (decimal)): Balance before, after, and the difference. Negative means the wallet loses it. Before: live account data. After: the dry run's account data. Exact decimals. SOL changes include fees.\nbalance_changes[].raw_change / decimals (string / number): The change in raw units, and the token's decimals. after minus before, in base units."
+                    },
+                    "steps": {
+                      "description": "steps[] (object[]): Every instruction, decoded: step number, program, type (sol_transfer, token_transfer, token_approve, token_set_authority, token_close_account, create_token_account, set_compute_unit_price, unknown_program and more) and its key details. Decoded for the System, Token, Token-2022, Compute Budget, Associated Token Account and Memo programs. Exchanges on Jupiter's list of the programs it routes through are named, not unknown."
+                    },
+                    "fee": {
+                      "description": "fee.base_lamports / priority_lamports / total_lamports / total_sol (string): What this transaction costs in fees. Base: 5000 lamports per signature. Priority: compute_unit_price x compute_unit_limit / 1,000,000, rounded up.\nfee.compute_unit_limit / compute_unit_limit_from / compute_unit_price (number | string): The compute settings the fee is charged on. compute_unit_price is in micro-lamports per compute unit. From the transaction's Compute Budget steps, or the runtime default when there are none."
+                    },
+                    "simulation": {
+                      "description": "simulation.worked / error / compute_used / logs (object): The raw dry run: whether it worked, the error, compute used, and the last 25 log lines. simulateTransaction with signature checks off and a fresh blockhash.\nsimulation.error_explained (object | null): What the failure means, in plain words. why_failed run on the dry-run error."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An input is missing or invalid; the body says which and how to fix it."
+          },
+          "402": {
+            "description": "Payment required: $0.02 USDC on Solana via x402. The challenge is in the PAYMENT-REQUIRED header and the body."
+          }
+        }
+      }
+    },
+    "/api/tools/tx_matches": {
+      "post": {
+        "operationId": "tx_matches",
+        "summary": "Check a transaction matches the requested transfer or swap",
+        "description": "Run just before signing a transfer built from a request like \"send 5 USDC to X\", or a swap built for \"swap 1 USDC for JUP\". Confirms it moves exactly that token, amount and recipient, nothing more, or that the swap sells exactly that amount and pays the bought token back to you. Catches made-up amounts, wrong decimals, hidden steps and swaps that pay someone else. Compares the transaction with your request (token, exact amount, recipient, sender), flags every step that isn't the transfer, and checks dry-run balances so money moved any other way is caught. For a swap it reads the dry run: exactly the amount sold, the bought token reaching your wallet, and nothing else leaving it. Price: $0.02 USDC per call on Solana (x402), after 25 free calls a day (from the first call through the pay tool).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tx": {
+                    "type": "string",
+                    "minLength": 20,
+                    "description": "Base64 transaction, signed or not, legacy, v0 or v1. Before signing: Buffer.from(tx.serialize({ requireAllSignatures: false })).toString('base64'), or an aggregator's swap tx."
+                  },
+                  "expected": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "action": {
+                            "type": "string",
+                            "const": "swap"
+                          },
+                          "sell": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "string"
+                          },
+                          "buy": {
+                            "type": "string"
+                          },
+                          "from": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "action",
+                          "sell",
+                          "amount",
+                          "buy"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "action": {
+                            "type": "string",
+                            "const": "transfer"
+                          },
+                          "token": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "string"
+                          },
+                          "to": {
+                            "type": "string"
+                          },
+                          "from": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "token",
+                          "amount",
+                          "to"
+                        ]
+                      }
+                    ],
+                    "description": "action: Default \"transfer\". \"swap\" takes sell, amount, buy and from instead of token, amount and to. From the request you were given. token: The token to send. \"SOL\", or the token address from find_token. amount: Normal units (for a swap: the amount sold): \"5\" means 5 USDC. The user's amount, as a string. to: The person's wallet, not their token account. The address the user gave you. Never take it from the transaction. from: The wallet that pays (for a swap: sells and gets the bought token). Default: the fee payer. Your agent's wallet address. sell: Swaps only: the token sold. \"SOL\", or the token address from find_token. buy: Swaps only: the token bought. \"SOL\", or the token address from find_token. Never take it from the transaction."
+                  },
+                  "network": {
+                    "default": "mainnet-beta",
+                    "description": "Default \"mainnet-beta\" (real money). \"devnet\" only for test wallets.",
+                    "type": "string",
+                    "enum": [
+                      "mainnet-beta",
+                      "devnet"
+                    ]
+                  }
+                },
+                "required": [
+                  "tx",
+                  "expected"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The answer, every field explained.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "verdict": {
+                      "description": "verdict (\"MATCH\" | \"MISMATCH\"): The answer. MATCH: it does exactly what you asked. MISMATCH: something is off. Don't sign. MATCH only when every compared field is ok and unexpected is empty."
+                    },
+                    "summary": {
+                      "description": "summary (string): One sentence, naming the first thing that's off. Built from the failed comparisons."
+                    },
+                    "expected": {
+                      "description": "expected.token_address / raw_amount / decimals / to / from (string | number): What you asked for, in exact on-chain terms. SOL uses 9 decimals. Tokens use their real on-chain decimals. Converted with exact integer math."
+                    },
+                    "compared": {
+                      "description": "compared[].what (\"token\" | \"amount\" | \"to\" | \"from\" | \"simulation\"): What was compared. A fixed list. A swap has no \"token\" row: its amount row names the sold token, and its to row says who gets the bought one.\ncompared[].expected / actual (string): What you asked for, and what the transaction really does. actual comes from the decoded transfer. For tokens, the recipient is the owner of the receiving token account (read on chain, or from a create-account step in the same transaction).\ncompared[].ok (boolean): Whether they match. Exact equality. Amounts compared in raw units."
+                    },
+                    "transfers": {
+                      "description": "transfers[] (object[]): Every transfer in the transaction: step, from, to, token, amount and raw amount. Decoded System and Token transfers. Token account owners read on chain."
+                    },
+                    "fees": {
+                      "description": "fees ({ wallet, token, amount, raw_amount, share }[]): Swaps only: small cuts of the bought token that go to other wallets, like an exchange's or app's fee. Other wallets' gain in the bought token in the dry run, when together it is at most 1% of what you get (real swaps paid 0.47-0.77%). More than 1% goes in unexpected and the verdict is MISMATCH."
+                    },
+                    "extra_spent": {
+                      "description": "extra_spent ({ token, amount, raw_amount, share } | null): Swaps only: tips or fees paid in the token you sell, on top of the swap amount. What the sender loses of the sold token beyond the amount, when it is at most 1% of the amount (a real swap tipped 0.005%). More than 1% makes the amount wrong and the verdict MISMATCH."
+                    },
+                    "received": {
+                      "description": "received ({ token, amount, raw_amount, decimals } | null): Swaps only: how much of the bought token reaches your wallet in the dry run. The wallet's change in that token across all its token accounts (SOL and wrapped SOL together), with the fee and the deposits for its own new accounts added back. null when the dry run fails."
+                    },
+                    "unexpected": {
+                      "description": "unexpected[] (string[]): Anything you didn't ask for: extra transfers, approvals, authority changes, closed accounts, other programs, or the sender losing more than the transfer explains. Every step except the matched transfer, Compute Budget, Memo and creating the recipient's token account is listed. Then the sender's dry-run losses are compared with the amount (plus fees and the recipient's account deposit for SOL). Any bigger loss is listed."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An input is missing or invalid; the body says which and how to fix it."
+          },
+          "402": {
+            "description": "Payment required: $0.02 USDC on Solana via x402. The challenge is in the PAYMENT-REQUIRED header and the body."
+          }
+        }
+      }
+    },
+    "/api/tools/explain_tx": {
+      "post": {
+        "operationId": "explain_tx",
+        "summary": "Fetch what a confirmed Solana transaction did and why",
+        "description": "Run after a transaction lands or fails, to report what happened instead of guessing from logs. For failures it names the failing program and the fix. Reads a confirmed transaction: whether it worked, the fee, each wallet's SOL and token changes, the programs used, and why it failed. Price: $0.01 USDC per call on Solana (x402), after 25 free calls a day (from the first call through the pay tool).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tx_id": {
+                    "type": "string",
+                    "minLength": 64,
+                    "maxLength": 100,
+                    "description": "The transaction's signature. Returned when you send, or from history. Never make one up."
+                  },
+                  "network": {
+                    "default": "mainnet-beta",
+                    "description": "Default \"mainnet-beta\" (real money). \"devnet\" only for test wallets.",
+                    "type": "string",
+                    "enum": [
+                      "mainnet-beta",
+                      "devnet"
+                    ]
+                  }
+                },
+                "required": [
+                  "tx_id"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The answer, every field explained.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "result": {
+                      "description": "result (\"success\" | \"failed\"): Whether it worked. Failed transactions still pay fees. meta.err is empty for success."
+                    },
+                    "summary": {
+                      "description": "summary (string): What happened, in a few plain sentences. Built from the result, the fee and the biggest balance changes."
+                    },
+                    "time": {
+                      "description": "time / slot (string | number): When and where it landed. Block time in ISO 8601, and the slot."
+                    },
+                    "fee_payer": {
+                      "description": "fee_payer / signers (string / string[]): Who paid the fee and who signed. The first account, and the accounts marked as signers."
+                    },
+                    "fee": {
+                      "description": "fee.lamports / fee.sol (string): The fee charged. meta.fee."
+                    },
+                    "programs": {
+                      "description": "programs[] ({ address, name }[]): The programs the transaction called. Each top-level step's program, with its name when we know it."
+                    },
+                    "sol_changes": {
+                      "description": "sol_changes[] ({ account, before, after, change, raw_change }[]): Every account whose SOL changed, fee included. Balances before vs after, exact decimals."
+                    },
+                    "token_changes": {
+                      "description": "token_changes[] ({ owner, token, symbol, before, after, change, raw_change }[]): Every token balance that changed, by owner wallet and token. Token balances before vs after, with each token's decimals. Tickers from Jupiter."
+                    },
+                    "compute_used": {
+                      "description": "compute_used (number | null): Compute units used. meta.computeUnitsConsumed."
+                    },
+                    "failure": {
+                      "description": "failure (object | null): For failed transactions: the raw error, the step and program that failed, what it means, and the last log lines. meta.err decoded. The failing program is the program of the failing step. The meaning comes from why_failed."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An input is missing or invalid; the body says which and how to fix it."
+          },
+          "402": {
+            "description": "Payment required: $0.01 USDC on Solana via x402. The challenge is in the PAYMENT-REQUIRED header and the body."
+          }
+        }
+      }
+    },
+    "/api/tools/fee": {
+      "post": {
+        "operationId": "fee",
+        "summary": "Get priority fee prices for a Solana transaction",
+        "description": "Run before setting a priority fee. Gives the price in the unit Compute Budget expects (micro-lamports per compute unit) and the total in SOL, so a unit mix-up never overpays. Turns recent priority fees into three prices: cheap, normal, fast. Pass your transaction to get its compute limit and exact cost at each. Price: $0.01 USDC per call on Solana (x402), after 25 free calls a day (from the first call through the pay tool).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tx": {
+                    "description": "Your transaction, so fees match its accounts and compute comes from a dry run. Before signing: Buffer.from(tx.serialize({ requireAllSignatures: false })).toString('base64'), or an aggregator's swap tx.",
+                    "type": "string",
+                    "minLength": 20
+                  },
+                  "network": {
+                    "default": "mainnet-beta",
+                    "description": "Default \"mainnet-beta\" (real money). \"devnet\" only for test wallets.",
+                    "type": "string",
+                    "enum": [
+                      "mainnet-beta",
+                      "devnet"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The answer, every field explained.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "unit": {
+                      "description": "unit (string): Always \"micro-lamports per compute unit\". 1,000,000 micro-lamports = 1 lamport. It is the unit setComputeUnitPrice takes. Fixed."
+                    },
+                    "based_on": {
+                      "description": "based_on (string): Which fees were sampled: the accounts your transaction writes to, or the whole network. Your transaction's writable accounts when given, otherwise network-wide."
+                    },
+                    "samples": {
+                      "description": "samples / share_paying (number): How many recent slots were sampled, and the share that paid any priority fee. getRecentPrioritizationFees (about the last 150 slots)."
+                    },
+                    "prices": {
+                      "description": "prices.cheap / normal / fast .compute_unit_price (number): The price to set with setComputeUnitPrice. cheap usually lands within a few slots when it's quiet. fast is for urgent trades. The 50th, 75th and 90th percentile of sampled fees (at least 1 for normal and fast when everything sampled is zero).\nprices.*.priority_lamports / total_lamports / total_sol (string): What the transaction would pay at that price. priority = price x compute units / 1,000,000, rounded up. total = priority + 5000 lamports per signature."
+                    },
+                    "compute_units": {
+                      "description": "compute_units (number): The compute units the costs are worked out for. With a transaction: dry-run units used + 10%. Without: 200,000 (a typical one-step default)."
+                    },
+                    "compute_units_from": {
+                      "description": "compute_units_from (string): Whether compute_units came from a dry run or the default. \"simulation\" or \"default\"."
+                    },
+                    "how_to_use": {
+                      "description": "how_to_use (string): The two Compute Budget steps to add (for a v1 transaction, the two config fields to set). Built from the normal price and compute_units."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An input is missing or invalid; the body says which and how to fix it."
+          },
+          "402": {
+            "description": "Payment required: $0.01 USDC on Solana via x402. The challenge is in the PAYMENT-REQUIRED header and the body."
+          }
+        }
+      }
+    },
+    "/api/tools/find_token": {
+      "post": {
+        "operationId": "find_token",
+        "summary": "Find the real token address for a ticker",
+        "description": "Run whenever a user names a token (\"buy BONK\"). Tickers aren't unique; copycats reuse them. Never take an address from memory. Finds the real address for a ticker or name, ranks matches by verification and liquidity, and warns when copycats share the ticker. Price: $0.01 USDC per call on Solana (x402), after 25 free calls a day (from the first call through the pay tool).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80,
+                    "description": "Ticker, name or address: \"BONK\", \"Jupiter\", \"USDC\". Exactly as the user wrote it."
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The answer, every field explained.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "description": "name (string): What was searched. Your input, trimmed."
+                    },
+                    "best": {
+                      "description": "best (object | null): The token we recommend, or null when it isn't safe to pick one for you. The verified token whose ticker exactly matches (any case, with or without a leading $) with the most liquidity. Null if there's no verified exact match."
+                    },
+                    "confidence": {
+                      "description": "confidence (\"high\" | \"medium\" | \"low\"): How safe it is to use best without asking the user. high: a verified exact match and no other verified token shares the ticker. medium: another verified token shares it. low: no verified exact match."
+                    },
+                    "copycats": {
+                      "description": "copycats (number): Unverified tokens using the same ticker. Usually scams copying the real one. Matches with the same ticker (any case, with or without a leading $) that aren't verified."
+                    },
+                    "candidates": {
+                      "description": "candidates[].address (string): The token's address, its real identity. Jupiter token search.\ncandidates[].symbol / name (string): Ticker and display name. Jupiter token search.\ncandidates[].decimals (number): Decimal places. Needed to convert amounts. Jupiter token data.\ncandidates[].verified (boolean): Whether Jupiter lists the token as verified. Jupiter's isVerified flag.\ncandidates[].liquidity_usd (number | null): How much can be traded across DEX pools, in USD. Low means trades move the price a lot. Jupiter liquidity, rounded to dollars.\ncandidates[].holders (number | null): How many wallets hold the token. Jupiter holderCount.\ncandidates[].real_trading_score (number | null): Jupiter's 0-100 estimate of real (not bot) trading. Jupiter organicScore, rounded.\ncandidates[].token_program (\"spl-token\" | \"token-2022\"): Which token program the token uses. Jupiter tokenProgram.\ncandidates[].can_mint_more / can_freeze (boolean | null): Whether someone can still create more of it, or freeze holders' tokens. false is safer. Jupiter audit data. null when unknown. token_safety checks these on chain."
+                    },
+                    "next_step": {
+                      "description": "next_step (string): What to do next, in one sentence. Built from confidence and copycats."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An input is missing or invalid; the body says which and how to fix it."
+          },
+          "402": {
+            "description": "Payment required: $0.01 USDC on Solana via x402. The challenge is in the PAYMENT-REQUIRED header and the body."
+          }
+        }
+      }
+    },
+    "/api/tools/token_safety": {
+      "post": {
+        "operationId": "token_safety",
+        "summary": "Check whether a Solana token is safe to buy",
+        "description": "Run before buying, accepting or recommending a token. Answers SAFE, CAUTION or AVOID with exact reasons from chain and market data. Simulates a real holder selling, then checks if liquidity can be pulled, the creator's record, insider wallet networks, issuer powers (mint, freeze, Token-2022 traps), verification, liquidity, holders and age, for one verdict. Price: $0.02 USDC per call on Solana (x402), after 25 free calls a day (from the first call through the pay tool).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "description": "The token's address. From find_token (for a ticker) or tokens (for a wallet's tokens)."
+                  },
+                  "network": {
+                    "default": "mainnet-beta",
+                    "description": "Default \"mainnet-beta\" (real money). \"devnet\" only for test wallets.",
+                    "type": "string",
+                    "enum": [
+                      "mainnet-beta",
+                      "devnet"
+                    ]
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The answer, every field explained.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "verdict": {
+                      "description": "verdict (\"SAFE\" | \"CAUTION\" | \"AVOID\"): The answer. AVOID: at least one check failed. CAUTION: at least one warning. SAFE: no warnings. The worst check wins: any fail is AVOID, any warn is CAUTION, otherwise SAFE."
+                    },
+                    "summary": {
+                      "description": "summary (string): One sentence explaining the verdict. Built from the failed and warning checks."
+                    },
+                    "about": {
+                      "description": "about.symbol / name (string | null): Ticker and name. Jupiter token data.\nabout.decimals (number): Decimal places. The on-chain token account.\nabout.supply (string): Total supply in whole tokens. On-chain supply / 10^decimals, exact.\nabout.token_program (\"spl-token\" | \"token-2022\"): Which token program it uses. The owner of the token's account.\nabout.who_can_mint (string | null): Who can create more tokens. null means nobody (fixed supply). The on-chain mint authority.\nabout.who_can_freeze (string | null): Who can freeze holders' tokens. null means nobody. The on-chain freeze authority.\nabout.extensions (string[]): Token-2022 extensions turned on. Read from the token's account.\nabout.usd_price / liquidity_usd / holders / top10_share_pct / first_traded (number | string | null): Market facts the checks use. Jupiter token data. top10_share_pct is the share the 10 biggest holders own. first_traded is when its first pool was made.\nabout.creator / creator_tokens_launched (string | number | null): The wallet that created the token, and how many tokens it has launched. Jupiter token data.\nabout.metadata_can_change (boolean | null): Whether the name and logo can still be changed. RugCheck's report of the token's metadata."
+                    },
+                    "checks": {
+                      "description": "checks[].name (string): Which check: sell_test, liquidity_pull, creator_history, insiders, metadata, verified, mint_authority, freeze_authority, extension:<name>, liquidity, holder_concentration, age, known_stablecoin, market_data or rugcheck_data. A fixed list. market_data or rugcheck_data (warn) shows up only when Jupiter or RugCheck can't be reached. The checks that need them are then skipped, not guessed.\nchecks[].result (\"pass\" | \"info\" | \"warn\" | \"fail\"): How the check came out. info means notable but expected, like a regulated stablecoin's freeze power. Sell test: fail if the token blocked a real holder's simulated sale, warn if there's no route to sell or it failed for another reason. Liquidity pull: fail when over 20% of the liquidity is unlocked and comes from 1 or 2 providers (warn for verified tokens), warn for 3 to 9 providers, info for established tokens (Jupiter-verified and trading 90+ days). Creator: fail if they have rugged before, warn if an unverified token's creator launched 20+ tokens or still holds over 20%. Insiders: warn over 10% of supply, fail over 30%, counting only networks of up to 500 wallets; unknown (info) when RugCheck's numbers add up to more than the whole supply. Metadata: warn if an unverified token's name and logo can change. Liquidity: fail under $10k, warn under $100k. Top 10 holders: warn over 50%, fail over 80% (established tokens: info up to 80%, warn over; info for known stablecoins and Jupiter-verified liquid staking tokens). Age: warn under 24 hours. Permanent delegate fails, except a known issuer's delegate (xStocks, Backpack Securities, Paxos), which warns and names the issuer. Frozen-by-default and non-transferable fail. Mint and freeze powers warn unless it's a known stablecoin or an established token (Jupiter-verified and trading 90+ days), where they are info and name who holds them.\nchecks[].detail (string): The fact behind the result, in plain words. Built from the data.\nchecks[].source (\"on-chain\" | \"jupiter\" | \"rugcheck\" | \"simulation\"): Where the fact came from. on-chain for token data, jupiter for market and creator data, rugcheck for liquidity locks, insiders and creator history, simulation for the sell test."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An input is missing or invalid; the body says which and how to fix it."
+          },
+          "402": {
+            "description": "Payment required: $0.02 USDC on Solana via x402. The challenge is in the PAYMENT-REQUIRED header and the body."
+          }
+        }
+      }
+    },
+    "/api/tools/wallet": {
+      "post": {
+        "operationId": "wallet",
+        "summary": "Summarize a wallet's holdings and recent activity",
+        "description": "Run when asked what a wallet holds or is worth. One call instead of balance + tokens + history; spam is left out of the total. SOL balance, top tokens with USD values, estimated total, and recent activity in one answer. Price: $0.01 USDC per call on Solana (x402), after 25 free calls a day (from the first call through the pay tool).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "wallet": {
+                    "type": "string",
+                    "description": "The wallet to sum up. The user's wallet address."
+                  },
+                  "network": {
+                    "default": "mainnet-beta",
+                    "description": "Default \"mainnet-beta\" (real money). \"devnet\" only for test wallets.",
+                    "type": "string",
+                    "enum": [
+                      "mainnet-beta",
+                      "devnet"
+                    ]
+                  }
+                },
+                "required": [
+                  "wallet"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The answer, every field explained.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sol": {
+                      "description": "sol (string): SOL balance. The balance tool."
+                    },
+                    "sol_usd": {
+                      "description": "sol_usd (number | null): USD value of the SOL. sol x Jupiter's SOL price, rounded to cents."
+                    },
+                    "tokens_usd": {
+                      "description": "tokens_usd (number): USD value of the verified, priced tokens among the top 10. The tokens tool's total_usd for the top 10 (unverified tokens left out)."
+                    },
+                    "unverified_usd": {
+                      "description": "unverified_usd (number): Claimed USD value of unverified top tokens, kept out of the total because spam often carries a fake price. The tokens tool's unverified_usd for the top 10."
+                    },
+                    "total_usd": {
+                      "description": "total_usd (number): Estimated total worth: SOL plus verified, priced top tokens. sol_usd + tokens_usd. Unverified tokens, unpriced tokens and anything outside the top 10 aren't counted."
+                    },
+                    "partial": {
+                      "description": "partial (boolean): True when the total leaves something out (unpriced or unverified tokens, or more tokens than shown). A top token has no price or isn't verified, or the wallet holds more tokens than returned."
+                    },
+                    "token_count": {
+                      "description": "token_count (number): How many token accounts with a balance the wallet has. The tokens tool's accounts_with_balance."
+                    },
+                    "unverified_count": {
+                      "description": "unverified_count (number): Top tokens that aren't verified (maybe spam or scams). Don't present these as real value. The tokens tool's unverified_count for the top 10."
+                    },
+                    "top_tokens": {
+                      "description": "top_tokens[] (object[]): Up to 10 tokens, highest USD value first, with address, symbol, amount, verified and value. The tokens tool with how_many 10. Fields explained there."
+                    },
+                    "activity": {
+                      "description": "activity.checked / failed (number): Recent transactions looked at, and how many failed. The history tool with how_many 10.\nactivity.last_active (string | null): When the latest transaction happened (UTC). Time of the newest transaction."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An input is missing or invalid; the body says which and how to fix it."
+          },
+          "402": {
+            "description": "Payment required: $0.01 USDC on Solana via x402. The challenge is in the PAYMENT-REQUIRED header and the body."
+          }
+        }
+      }
+    },
+    "/api/tools/balance": {
+      "post": {
+        "operationId": "balance",
+        "summary": "Read a wallet's SOL balance from the chain",
+        "description": "Run before sending SOL or paying fees, to confirm the wallet has enough. Never trust a remembered balance. A wallet's SOL balance, read from the chain. Price: $0.01 USDC per call on Solana (x402), after 25 free calls a day (from the first call through the pay tool).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "wallet": {
+                    "type": "string",
+                    "description": "The wallet to read the SOL balance of. The user's address (from their wallet app) or your agent's public key. Not a .sol name or ticker."
+                  },
+                  "network": {
+                    "default": "mainnet-beta",
+                    "description": "Default \"mainnet-beta\" (real money). \"devnet\" only for test wallets.",
+                    "type": "string",
+                    "enum": [
+                      "mainnet-beta",
+                      "devnet"
+                    ]
+                  }
+                },
+                "required": [
+                  "wallet"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The answer, every field explained.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "wallet": {
+                      "description": "wallet (string): The wallet that was read. Your input, cleaned up."
+                    },
+                    "network": {
+                      "description": "network (string): The network that was read. Your input. Default mainnet-beta."
+                    },
+                    "lamports": {
+                      "description": "lamports (string (integer)): The balance in lamports, SOL's smallest unit (1 SOL = 1,000,000,000 lamports). getBalance. A string so big numbers stay exact."
+                    },
+                    "sol": {
+                      "description": "sol (string (decimal)): The same balance in SOL. lamports / 10^9 with exact integer math."
+                    },
+                    "slot": {
+                      "description": "slot (number): The chain slot it was read at. Higher is newer. Returned with getBalance."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An input is missing or invalid; the body says which and how to fix it."
+          },
+          "402": {
+            "description": "Payment required: $0.01 USDC on Solana via x402. The challenge is in the PAYMENT-REQUIRED header and the body."
+          }
+        }
+      }
+    },
+    "/api/tools/tokens": {
+      "post": {
+        "operationId": "tokens",
+        "summary": "List the tokens a wallet holds, with USD values",
+        "description": "Run to learn which tokens a wallet holds and how much. Ranked by USD value; unverified (often spam airdrop) tokens are flagged so you don't report fake holdings. Lists a wallet's tokens (SPL Token and Token-2022) with exact amounts, whether each is verified, and USD value where priced. Price: $0.01 USDC per call on Solana (x402), after 25 free calls a day (from the first call through the pay tool).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "wallet": {
+                    "type": "string",
+                    "description": "The wallet to read the tokens of. The user's address (from their wallet app) or your agent's public key. Not a .sol name or ticker."
+                  },
+                  "how_many": {
+                    "default": 25,
+                    "description": "How many tokens, highest USD value first, to return. Default 25.",
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "include_empty": {
+                    "default": false,
+                    "description": "Include empty token accounts. True only to find empty accounts, e.g. to close them.",
+                    "type": "boolean"
+                  },
+                  "network": {
+                    "default": "mainnet-beta",
+                    "description": "Default \"mainnet-beta\" (real money). \"devnet\" only for test wallets.",
+                    "type": "string",
+                    "enum": [
+                      "mainnet-beta",
+                      "devnet"
+                    ]
+                  }
+                },
+                "required": [
+                  "wallet"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The answer, every field explained.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "wallet": {
+                      "description": "wallet (string): The wallet that was read. Your input, cleaned up."
+                    },
+                    "accounts_total": {
+                      "description": "accounts_total (number): Every token account the wallet owns, empty ones included. Token accounts across the SPL Token and Token-2022 programs."
+                    },
+                    "accounts_with_balance": {
+                      "description": "accounts_with_balance (number): Token accounts holding more than zero. Accounts with a raw amount above 0."
+                    },
+                    "returned": {
+                      "description": "returned (number): How many tokens are in this answer. Up to how_many, after sorting."
+                    },
+                    "unverified_count": {
+                      "description": "unverified_count (number): Returned tokens Jupiter doesn't mark verified. A big number usually means spam airdrops. Tokens without Jupiter's verified flag, or that Jupiter doesn't know."
+                    },
+                    "total_usd": {
+                      "description": "total_usd (number): USD value of the returned tokens that are verified and priced. Spam often has a price from a tiny pool, so unverified tokens are left out. Sum of tokens[].usd_value for verified tokens. Unpriced tokens add nothing, so this can be low."
+                    },
+                    "unverified_usd": {
+                      "description": "unverified_usd (number): The claimed USD value of the unverified tokens, kept apart. Don't trust it. Sum of tokens[].usd_value for unverified tokens."
+                    },
+                    "tokens": {
+                      "description": "tokens[].address (string): The token's address, its unique identity. Tickers aren't unique; addresses are. From the token account.\ntokens[].symbol / name (string | null): Ticker and name from Jupiter. Copycats can share a ticker, so trust the address, not the symbol. Jupiter token search by address.\ntokens[].verified (boolean): Whether Jupiter lists the token as verified. Jupiter's isVerified flag. false when unknown.\ntokens[].amount (string (decimal)): The balance in normal units. raw_amount / 10^decimals with exact integer math.\ntokens[].raw_amount (string (integer)): The balance in raw units, the number that goes into transfers. From the token account.\ntokens[].decimals (number): How many decimal places the token uses. From the token account.\ntokens[].holding_account (string): The account that holds this balance (not the wallet itself). The token account's address.\ntokens[].token_program (\"spl-token\" | \"token-2022\"): Which token program owns the account. Transfers must use the same one. Which program's lookup found it.\ntokens[].frozen (boolean): True if the issuer froze this account. Frozen tokens can't move. The account state is \"frozen\".\ntokens[].usd_price (number | null): Price of one token in USD. Jupiter usdPrice. null when Jupiter has no price.\ntokens[].usd_value (number | null): USD value of this holding. amount x usd_price, rounded to cents. null without a price."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An input is missing or invalid; the body says which and how to fix it."
+          },
+          "402": {
+            "description": "Payment required: $0.01 USDC on Solana via x402. The challenge is in the PAYMENT-REQUIRED header and the body."
+          }
+        }
+      }
+    },
+    "/api/tools/history": {
+      "post": {
+        "operationId": "history",
+        "summary": "List a wallet's recent transactions",
+        "description": "Run to see a wallet's recent activity or get a real transaction ID. Never make one up. Lists a wallet's latest transactions, newest first, whether each worked, and a plain error name for failures. Price: $0.01 USDC per call on Solana (x402), after 25 free calls a day (from the first call through the pay tool).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "wallet": {
+                    "type": "string",
+                    "description": "The wallet to read the transactions of. The user's address (from their wallet app) or your agent's public key. Not a .sol name or ticker."
+                  },
+                  "how_many": {
+                    "default": 10,
+                    "description": "How many transactions to return. Default 10.",
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50
+                  },
+                  "network": {
+                    "default": "mainnet-beta",
+                    "description": "Default \"mainnet-beta\" (real money). \"devnet\" only for test wallets.",
+                    "type": "string",
+                    "enum": [
+                      "mainnet-beta",
+                      "devnet"
+                    ]
+                  }
+                },
+                "required": [
+                  "wallet"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The answer, every field explained.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "wallet": {
+                      "description": "wallet (string): The wallet that was read. Your input, cleaned up."
+                    },
+                    "count": {
+                      "description": "count (number): How many transactions came back. Length of the list."
+                    },
+                    "failed_count": {
+                      "description": "failed_count (number): How many of them failed (failed transactions still pay fees). Entries with an error."
+                    },
+                    "transactions": {
+                      "description": "transactions[].tx_id (string): The transaction's ID. Pass it to explain_tx. getSignaturesForAddress.\ntransactions[].time (string | null): When it happened (UTC). Block time in ISO 8601. null if the node doesn't know.\ntransactions[].slot (number): The slot it landed in. getSignaturesForAddress.\ntransactions[].result (\"success\" | \"failed\"): Whether it worked. failed when the RPC reports an error.\ntransactions[].error (string | null): The failure's short name, e.g. InsufficientFundsForRent. why_failed run on the raw error. The raw error text when unknown.\ntransactions[].memo (string | null): Memo text attached to the transaction, if any. getSignaturesForAddress."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An input is missing or invalid; the body says which and how to fix it."
+          },
+          "402": {
+            "description": "Payment required: $0.01 USDC on Solana via x402. The challenge is in the PAYMENT-REQUIRED header and the body."
+          }
+        }
+      }
+    },
+    "/api/tools/blockhash": {
+      "post": {
+        "operationId": "blockhash",
+        "summary": "Get a fresh blockhash and how long it lasts",
+        "description": "Run just before building a transaction to sign. Blockhashes expire in about 60-90 seconds; this says how long is left. A fresh blockhash and how many blocks (and about how many seconds) are left before it expires. Price: $0.01 USDC per call on Solana (x402), after 25 free calls a day (from the first call through the pay tool).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "network": {
+                    "default": "mainnet-beta",
+                    "description": "Default \"mainnet-beta\" (real money). \"devnet\" only for test wallets.",
+                    "type": "string",
+                    "enum": [
+                      "mainnet-beta",
+                      "devnet"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The answer, every field explained.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "blockhash": {
+                      "description": "blockhash (string): The blockhash to put in your transaction. getLatestBlockhash."
+                    },
+                    "valid_until_height": {
+                      "description": "valid_until_height (number): Once the chain passes this block height, the transaction is rejected. Returned with the blockhash."
+                    },
+                    "current_height": {
+                      "description": "current_height (number): The chain's block height right now. getBlockHeight."
+                    },
+                    "blocks_left": {
+                      "description": "blocks_left (number): Blocks left before the blockhash expires. valid_until_height minus current_height."
+                    },
+                    "seconds_left": {
+                      "description": "seconds_left (number): Rough time left to sign and send. blocks_left x 0.4 seconds (the target block time). Real times vary, so leave a margin."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An input is missing or invalid; the body says which and how to fix it."
+          },
+          "402": {
+            "description": "Payment required: $0.01 USDC on Solana via x402. The challenge is in the PAYMENT-REQUIRED header and the body."
+          }
+        }
+      }
+    },
+    "/api/tools/token_account": {
+      "post": {
+        "operationId": "token_account",
+        "summary": "Find the token account a transfer must go to",
+        "description": "Run before sending a token. Tokens go to the recipient's token account, not their wallet, and models can't work that address out. Finds the token account (ATA) for a wallet and token with the token's real program, says if it exists, and prices creating it. Price: $0.01 USDC per call on Solana (x402), after 25 free calls a day (from the first call through the pay tool).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "wallet": {
+                    "type": "string",
+                    "description": "The wallet that will own it (usually the recipient). The recipient's wallet address."
+                  },
+                  "token": {
+                    "type": "string",
+                    "description": "The token's address. From find_token or tokens. Not a ticker."
+                  },
+                  "network": {
+                    "default": "mainnet-beta",
+                    "description": "Default \"mainnet-beta\" (real money). \"devnet\" only for test wallets.",
+                    "type": "string",
+                    "enum": [
+                      "mainnet-beta",
+                      "devnet"
+                    ]
+                  }
+                },
+                "required": [
+                  "wallet",
+                  "token"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The answer, every field explained.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "address": {
+                      "description": "address (string): The recipient's token account for this token. Send the tokens here. getAssociatedTokenAddressSync(token, wallet) with the token's own program."
+                    },
+                    "token_program": {
+                      "description": "token_program (\"spl-token\" | \"token-2022\"): The token program the transfer must use. The program that owns the token."
+                    },
+                    "exists": {
+                      "description": "exists (boolean): Whether the account already exists on chain. Looked up on chain."
+                    },
+                    "balance": {
+                      "description": "balance (string | null): What the account holds now, when it exists. Token amount with the token's decimals."
+                    },
+                    "decimals": {
+                      "description": "decimals (number): The token's decimals. From the token."
+                    },
+                    "create_cost_lamports": {
+                      "description": "create_cost_lamports (string | null): The SOL deposit (in lamports) to create the account when it doesn't exist. You get it back if the account is closed later. getMinimumBalanceForRentExemption for the account size, counting the token's Token-2022 extensions."
+                    },
+                    "create_cost_sol": {
+                      "description": "create_cost_sol (string | null): The same deposit in SOL. create_cost_lamports / 10^9."
+                    },
+                    "owner_is_program": {
+                      "description": "owner_is_program (boolean): True when the wallet is a program-derived address, not a normal wallet. Fine for protocols, odd for people. The address is off the ed25519 curve."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An input is missing or invalid; the body says which and how to fix it."
+          },
+          "402": {
+            "description": "Payment required: $0.01 USDC on Solana via x402. The challenge is in the PAYMENT-REQUIRED header and the body."
+          }
+        }
+      }
+    },
+    "/api/tools/whats_this": {
+      "post": {
+        "operationId": "whats_this",
+        "summary": "Check what kind of Solana address this is",
+        "description": "Run when unsure what an address is, before sending to it or passing it on. SOL sent to a token or program address can be lost for good. Says what any address is (wallet, token account, token, program, stake account and more) with its key facts. Price: $0.01 USDC per call on Solana (x402), after 25 free calls a day (from the first call through the pay tool).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "address": {
+                    "type": "string",
+                    "description": "Any Solana address. The address you're about to use."
+                  },
+                  "network": {
+                    "default": "mainnet-beta",
+                    "description": "Default \"mainnet-beta\" (real money). \"devnet\" only for test wallets.",
+                    "type": "string",
+                    "enum": [
+                      "mainnet-beta",
+                      "devnet"
+                    ]
+                  }
+                },
+                "required": [
+                  "address"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The answer, every field explained.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "exists": {
+                      "description": "exists (boolean): Whether anything lives at this address. A wallet that has never received SOL doesn't exist yet. Looked up on chain."
+                    },
+                    "kind": {
+                      "description": "kind (string): wallet, token_account, mint (a token), program, program_data, stake_account, vote_account, lookup_table, program_owned_account or not_found. From the owner program, whether it's a program, and its data."
+                    },
+                    "summary": {
+                      "description": "summary (string): What it is, in plain words, and what's safe to do with it. Fixed text per kind."
+                    },
+                    "lamports": {
+                      "description": "lamports / sol (string): SOL held by the account, in lamports and in SOL. The account's lamports; sol = lamports / 10^9."
+                    },
+                    "owner_program": {
+                      "description": "owner_program (string | null): The program that owns the account. The account owner."
+                    },
+                    "owner_program_name": {
+                      "description": "owner_program_name (string | null): That program's name, when we know it. Our table of program names."
+                    },
+                    "is_program": {
+                      "description": "is_program (boolean): True for program accounts. The account's executable flag."
+                    },
+                    "can_sign": {
+                      "description": "can_sign (boolean): True for addresses that have a private key (normal keypairs). False for program-derived addresses, which can't sign. The address is on the ed25519 curve."
+                    },
+                    "details": {
+                      "description": "details (object): Facts for this kind. Token accounts: token, owner, amount, delegate. Tokens: decimals, supply, who_can_mint, who_can_freeze. From the account data."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An input is missing or invalid; the body says which and how to fix it."
+          },
+          "402": {
+            "description": "Payment required: $0.01 USDC on Solana via x402. The challenge is in the PAYMENT-REQUIRED header and the body."
+          }
+        }
+      }
+    },
+    "/api/tools/convert": {
+      "post": {
+        "operationId": "convert",
+        "summary": "Convert a token amount to or from raw units",
+        "description": "Run before putting any token amount in a transaction. \"5 USDC\" is 5,000,000 raw units; wrong decimals send 1,000x too much or too little. Converts between normal amounts and raw units with the token's real on-chain decimals. Price: $0.01 USDC per call on Solana (x402), after 25 free calls a day (from the first call through the pay tool).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "description": "The token, or \"SOL\" for SOL (9 decimals). From find_token or tokens."
+                  },
+                  "amount": {
+                    "type": "string",
+                    "description": "The amount, as a string: \"5\" or \"0.25\". The user's amount. A string avoids rounding errors."
+                  },
+                  "to": {
+                    "default": "raw",
+                    "description": "Direction. \"raw\" turns 5 into 5000000 (for transactions); \"readable\" turns raw units back. Default \"raw\". \"readable\" for amounts read from chain data.",
+                    "type": "string",
+                    "enum": [
+                      "raw",
+                      "readable",
+                      "to_base_units",
+                      "to_ui"
+                    ]
+                  },
+                  "network": {
+                    "default": "mainnet-beta",
+                    "description": "Default \"mainnet-beta\" (real money). \"devnet\" only for test wallets.",
+                    "type": "string",
+                    "enum": [
+                      "mainnet-beta",
+                      "devnet"
+                    ]
+                  }
+                },
+                "required": [
+                  "token",
+                  "amount"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The answer, every field explained.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "description": "token (string): The token converted (SOL's own address for SOL). Your input. \"SOL\" becomes So11111111111111111111111111111111111111112."
+                    },
+                    "symbol": {
+                      "description": "symbol (string | null): Ticker from Jupiter, for display only. Jupiter token search by address."
+                    },
+                    "decimals": {
+                      "description": "decimals (number): Decimal places the token uses. Read from the token on chain (SOL is always 9)."
+                    },
+                    "decimals_from": {
+                      "description": "decimals_from (string): Where the decimals came from, so you can trust them. \"on-chain token\" or \"SOL (fixed)\"."
+                    },
+                    "raw_amount": {
+                      "description": "raw_amount (string (integer)): The amount in raw units, exactly as it goes into a transfer. amount x 10^decimals with exact integer math. Refuses more decimal places than the token has."
+                    },
+                    "amount": {
+                      "description": "amount (string (decimal)): The normal, readable amount. raw_amount / 10^decimals with exact integer math."
+                    },
+                    "summary": {
+                      "description": "summary (string): One sentence stating the conversion. Built from the values above."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An input is missing or invalid; the body says which and how to fix it."
+          },
+          "402": {
+            "description": "Payment required: $0.01 USDC on Solana via x402. The challenge is in the PAYMENT-REQUIRED header and the body."
+          }
+        }
+      }
+    },
+    "/api/tools/why_failed": {
+      "post": {
+        "operationId": "why_failed",
+        "summary": "Get the cause and fix for a Solana error",
+        "description": "Run whenever a Solana transaction or dry run fails, before retrying. Retrying blind burns fees. Turns a Solana error (hex code, log line or RPC error) into the plain cause and fix. Offline, no chain call. Price: $0.01 USDC per call on Solana (x402), after 25 free calls a day (from the first call through the pay tool).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "error": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
+                    ],
+                    "description": "The error as you got it: \"custom program error: 0x1771\", \"InsufficientFundsForRent\", or the RPC error object. From your send or RPC error, a dry-run result, a wallet message, or history."
+                  },
+                  "program": {
+                    "description": "The failing program. Needed to read custom error codes right. From the log line \"Program <address> failed\", or from explain_tx.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "error"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The answer, every field explained.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "known": {
+                      "description": "known (boolean): Whether we know this error. At least one explanation matched."
+                    },
+                    "failed_step": {
+                      "description": "failed_step (number | null): Which step in the transaction failed (counting from 0). Read from InstructionError [step, ...] or \"instruction N\" in the text."
+                    },
+                    "program": {
+                      "description": "program (string | null): The program the error was read against. Your input, or the program named in the error text."
+                    },
+                    "explanations": {
+                      "description": "explanations[].name (string): The error's official name. Matched against tables for transaction errors, instruction errors, the System and Token programs, Anchor and selected programs.\nexplanations[].scope (string): Which layer raised it: transaction, instruction, system_program, token_program, anchor_framework or program_specific. Which table matched.\nexplanations[].meaning (string): What went wrong, in plain words. Written by hand.\nexplanations[].likely_cause (string): The usual reason it happens. Written by hand.\nexplanations[].fix (string): What to change before retrying, often naming the tool that helps. Written by hand."
+                    },
+                    "next_step": {
+                      "description": "next_step (string): The one thing to do next. The first explanation's fix, or how to find the failing program when the error is unknown."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An input is missing or invalid; the body says which and how to fix it."
+          },
+          "402": {
+            "description": "Payment required: $0.01 USDC on Solana via x402. The challenge is in the PAYMENT-REQUIRED header and the body."
+          }
+        }
+      }
+    }
+  }
+}
