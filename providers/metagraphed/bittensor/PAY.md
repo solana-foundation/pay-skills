@@ -1,8 +1,8 @@
 ---
 name: bittensor
 title: "metagraphed"
-description: "Bittensor subnet registry and chain data: per-subnet profiles, the API surfaces each subnet publishes with probe-derived health and uptime, emissions, yield and validator economics, hotkey and coldkey balances, stake positions, blocks and extrinsics."
-use_case: "Use for Bittensor and TAO questions: which subnet does a given task, how to call a subnet's own API, whether an endpoint is up, comparing emissions, yield or validator economics, and looking up wallet balances, stake positions and registrations."
+description: "Bittensor subnet registry and chain-event data: per-subnet profiles, published API surfaces with probe-derived health and uptime, emissions and validator economics, account activity, current hotkey registrations and stake, and bulk event exports."
+use_case: "Use for Bittensor and TAO questions: find a subnet for a task, call its published API, check endpoint health, compare emissions or validator economics, inspect account activity and hotkey registrations, or export chain events."
 category: data
 service_url: https://api.metagraph.sh
 openapi:
@@ -17,8 +17,8 @@ working right now**.
 Every subnet in the registry carries its published surfaces — REST APIs, docs,
 schemas, dashboards — each with a `source_url` proving the subnet publishes it,
 and each probed on a schedule so health, uptime and latency are measured rather
-than asserted. Alongside that sits the chain itself: blocks, extrinsics,
-balances, stake positions, emissions, yield and validator economics.
+than asserted. Alongside that sit chain-event feeds, account activity,
+current hotkey registrations and stake, emissions, and validator economics.
 
 ## What an agent reaches for
 
@@ -31,8 +31,8 @@ balances, stake positions, emissions, yield and validator economics.
 - `GET /api/v1/subnets/{netuid}/surfaces` and `/endpoints` — what a subnet
   publishes and how to call it, which is the step before integrating with it.
 - `GET /api/v1/subnets/{netuid}/health` — probe-derived, never hand-set.
-- `GET /api/v1/accounts/{ss58}` — balances, stake and registrations for a
-  hotkey or coldkey.
+- `GET /api/v1/accounts/{ss58}` — account activity for a hotkey or coldkey,
+  plus current registrations and stake for a hotkey.
 
 ## Freshness and honesty
 
@@ -46,14 +46,12 @@ this surface is set by hand.
 
 ## Payment
 
-There are two tiers, and the line between them is deliberate.
-
 **Free, and staying free.** The whole registry, discovery, health, schema and
-economics layer, plus `ask` and semantic search. No account, no key, no
-payment header. These are served anonymously — this API's own website calls
-them that way — and presenting a payment on one buys extra rate and quota
-headroom rather than access. A request with no payment header is never
-refused.
+economics layer, plus `ask` and semantic search, are available without an
+account, API key or payment header. Anonymous rate, quota and history-depth
+limits still apply. On `ask`, semantic search and eligible deep-history
+routes, an optional successful payment buys rate and quota headroom; it does
+not make payment a prerequisite for an otherwise available free request.
 
 **Paid.** `GET /api/v1/export/chain-events` answers `402` with an x402 quote
 when no payment is presented. It returns up to 25,000 chain events in one
@@ -63,10 +61,37 @@ is the only route on this API that requires payment, and it exists because a
 single unpaginated pass over the lakehouse is the shape that costs real money
 to serve.
 
-x402 v2, `exact` scheme, settled through the public facilitator. Every quote
-lists a Solana (USDC) leg and a Base leg, so pay with whichever you hold.
-`GET /.well-known/x402` states what is payable, on which networks, and to
-which address.
+The REST payment rail uses x402 v2's `exact` scheme. The prepared mainnet
+configuration delegates verification and settlement to PayAI at
+`https://facilitator.payai.network` and offers native **USDC on Base mainnet**
+(`eip155:8453`). The selected rollout is Base mainnet only. Solana mainnet
+support is prepared but disabled; a future rollout requires the receiving
+wallet's USDC associated token account to be initialized and verified. This
+listing must remain a draft until the API changes are deployed and usable
+Solana mainnet payment is available, as required by this catalog.
+`GET /.well-known/x402` and the request-specific quote are the source of truth
+for deployed payment options; do not sign a payment based on this snapshot.
+
+For an unpaid export request, decode the base64 JSON `PAYMENT-REQUIRED`
+header, select one offer in `accepts`, and use that offer unchanged as the
+payment payload's `accepted` requirements. An x402 v2 client or SDK prepares
+the network-specific authorization and sends the base64 JSON payload in
+`PAYMENT-SIGNATURE`. A settled call carries a base64 JSON `PAYMENT-RESPONSE`
+receipt. Invalid encoding returns `400`; rejected payments return `402`.
+
+A payment is bound to one exact HTTP method, URL and body. `503` with
+`x402_settlement_pending` means the settlement outcome is unresolved: after
+`Retry-After`, retry the identical request with the identical payment payload,
+without creating a replacement payment. `409` with `x402_payment_consumed`
+returns the saved receipt without running the paid operation again;
+`x402_payment_conflict` means the same payment was bound to a different
+request. Neither pending nor consumed responses provide a fresh quote.
+Read the quote before signing; do not infer its amount, asset, recipient,
+timeout or facilitator extras from this snapshot.
+
+This listing covers REST. MCP access uses user-approved OAuth or a
+wallet-provisioned API key, with no x402 payment rail; see the
+[authentication guide](https://api.metagraph.sh/auth.md).
 
 ## Spend-aware usage
 
@@ -77,8 +102,8 @@ which address.
   need a synthesised answer with citations, not when a single field would do.
 - Most artifacts are edge-cached and carry validators. Honouring them costs you
   nothing and costs the service less.
-- Block and extrinsic reads take explicit ranges. Bound them; an unbounded
-  range scans far more than it returns.
+- Narrow chain-event reads by pallet, method or block, and cap the result
+  limit to the rows you need.
 - Page the free `/api/v1/chain-events` when you need tens of rows. Reach for
   the paid export when you need thousands — one priced call beats 250 free
   ones for you and for us.
