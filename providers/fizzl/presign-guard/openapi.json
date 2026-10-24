@@ -1,0 +1,1626 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "presign-guard",
+    "version": "2.3.0",
+    "description": "Pre-sign risk check for AI agents: a green/orange/red verdict with reason codes before signing an EVM transaction, approval or EIP-712 signature, a Solana transaction (every instruction decoded, then simulated), an XRP Ledger transaction or an Algorand transaction or group (simulated). Checks the spender or recipient (including OFAC SDN sanctions), the token itself (honeypot, impersonation, high tax) and, with origin, how old the requesting site's domain is. Plus GET /v1/token: a verdict on any Solana or EVM token before buying, holding or accepting it, and GET /v1/approvals: an audit of a wallet's open token approvals with the ones to revoke.",
+    "x-guidance": "Call POST /v1/check with what you are about to sign, before you sign it. Only proceed on green; on orange ask your user; never sign on red. For a signature, pass the exact eth_signTypedData_v4 payload as typedData. Pass origin (the site asking) to catch newly registered phishing domains. For a Solana transaction, send type solana with the base64 wire transaction as transaction: it is decoded and simulated, and a token account handed to someone else is red. For an XRP Ledger transaction, send type xrpl with the unsigned transaction JSON as tx: a new regular key or signer list, a disabled master key, AccountDelete or fake RLUSD is red. For Algorand, send type algorand with the base64 msgpack transaction as transaction (or a whole group as transactions): a rekey, closing the account or an asset holding to someone else, or fake USDC is red. Use /v1/check/explain when a person needs the reason in plain language (lang en or nl). Before buying or accepting a token, call GET /v1/token?chain=solana&address=<mint> (or chain=base with a 0x address): the same green/orange/red logic plus a grade, a one-line summary and market data. To clean up a wallet, call GET /v1/approvals?chain=base&address=<wallet>: every open token approval with who the spender is, and which ones to revoke."
+  },
+  "servers": [
+    {
+      "url": "https://presign-guard.onrender.com"
+    }
+  ],
+  "paths": {
+    "/v1/check": {
+      "post": {
+        "operationId": "check",
+        "summary": "Check if a transaction, approval or signature is safe to sign",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          },
+          "protocols": [
+            "x402"
+          ],
+          "networks": [
+            "eip155:8453",
+            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+          ],
+          "asset": "USDC"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "approval",
+                      "transaction",
+                      "signature",
+                      "message",
+                      "solana",
+                      "xrpl",
+                      "algorand"
+                    ],
+                    "description": "What the agent is about to sign (message: a plain personal_sign / eth_sign message; solana: a Solana transaction; xrpl: an XRP Ledger transaction; algorand: an Algorand transaction or group)"
+                  },
+                  "transaction": {
+                    "type": "string",
+                    "maxLength": 12000,
+                    "description": "algorand: one base64 msgpack transaction (unsigned or signed); red ALGORAND_REKEY, ALGORAND_CLOSE_ACCOUNT, ALGORAND_ASSET_CLOSE, ALGORAND_FAKE_STABLECOIN; simulated. solana: the base64 wire transaction about to be signed (legacy or v0). Decoded and simulated: red SOLANA_TOKEN_ACCOUNT_TAKEOVER (SetAuthority hands a token account to someone else) and SOLANA_ACCOUNT_ASSIGN (the wallet handed to a program); orange SOLANA_UNLIMITED_DELEGATE, SOLANA_DURABLE_NONCE, SOLANA_CLOSE_TO_OTHER, HIDDEN_APPROVAL, SIMULATION_FAILS. from (optional) names the wallet if it is not the fee payer"
+                  },
+                  "transactions": {
+                    "type": "array",
+                    "maxItems": 16,
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "algorand: an atomic group, each base64 msgpack; send the whole group"
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "personal_sign",
+                      "eth_sign"
+                    ],
+                    "description": "message: how it is signed (default personal_sign); eth_sign is always red"
+                  },
+                  "message": {
+                    "type": "string",
+                    "maxLength": 16384,
+                    "description": "message: the text or 0x-hex about to be signed. A Sign-In with Ethereum message for another site than origin is red (SIGN_IN_DOMAIN_MISMATCH), unreadable bytes are orange"
+                  },
+                  "chainId": {
+                    "type": "integer",
+                    "enum": [
+                      1,
+                      10,
+                      56,
+                      137,
+                      8453,
+                      42161
+                    ],
+                    "description": "EVM chain; required for approval, transaction and signature"
+                  },
+                  "network": {
+                    "type": "string",
+                    "enum": [
+                      "xrpl:0",
+                      "xrpl:1"
+                    ],
+                    "description": "xrpl: the ledger (default xrpl:0, mainnet)"
+                  },
+                  "tx": {
+                    "type": "object",
+                    "description": "xrpl: the unsigned transaction JSON (TransactionType, Account, ...). Red: SetRegularKey/SignerListSet to another key, disabling the master key, AccountDelete, fake RLUSD; orange: partial payments, destinations that refuse or need a tag, issuers that can claw back or freeze, escrows and NFT giveaways"
+                  },
+                  "token": {
+                    "type": "string",
+                    "description": "approval: token contract"
+                  },
+                  "spender": {
+                    "type": "string",
+                    "description": "approval: who gets the allowance"
+                  },
+                  "amount": {
+                    "type": "string",
+                    "description": "approval: amount in base units (0 = revoke)"
+                  },
+                  "to": {
+                    "type": "string",
+                    "description": "transaction: target contract"
+                  },
+                  "data": {
+                    "type": "string",
+                    "description": "transaction: 0x-prefixed calldata"
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "transaction: native value in wei"
+                  },
+                  "from": {
+                    "type": "string",
+                    "description": "transaction, optional: the wallet that would send it. With it the transaction is simulated (eth_simulateV1 on all six chains): the answer gets a simulation field with every asset that leaves or arrives, orange HIDDEN_APPROVAL (an approval the call does not show, e.g. inside a router or batch), SIMULATION_NFT_OUT or SIMULATION_FAILS, and the intent check compares your intent with the real balance changes. algorand: the wallet, if not the first transaction's sender. A recipient that looks like an address this wallet paid before but isn't it is red ADDRESS_POISONING"
+                  },
+                  "typedData": {
+                    "type": [
+                      "object",
+                      "string"
+                    ],
+                    "description": "signature: the eth_signTypedData_v4 payload (Permit, Permit2, EIP-3009 x402 payment, Seaport)"
+                  },
+                  "origin": {
+                    "type": "string",
+                    "description": "optional: the site asking for the signature or transaction (URL or hostname); a domain under 30 days old is orange"
+                  },
+                  "intent": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "optional: what the agent is trying to do, in one sentence (e.g. \"swap 10 USDC for ETH on Uniswap\"); orange INTENT_MISMATCH when signing would do more or something else (TypeSafe Jev)"
+                  },
+                  "x402": {
+                    "type": "object",
+                    "description": "optional, EIP-3009 payments only: the x402 payment requirements the agent is paying, one entry of the 402 challenge's accepts list, as { accepted: { scheme, network, amount, asset, payTo, maxTimeoutSeconds, extra } } or the entry itself. Red X402_AMOUNT_ABOVE_REQUIRED, X402_RECIPIENT_MISMATCH, X402_ASSET_MISMATCH or X402_NETWORK_MISMATCH when the signature does not pay exactly what the seller asked; orange X402_VALIDITY_TOO_LONG when it stays valid far beyond the seller's timeout (a bearer authorization), X402_DOMAIN_MISMATCH, X402_SCHEME_UNEXPECTED"
+                  },
+                  "mandate": {
+                    "type": "object",
+                    "description": "optional, EIP-3009 payments only: the spending mandate the agent pays under (x402 authority extension, x402-mandate/1): { mandate, alg: \"Ed25519\", sig, paymentId }. Outside it (over perPayment or cap, other recipient, payer or token, expired, bad signature, nonce not the mandate binding) is red"
+                  },
+                  "lang": {
+                    "type": "string",
+                    "enum": [
+                      "en",
+                      "nl"
+                    ],
+                    "description": "explain only: language of the explanation (default en)"
+                  }
+                },
+                "required": [
+                  "type"
+                ],
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "type": {
+                          "enum": [
+                            "approval",
+                            "transaction",
+                            "signature"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    "then": {
+                      "required": [
+                        "chainId"
+                      ]
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "type": {
+                          "const": "solana"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    "then": {
+                      "required": [
+                        "transaction"
+                      ]
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "type": {
+                          "const": "algorand"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    "then": {
+                      "anyOf": [
+                        {
+                          "required": [
+                            "transaction"
+                          ]
+                        },
+                        {
+                          "required": [
+                            "transactions"
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "type": {
+                          "const": "xrpl"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    "then": {
+                      "required": [
+                        "tx"
+                      ]
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "type": {
+                          "const": "message"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    "then": {
+                      "required": [
+                        "message"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "example": {
+                "type": "approval",
+                "chainId": 8453,
+                "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                "spender": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+                "amount": "1000000"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verdict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "verdict": {
+                      "type": "string",
+                      "enum": [
+                        "green",
+                        "orange",
+                        "red"
+                      ]
+                    },
+                    "reasons": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "red",
+                              "orange",
+                              "info"
+                            ]
+                          },
+                          "subject": {
+                            "type": "string"
+                          },
+                          "details": {}
+                        },
+                        "required": [
+                          "code",
+                          "severity"
+                        ]
+                      }
+                    },
+                    "subject": {
+                      "type": "object"
+                    },
+                    "explanation": {
+                      "type": "object",
+                      "properties": {
+                        "lang": {
+                          "type": "string"
+                        },
+                        "text": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "simulation": {
+                      "type": "object",
+                      "description": "What the transaction would do, from a simulation: an EVM transaction sent with from, or a Solana transaction. Missing when it could not be simulated",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "description": "false: the transaction would fail (error says why)"
+                        },
+                        "error": {
+                          "type": "string"
+                        },
+                        "changes": {
+                          "type": "array",
+                          "maxItems": 50,
+                          "description": "EVM: transfers and approvals in the order they happen. Solana: the changes of the wallet and its token accounts",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "transfer",
+                                  "approve",
+                                  "sol",
+                                  "token",
+                                  "closed",
+                                  "owner",
+                                  "delegate"
+                                ],
+                                "description": "EVM: transfer, approve. Solana: sol, token, closed (a token account closed), owner (an account handed to another owner or program), delegate"
+                              },
+                              "asset": {
+                                "type": "string",
+                                "enum": [
+                                  "native",
+                                  "erc20",
+                                  "erc721",
+                                  "erc1155",
+                                  "nft_all"
+                                ],
+                                "description": "EVM: what moves or is approved"
+                              },
+                              "token": {
+                                "type": "string",
+                                "description": "EVM: the token contract"
+                              },
+                              "symbol": {
+                                "type": "string",
+                                "description": "EVM: the token symbol, when known"
+                              },
+                              "from": {
+                                "type": "string",
+                                "description": "EVM: sender or owner. Solana owner change: the old owner"
+                              },
+                              "to": {
+                                "type": "string",
+                                "description": "EVM: recipient or spender. Solana owner change: the new owner"
+                              },
+                              "rawAmount": {
+                                "type": "string",
+                                "description": "EVM: the amount in base units"
+                              },
+                              "amount": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "EVM: the amount in token units, when the decimals are known. Solana delegate: the delegated amount"
+                              },
+                              "tokenId": {
+                                "type": "string",
+                                "description": "EVM: the NFT id"
+                              },
+                              "account": {
+                                "type": "string",
+                                "description": "Solana: the account that changes (the wallet or one of its token accounts)"
+                              },
+                              "mint": {
+                                "type": "string",
+                                "description": "Solana: the token mint"
+                              },
+                              "change": {
+                                "type": "number",
+                                "description": "Solana: the change in SOL (sol) or in token units (token); negative when it leaves"
+                              },
+                              "lamports": {
+                                "type": "string",
+                                "description": "Solana sol: the exact change in lamports"
+                              },
+                              "raw": {
+                                "type": "string",
+                                "description": "Solana token: the exact change in base units"
+                              },
+                              "decimals": {
+                                "type": "integer",
+                                "description": "Solana token: the mint's decimals"
+                              },
+                              "delegate": {
+                                "type": "string",
+                                "description": "Solana delegate: who may now spend from the token account"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "partial": {
+                          "type": "boolean",
+                          "description": "Solana: the transaction writes more accounts than were read, so changes may be incomplete"
+                        },
+                        "fee": {
+                          "type": "number",
+                          "description": "Solana: the network fee in SOL"
+                        },
+                        "lookupTableAccounts": {
+                          "type": "integer",
+                          "description": "Solana: accounts loaded from address lookup tables"
+                        },
+                        "gasUsed": {
+                          "type": "string",
+                          "description": "EVM: gas used"
+                        },
+                        "source": {
+                          "type": "string",
+                          "description": "EVM: the RPC that simulated it"
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "changes"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "verdict",
+                    "reasons"
+                  ]
+                },
+                "example": {
+                  "verdict": "orange",
+                  "reasons": [
+                    {
+                      "code": "UNLIMITED_APPROVAL",
+                      "severity": "orange",
+                      "subject": "0x000000000022d473030f116ddee9f6b43ac78ba3",
+                      "details": {
+                        "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request; nothing is charged"
+          },
+          "402": {
+            "description": "Payment Required"
+          },
+          "503": {
+            "description": "A data source is down; nothing is charged, no verdict"
+          }
+        }
+      }
+    },
+    "/v1/check/explain": {
+      "post": {
+        "operationId": "checkAndExplain",
+        "summary": "Get a pre-sign verdict with a plain-language explanation",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.03"
+          },
+          "protocols": [
+            "x402"
+          ],
+          "networks": [
+            "eip155:8453",
+            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+          ],
+          "asset": "USDC"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "approval",
+                      "transaction",
+                      "signature",
+                      "message",
+                      "solana",
+                      "xrpl",
+                      "algorand"
+                    ],
+                    "description": "What the agent is about to sign (message: a plain personal_sign / eth_sign message; solana: a Solana transaction; xrpl: an XRP Ledger transaction; algorand: an Algorand transaction or group)"
+                  },
+                  "transaction": {
+                    "type": "string",
+                    "maxLength": 12000,
+                    "description": "algorand: one base64 msgpack transaction (unsigned or signed); red ALGORAND_REKEY, ALGORAND_CLOSE_ACCOUNT, ALGORAND_ASSET_CLOSE, ALGORAND_FAKE_STABLECOIN; simulated. solana: the base64 wire transaction about to be signed (legacy or v0). Decoded and simulated: red SOLANA_TOKEN_ACCOUNT_TAKEOVER (SetAuthority hands a token account to someone else) and SOLANA_ACCOUNT_ASSIGN (the wallet handed to a program); orange SOLANA_UNLIMITED_DELEGATE, SOLANA_DURABLE_NONCE, SOLANA_CLOSE_TO_OTHER, HIDDEN_APPROVAL, SIMULATION_FAILS. from (optional) names the wallet if it is not the fee payer"
+                  },
+                  "transactions": {
+                    "type": "array",
+                    "maxItems": 16,
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "algorand: an atomic group, each base64 msgpack; send the whole group"
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "personal_sign",
+                      "eth_sign"
+                    ],
+                    "description": "message: how it is signed (default personal_sign); eth_sign is always red"
+                  },
+                  "message": {
+                    "type": "string",
+                    "maxLength": 16384,
+                    "description": "message: the text or 0x-hex about to be signed. A Sign-In with Ethereum message for another site than origin is red (SIGN_IN_DOMAIN_MISMATCH), unreadable bytes are orange"
+                  },
+                  "chainId": {
+                    "type": "integer",
+                    "enum": [
+                      1,
+                      10,
+                      56,
+                      137,
+                      8453,
+                      42161
+                    ],
+                    "description": "EVM chain; required for approval, transaction and signature"
+                  },
+                  "network": {
+                    "type": "string",
+                    "enum": [
+                      "xrpl:0",
+                      "xrpl:1"
+                    ],
+                    "description": "xrpl: the ledger (default xrpl:0, mainnet)"
+                  },
+                  "tx": {
+                    "type": "object",
+                    "description": "xrpl: the unsigned transaction JSON (TransactionType, Account, ...). Red: SetRegularKey/SignerListSet to another key, disabling the master key, AccountDelete, fake RLUSD; orange: partial payments, destinations that refuse or need a tag, issuers that can claw back or freeze, escrows and NFT giveaways"
+                  },
+                  "token": {
+                    "type": "string",
+                    "description": "approval: token contract"
+                  },
+                  "spender": {
+                    "type": "string",
+                    "description": "approval: who gets the allowance"
+                  },
+                  "amount": {
+                    "type": "string",
+                    "description": "approval: amount in base units (0 = revoke)"
+                  },
+                  "to": {
+                    "type": "string",
+                    "description": "transaction: target contract"
+                  },
+                  "data": {
+                    "type": "string",
+                    "description": "transaction: 0x-prefixed calldata"
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "transaction: native value in wei"
+                  },
+                  "from": {
+                    "type": "string",
+                    "description": "transaction, optional: the wallet that would send it. With it the transaction is simulated (eth_simulateV1 on all six chains): the answer gets a simulation field with every asset that leaves or arrives, orange HIDDEN_APPROVAL (an approval the call does not show, e.g. inside a router or batch), SIMULATION_NFT_OUT or SIMULATION_FAILS, and the intent check compares your intent with the real balance changes. algorand: the wallet, if not the first transaction's sender. A recipient that looks like an address this wallet paid before but isn't it is red ADDRESS_POISONING"
+                  },
+                  "typedData": {
+                    "type": [
+                      "object",
+                      "string"
+                    ],
+                    "description": "signature: the eth_signTypedData_v4 payload (Permit, Permit2, EIP-3009 x402 payment, Seaport)"
+                  },
+                  "origin": {
+                    "type": "string",
+                    "description": "optional: the site asking for the signature or transaction (URL or hostname); a domain under 30 days old is orange"
+                  },
+                  "intent": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "optional: what the agent is trying to do, in one sentence (e.g. \"swap 10 USDC for ETH on Uniswap\"); orange INTENT_MISMATCH when signing would do more or something else (TypeSafe Jev)"
+                  },
+                  "x402": {
+                    "type": "object",
+                    "description": "optional, EIP-3009 payments only: the x402 payment requirements the agent is paying, one entry of the 402 challenge's accepts list, as { accepted: { scheme, network, amount, asset, payTo, maxTimeoutSeconds, extra } } or the entry itself. Red X402_AMOUNT_ABOVE_REQUIRED, X402_RECIPIENT_MISMATCH, X402_ASSET_MISMATCH or X402_NETWORK_MISMATCH when the signature does not pay exactly what the seller asked; orange X402_VALIDITY_TOO_LONG when it stays valid far beyond the seller's timeout (a bearer authorization), X402_DOMAIN_MISMATCH, X402_SCHEME_UNEXPECTED"
+                  },
+                  "mandate": {
+                    "type": "object",
+                    "description": "optional, EIP-3009 payments only: the spending mandate the agent pays under (x402 authority extension, x402-mandate/1): { mandate, alg: \"Ed25519\", sig, paymentId }. Outside it (over perPayment or cap, other recipient, payer or token, expired, bad signature, nonce not the mandate binding) is red"
+                  },
+                  "lang": {
+                    "type": "string",
+                    "enum": [
+                      "en",
+                      "nl"
+                    ],
+                    "description": "explain only: language of the explanation (default en)"
+                  }
+                },
+                "required": [
+                  "type"
+                ],
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "type": {
+                          "enum": [
+                            "approval",
+                            "transaction",
+                            "signature"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    "then": {
+                      "required": [
+                        "chainId"
+                      ]
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "type": {
+                          "const": "solana"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    "then": {
+                      "required": [
+                        "transaction"
+                      ]
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "type": {
+                          "const": "algorand"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    "then": {
+                      "anyOf": [
+                        {
+                          "required": [
+                            "transaction"
+                          ]
+                        },
+                        {
+                          "required": [
+                            "transactions"
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "type": {
+                          "const": "xrpl"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    "then": {
+                      "required": [
+                        "tx"
+                      ]
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "type": {
+                          "const": "message"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    "then": {
+                      "required": [
+                        "message"
+                      ]
+                    }
+                  }
+                ]
+              },
+              "example": {
+                "type": "approval",
+                "chainId": 8453,
+                "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                "spender": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+                "amount": "1000000"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verdict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "verdict": {
+                      "type": "string",
+                      "enum": [
+                        "green",
+                        "orange",
+                        "red"
+                      ]
+                    },
+                    "reasons": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "red",
+                              "orange",
+                              "info"
+                            ]
+                          },
+                          "subject": {
+                            "type": "string"
+                          },
+                          "details": {}
+                        },
+                        "required": [
+                          "code",
+                          "severity"
+                        ]
+                      }
+                    },
+                    "subject": {
+                      "type": "object"
+                    },
+                    "explanation": {
+                      "type": "object",
+                      "properties": {
+                        "lang": {
+                          "type": "string"
+                        },
+                        "text": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "simulation": {
+                      "type": "object",
+                      "description": "What the transaction would do, from a simulation: an EVM transaction sent with from, or a Solana transaction. Missing when it could not be simulated",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "description": "false: the transaction would fail (error says why)"
+                        },
+                        "error": {
+                          "type": "string"
+                        },
+                        "changes": {
+                          "type": "array",
+                          "maxItems": 50,
+                          "description": "EVM: transfers and approvals in the order they happen. Solana: the changes of the wallet and its token accounts",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "transfer",
+                                  "approve",
+                                  "sol",
+                                  "token",
+                                  "closed",
+                                  "owner",
+                                  "delegate"
+                                ],
+                                "description": "EVM: transfer, approve. Solana: sol, token, closed (a token account closed), owner (an account handed to another owner or program), delegate"
+                              },
+                              "asset": {
+                                "type": "string",
+                                "enum": [
+                                  "native",
+                                  "erc20",
+                                  "erc721",
+                                  "erc1155",
+                                  "nft_all"
+                                ],
+                                "description": "EVM: what moves or is approved"
+                              },
+                              "token": {
+                                "type": "string",
+                                "description": "EVM: the token contract"
+                              },
+                              "symbol": {
+                                "type": "string",
+                                "description": "EVM: the token symbol, when known"
+                              },
+                              "from": {
+                                "type": "string",
+                                "description": "EVM: sender or owner. Solana owner change: the old owner"
+                              },
+                              "to": {
+                                "type": "string",
+                                "description": "EVM: recipient or spender. Solana owner change: the new owner"
+                              },
+                              "rawAmount": {
+                                "type": "string",
+                                "description": "EVM: the amount in base units"
+                              },
+                              "amount": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "EVM: the amount in token units, when the decimals are known. Solana delegate: the delegated amount"
+                              },
+                              "tokenId": {
+                                "type": "string",
+                                "description": "EVM: the NFT id"
+                              },
+                              "account": {
+                                "type": "string",
+                                "description": "Solana: the account that changes (the wallet or one of its token accounts)"
+                              },
+                              "mint": {
+                                "type": "string",
+                                "description": "Solana: the token mint"
+                              },
+                              "change": {
+                                "type": "number",
+                                "description": "Solana: the change in SOL (sol) or in token units (token); negative when it leaves"
+                              },
+                              "lamports": {
+                                "type": "string",
+                                "description": "Solana sol: the exact change in lamports"
+                              },
+                              "raw": {
+                                "type": "string",
+                                "description": "Solana token: the exact change in base units"
+                              },
+                              "decimals": {
+                                "type": "integer",
+                                "description": "Solana token: the mint's decimals"
+                              },
+                              "delegate": {
+                                "type": "string",
+                                "description": "Solana delegate: who may now spend from the token account"
+                              }
+                            },
+                            "required": [
+                              "type"
+                            ]
+                          }
+                        },
+                        "partial": {
+                          "type": "boolean",
+                          "description": "Solana: the transaction writes more accounts than were read, so changes may be incomplete"
+                        },
+                        "fee": {
+                          "type": "number",
+                          "description": "Solana: the network fee in SOL"
+                        },
+                        "lookupTableAccounts": {
+                          "type": "integer",
+                          "description": "Solana: accounts loaded from address lookup tables"
+                        },
+                        "gasUsed": {
+                          "type": "string",
+                          "description": "EVM: gas used"
+                        },
+                        "source": {
+                          "type": "string",
+                          "description": "EVM: the RPC that simulated it"
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "changes"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "verdict",
+                    "reasons"
+                  ]
+                },
+                "example": {
+                  "verdict": "orange",
+                  "reasons": [
+                    {
+                      "code": "UNLIMITED_APPROVAL",
+                      "severity": "orange",
+                      "subject": "0x000000000022d473030f116ddee9f6b43ac78ba3",
+                      "details": {
+                        "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request; nothing is charged"
+          },
+          "402": {
+            "description": "Payment Required"
+          },
+          "503": {
+            "description": "A data source is down; nothing is charged, no verdict"
+          }
+        }
+      }
+    },
+    "/v1/token": {
+      "get": {
+        "operationId": "tokenVerdict",
+        "summary": "Check if a token is safe to buy, hold or accept (Solana, EVM)",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          },
+          "protocols": [
+            "x402"
+          ],
+          "networks": [
+            "eip155:8453",
+            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+          ],
+          "asset": "USDC"
+        },
+        "parameters": [
+          {
+            "name": "chain",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "solana",
+                "base",
+                "ethereum",
+                "arbitrum",
+                "optimism",
+                "polygon",
+                "bsc",
+                "xrpl",
+                "algorand"
+              ],
+              "description": "Chain the token lives on"
+            },
+            "example": "solana"
+          },
+          {
+            "name": "address",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Solana mint address (base58), EVM token contract (0x...), an XRPL token as CURRENCY.rIssuer (e.g. RLUSD.rMxCKbEDwqr76QuheSUMdEGf4B9xJ8m5De), or an Algorand asset id (e.g. 31566704)"
+            },
+            "example": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verdict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "verdict": {
+                      "type": "string",
+                      "enum": [
+                        "green",
+                        "orange",
+                        "red"
+                      ]
+                    },
+                    "grade": {
+                      "type": "string",
+                      "enum": [
+                        "SAFE",
+                        "CAUTION",
+                        "RISKY",
+                        "AVOID"
+                      ]
+                    },
+                    "one_liner": {
+                      "type": "string"
+                    },
+                    "reasons": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "red",
+                              "orange",
+                              "info"
+                            ]
+                          },
+                          "details": {}
+                        },
+                        "required": [
+                          "code",
+                          "severity"
+                        ]
+                      }
+                    },
+                    "token": {
+                      "type": "object"
+                    },
+                    "market": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "description": "DexScreener data: priceUsd, liquidityUsd, marketCapUsd, volume24hUsd, firstPairAt, ageSeconds, url"
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "checkedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "verdict",
+                    "grade",
+                    "one_liner",
+                    "reasons"
+                  ]
+                },
+                "example": {
+                  "verdict": "green",
+                  "grade": "SAFE",
+                  "one_liner": "SAFE: no red flags, $422k liquidity, 3.1 years old",
+                  "reasons": [
+                    {
+                      "code": "MUTABLE_METADATA",
+                      "severity": "info"
+                    }
+                  ],
+                  "token": {
+                    "chain": "solana",
+                    "address": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+                    "name": "Bonk",
+                    "symbol": "Bonk"
+                  },
+                  "market": {
+                    "priceUsd": 1.23e-05,
+                    "liquidityUsd": 422000,
+                    "marketCapUsd": 1000000000,
+                    "volume24hUsd": 350000,
+                    "ageSeconds": 98000000,
+                    "url": "https://dexscreener.com/solana/..."
+                  },
+                  "sources": [
+                    "goplus",
+                    "dexscreener",
+                    "rugcheck"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request; nothing is charged"
+          },
+          "402": {
+            "description": "Payment Required"
+          },
+          "503": {
+            "description": "A data source is down; nothing is charged, no verdict"
+          }
+        }
+      }
+    },
+    "/v1/approvals": {
+      "get": {
+        "operationId": "walletApprovals",
+        "summary": "Find which open token approvals on a wallet to revoke",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.02"
+          },
+          "protocols": [
+            "x402"
+          ],
+          "networks": [
+            "eip155:8453",
+            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+          ],
+          "asset": "USDC"
+        },
+        "parameters": [
+          {
+            "name": "chain",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "base",
+                "ethereum",
+                "arbitrum",
+                "optimism",
+                "polygon",
+                "bsc"
+              ],
+              "description": "EVM chain to audit"
+            },
+            "example": "ethereum"
+          },
+          {
+            "name": "address",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Wallet address (0x...)"
+            },
+            "example": "0x28c6c06298d514db089934071355e5743bf21d60"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "verdict": {
+                      "type": "string",
+                      "enum": [
+                        "green",
+                        "orange",
+                        "red"
+                      ]
+                    },
+                    "grade": {
+                      "type": "string",
+                      "enum": [
+                        "SAFE",
+                        "CAUTION",
+                        "RISKY",
+                        "AVOID"
+                      ]
+                    },
+                    "one_liner": {
+                      "type": "string"
+                    },
+                    "reasons": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "red",
+                              "orange",
+                              "info"
+                            ]
+                          },
+                          "details": {}
+                        },
+                        "required": [
+                          "code",
+                          "severity"
+                        ]
+                      }
+                    },
+                    "summary": {
+                      "type": "object",
+                      "description": "approvals, tokens, unlimited, toRevoke"
+                    },
+                    "approvals": {
+                      "type": "array",
+                      "description": "Per allowance: token, spender (address, name, trusted, contract), amount, approvedAt, severity, codes, revoke",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "revokeUrl": {
+                      "type": "string"
+                    },
+                    "checkedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "verdict",
+                    "grade",
+                    "one_liner",
+                    "reasons",
+                    "approvals"
+                  ]
+                },
+                "example": {
+                  "verdict": "orange",
+                  "grade": "CAUTION",
+                  "one_liner": "CAUTION: 3 approvals, 1 unlimited; revoke 1",
+                  "reasons": [
+                    {
+                      "code": "UNLIMITED_APPROVAL",
+                      "severity": "orange",
+                      "details": {
+                        "count": 1,
+                        "spenders": [
+                          "0x1111111254eeb25477b68fb85ed929f73a960582"
+                        ]
+                      }
+                    },
+                    {
+                      "code": "STALE_APPROVAL",
+                      "severity": "info",
+                      "details": {
+                        "count": 2,
+                        "spenders": [
+                          "0x000000000022d473030f116ddee9f6b43ac78ba3"
+                        ]
+                      }
+                    }
+                  ],
+                  "summary": {
+                    "approvals": 3,
+                    "tokens": 2,
+                    "unlimited": 1,
+                    "toRevoke": 1
+                  },
+                  "approvals": [
+                    {
+                      "token": {
+                        "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+                        "symbol": "USDC",
+                        "name": "USD Coin"
+                      },
+                      "spender": {
+                        "address": "0x1111111254eeb25477b68fb85ed929f73a960582",
+                        "name": "AggregationRouterV5",
+                        "trusted": false,
+                        "contract": true
+                      },
+                      "amount": "unlimited",
+                      "unlimited": true,
+                      "approvedAt": "2025-03-01T10:00:00.000Z",
+                      "severity": "orange",
+                      "codes": [
+                        {
+                          "code": "UNLIMITED_APPROVAL",
+                          "severity": "orange"
+                        }
+                      ],
+                      "revoke": true
+                    }
+                  ],
+                  "revokeUrl": "https://revoke.cash/address/0x...?chainId=8453"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request; nothing is charged"
+          },
+          "402": {
+            "description": "Payment Required"
+          },
+          "503": {
+            "description": "GoPlus is down; nothing is charged, no verdict"
+          }
+        }
+      }
+    },
+    "/v1/screen": {
+      "get": {
+        "operationId": "screenWallet",
+        "summary": "Check if a wallet address is on the OFAC sanctions list",
+        "tags": [
+          "Wallet screening"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          },
+          "protocols": [
+            "x402"
+          ],
+          "networks": [
+            "eip155:8453",
+            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+          ],
+          "asset": "USDC"
+        },
+        "parameters": [
+          {
+            "name": "address",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 20,
+              "maxLength": 120,
+              "description": "The wallet address to screen, any chain: EVM (0x...), Solana, Tron, Bitcoin, XRP Ledger, Algorand, or another currency OFAC lists. The format tells the chain."
+            },
+            "example": "TNiq9AXBp9EjUqhDhrwrfvAA8U3GUQZH81"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Screen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "verdict": {
+                      "type": "string",
+                      "enum": [
+                        "green",
+                        "orange",
+                        "red"
+                      ]
+                    },
+                    "grade": {
+                      "type": "string",
+                      "enum": [
+                        "SAFE",
+                        "CAUTION",
+                        "RISKY",
+                        "AVOID"
+                      ]
+                    },
+                    "one_liner": {
+                      "type": "string"
+                    },
+                    "reasons": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "red",
+                              "orange",
+                              "info"
+                            ]
+                          },
+                          "details": {}
+                        },
+                        "required": [
+                          "code",
+                          "severity"
+                        ]
+                      }
+                    },
+                    "address": {
+                      "type": "object",
+                      "description": "address, format (evm, solana, tron, bitcoin, xrpl, algorand, other)"
+                    },
+                    "sanctions": {
+                      "type": "object",
+                      "description": "The OFAC SDN screen of the address: presign-guard's own copy of the list, or PG1 for an EVM address while that copy is loading (source pg1)",
+                      "required": [
+                        "list",
+                        "listed",
+                        "matches",
+                        "published",
+                        "source"
+                      ],
+                      "properties": {
+                        "list": {
+                          "type": "string",
+                          "description": "The list screened against",
+                          "example": "OFAC SDN"
+                        },
+                        "listed": {
+                          "type": "boolean",
+                          "description": "True when the address is on the list"
+                        },
+                        "matches": {
+                          "type": "array",
+                          "description": "The SDN entries that name this address (empty when not listed)",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "uid",
+                              "name",
+                              "programs"
+                            ],
+                            "properties": {
+                              "uid": {
+                                "type": "integer",
+                                "description": "The SDN entry's uid"
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "The listed person or entity"
+                              },
+                              "type": {
+                                "type": "string",
+                                "description": "Individual, Entity, Vessel or Aircraft (not with source pg1)"
+                              },
+                              "programs": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "description": "The sanctions programs, e.g. IRAN, SDGT"
+                              },
+                              "currency": {
+                                "type": "string",
+                                "description": "The digital currency the address is listed under, e.g. ETH, TRX, XBT (not with source pg1)"
+                              }
+                            }
+                          }
+                        },
+                        "published": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "date",
+                          "description": "The publication date of the list used (null when the source doesn't say)"
+                        },
+                        "source": {
+                          "type": "string",
+                          "enum": [
+                            "ofac-sdn",
+                            "pg1"
+                          ],
+                          "description": "ofac-sdn: presign-guard's own copy of the list; pg1: the PG1 fallback for EVM addresses"
+                        }
+                      }
+                    },
+                    "sources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "checkedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "verdict",
+                    "grade",
+                    "one_liner",
+                    "reasons",
+                    "sanctions"
+                  ]
+                },
+                "example": {
+                  "verdict": "red",
+                  "grade": "AVOID",
+                  "one_liner": "AVOID: on the OFAC SDN list (BANK MARKAZI JOMHOURI ISLAMI IRAN)",
+                  "reasons": [
+                    {
+                      "code": "SANCTIONED_ADDRESS",
+                      "severity": "red",
+                      "details": {
+                        "list": "OFAC SDN",
+                        "matches": [
+                          {
+                            "uid": 4632,
+                            "name": "BANK MARKAZI JOMHOURI ISLAMI IRAN",
+                            "type": "Entity",
+                            "programs": [
+                              "IRAN",
+                              "IFSR",
+                              "IRGC",
+                              "SDGT"
+                            ],
+                            "currency": "TRX"
+                          }
+                        ],
+                        "published": "2026-10-09"
+                      }
+                    }
+                  ],
+                  "address": {
+                    "address": "TNiq9AXBp9EjUqhDhrwrfvAA8U3GUQZH81",
+                    "format": "tron"
+                  },
+                  "sanctions": {
+                    "list": "OFAC SDN",
+                    "listed": true,
+                    "matches": [
+                      {
+                        "uid": 4632,
+                        "name": "BANK MARKAZI JOMHOURI ISLAMI IRAN",
+                        "type": "Entity",
+                        "programs": [
+                          "IRAN",
+                          "IFSR",
+                          "IRGC",
+                          "SDGT"
+                        ],
+                        "currency": "TRX"
+                      }
+                    ],
+                    "published": "2026-10-09",
+                    "source": "ofac-sdn"
+                  },
+                  "sources": [
+                    "ofac-sdn"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request; nothing is charged"
+          },
+          "402": {
+            "description": "Payment Required"
+          },
+          "503": {
+            "description": "The sanctions list is not available; nothing is charged, no verdict"
+          }
+        }
+      }
+    }
+  }
+}
