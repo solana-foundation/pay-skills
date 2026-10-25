@@ -41,5 +41,4 @@ https://www.vidguy.ai/api/mcp. Pricing for agents: https://www.vidguy.ai/pricing
 - Ask for the smallest size that covers a job: `GET /api/v1/credits/topup?required=N`
   returns `suggestedCredits`. `GET /api/v1/snacks/estimate` prices a snack pack first.
 - Start with the 10-credit top-up ($1) to try the API.
-- Each account has a $500 per 24 hours settlement cap; the top-up returns 429 past it.
 - A 402 from a job route means the balance is short. Its `topup` field names the size and URL to pay.
