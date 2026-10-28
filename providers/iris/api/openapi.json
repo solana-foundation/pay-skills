@@ -1,0 +1,424 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Iris API",
+    "version": "1.0.0",
+    "description": "On-chain investigations for agents: who is behind a wallet, where its money came from and went, transfers traced through mixers, exchanges and instant-swap services, and a Solana token's insiders. Covers Solana, Ethereum, Base, Arbitrum, Robinhood Chain, BNB Chain, Bitcoin, Tron, dYdX and Noble. Paid per call with x402 v2 (scheme exact, USDC on Solana mainnet), or with an Iris API key (Authorization: Bearer iris_live_...). A call that fails is never settled.",
+    "contact": {
+      "name": "Iris",
+      "url": "https://iriscan.app",
+      "email": "bleed@iriscan.app"
+    },
+    "termsOfService": "https://iriscan.app/terms"
+  },
+  "externalDocs": {
+    "description": "Iris API documentation",
+    "url": "https://iriscan.app/docs/api"
+  },
+  "servers": [
+    {
+      "url": "https://iriscan.app/api"
+    }
+  ],
+  "paths": {
+    "/analyze": {
+      "post": {
+        "operationId": "analyze",
+        "summary": "Analyze a wallet, token or program",
+        "description": "Reads an address's latest transactions and returns what it is (exchange, bot, drainer, token creator...), its risk level and score, behaviours with example transactions, who funded it, its counterparties, money in and out, and the exchanges and mixers it used. For a Solana token mint: its creator, launch bundle, red flags and top holders. $0.05, or $0.10 when depth is above 1,000.",
+        "x-payment-info": {
+          "price": {
+            "mode": "dynamic",
+            "currency": "USD",
+            "min": "0.05",
+            "max": "0.10"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "address"
+                ],
+                "properties": {
+                  "address": {
+                    "type": "string",
+                    "description": "A base58 Solana address, a 0x EVM address, a Bitcoin address (bc1, 1 or 3), a Tron address (T), a dydx1 or a noble1 address."
+                  },
+                  "depth": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10000,
+                    "default": 1000,
+                    "description": "Recent transactions to read. Above 1,000 is a deep analysis ($0.10)."
+                  },
+                  "chain": {
+                    "type": "string",
+                    "enum": [
+                      "solana",
+                      "ethereum",
+                      "base",
+                      "arbitrum",
+                      "robinhood",
+                      "bsc",
+                      "bitcoin",
+                      "tron",
+                      "dydx",
+                      "noble"
+                    ],
+                    "description": "Only needed for a 0x address on another EVM chain than Ethereum; otherwise read from the address."
+                  }
+                }
+              },
+              "example": {
+                "address": "sy88tvipKfaCTuVVeU2PczPa88hqgPfKnYQyCHboHP8"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The analysis.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "address": {
+                      "type": "string"
+                    },
+                    "chain": {
+                      "type": "string"
+                    },
+                    "native_symbol": {
+                      "type": "string"
+                    },
+                    "identity": {
+                      "type": "object",
+                      "description": "type (MEV_ARBITRAGE, EXCHANGE, DRAINER... or UNKNOWN) and confidence 0 to 1."
+                    },
+                    "risk": {
+                      "type": "object",
+                      "description": "level (LOW, MEDIUM, HIGH), score 0 to 100 and confidence 0 to 1."
+                    },
+                    "summary": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "behaviors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      },
+                      "description": "Each behaviour with a description, a confidence and example transaction signatures."
+                    },
+                    "flagged_counterparties": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "connections": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      },
+                      "description": "Counterparties with amounts each way and their transfers (the input for /trace)."
+                    },
+                    "flows": {
+                      "type": "object",
+                      "description": "Money in and out."
+                    },
+                    "balance": {
+                      "type": "object"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "analyzed_at, depth, data_completeness, scope and warning."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          }
+        }
+      }
+    },
+    "/trace": {
+      "post": {
+        "operationId": "trace",
+        "summary": "Trace a transfer through a mixer, exchange or swap service",
+        "description": "Follows one deposit or withdrawal through a privacy pool (Privacy Cash, Cloak, Umbra, Tornado Cash, Railgun, Privacy Pools...), a Bitcoin CoinJoin, an exchange or an instant-swap service (SideShift, FixedFloat, ChangeNOW...) and ranks the wallets on the other side by timing and amount, with a confidence. Results are leads, not proof. The fields come from the connections[].transfers of an /analyze response. $0.25.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.25"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "wallet",
+                  "counterparty",
+                  "signature",
+                  "direction",
+                  "time",
+                  "sol",
+                  "usd"
+                ],
+                "properties": {
+                  "wallet": {
+                    "type": "string",
+                    "description": "The wallet whose transfer is traced."
+                  },
+                  "counterparty": {
+                    "type": "string",
+                    "description": "The mixer pool, exchange wallet or swap service on the other side."
+                  },
+                  "signature": {
+                    "type": "string",
+                    "description": "The transfer's transaction signature, hash or Bitcoin txid."
+                  },
+                  "direction": {
+                    "type": "string",
+                    "enum": [
+                      "in",
+                      "out"
+                    ],
+                    "description": "out: the wallet deposited (traced forward). in: it withdrew (traced back)."
+                  },
+                  "time": {
+                    "type": "integer",
+                    "description": "Unix seconds."
+                  },
+                  "sol": {
+                    "type": "number",
+                    "description": "Native coin moved (SOL; ETH, BNB, BTC or TRX off Solana), 0 if none."
+                  },
+                  "usd": {
+                    "type": "number",
+                    "description": "Stablecoins moved, in dollars, 0 if none."
+                  },
+                  "window": {
+                    "type": "integer",
+                    "description": "Seconds to search. Default 24 h for a mixer, 1 h for an exchange."
+                  },
+                  "chain": {
+                    "type": "string",
+                    "enum": [
+                      "solana",
+                      "ethereum",
+                      "base",
+                      "arbitrum",
+                      "robinhood",
+                      "bsc",
+                      "bitcoin",
+                      "tron"
+                    ],
+                    "default": "solana"
+                  }
+                }
+              },
+              "example": {
+                "wallet": "21DnhyxUW2vJghLXXnXwEkmyHrV9vkAmGXvGqoTytzqF",
+                "counterparty": "4AV2Qzp3N4c9RfzyEbNZs2wqWfW4EwKnnxFAZCndvfGh",
+                "signature": "5h6xBEauJ3PK6SWCZ1PGjBvj8vDdWHkKmp8Kqx3Lk3Lr7mF4y7gkLrJ3tCq8YjPq4pC3P4j3tC9cXQK3rZ4F5z2x",
+                "direction": "out",
+                "time": 1760000000,
+                "sol": 254.0226,
+                "usd": 0
+              }
+            }
+          },
+          "description": "The example's signature and time are illustrative: take real values from an /analyze response."
+        },
+        "responses": {
+          "200": {
+            "description": "Ranked candidates on the other side.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "anchor": {
+                      "type": "object",
+                      "description": "The transfer traced: signature, amount, asset and time."
+                    },
+                    "candidates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      },
+                      "description": "Likely wallets on the other side, each with its transaction, amount, time gap and confidence."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          }
+        }
+      }
+    },
+    "/insiders": {
+      "post": {
+        "operationId": "insiders",
+        "summary": "Find a token's insiders",
+        "description": "Takes a token's creator, its earliest buyers, the wallets handed tokens at launch and its largest holders, walks back each wallet's funding and returns the wallets linked to the creator by money, each with the payments that link them. Solana tokens, or Robinhood Chain and BNB Chain ones with chain. $0.10.",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.10"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "mint"
+                ],
+                "properties": {
+                  "mint": {
+                    "type": "string",
+                    "description": "The token's mint (or contract) address."
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "default": 50,
+                    "description": "Wallets to check besides the creator."
+                  },
+                  "depth": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 3,
+                    "default": 2,
+                    "description": "Funding hops to walk back from each wallet."
+                  },
+                  "chain": {
+                    "type": "string",
+                    "enum": [
+                      "solana",
+                      "robinhood",
+                      "bsc"
+                    ],
+                    "default": "solana"
+                  }
+                }
+              },
+              "example": {
+                "mint": "DezXAZ8z7PnrnRJjz3wXoRgKiCwnHkx3ga4xpH2kYa2W"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The creator and the wallets linked to it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Optional Iris API key (iris_live_...). Without one, paid routes answer 402 and are paid per call with x402."
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "The request is invalid (for example a malformed address). Never charged.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "code": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "PaymentRequired": {
+        "description": "x402 v2 payment required. The PAYMENT-REQUIRED header (base64 JSON) lists the price in USDC on Solana mainnet; sign it and send the same request again with a PAYMENT-SIGNATURE header. The settlement comes back in PAYMENT-RESPONSE.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object"
+            }
+          }
+        },
+        "headers": {
+          "PAYMENT-REQUIRED": {
+            "description": "Base64 JSON x402 v2 payment requirements: scheme exact, network solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp, USDC, atomic amount and payTo.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}
