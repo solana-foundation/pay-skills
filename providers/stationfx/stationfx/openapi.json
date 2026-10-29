@@ -1,0 +1,1231 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "Station f(x) API",
+        "description": "Function marketplace for AI agents. Browse /discover to search the catalog. Pay per call via x402 (USDC on Base or Solana). See /.well-known/stationfx.json for the full agent workflow.",
+        "version": "1.0.0",
+        "contact": {
+            "email": "jason.ausborn@gmail.com"
+        },
+        "x-protocols": [
+            {
+                "x402": {}
+            }
+        ],
+        "x-payment": {
+            "network": "eip155:8453",
+            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+            "payTo": "0x22f7e9518dff04a5db1fddaabc0e001b8c425b3a",
+            "discovery": "https://stationfx.com/discovery/resources",
+            "networks": [
+                {
+                    "network": "eip155:8453",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "payTo": "0x22f7e9518dff04a5db1fddaabc0e001b8c425b3a"
+                },
+                {
+                    "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                    "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                    "payTo": "3snkxosXCo6x5AEBRvnRG6wzJsvBaPpNd68Q2jJ4CVzW"
+                }
+            ]
+        },
+        "x-guidance": "Use Station f(x) when your task requires economic time-series data, macro indicators, or computed financial signals (yield curve, real rates, credit stress, labor market, financial conditions). Use Deep Tech Scout (/tech-scout/syntheses/*) when your task requires AI/deep-tech product concepts, opportunity scoring, or structured research intelligence synthesized from arXiv, HuggingFace, and lab blogs -- top 20 for $0.01 USDC, full run of up to 1,000 concepts for $0.05 USDC. Orient with /catalog-index.json, search free at /discover/search?q=<topic>, then pay per call in USDC on Base or Solana. Bearer tokens available at /token/purchase for multi-call sessions. Agent state slots available at /slot/buy/1 for swarm coordination."
+    },
+    "paths": {
+        "/token/purchase": {
+            "post": {
+                "tags": [
+                    "tokens"
+                ],
+                "summary": "Purchase a 24-hour bearer token for 50 calls",
+                "description": "Purchase a 24-hour bearer token for $0.25 (50 calls included).\n\nGate this endpoint behind x402 like any other paid endpoint.\nOn successful payment, issues a signed JWT valid for 24 hours\nand 50 calls against any catalog listing.\n\nAgents should send the token as:\n    Authorization: Bearer <token>\n\nThe token is accepted in place of per-call x402 payment on\nall /economic-data/{category}/{slug} endpoints for its lifetime.",
+                "operationId": "purchase_token_token_purchase_post",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "amount": "0.250000",
+                    "currency": "USD",
+                    "network": "eip155:8453",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "scheme": "exact",
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ],
+                    "description": "One-time purchase of a 50-call bearer token, valid 24 hours.",
+                    "networks": [
+                        {
+                            "network": "eip155:8453",
+                            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                            "payTo": "0x22f7e9518dff04a5db1fddaabc0e001b8c425b3a"
+                        },
+                        {
+                            "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                            "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                            "payTo": "3snkxosXCo6x5AEBRvnRG6wzJsvBaPpNd68Q2jJ4CVzW"
+                        }
+                    ]
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "tags": [
+                    "Discovery"
+                ],
+                "summary": "Check the API health status",
+                "operationId": "health_health_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/discover/categories": {
+            "get": {
+                "tags": [
+                    "Discovery"
+                ],
+                "summary": "List catalog categories with listing counts",
+                "description": "Tier-1 discovery: category taxonomy with listing counts.\nAgents load this to orient before searching. Lightweight regardless of catalog size.\nCounts all listing types (series, signal, function) per category.",
+                "operationId": "list_categories_discover_categories_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/discover/search": {
+            "get": {
+                "tags": [
+                    "Discovery"
+                ],
+                "summary": "Search the catalog of data listings by text",
+                "description": "Search published listings by text. Optionally scoped to a category.\nCovers series, signal, and function listing types.\nFalls back to PostgreSQL full-text search (pgvector upgrade path available).\nFree, no payment required.",
+                "operationId": "search_catalog_discover_search_get",
+                "parameters": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string",
+                                    "minLength": 2
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Search query",
+                            "title": "Q"
+                        },
+                        "description": "Search query"
+                    },
+                    {
+                        "name": "category",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Category slug to scope search",
+                            "title": "Category"
+                        },
+                        "description": "Category slug to scope search"
+                    },
+                    {
+                        "name": "type",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "listing type: series | signal | function",
+                            "title": "Type"
+                        },
+                        "description": "listing type: series | signal | function"
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 100,
+                            "minimum": 1,
+                            "default": 20,
+                            "title": "Limit"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/discover": {
+            "get": {
+                "tags": [
+                    "Discovery"
+                ],
+                "summary": "Browse the paginated catalog of listings",
+                "description": "Paginated catalog browse. Returns full listing metadata including sample data.",
+                "operationId": "list_catalog_discover_get",
+                "parameters": [
+                    {
+                        "name": "category",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Category slug",
+                            "title": "Category"
+                        },
+                        "description": "Category slug"
+                    },
+                    {
+                        "name": "frequency",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Frequency short code: D, W, M, Q, A",
+                            "title": "Frequency"
+                        },
+                        "description": "Frequency short code: D, W, M, Q, A"
+                    },
+                    {
+                        "name": "type",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Listing type: series | signal | function",
+                            "title": "Type"
+                        },
+                        "description": "Listing type: series | signal | function"
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 200,
+                            "minimum": 1,
+                            "default": 50,
+                            "title": "Limit"
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 0,
+                            "title": "Offset"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/discover/signals": {
+            "get": {
+                "tags": [
+                    "Discovery"
+                ],
+                "summary": "List all published cross-series signals",
+                "description": "Browse all published cross-series signal listings.",
+                "operationId": "list_signals_discover_signals_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/discover/{listing_id}": {
+            "get": {
+                "tags": [
+                    "Discovery"
+                ],
+                "summary": "Fetch full detail for one catalog listing",
+                "description": "Full detail for a single published listing.\nAgents call this before purchasing to confirm the schema and output shape.\nlisting_id must be a UUID.",
+                "operationId": "get_listing_discover__listing_id__get",
+                "parameters": [
+                    {
+                        "name": "listing_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Listing Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/discovery/resources": {
+            "get": {
+                "tags": [
+                    "Discovery"
+                ],
+                "summary": "List resources in x402 Bazaar discovery format",
+                "description": "Bazaar-compatible discovery endpoint (x402 /discovery/resources wire format).\nAll published listings. Free, no payment required.",
+                "operationId": "discovery_resources_discovery_resources_get",
+                "parameters": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Full-text search query",
+                            "title": "Q"
+                        },
+                        "description": "Full-text search query"
+                    },
+                    {
+                        "name": "type",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Resource type filter: http",
+                            "title": "Type"
+                        },
+                        "description": "Resource type filter: http"
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 200,
+                            "minimum": 1,
+                            "default": 50,
+                            "title": "Limit"
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 0,
+                            "title": "Offset"
+                        }
+                    },
+                    {
+                        "name": "payTo",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Payto"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/economic-data/{category}/{slug}": {
+            "get": {
+                "tags": [
+                    "Query"
+                ],
+                "summary": "Fetch economic series or signal data for a listing",
+                "description": "Retrieve data for a published listing.\nRequires x402 payment via PAYMENT-SIGNATURE header (USDC on Base or Solana).\n\nPath: /economic-data/{category}/{slug}\n  category -- category slug (e.g. inflation, interest-rates, cross-signal)\n  slug     -- listing slug derived from the listing title\n\nWorks for series, signal, and function listing types.\nCall /discover/search or /catalog-index.json to find valid paths.",
+                "operationId": "query_listing_economic_data__category___slug__get",
+                "parameters": [
+                    {
+                        "name": "category",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Category"
+                        },
+                        "example": "cross-signal"
+                    },
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Slug"
+                        },
+                        "example": "real-federal-funds-rate"
+                    },
+                    {
+                        "name": "date_from",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string",
+                                    "format": "date"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Start date YYYY-MM-DD",
+                            "title": "Date From"
+                        },
+                        "description": "Start date YYYY-MM-DD"
+                    },
+                    {
+                        "name": "date_to",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string",
+                                    "format": "date"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "End date YYYY-MM-DD",
+                            "title": "Date To"
+                        },
+                        "description": "End date YYYY-MM-DD"
+                    },
+                    {
+                        "name": "fields",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Comma-separated metric names",
+                            "title": "Fields"
+                        },
+                        "description": "Comma-separated metric names"
+                    },
+                    {
+                        "name": "fmt",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "description": "Response format: json | toon",
+                            "default": "json",
+                            "title": "Fmt"
+                        },
+                        "description": "Response format: json | toon"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment required. x402 v2 challenge in PAYMENT-REQUIRED header.",
+                        "headers": {
+                            "PAYMENT-REQUIRED": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Base64-encoded x402 v2 PaymentRequired object."
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "amount": "0.005000",
+                    "currency": "USD",
+                    "network": "eip155:8453",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "scheme": "exact",
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ],
+                    "description": "Payment required per call. Amount varies by listing type: $0.005 for series data, $0.008 for computed signals. See /discovery/resources for per-listing pricing.",
+                    "networks": [
+                        {
+                            "network": "eip155:8453",
+                            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                            "payTo": "0x22f7e9518dff04a5db1fddaabc0e001b8c425b3a"
+                        },
+                        {
+                            "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                            "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                            "payTo": "3snkxosXCo6x5AEBRvnRG6wzJsvBaPpNd68Q2jJ4CVzW"
+                        }
+                    ]
+                }
+            }
+        },
+        "/slot/buy/1": {
+            "post": {
+                "tags": [
+                    "Slots"
+                ],
+                "summary": "Buy 1 slot bundle (200 ops, 24h)",
+                "description": "Purchase a 1-slot bundle via x402.\n\nReturns a slot token and one slot ID for use with GET/PUT /slot/{slot_id}.\nShare the token and slot ID with your agent swarm before launch.",
+                "operationId": "buy_slot_1_slot_buy_1_post",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "amount": "0.050000",
+                    "currency": "USD",
+                    "network": "eip155:8453",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "scheme": "exact",
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ],
+                    "description": "1 slot(s), 200 read/write ops, 24h TTL.",
+                    "networks": [
+                        {
+                            "network": "eip155:8453",
+                            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                            "payTo": "0x22f7e9518dff04a5db1fddaabc0e001b8c425b3a"
+                        },
+                        {
+                            "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                            "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                            "payTo": "3snkxosXCo6x5AEBRvnRG6wzJsvBaPpNd68Q2jJ4CVzW"
+                        }
+                    ]
+                }
+            }
+        },
+        "/slot/buy/10": {
+            "post": {
+                "tags": [
+                    "Slots"
+                ],
+                "summary": "Buy 10 slot bundle (2000 ops, 24h)",
+                "description": "Purchase a 10-slot bundle via x402.\n\nReturns a slot token and ten slot IDs. All slots share the 2000 op pool.\nShare the token and slot IDs with your agent swarm before launch.",
+                "operationId": "buy_slot_10_slot_buy_10_post",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "amount": "0.400000",
+                    "currency": "USD",
+                    "network": "eip155:8453",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "scheme": "exact",
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ],
+                    "description": "10 slot(s), 2000 read/write ops, 24h TTL.",
+                    "networks": [
+                        {
+                            "network": "eip155:8453",
+                            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                            "payTo": "0x22f7e9518dff04a5db1fddaabc0e001b8c425b3a"
+                        },
+                        {
+                            "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                            "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                            "payTo": "3snkxosXCo6x5AEBRvnRG6wzJsvBaPpNd68Q2jJ4CVzW"
+                        }
+                    ]
+                }
+            }
+        },
+        "/slot/{slot_id}": {
+            "get": {
+                "tags": [
+                    "Slots"
+                ],
+                "summary": "Read the JSON payload stored in a slot",
+                "description": "Read the current JSON payload of a slot.\n\nReturns null payload if nothing has been written yet.\nAuthorization: Bearer <slot_token>",
+                "operationId": "read_slot_slot__slot_id__get",
+                "parameters": [
+                    {
+                        "name": "slot_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Slot Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            },
+            "put": {
+                "tags": [
+                    "Slots"
+                ],
+                "summary": "Update the JSON payload stored in a slot",
+                "description": "Write a JSON payload to a slot. Overwrites previous content.\n\nBody must be a valid JSON object. Max 4KB.\nAuthorization: Bearer <slot_token>",
+                "operationId": "write_slot_slot__slot_id__put",
+                "parameters": [
+                    {
+                        "name": "slot_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Slot Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            },
+            "delete": {
+                "tags": [
+                    "Slots"
+                ],
+                "summary": "Delete a slot before its TTL expires",
+                "description": "Explicitly release a slot before its TTL expires.\n\nOptional. Slots are automatically cleaned up on expiry.\nAuthorization: Bearer <slot_token>",
+                "operationId": "delete_slot_slot__slot_id__delete",
+                "parameters": [
+                    {
+                        "name": "slot_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Slot Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/tech-scout/syntheses/meta": {
+            "get": {
+                "tags": [
+                    "Deep Tech Scout"
+                ],
+                "summary": "Fetch Deep Tech Scout report freshness metadata",
+                "description": "Returns report date, generation timestamp, concept count, and top vertical for the current day's synthesis run. Free \u2014 no payment required. Agents should call this before /top or /full to check whether today's data is newer than the last payload they purchased. Use updated_at as your deduplication key: store it after each paid call and compare before paying again.",
+                "operationId": "tech_scout_meta_tech_scout_syntheses_meta_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/tech-scout/syntheses/top": {
+            "get": {
+                "tags": [
+                    "Deep Tech Scout"
+                ],
+                "summary": "Fetch the top 20 Deep Tech Scout product concepts",
+                "description": "Returns the top 20 highest-opportunity-score tech product concepts synthesized from global research papers (arXiv, HuggingFace, lab blogs) updated within a rolling 3-day window. Optimized for automated trend scouting, high-value opportunity filtering, and rapid market intelligence. Each record includes structured business-tech synthesis: product concept, target market, novel angle, MVP path, revenue model, opportunity score, 6 supporting quantitative metrics (marketability, demand, novelty-demand index, build complexity, time-to-revenue, patentability), whitespace rationale, and complete lead-gen intel (persona, vertical, sourcing channels, urgency triggers, outreach angles). Includes source references with URLs and core capability summaries. Use meta endpoint for date verification. Payment: $0.01 USDC via x402 (Base or Solana).",
+                "operationId": "tech_scout_top_tech_scout_syntheses_top_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "amount": "0.010000",
+                    "currency": "USD",
+                    "network": "eip155:8453",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "scheme": "exact",
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ],
+                    "description": "Top 20 of up to 1,000 product concepts by opportunity score. $0.01 USDC per call. Check /tech-scout/syntheses/meta (free) for freshness before paying.",
+                    "networks": [
+                        {
+                            "network": "eip155:8453",
+                            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                            "payTo": "0x22f7e9518dff04a5db1fddaabc0e001b8c425b3a"
+                        },
+                        {
+                            "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                            "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                            "payTo": "3snkxosXCo6x5AEBRvnRG6wzJsvBaPpNd68Q2jJ4CVzW"
+                        }
+                    ]
+                }
+            }
+        },
+        "/tech-scout/syntheses/full": {
+            "get": {
+                "tags": [
+                    "Deep Tech Scout"
+                ],
+                "summary": "Fetch all Deep Tech Scout concepts from the current run",
+                "description": "Returns the complete batch of up to 1,000 tech product concepts synthesized from recent global research papers (arXiv, HuggingFace, lab blogs) updated within a rolling 3-day window, ranked by opportunity score. Designed for autonomous agents performing deep, custom market analysis, multi-variable filtering (by vertical, build complexity, time-to-revenue, patentability signal, or whitespace score), and proprietary database ingestion. Field schema is identical to /top across all 1,000 records (~3.5 MB payload). Note: Ensure client read timeout is set to at least 30 seconds. Check meta endpoint for report freshness before querying. Payment: $0.05 USDC via x402 (Base or Solana).",
+                "operationId": "tech_scout_full_tech_scout_syntheses_full_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    }
+                },
+                "x-payment-info": {
+                    "amount": "0.050000",
+                    "currency": "USD",
+                    "network": "eip155:8453",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "scheme": "exact",
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ],
+                    "description": "All concepts from today's synthesis run, up to 1,000, ranked by opportunity score. $0.05 USDC per call. ~3.5 MB payload -- set read timeout >= 30s. Check /tech-scout/syntheses/meta (free) for freshness before paying.",
+                    "networks": [
+                        {
+                            "network": "eip155:8453",
+                            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                            "payTo": "0x22f7e9518dff04a5db1fddaabc0e001b8c425b3a"
+                        },
+                        {
+                            "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                            "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                            "payTo": "3snkxosXCo6x5AEBRvnRG6wzJsvBaPpNd68Q2jJ4CVzW"
+                        }
+                    ]
+                }
+            }
+        },
+        "/util/validate/json": {
+            "post": {
+                "tags": [
+                    "utilities"
+                ],
+                "summary": "Validate that a request body is valid JSON",
+                "description": "Accepts any request body and checks whether it is valid JSON. Returns `{\"valid\": true, \"bytes\": N}` on success or `{\"valid\": false, \"error\": \"...\", \"line\": N, \"column\": N, \"position\": N}` on failure.\n\nAlways returns HTTP 200 for a parseable request (the `valid` field carries the result). Returns 400 on an empty body, 413 when the body exceeds 1 MB, and 429 when rate-limited.\n\nFree. Rate-limited to 60 requests per IP per minute. Maximum body size: 1 MB.",
+                "operationId": "validate_json_util_validate_json_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "additionalProperties": true,
+                                "type": "object",
+                                "description": "Any JSON value \u2014 object, array, string, number, or boolean."
+                            },
+                            "example": {
+                                "key": "value",
+                                "nested": {
+                                    "count": 42
+                                }
+                            }
+                        },
+                        "text/plain": {
+                            "schema": {
+                                "type": "string"
+                            },
+                            "example": "[{\"date\":\"2024-01-01\",\"value\":5.33}]"
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Validation result (check the `valid` field).",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Empty body."
+                    },
+                    "413": {
+                        "description": "Body exceeds 1 MB limit."
+                    },
+                    "429": {
+                        "description": "Rate limit exceeded."
+                    }
+                },
+                "security": []
+            }
+        },
+        "/util/convert/json-to-toon": {
+            "post": {
+                "tags": [
+                    "utilities"
+                ],
+                "summary": "Convert JSON to TOON format",
+                "description": "Converts any flat tabular JSON to **TOON** (Tokenized Object Notation), a compact `key=value` format that achieves ~60-70% token reduction versus equivalent JSON. Input must be a list of JSON objects (each object is one row; keys become column headers). Nested objects are not supported.\n\n**Accepted input shapes**\n\nEnvelope form (explicit meta, data, and optional result_type):\n```json\n{\n  \"meta\": {\"series_id\": \"GDP\", \"units\": \"Billions of Dollars\"},\n  \"data\": [{\"date\": \"2024-01-01\", \"value\": 27360.99}, ...],\n  \"result_type\": \"series\"\n}\n```\n\nArray shorthand (meta defaults to empty, result_type to `series`):\n```json\n[{\"date\": \"2024-01-01\", \"value\": 27360.99}, ...]\n```\n\n**Output**: TOON text (`text/plain; charset=utf-8`).\n\nTOON requires tabular (row-oriented) data. Each element of `data` must be a JSON object. `result_type` must be `series` (default) or `signal`.\n\n$0.005/call via x402 (USDC on Base or Solana). Also accepts a bearer token from `/token/purchase`. Rate-limited to 30 requests per IP per minute. Maximum body size: 512 KB. Bodies larger than 512 KB are rejected with HTTP 413 before payment is checked.",
+                "operationId": "convert_json_to_toon_util_convert_json_to_toon_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "items": {
+                                            "type": "object"
+                                        },
+                                        "type": "array",
+                                        "description": "Array shorthand \u2014 meta defaults to empty, result_type to 'series'."
+                                    },
+                                    {
+                                        "properties": {
+                                            "meta": {
+                                                "type": "object"
+                                            },
+                                            "data": {
+                                                "items": {
+                                                    "type": "object"
+                                                },
+                                                "type": "array",
+                                                "description": "Rows to convert. Each element is one JSON object whose keys become columns."
+                                            },
+                                            "result_type": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "series",
+                                                    "signal"
+                                                ]
+                                            }
+                                        },
+                                        "type": "object",
+                                        "required": [
+                                            "data"
+                                        ],
+                                        "description": "Envelope form with explicit meta, data, and optional result_type."
+                                    }
+                                ]
+                            },
+                            "examples": {
+                                "array": {
+                                    "summary": "Array shorthand",
+                                    "value": [
+                                        {
+                                            "date": "2024-01-01",
+                                            "value": 5.33
+                                        },
+                                        {
+                                            "date": "2024-02-01",
+                                            "value": 5.25
+                                        }
+                                    ]
+                                },
+                                "envelope": {
+                                    "summary": "Envelope form",
+                                    "value": {
+                                        "meta": {
+                                            "source_key": "FEDFUNDS",
+                                            "units": "Percent"
+                                        },
+                                        "data": [
+                                            {
+                                                "date": "2024-01-01",
+                                                "value": 5.33
+                                            },
+                                            {
+                                                "date": "2024-02-01",
+                                                "value": 5.25
+                                            }
+                                        ],
+                                        "result_type": "series"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "TOON-formatted text (text/plain; charset=utf-8).",
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Empty body."
+                    },
+                    "402": {
+                        "description": "Payment required."
+                    },
+                    "413": {
+                        "description": "Body exceeds 512 KB limit (checked before payment)."
+                    },
+                    "422": {
+                        "description": "Invalid JSON or unsupported input shape."
+                    },
+                    "429": {
+                        "description": "Rate limit exceeded."
+                    },
+                    "500": {
+                        "description": "Unexpected server error."
+                    }
+                },
+                "x-payment-info": {
+                    "amount": "0.005000",
+                    "currency": "USD",
+                    "network": "eip155:8453",
+                    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                    "scheme": "exact",
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ],
+                    "description": "Convert a JSON table to TOON text. Fixed price per call.",
+                    "networks": [
+                        {
+                            "network": "eip155:8453",
+                            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                            "payTo": "0x22f7e9518dff04a5db1fddaabc0e001b8c425b3a"
+                        },
+                        {
+                            "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                            "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                            "payTo": "3snkxosXCo6x5AEBRvnRG6wzJsvBaPpNd68Q2jJ4CVzW"
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "HTTPValidationError": {
+                "properties": {
+                    "detail": {
+                        "items": {
+                            "$ref": "#/components/schemas/ValidationError"
+                        },
+                        "type": "array",
+                        "title": "Detail"
+                    }
+                },
+                "type": "object",
+                "title": "HTTPValidationError"
+            },
+            "ValidationError": {
+                "properties": {
+                    "loc": {
+                        "items": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "integer"
+                                }
+                            ]
+                        },
+                        "type": "array",
+                        "title": "Location"
+                    },
+                    "msg": {
+                        "type": "string",
+                        "title": "Message"
+                    },
+                    "type": {
+                        "type": "string",
+                        "title": "Error Type"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "loc",
+                    "msg",
+                    "type"
+                ],
+                "title": "ValidationError"
+            }
+        }
+    }
+}
