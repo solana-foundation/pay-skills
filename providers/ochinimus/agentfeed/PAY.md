@@ -1,7 +1,7 @@
 ---
 name: agentfeed
 title: "AgentFeed"
-description: "Crypto market data, Solana pre-trade checks, sanctions screening, papers, utilities and language tasks (OCR, translate, summarize, extract, classify, transcribe) for AI agents: 83 pay-per-call JSON data routes, USDC on 9 networks, 11 more on request."
+description: "Crypto market data, Solana pre-trade checks, sanctions screening, papers, utilities and language tasks (OCR, translate, summarize, extract, classify, transcribe) for AI agents: 86 pay-per-call JSON data routes, USDC on 8 networks, 11 more on request."
 use_case: "Use when an agent needs live derivatives and liquidation state, a Solana token or wallet check before a trade, a sanctions screen, scholarly papers, a hash, QR code or time conversion, or an OCR, translate, summarize or extract task. No account or key."
 category: data
 service_url: https://x402.ochinimus.app
@@ -10,12 +10,12 @@ openapi:
 ---
 
 AgentFeed is a read-only API for agents, gated per call. Crypto market data for AI agents (liquidations, funding, open interest, prices), Solana pre-trade checks, OFAC sanctions screening, scholarly papers, utilities and fixed-purpose language tasks (OCR, translate, summarize, extract, classify, prompt-injection check, transcribe).
-There are 83 data routes at $0.001-$0.1 per call; one call to every
-data route once costs $1.137. No accounts, no subscriptions and no API key
+There are 86 data routes at $0.001-$0.1 per call; one call to every
+data route once costs $1.207. No accounts, no subscriptions and no API key
 needed to pay per call: every paid route answers `402` with an x402 challenge,
 the caller pays, and the same request returns JSON.
-Every 402 offers per-call x402 `exact` payments in USDC on 9 networks: Solana
-mainnet, Base, Polygon, Arbitrum, Arc, Algorand, Optimism, Monad and Avalanche.
+Every 402 offers per-call x402 `exact` payments in USDC on 8 networks: Solana
+mainnet, Base, Polygon, Arbitrum, Arc, Optimism, Monad and Avalanche.
 11 more networks are offered on request: ask for one with
 `GET /api/<route>|<network>` (the `|` may be sent as `%7C`; the network is its
 CAIP-2 id, for example `/api/sol-price|eip155:42220`) and that route's 402 also
@@ -31,12 +31,11 @@ body and pay with `X-PAYMENT`, on Solana or Base.
 Every paid route also carries an MPP `tempo`/`charge` challenge (Tempo, paid in
 OUSD or USDC.e), and `/api/sol-price` and `/api/btc-price` an MPP
 `solana`/`charge` challenge, in `WWW-Authenticate` on the same 402, so `pay` can
-settle either protocol. x402 on 20 networks and MPP on Tempo make 21 chains.
+settle either protocol. x402 on 19 networks and MPP on Tempo make 20 chains.
 Payment goes to `4a8o45skRPcyjAdyR8yES215Swvh8uTpZD6KLarhxCJ7` on Solana,
 `0x22DB3A9686EE5261e7Bf3ed4f91277232E8076e6` on Base, Polygon, Arbitrum,
 Optimism, Monad, Avalanche and each of the 11 networks offered on request,
-`0x0Cf44185564F2b72E291050DC79E578429E52f83` on Arc and
-`QWOWU2E6BB76HEQRRMXWZ2MU4HAQIYZWEPP2W7Y377ZRDIW7ZKD4MMMEPM` on Algorand.
+and `0x0Cf44185564F2b72E291050DC79E578429E52f83` on Arc.
 Every data route also offers the same call at half price (minimum $0.0005) for
 agents that call often: `batch-settlement` vouchers on Base, Polygon and
 Arbitrum, paid to `0x22DB3A9686EE5261e7Bf3ed4f91277232E8076e6`, and Circle Gateway nanopayments
@@ -101,6 +100,8 @@ and `/api/email-verify` and `/api/domain/:domain` check an email address (no
 SMTP probe) and a domain's DNS records and TLS certificate. Utilities:
 `/api/hash`, `/api/qr`, `/api/time` and `/api/convert`, each $0.005.
 
+Three short briefs answer a question in one call, with no buy or sell call: `/api/morning-brief` ($0.03: what changed in BTC, ETH, SOL and HYPE over the last 8 hours, ranked, with the one liquidation level to watch), `/api/move-alert` ($0.02: the Hyperliquid perps whose move is unusual against their own history) and `/api/anomaly-flag` ($0.02: abnormal funding, liquidations and open interest in one ranked list).
+
 Fixed-purpose language tasks: `/api/ocr`, `/api/summarize`, `/api/extract`,
 `/api/translate`, `/api/classify`, `/api/injection-check` and `/api/transcribe`.
 Each is one fixed task: the caller supplies content, never a prompt, model or
@@ -109,7 +110,7 @@ not available in every country: where the underlying language-model API is not
 offered they answer 451 before any payment.
 
 Prepaid API keys, for bots that can set an HTTP header but cannot sign an x402
-payment: six purchase routes sell a key once, `/api/keys/buy-trial` ($0.25), `/api/keys/buy-1` ($1), `/api/keys/buy-5` ($5), `/api/keys/buy-20` ($20), `/api/keys/buy-pass` ($25: a 30-day pass that works only on `/api/liq-feed` and draws nothing per call) and `/api/keys/buy-day-pass` ($1: a 24-hour pass that works only on `/api/liq-feed` and `/api/liquidations`, draws nothing per call and answers each of the two routes once every 10 seconds per key; $1 is the most a default `@x402/fetch` client will pay).
+payment: two purchase routes sell a 24-hour pass once, `/api/keys/buy-day-pass` ($1: works only on `/api/liq-feed` and `/api/liquidations`, draws nothing per call and answers each of the two routes once every 10 seconds per key) and `/api/keys/buy-signals-day-pass` ($1: works only on the three briefs, `/api/market-state`, `/api/signal-board`, `/api/coin-signal/{coin}`, `/api/oi-spike-scan` and `/api/liq-heatmap`, draws nothing per call and answers each route once a minute per key). $1 is the most a default `@x402/fetch` client will pay. AgentFeed also sells larger prepaid-key packs and 30-day passes (see `/keys` on the service); they are left out of this catalog entry.
 Send the key as `X-AgentFeed-Key` (or `Authorization: Bearer`) on any paid GET;
 a key call draws half the route's x402 price (minimum $0.0005), and a 400, 404,
 500 or 503 is never drawn. `GET /api/keys/balance` is free: send the key in the
@@ -118,7 +119,7 @@ last_used, rate_per_min and status, plus a `pass` object (kind, routes, expires_
 key is a bearer secret; a balance is non-refundable usage credit with no expiry.
 The purchase routes offer the per-call `exact` option only, on the same 9
 networks and, on request, the 11 more; they have no half-price option. They are
-purchases, not data routes, and are not counted in the 83.
+purchases, not data routes, and are not counted in the 86.
 
 Data routes run $0.001-$0.1 per call; the spot prices (`/api/price`, `/api/sol-price`,
 `/api/btc-price`, `/api/eth-price`) are $0.001. Seven endpoints are free and carry no payment
