@@ -31,11 +31,10 @@ keys.
 | `POST /v1/western/positions` | Planet positions for any date; heliocentric or equatorial (RA, declination) on request | $0.01 |
 | `POST /v1/western/sky` | The sky now and the next ingresses, stations, lunations and aspects | $0.01 |
 | `POST /v1/western/aspects` | Aspects with orbs; declination parallels on request | $0.02 |
-| `POST /v1/western/natal` | Natal chart: positions, houses, angles, aspects | $0.06 |
-| `POST /v1/western/transits` | Transits to a chart and exact hit times over up to a year | $0.08 |
-| `POST /v1/western/synastry` | Cross-aspects between two charts | $0.12 |
 
 `GET /v1/catalog`, `GET /v1/health` and `POST /v1/verify` are free.
+Natal charts, transits, synastry and the Vedic routes are listed separately as
+`astro-agents/astrology`; the two listings share no paid endpoint.
 
 ## Payment
 
@@ -52,6 +51,6 @@ the documented example body always returns the `402`.
 ## Spend-aware usage
 
 - Ask for exactly the bodies and dates you need: `planetary-lines` returns a whole series in one call, cheaper than one `positions` call per date.
-- Use `western/positions` ($0.01) when only longitudes are needed, not `natal`.
+- Use `western/positions` ($0.01) when only longitudes are needed: one date, one call.
 - Results are deterministic: cache by request body instead of calling again, and check a stored result with `POST /v1/verify` for free.
 - `events` covers 1800-2200: page long ranges instead of repeating overlapping windows.
