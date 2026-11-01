@@ -13,7 +13,14 @@ openapi:
 Clawd Domains is an agent-facing domain-registration API. Agents pay per
 call in USDC on Solana through the x402 protocol (Musebook facilitator,
 `exact` scheme); the payment is the authentication, and the payer wallet
-proven by the settled payment is recorded as the domain's owner.
+proven by the settled payment is recorded as the domain's owner. Service
+fees are $1.00 per registration or renewal and $0.05 per DNS write, on top
+of the registrar cost.
+
+Status: live at https://domains.musebook.trade — discovery, pricing,
+availability checks, and the unpaid 402 challenge flow are verified end to
+end. The registrar account is still being funded, so the first live
+registration has not yet been executed.
 
 What the API offers:
 
