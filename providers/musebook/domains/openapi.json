@@ -1,0 +1,456 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Domain Agent API",
+    "version": "0.1.0",
+    "description": "Domains for AI agents. Check availability for free, register and renew by paying USDC on Solana via x402 (no account, no API key). The paying wallet becomes the owner; manage DNS with ed25519 signatures from that wallet.",
+    "x-guidance": "GET /domains/check?name= first (free) to see the exact USDC quote. POST /domains/register {\"name\"} answers 402 with that exact amount; pay it with an x402 client (e.g. `pay curl`). DNS calls need the owner wallet to sign the message described under components.securitySchemes.walletSignature."
+  },
+  "servers": [
+    {
+      "url": "https://domains.musebook.trade"
+    }
+  ],
+  "x-x402": {
+    "version": 2,
+    "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+    "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "payTo": "5rxgJXoN2xvoZHcLXav1pEHAhvygLziZsz3xAzNEJfgr",
+    "facilitator": "https://facilitator.payai.network"
+  },
+  "components": {
+    "securitySchemes": {
+      "walletSignature": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Signature",
+        "description": "ed25519 signature (base58 or base64) by the owner wallet over the UTF-8 text:\n\"domain-agent-api auth v1\\nmethod: <METHOD>\\npath: <path>\\nwallet: <X-Wallet>\\nnonce: <X-Nonce>\\nexpires: <X-Expires unix seconds>\\nbody-sha256: <hex sha256 of raw body, empty string hash if none>\". Nonces are single-use; expiry at most 300s ahead."
+      }
+    },
+    "schemas": {
+      "Quote": {
+        "type": "object",
+        "properties": {
+          "registrarCostUsd": {
+            "type": "string"
+          },
+          "markupPct": {
+            "type": "number"
+          },
+          "markupUsd": {
+            "type": "string"
+          },
+          "flatFeeUsd": {
+            "type": "string"
+          },
+          "totalUsdc": {
+            "type": "string"
+          },
+          "amountAtomic": {
+            "type": "string"
+          }
+        }
+      },
+      "DnsRecord": {
+        "type": "object",
+        "required": [
+          "type",
+          "content"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "A",
+              "AAAA",
+              "MX",
+              "CNAME",
+              "ALIAS",
+              "TXT",
+              "NS",
+              "SRV",
+              "TLSA",
+              "CAA",
+              "HTTPS",
+              "SVCB"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "description": "Subdomain, blank for apex"
+          },
+          "content": {
+            "type": "string",
+            "description": "Record value, e.g. an IPv4 address for A records or a target hostname for CNAME."
+          },
+          "ttl": {
+            "type": "integer",
+            "description": "DNS record ttl."
+          },
+          "prio": {
+            "type": "integer",
+            "description": "DNS record prio."
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/domains/check": {
+      "get": {
+        "operationId": "checkDomain",
+        "summary": "Check domain availability and USDC price quote",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "example.com"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Availability and quotes"
+          },
+          "400": {
+            "description": "Invalid name"
+          }
+        }
+      }
+    },
+    "/domains/register": {
+      "post": {
+        "operationId": "registerDomain",
+        "summary": "Register a domain (x402, USDC on Solana)",
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "currency": "USDC",
+          "pricing": {
+            "mode": "dynamic",
+            "description": "Registrar price + 15% + $1 flat, quoted per domain"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "example": "pay-skills-probe-example.com"
+                  }
+                }
+              },
+              "example": {
+                "name": "pay-skills-probe-example.com"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "DRY_RUN plan (payment verified, not settled)"
+          },
+          "201": {
+            "description": "Registered; payer wallet is owner"
+          },
+          "402": {
+            "description": "Payment required (PAYMENT-REQUIRED header, x402 v2)"
+          },
+          "409": {
+            "description": "Unavailable, premium or over price cap"
+          },
+          "503": {
+            "description": "PAY_TO_ADDRESS not configured"
+          }
+        }
+      }
+    },
+    "/domains/{domain}/renew": {
+      "post": {
+        "operationId": "renewDomain",
+        "summary": "Renew a domain managed by this service (x402)",
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "scheme": "exact",
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "currency": "USDC",
+          "pricing": {
+            "mode": "dynamic",
+            "description": "Registrar renewal price + markup + flat fee"
+          }
+        },
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "example.com"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Renewed (or DRY_RUN plan)"
+          },
+          "402": {
+            "description": "Payment required"
+          },
+          "404": {
+            "description": "Not managed here"
+          }
+        }
+      }
+    },
+    "/domains/{domain}/dns": {
+      "get": {
+        "operationId": "listDns",
+        "summary": "List DNS records (owner signature)",
+        "security": [
+          {
+            "walletSignature": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "example.com"
+          },
+          {
+            "name": "X-Wallet",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Base58 Solana public key of the domain owner wallet."
+          },
+          {
+            "name": "X-Signature",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Base58 ed25519 signature by the owner wallet over the canonical message described in this operation."
+          },
+          {
+            "name": "X-Nonce",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unique random string per request, included in the signed message to prevent replay."
+          },
+          {
+            "name": "X-Expires",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix timestamp (seconds) after which the signature is rejected; included in the signed message."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Records"
+          },
+          "401": {
+            "description": "Bad signature"
+          },
+          "403": {
+            "description": "Not owner"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createDns",
+        "summary": "Create a DNS record (owner signature)",
+        "security": [
+          {
+            "walletSignature": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "example.com"
+          },
+          {
+            "name": "X-Wallet",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Base58 Solana public key of the domain owner wallet."
+          },
+          {
+            "name": "X-Signature",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Base58 ed25519 signature by the owner wallet over the canonical message described in this operation."
+          },
+          {
+            "name": "X-Nonce",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unique random string per request, included in the signed message to prevent replay."
+          },
+          {
+            "name": "X-Expires",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix timestamp (seconds) after which the signature is rejected; included in the signed message."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DnsRecord"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteDns",
+        "summary": "Delete a DNS record by id (owner signature)",
+        "security": [
+          {
+            "walletSignature": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "example.com"
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ID of the DNS record to delete, as returned by GET /domains/{domain}/dns."
+          },
+          {
+            "name": "X-Wallet",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Base58 Solana public key of the domain owner wallet."
+          },
+          {
+            "name": "X-Signature",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Base58 ed25519 signature by the owner wallet over the canonical message described in this operation."
+          },
+          {
+            "name": "X-Nonce",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unique random string per request, included in the signed message to prevent replay."
+          },
+          {
+            "name": "X-Expires",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unix timestamp (seconds) after which the signature is rejected; included in the signed message."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted"
+          }
+        }
+      }
+    },
+    "/domains": {
+      "get": {
+        "operationId": "listDomains",
+        "summary": "List domains owned by a Solana wallet",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Base58 Solana public key of the owner wallet."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Domains"
+          }
+        }
+      }
+    }
+  }
+}
