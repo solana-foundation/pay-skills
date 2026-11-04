@@ -1,19 +1,19 @@
 ---
 name: travel
 title: "BRIJ Flight API"
-description: "Live flight and train search with escrow-backed booking on Solana, plus escrow-backed purchase of products on supported merchant sites. On-chain USDC escrow, x402 per-call payments, automatic repricing refunds, manual-review refund requests."
-use_case: "Use for flight search and booking, train or long-distance bus search and booking, buying a product from a supported merchant's website via USDC escrow, checking booking or order status, or requesting a refund on behalf of a user."
+description: "Live flight, train and hotel search with escrow-backed booking on Solana, plus escrow-backed purchase of products on supported merchant sites. On-chain USDC escrow, x402 per-call payments, automatic repricing refunds, manual-review refund requests."
+use_case: "Use for flight search and booking, train or long-distance bus search and booking, hotel search and booking, buying a product from a supported merchant's website via USDC escrow, checking booking or order status, or requesting a refund on behalf of a user."
 category: shopping
 service_url: https://travel.brij.fi
 openapi:
   path: openapi.json
 ---
 
-Pay-per-call travel and purchase API backed by Solana USDC escrow. Three
+Pay-per-call travel and purchase API backed by Solana USDC escrow. Four
 families share one lifecycle (quote or search, lock an on-chain intent, pay
 the escrow, poll the order): `/air/*` for flights, `/rail/*` for trains and
-long-distance buses, and `/shop/*` for buying one product on a supported
-merchant's website.
+long-distance buses, `/hotels/*` for hotel stays, and `/shop/*` for buying
+one product on a supported merchant's website.
 
 All paid endpoints return HTTP 402 before payment. `POST /air/search` accepts
 either a valid x402 payment or a BRIJ-sponsored preview signature. Intent
@@ -56,10 +56,18 @@ and capture, the full USDC amount is refunded automatically.
 - A shop quote takes the product page URL plus the shipping ZIP and reads the
   merchant's own checkout, so `total_amount` is the exact all-in price
   (shipping and sales tax included) — never add margins on top of it.
-- `POST /rail/buy` and `POST /shop/buy` pay the intent's escrow amount;
-  order status then comes from `POST /rail/orders` / `POST /shop/orders`
-  (0.01 USDC, `X-Customer-Support-Code` header): purchasing → ordered →
-  confirmed, plus shipped with `tracking_number` for shop orders.
+- Hotels are cheap to explore: `GET /hotels/places` is free (city and hotel
+  ids for the search), and `POST /hotels/search` (0.10 USDC),
+  `POST /hotels/rates` (0.01) and `POST /hotels/quote` (0.01) narrow down to
+  one locked rate. Check each rate's `refundable` flag and
+  `cancellation_timeline` before booking; `POST /hotels/cancel` (0.10)
+  refunds whatever the timeline returns at that moment.
+- `POST /rail/buy`, `POST /hotels/book` and `POST /shop/buy` pay the intent's
+  escrow amount;
+  order status then comes from `POST /rail/orders` / `POST /hotels/orders` /
+  `POST /shop/orders` (0.01 USDC, `X-Customer-Support-Code` header):
+  purchasing → ordered → confirmed, plus shipped with `tracking_number` for
+  shop orders and `booking_reference` for hotel stays.
 - Refund requests go to the family's `refund-requests` endpoint with the
   `intent_id` and a `reason` in the request body, plus the
   `X-Customer-Support-Code` and `X-Passenger-Family-Name` headers (the lead
