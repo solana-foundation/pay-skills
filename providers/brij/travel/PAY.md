@@ -1,19 +1,18 @@
 ---
 name: travel
-title: "BRIJ Flight API"
-description: "Live flight, train and hotel search with escrow-backed booking on Solana, plus escrow-backed purchase of products on supported merchant sites. On-chain USDC escrow, x402 per-call payments, automatic repricing refunds, manual-review refund requests."
-use_case: "Use for flight search and booking, train or long-distance bus search and booking, hotel search and booking, buying a product from a supported merchant's website via USDC escrow, checking booking or order status, or requesting a refund on behalf of a user."
+title: "BRIJ Travel API"
+description: "Payments for AI agents: live flight, train, bus and hotel search with escrow-backed booking on Solana. On-chain USDC escrow, x402 per-call pricing, automatic repricing refunds, manual-review refund requests and timeline-based hotel cancellations."
+use_case: "Use for flight search and booking, train or long-distance bus search and booking, hotel search and booking, checking booking or order status, or requesting a refund or cancellation on behalf of a user."
 category: shopping
 service_url: https://travel.brij.fi
 openapi:
   path: openapi.json
 ---
 
-Pay-per-call travel and purchase API backed by Solana USDC escrow. Four
-families share one lifecycle (quote or search, lock an on-chain intent, pay
-the escrow, poll the order): `/air/*` for flights, `/rail/*` for trains and
-long-distance buses, `/hotels/*` for hotel stays, and `/shop/*` for buying
-one product on a supported merchant's website.
+Payments for AI agents: a pay-per-call travel API backed by Solana USDC
+escrow. Three families share one lifecycle (search or quote, lock an on-chain
+intent, pay the escrow, poll the order): `/air/*` for flights, `/rail/*` for
+trains and long-distance buses, and `/hotels/*` for hotel stays.
 
 All paid endpoints return HTTP 402 before payment. `POST /air/search` accepts
 either a valid x402 payment or a BRIJ-sponsored preview signature. Intent
@@ -27,20 +26,20 @@ and capture, the full USDC amount is refunded automatically.
 - A booking's total spend is the escrow amount plus the per-call fees; when
   quoting a price to the user, quote the escrow amount (`total_amount`) and
   say the call fees are separate.
-- Run `/air/search` once per user query. Results include offer IDs valid for a
-  short window — pass the offer ID directly to `POST /air/intents` rather than
-  re-searching. A full response can exceed 300 KB: send
+- Run `/air/search` once per user query. Results include offer IDs valid for
+  a short window: pass the offer ID directly to `POST /air/intents` rather
+  than re-searching. A full response can exceed 300 KB, so send
   `cheapest_per_itinerary=true` with a `limit` (plus `sort` and filters like
   `max_stops` or `departure_after`/`departure_before`) to get a few-KB view,
   then drill into finalists with `POST /air/offer-details`.
 - To revalidate a single offer (fresh price/expiry) or price paid ancillaries
-  such as extra bags, use `POST /air/offer-details` with the `offer_id` — it's
+  such as extra bags, use `POST /air/offer-details` with the `offer_id`; it's
   cheaper and quota-friendlier than re-searching. A stale offer returns 404
   without settling the payment.
 - `POST /air/intents` initializes an on-chain escrow immediately. Only create
   an intent when the user is ready to book; don't create exploratory intents.
-- `GET /air/intents/{id}` is free — poll it instead of re-calling paid endpoints
-  to track booking status.
+- `GET /air/intents/{id}` is free; poll it instead of re-calling paid
+  endpoints to track booking status.
 - Booking goes through `POST /air/book` with the `intent_id` and passenger
   details in the request body; the resource URL is static.
 - Once the intent reaches `booked` status, retrieve the airline PNR via
@@ -48,29 +47,23 @@ and capture, the full USDC amount is refunded automatically.
   `X-Customer-Support-Code` header; refusals are never charged); the
   `order_id` is returned in the `POST /air/book` response as
   `booking.order_id`.
-- Rail and shop reads run a real browser session at the merchant, so they cost
-  more: `POST /rail/search` and the quotes (`POST /rail/quote`,
-  `POST /shop/quote`) are 0.25 USDC each. Quote only when the user has picked
-  a journey or product; a quote's `offer_id` lives ~20 minutes
+- Rail reads run a real browser session at the merchant, so they cost more:
+  `POST /rail/search` and `POST /rail/quote` are 0.25 USDC each. Quote only
+  when the user has picked a journey; a quote's `offer_id` lives ~20 minutes
   (`expires_at`), then re-quote.
-- A shop quote takes the product page URL plus the shipping ZIP and reads the
-  merchant's own checkout, so `total_amount` is the exact all-in price
-  (shipping and sales tax included) — never add margins on top of it.
 - Hotels are cheap to explore: `GET /hotels/places` is free (city and hotel
   ids for the search), and `POST /hotels/search` (0.10 USDC),
   `POST /hotels/rates` (0.01) and `POST /hotels/quote` (0.01) narrow down to
   one locked rate. Check each rate's `refundable` flag and
   `cancellation_timeline` before booking; `POST /hotels/cancel` (0.10)
   refunds whatever the timeline returns at that moment.
-- `POST /rail/buy`, `POST /hotels/book` and `POST /shop/buy` pay the intent's
-  escrow amount;
-  order status then comes from `POST /rail/orders` / `POST /hotels/orders` /
-  `POST /shop/orders` (0.01 USDC, `X-Customer-Support-Code` header):
-  purchasing → ordered → confirmed, plus shipped with `tracking_number` for
-  shop orders and `booking_reference` for hotel stays.
+- `POST /rail/buy` and `POST /hotels/book` pay the intent's escrow amount;
+  order status then comes from `POST /rail/orders` / `POST /hotels/orders`
+  (0.01 USDC, `X-Customer-Support-Code` header), with `booking_reference`
+  once a hotel stay is confirmed.
 - Refund requests go to the family's `refund-requests` endpoint with the
   `intent_id` and a `reason` in the request body, plus the
   `X-Customer-Support-Code` and `X-Passenger-Family-Name` headers (the lead
-  passenger's — or parcel recipient's — family name); they are reviewed
-  manually and don't re-trigger a search. Persist the `customer_support_code`
-  returned at intent creation — it cannot be re-read later.
+  passenger's or lead guest's family name); they are reviewed manually and
+  don't re-trigger a search. Persist the `customer_support_code` returned at
+  intent creation; it cannot be re-read later.
