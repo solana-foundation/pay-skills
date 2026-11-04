@@ -1,0 +1,111 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Svemir Verdict Oracle",
+    "version": "0.5.0",
+    "description": "x402 payment-gated verdict oracle. Accepts x402 exact payments on Base (EIP-3009 USDC) and Solana (SPL USDC), then returns a policy verdict over a payment receipt.",
+    "x402": {
+      "priceUsd": 0.01,
+      "networks": ["base", "solana"],
+      "asset": "USDC"
+    }
+  },
+  "servers": [
+    { "url": "https://ubuntu-s-1vcpu-512mb-10gb-fra1.tailefd357.ts.net" }
+  ],
+  "paths": {
+    "/zdravlje": {
+      "get": {
+        "operationId": "zdravlje",
+        "summary": "Free health probe (service version, active networks, price).",
+        "responses": {
+          "200": {
+            "description": "Service health.",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" },
+                "example": {
+                  "ok": true,
+                  "servis": "svemir-verdikt",
+                  "kapija": "v0.5-public",
+                  "politika": "v2-2026-10-26",
+                  "mreza": "base",
+                  "solana": "mainnet",
+                  "cena": "0.01 USDC"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/verdikt": {
+      "get": {
+        "operationId": "verdiktChallenge",
+        "summary": "Free x402 discovery: returns the 402 challenge with pricing and accepted networks.",
+        "responses": {
+          "402": {
+            "description": "Payment required. Body is the x402 challenge; `accepts` lists Base and Solana exact schemes.",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          }
+        }
+      },
+      "post": {
+        "operationId": "verdiktJudge",
+        "x402": { "priceUsd": 0.01, "maxAmountRequired": "10000" },
+        "summary": "Paid endpoint. Settles the X-PAYMENT (0.01 USDC, Base or Solana), then returns a verdict over the POST body receipt — or over the settled payment itself when no body is sent.",
+        "parameters": [
+          {
+            "name": "X-PAYMENT",
+            "in": "header",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Base64 JSON x402 payment: { x402Version: 1, scheme: 'exact', network: 'base'|'solana', payload }."
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["txHash"],
+                "properties": {
+                  "txHash": { "type": "string", "description": "Transaction hash of the third-party payment to judge." },
+                  "from": { "type": "string", "description": "Expected payer address." },
+                  "primalac": { "type": "string", "description": "Expected payee address." },
+                  "iznos": { "type": "string", "description": "Expected amount (token base units, as string)." },
+                  "nonce": { "type": "string", "description": "EIP-3009 nonce, if the receipt uses TransferWithAuthorization." },
+                  "settled": { "type": "boolean", "default": true }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Payment settled; verdict returned. `X-PAYMENT-RESPONSE` header carries the base64 receipt.",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" },
+                "example": {
+                  "vreme": "2026-11-04T14:55:00.000Z",
+                  "platioc": "0x…",
+                  "payTo": "0x090566791F6fB65622f4F11b5B7fe39b219e89F4",
+                  "iznos": "0.01 USDC",
+                  "settleTx": "0x…",
+                  "settleBlok": 53506964,
+                  "verdikt": "prihvacen",
+                  "sudNad": "samosud"
+                }
+              }
+            }
+          },
+          "402": { "description": "Payment required; x402 challenge with Base and Solana accepts." },
+          "400": { "description": "Malformed X-PAYMENT or receipt body." },
+          "429": { "description": "Rate limit: 12 paid attempts per minute per IP." }
+        }
+      }
+    }
+  }
+}
