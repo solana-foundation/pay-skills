@@ -1,0 +1,766 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Haris Guardian API",
+    "description": "Read-only scam/rug risk checks for Solana tokens (SPL + Token-2022). Score 0-100, higher = riskier. Paid routes use x402 (USDC on Solana or Base). Docs: https://haris-api.vercel.app/llms.txt",
+    "contact": {
+      "name": "Haris Guardian",
+      "url": "https://harisguardian.netlify.app/",
+      "email": "mansor791@gmail.com"
+    },
+    "version": "1.0.0",
+    "x-guidance": "Solana token scam/rug risk checker. Paid x402 endpoint: POST /v1/paid/check with JSON body {\"mint\": \"<base58 mint>\"} (or GET /v1/paid/check?mint=<mint>, or GET /v1/paid/check/<mint>). Costs $0.01 USDC on Solana or Base per call via x402 (v1 X-PAYMENT or v2 PAYMENT-SIGNATURE); the facilitator pays network fees and failed checks are not charged. Response: score 0-100 (HIGHER = RISKIER), level (low/medium/high/critical), verdict and flags with plain-English reasons. Free tier: GET /v1/check/<mint>, 3 calls per UTC day per IP. Read-only; never signs or trades. Higher-value paid endpoints (POST JSON, x402): /v1/paid/deep-check {\"mint\"} ($0.10: holder concentration top1/top5/top10 %, top wallets linked by a shared funder, LP lock/burn, authorities, score + reasons); /v1/paid/batch-check {\"mints\": [up to 20]} ($0.10 per batch, charged only if at least one mint is checked); /v1/paid/diff {\"mint\", \"previous\": <earlier Haris result>} ($0.02: alerts on what changed, e.g. authority re-enabled, LP unlocked, liquidity pulled, sell blocked).",
+    "x-logo": {
+      "url": "https://harisguardian.netlify.app/logo-400.png"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://haris-api.vercel.app"
+    }
+  ],
+  "paths": {
+    "/v1/paid/check": {
+      "post": {
+        "tags": [
+          "paid"
+        ],
+        "summary": "Check a Solana token mint for scam/rug risk (x402)",
+        "operationId": "paid_check",
+        "responses": {
+          "200": {
+            "description": "Check result; X-PAYMENT-RESPONSE (v1) / PAYMENT-RESPONSE (v2) carries the settlement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mint": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "score": {
+                      "type": "number",
+                      "description": "0-100, higher = riskier"
+                    },
+                    "level": {
+                      "type": "string",
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "critical"
+                      ]
+                    },
+                    "verdict": {
+                      "type": "string"
+                    },
+                    "flags": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  },
+                  "required": [
+                    "mint",
+                    "score",
+                    "level"
+                  ]
+                },
+                "example": {
+                  "mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+                  "name": "Bonk",
+                  "score": 5,
+                  "level": "low",
+                  "verdict": "No major red flags found.",
+                  "flags": []
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "x402 payment required: $0.01 USDC on Solana or Base (v2 challenge in the PAYMENT-REQUIRED header, v1 challenge in the JSON body)"
+          },
+          "400": {
+            "description": "Invalid mint address or malformed payment header"
+          },
+          "404": {
+            "description": "Address is not a token mint (paid calls are not charged)"
+          },
+          "502": {
+            "description": "Upstream Solana data unavailable (paid calls are not charged)"
+          },
+          "503": {
+            "description": "Payment facilitator unavailable (not charged)"
+          }
+        },
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mint": {
+                    "type": "string",
+                    "description": "Base58 Solana token mint address (SPL or Token-2022)",
+                    "minLength": 32,
+                    "maxLength": 44
+                  }
+                },
+                "required": [
+                  "mint"
+                ]
+              },
+              "example": {
+                "mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "paid"
+        ],
+        "summary": "Check a Solana token mint for scam/rug risk (x402, ?mint=)",
+        "operationId": "paid_check_get",
+        "responses": {
+          "200": {
+            "description": "Check result; X-PAYMENT-RESPONSE (v1) / PAYMENT-RESPONSE (v2) carries the settlement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mint": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "score": {
+                      "type": "number",
+                      "description": "0-100, higher = riskier"
+                    },
+                    "level": {
+                      "type": "string",
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "critical"
+                      ]
+                    },
+                    "verdict": {
+                      "type": "string"
+                    },
+                    "flags": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  },
+                  "required": [
+                    "mint",
+                    "score",
+                    "level"
+                  ]
+                },
+                "example": {
+                  "mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+                  "name": "Bonk",
+                  "score": 5,
+                  "level": "low",
+                  "verdict": "No major red flags found.",
+                  "flags": []
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "x402 payment required: $0.01 USDC on Solana or Base (v2 challenge in the PAYMENT-REQUIRED header, v1 challenge in the JSON body)"
+          },
+          "400": {
+            "description": "Invalid mint address or malformed payment header"
+          },
+          "404": {
+            "description": "Address is not a token mint (paid calls are not charged)"
+          },
+          "502": {
+            "description": "Upstream Solana data unavailable (paid calls are not charged)"
+          },
+          "503": {
+            "description": "Payment facilitator unavailable (not charged)"
+          }
+        },
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "mint",
+            "required": true,
+            "description": "Base58 Solana token mint address (SPL or Token-2022)",
+            "schema": {
+              "type": "string",
+              "minLength": 32,
+              "maxLength": 44
+            },
+            "example": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+            "in": "query"
+          }
+        ]
+      }
+    },
+    "/v1/paid/deep-check": {
+      "post": {
+        "tags": [
+          "paid"
+        ],
+        "summary": "Analyze holders, linked wallets, LP lock and authorities",
+        "description": "Haris Guardian deep check: holder concentration, linked top wallets (shared funder), LP lock/burn, authorities, score 0-100 (higher = riskier) with reasons.",
+        "operationId": "paid_deep_check",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "mint": {
+                    "type": "string",
+                    "maxLength": 44,
+                    "minLength": 32,
+                    "description": "Base58 Solana token mint address (SPL or Token-2022)"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "mint"
+                ]
+              },
+              "example": {
+                "mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Result; X-PAYMENT-RESPONSE (v1) / PAYMENT-RESPONSE (v2) carries the settlement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "mint": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "score": {
+                      "type": "number",
+                      "description": "0-100, higher = riskier (base check + holder-cluster flags)"
+                    },
+                    "level": {
+                      "type": "string",
+                      "enum": [
+                        "low",
+                        "medium",
+                        "high",
+                        "critical"
+                      ]
+                    },
+                    "base_score": {
+                      "type": "number"
+                    },
+                    "verdict": {
+                      "type": "string"
+                    },
+                    "reasons": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "flags": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "holders": {
+                      "type": "object",
+                      "description": "top1/top5/top10 wallet % of supply, excluded %, top wallets"
+                    },
+                    "clusters": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array",
+                      "description": "top wallets sharing one funder (first incoming SOL transfer)"
+                    },
+                    "lp": {
+                      "type": "object"
+                    },
+                    "authorities": {
+                      "type": "object"
+                    },
+                    "liquidity": {
+                      "type": "object"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "mint",
+                    "score",
+                    "level"
+                  ]
+                },
+                "example": {
+                  "mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+                  "name": "Bonk",
+                  "score": 5,
+                  "level": "low",
+                  "base_score": 5,
+                  "verdict": "Low risk: no major red flags found.",
+                  "reasons": [],
+                  "flags": [],
+                  "holders": {
+                    "top1_wallet_pct": 2.1,
+                    "top5_wallet_pct": 6.3,
+                    "top10_wallet_pct": 9.8,
+                    "excluded_pct": 12.0,
+                    "wallets": []
+                  },
+                  "clusters": [],
+                  "lp": {
+                    "status": "burned",
+                    "locked_pct": 100.0
+                  },
+                  "authorities": {}
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "x402 payment required: $0.10 USDC on Solana or Base (v2 challenge in the PAYMENT-REQUIRED header, v1 challenge in the JSON body)"
+          },
+          "400": {
+            "description": "Invalid input or malformed payment header (payment not processed)"
+          },
+          "404": {
+            "description": "Address is not a token mint (not charged)"
+          },
+          "502": {
+            "description": "Upstream Solana data unavailable (not charged)"
+          },
+          "503": {
+            "description": "Payment facilitator unavailable (not charged)"
+          }
+        },
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.10"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        }
+      }
+    },
+    "/v1/paid/batch-check": {
+      "post": {
+        "tags": [
+          "paid"
+        ],
+        "summary": "Check up to 20 Solana token mints in one call",
+        "description": "Haris Guardian batch: risk-check up to 20 Solana token mints in one call (flat price per batch).",
+        "operationId": "paid_batch_check",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "mints": {
+                    "items": {
+                      "type": "string",
+                      "maxLength": 44,
+                      "minLength": 32
+                    },
+                    "type": "array",
+                    "maxItems": 20,
+                    "minItems": 1,
+                    "description": "1-20 base58 Solana token mint addresses"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "mints"
+                ]
+              },
+              "example": {
+                "mints": [
+                  "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Result; X-PAYMENT-RESPONSE (v1) / PAYMENT-RESPONSE (v2) carries the settlement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "count": {
+                      "type": "integer"
+                    },
+                    "ok": {
+                      "type": "integer"
+                    },
+                    "failed": {
+                      "type": "integer"
+                    },
+                    "results": {
+                      "items": {
+                        "type": "object",
+                        "description": "check result, or {mint, error, message}"
+                      },
+                      "type": "array"
+                    },
+                    "summary": {
+                      "type": "object",
+                      "description": "count per level and the riskiest mint"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "count",
+                    "results"
+                  ]
+                },
+                "example": {
+                  "count": 1,
+                  "ok": 1,
+                  "failed": 0,
+                  "results": [
+                    {
+                      "mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+                      "name": "Bonk",
+                      "score": 5,
+                      "level": "low",
+                      "verdict": "No major red flags found.",
+                      "flags": []
+                    }
+                  ],
+                  "summary": {
+                    "low": 1,
+                    "medium": 0,
+                    "high": 0,
+                    "critical": 0,
+                    "riskiest": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "x402 payment required: $0.10 USDC on Solana or Base (v2 challenge in the PAYMENT-REQUIRED header, v1 challenge in the JSON body)"
+          },
+          "400": {
+            "description": "Invalid input or malformed payment header (payment not processed)"
+          },
+          "404": {
+            "description": "Address is not a token mint (not charged)"
+          },
+          "502": {
+            "description": "Upstream Solana data unavailable (not charged)"
+          },
+          "503": {
+            "description": "Payment facilitator unavailable (not charged)"
+          }
+        },
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.10"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        }
+      }
+    },
+    "/v1/paid/diff": {
+      "post": {
+        "tags": [
+          "paid"
+        ],
+        "summary": "Compare a token with your previous snapshot and list changes",
+        "description": "Haris Guardian watch/diff: re-check a Solana token and report what changed vs. your previous snapshot (authorities, LP, liquidity, holders, sellability, score).",
+        "operationId": "paid_diff",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "mint": {
+                    "type": "string",
+                    "maxLength": 44,
+                    "minLength": 32,
+                    "description": "Base58 Solana token mint address (SPL or Token-2022)"
+                  },
+                  "previous": {
+                    "type": "object",
+                    "description": "A previous Haris result for the same mint (from /v1/paid/check, /v1/check, /v1/paid/deep-check or the 'current' field of an earlier diff)"
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "mint",
+                  "previous"
+                ]
+              },
+              "example": {
+                "mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+                "previous": {
+                  "mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+                  "name": "Bonk",
+                  "score": 5,
+                  "level": "low",
+                  "verdict": "No major red flags found.",
+                  "flags": []
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Result; X-PAYMENT-RESPONSE (v1) / PAYMENT-RESPONSE (v2) carries the settlement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "mint": {
+                      "type": "string"
+                    },
+                    "changed": {
+                      "type": "boolean"
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "none",
+                        "info",
+                        "warning",
+                        "critical"
+                      ]
+                    },
+                    "alerts": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "changes": {
+                      "type": "object"
+                    },
+                    "current": {
+                      "properties": {
+                        "mint": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "score": {
+                          "type": "number",
+                          "description": "0-100, higher = riskier"
+                        },
+                        "level": {
+                          "type": "string",
+                          "enum": [
+                            "low",
+                            "medium",
+                            "high",
+                            "critical"
+                          ]
+                        },
+                        "verdict": {
+                          "type": "string"
+                        },
+                        "flags": {
+                          "items": {
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "type": "object",
+                      "required": [
+                        "mint",
+                        "score",
+                        "level"
+                      ]
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "mint",
+                    "changed",
+                    "alerts",
+                    "current"
+                  ]
+                },
+                "example": {
+                  "mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+                  "changed": false,
+                  "severity": "none",
+                  "alerts": [],
+                  "changes": {},
+                  "current": {
+                    "mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+                    "name": "Bonk",
+                    "score": 5,
+                    "level": "low",
+                    "verdict": "No major red flags found.",
+                    "flags": []
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "x402 payment required: $0.02 USDC on Solana or Base (v2 challenge in the PAYMENT-REQUIRED header, v1 challenge in the JSON body)"
+          },
+          "400": {
+            "description": "Invalid input or malformed payment header (payment not processed)"
+          },
+          "404": {
+            "description": "Address is not a token mint (not charged)"
+          },
+          "502": {
+            "description": "Upstream Solana data unavailable (not charged)"
+          },
+          "503": {
+            "description": "Payment facilitator unavailable (not charged)"
+          }
+        },
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.02"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Optional key for a higher free quota on /v1/check (not needed for x402 routes)."
+      }
+    }
+  }
+}
