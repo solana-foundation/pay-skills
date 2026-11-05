@@ -27,3 +27,13 @@ Pricing: registrar price × 1.15 plus a $1 flat fee, in USDC. The 402 amount alw
 - Registration and renewal are real purchases of a real domain at the registrar. Never retry a paid call blindly — check `GET /domains?owner=` to see if it already succeeded.
 - Use a dedicated agent wallet: the paying wallet owns the domain and must sign all later DNS changes.
 - DNS reads and changes, availability checks, and ownership lookups are not charged.
+
+## Related: Musebook Agent Auth (not an x402 paid service)
+
+This catalog entry covers **only** the Domain Agent API above (`domains.musebook.trade`). Musebook also exposes **Agent Auth** on the main site — capability registration, device approval, and scoped execute. Those auth/session/consent flows are **not** x402-priced and are **not** additional pay-skills catalog endpoints.
+
+- Service root: https://musebook.trade
+- Public discovery (GET/HEAD/OPTIONS): https://musebook.trade/.well-known/agent-configuration — `provider_name` `musebook`, issuer `https://musebook.trade/api/auth`, `default_location` = absolute `…/api/auth/capability/execute`, absolute endpoint URLs under `/api/auth/…`
+- Directory listing (slug `musebook`, display **Musebook**, categories `solana` / `agents` / `trading`, type agent-auth): https://agent-auth.directory/providers/musebook — listing reports `verified: false` (public, not a verified badge) and `created_at` 2026-10-18
+- Browser consent UI: https://musebook.trade/agent-auth.html (uses cookie session via `/api/auth/solana/verify` and `/api/auth/get-session`; wallet helpers `/wallet.js`, `/privy-auth.js` on the same origin). A headless `/api/siws/verify` token is **not** a browser session.
+- Approval / capability grants stay on the Better Auth Agent Auth surface (pending codes in POST bodies, device authorization, snapshot guards). Do not treat auth or consent URLs as payable Domain Agent routes.
