@@ -47,6 +47,7 @@ route-specific ones) are in `openapi.json` next to this file, and the free
 | `/api/x402/options-chain-history` | $0.10 | Hourly listed options chain per instrument on Deribit, Bybit, Binance, OKX and Delta Exchange: open interest in coins, mark IV, underlying price, 24h volume, plus Deribit mark, bid and ask. |
 | `/api/x402/solana-perps-history` | $0.10 | Hourly history of the Solana perp venues other than Jupiter (Pacifica, Phoenix, GM Trade, Velocity, Bullet) per market and metric: open interest, 24h volume, funding and mark, recorded from 2026-09-25. |
 | `/api/x402/venue-share-history` | $0.10 | Hourly recorded liquidations per counted venue since 2026-08-29: long and short USD, events, largest print, symbols, the hour's total over the counted venues and the venue's share of it. |
+| `/api/x402/desk-notes-history` | $0.10 | Every dated desk observation since 2026-10-12, written by the desk's AI writer from the platform's own recorded derivatives data: publish and data time, news value 0 to 10, board, coins, English and X text, zh, ru and ko translations. |
 | `/api/x402/bulk-liquidations` | $15 | One-hour download links for monthly gzip CSV files of every recorded liquidation event. |
 | `/api/x402/bulk-derivatives` | $10 | One-hour download links for monthly files of open interest, funding settlements and venue snapshots. |
 | `/api/x402/bulk-flow` | $10 | One-hour download links for monthly files of whale prints, Hyperliquid whale events, positioning and RSI. |
