@@ -1,1 +1,1080 @@
-{"openapi":"3.1.0","servers":[{"url":"https://aptu.dev"}],"info":{"title":"aptu.dev","version":"0.1.0","description":"Machine-payable API infrastructure for autonomous agents.","contact":{"name":"aptu.dev","url":"https://aptu.dev","email":"info@aptu.dev"},"x-guidance":"All paid endpoints speak x402 v2: an unpaid request receives 402 with a PAYMENT-REQUIRED header; sign the exact-scheme authorization (USDC on Base via EIP-3009 or on Solana via the SVM exact scheme, payTo from the challenge) and retry with a PAYMENT-SIGNATURE header; a settled response carries PAYMENT-RESPONSE with the settlement receipt. Free surfaces are /.well-known/x402, /v1/catalog, /v1/openapi.json, /v1/self-check, and GET /v1/x401-probe (401 + PROOF-REQUEST, no payment). Unauthenticated probes always reach the 402 challenge before request-body validation."},"components":{"schemas":{"ErrorEnvelope":{"type":"object","required":["error"],"properties":{"error":{"type":"string"},"detail":{"type":"string"}}}}},"paths":{"/.well-known/x402":{"get":{"operationId":"getX402DiscoveryManifest","summary":"Fetch the x402 discovery manifest","security":[],"responses":{"200":{"description":"Manifest document"}}}},"/v1/catalog":{"get":{"operationId":"listCatalogEndpoints","summary":"List all endpoints in the JSON catalog","security":[],"responses":{"200":{"description":"Catalog document"}}}},"/v1/openapi.json":{"get":{"operationId":"getOpenApiDocument","summary":"Fetch the OpenAPI 3.1 document","security":[],"responses":{"200":{"description":"OpenAPI document"}}}},"/v1/echo":{"post":{"operationId":"sendEchoMessage","summary":"Send a JSON message and receive the echo","security":[],"description":"Echoes a JSON {message} back; the simplest paid call for verifying your x402 payment flow.","x-payment-info":{"protocols":[{"x402":{}}],"price":{"mode":"fixed","currency":"USD","amount":"0.01"}},"requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["message"],"properties":{"message":{"type":"string","maxLength":10000,"description":"Message to echo back verbatim","example":"hello from an autonomous agent"}}}}}},"responses":{"200":{"description":"Echoed payload","headers":{"PAYMENT-RESPONSE":{"schema":{"type":"string"},"description":"Base64-encoded JSON settlement receipt (x402 v2 PAYMENT-RESPONSE).","required":true}},"content":{"application/json":{"schema":{"type":"object","required":["echo"],"properties":{"echo":{"type":"object"}}},"example":{"echo":{"message":"hello from an autonomous agent"}}}}},"400":{"description":"Invalid input","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorEnvelope"}}}},"402":{"description":"Payment required (x402 PAYMENT-REQUIRED header)","headers":{"PAYMENT-REQUIRED":{"schema":{"type":"string"},"description":"Base64-encoded JSON payment challenge (x402 v2 PAYMENT-REQUIRED).","required":true}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorEnvelope"}}}},"405":{"description":"Method not allowed","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorEnvelope"}}}},"409":{"description":"Replay blocked","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorEnvelope"}}}}}}},"/v1/resume-eval":{"post":{"operationId":"scoreResumeAgainstRubric","summary":"Score a resume against the ATS rubric","security":[],"description":"Scores a resume 0-4 against an ATS rubric (impact, parseability, executive framing, contact).","x-payment-info":{"protocols":[{"x402":{}}],"price":{"mode":"fixed","currency":"USD","amount":"0.005"}},"requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["resume_text","format"],"properties":{"resume_text":{"type":"string","maxLength":30000,"description":"Full resume text to score"},"format":{"type":"string","enum":["markdown","typst","json"],"description":"Format of the supplied resume text"},"job_description":{"type":"string","maxLength":6000}}}}}},"responses":{"200":{"description":"Score report (four checks + total)","headers":{"PAYMENT-RESPONSE":{"schema":{"type":"string"},"description":"Base64-encoded JSON settlement receipt (x402 v2 PAYMENT-RESPONSE).","required":true}},"content":{"application/json":{"schema":{"type":"object","required":["scores","total","findings"],"properties":{"scores":{"type":"object","required":["impact_quantified","ats_parseable","executive_framing","contact_complete"],"properties":{"impact_quantified":{"type":"integer","enum":[0,1]},"ats_parseable":{"type":"integer","enum":[0,1]},"executive_framing":{"type":"integer","enum":[0,1]},"contact_complete":{"type":"integer","enum":[0,1]}}},"total":{"type":"number"},"findings":{"type":"array","items":{"type":"object","required":["check","pass","detail"],"properties":{"check":{"type":"string"},"pass":{"type":"boolean"},"detail":{"type":"string"},"gap":{"type":"string"},"action":{"type":"string"}}}},"warnings":{"type":"array","items":{"type":"object","required":["code","message"],"properties":{"code":{"type":"string"},"message":{"type":"string"}}}}}},"example":{"scores":{"impact_quantified":1,"ats_parseable":1,"executive_framing":0,"contact_complete":1},"total":3,"findings":[{"check":"executive_framing","pass":false,"detail":"No executive framing detected.","action":"Lead with scope and outcome."}]}}}},"400":{"description":"Invalid input","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorEnvelope"}}}},"402":{"description":"Payment required (x402 PAYMENT-REQUIRED header)","headers":{"PAYMENT-REQUIRED":{"schema":{"type":"string"},"description":"Base64-encoded JSON payment challenge (x402 v2 PAYMENT-REQUIRED).","required":true}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorEnvelope"}}}},"405":{"description":"Method not allowed","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorEnvelope"}}}},"409":{"description":"Replay blocked","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorEnvelope"}}}}}}},"/v1/agent-readiness":{"post":{"operationId":"checkDomainAgentReadiness","summary":"Check a domain for agent readiness","security":[],"description":"Audits a domain's agent readiness across 12 checks (origin headers, robots.txt, llms.txt, sitemap, feed, agents.txt, skill.md, JSON-LD, mcp.json, A2A card, x402 manifest, OpenAPI x-payment-info) and scores 0-100.","x-payment-info":{"protocols":[{"x402":{}}],"price":{"mode":"fixed","currency":"USD","amount":"0.05"}},"requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["domain"],"properties":{"domain":{"type":"string","maxLength":253,"pattern":"^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"}}}}}},"responses":{"200":{"description":"Readiness audit (score + findings)","headers":{"PAYMENT-RESPONSE":{"schema":{"type":"string"},"description":"Base64-encoded JSON settlement receipt (x402 v2 PAYMENT-RESPONSE).","required":true}},"content":{"application/json":{"schema":{"type":"object","required":["domain","score","findings"],"properties":{"domain":{"type":"string"},"score":{"type":"number"},"findings":{"type":"array","items":{"type":"object","required":["check","pass","detail","ms"],"properties":{"check":{"type":"string"},"pass":{"type":"boolean"},"detail":{"type":"string"},"ms":{"type":"number"},"hint":{"type":"string"}}}}}},"example":{"domain":"example.com","score":92,"findings":[{"check":"robots_txt","pass":true,"detail":"robots.txt present.","ms":34}]}}}},"400":{"description":"Invalid input","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorEnvelope"}}}},"402":{"description":"Payment required (x402 PAYMENT-REQUIRED header)","headers":{"PAYMENT-REQUIRED":{"schema":{"type":"string"},"description":"Base64-encoded JSON payment challenge (x402 v2 PAYMENT-REQUIRED).","required":true}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorEnvelope"}}}},"405":{"description":"Method not allowed","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorEnvelope"}}}},"409":{"description":"Replay blocked","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorEnvelope"}}}},"424":{"description":"Upstream probe failed (no charge applied)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorEnvelope"}}}}}}},"/v1/x402-preflight":{"post":{"operationId":"runX402Preflight","summary":"Run an x402 conformance pre-flight","security":[],"description":"Grades a deployed x402 resource URL against the aptu-preflight-1 rubric: @x402/core schema validation, mechanism reachability, facilitator cross-check, and warn-only advisory findings, with a remedy per failure.","x-payment-info":{"protocols":[{"x402":{}}],"price":{"mode":"fixed","currency":"USD","amount":"0.05"}},"requestBody":{"required":true,"content":{"application/json":{"schema":{"type":"object","required":["url"],"properties":{"url":{"type":"string","maxLength":2048,"pattern":"^https://"},"resource":{"type":"string","maxLength":2048,"description":"Explicit resource URL to probe when the manifest advertises several."}}}}}},"responses":{"200":{"description":"Preflight report (score + grade + findings)","headers":{"PAYMENT-RESPONSE":{"schema":{"type":"string"},"description":"Base64-encoded JSON settlement receipt (x402 v2 PAYMENT-RESPONSE).","required":true}},"content":{"application/json":{"schema":{"type":"object","required":["url","probedResource","rubricVersion","score","grade","summary","findings"],"properties":{"url":{"type":"string"},"probedResource":{"type":["string","null"]},"probedFacilitator":{"type":["string","null"]},"rubricVersion":{"type":"string"},"score":{"type":"number"},"grade":{"type":"string","enum":["A","B","C","D"]},"summary":{"type":"object","required":["fails","warns"],"properties":{"fails":{"type":"number"},"warns":{"type":"number"}}},"findings":{"type":"array","items":{"type":"object","required":["check","pass","severity","detail","ms","hint","specRef"],"properties":{"check":{"type":"string"},"pass":{"type":"boolean"},"severity":{"type":"string","enum":["fail","warn"]},"detail":{"type":"string"},"ms":{"type":"number"},"hint":{"type":["string","null"]},"specRef":{"type":["string","null"]}}}}}},"example":{"url":"https://seller.example.com/v1/paid","probedResource":"https://seller.example.com/v1/paid","probedFacilitator":null,"rubricVersion":"aptu-preflight-1","score":96,"grade":"A","summary":{"fails":0,"warns":1},"findings":[{"check":"manifest_dual_timestamp","pass":false,"severity":"warn","detail":"Manifest carries 'updated' but not 'updated_at'.","ms":12,"hint":"Publish both 'updated' and 'updated_at' on the manifest.","specRef":null}]}}}},"400":{"description":"Invalid input","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorEnvelope"}}}},"402":{"description":"Payment required (x402 PAYMENT-REQUIRED header)","headers":{"PAYMENT-REQUIRED":{"schema":{"type":"string"},"description":"Base64-encoded JSON payment challenge (x402 v2 PAYMENT-REQUIRED).","required":true}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorEnvelope"}}}},"405":{"description":"Method not allowed","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorEnvelope"}}}},"409":{"description":"Replay blocked","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorEnvelope"}}}},"424":{"description":"Upstream probe failed (no charge applied)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorEnvelope"}}}}}}},"/v1/btc-regime":{"get":{"operationId":"checkBtcRegimeGate","summary":"Check BTC spot regime against MA7 gate","security":[],"description":"Spot vs 7-day moving average regime check: returns bull or bear, MA7, deviation percent, and a favor-entry or block-entry action for a BTC entry gate.","x-payment-info":{"protocols":[{"x402":{}}],"price":{"mode":"fixed","currency":"USD","amount":"0.003"}},"parameters":[{"name":"spot","in":"query","required":true,"schema":{"type":"number","exclusiveMinimum":0},"example":65000},{"name":"closes","in":"query","required":false,"example":"63500,64200,64800,65100,64700,65500,66000","description":"Comma-separated list of exactly 7 daily closes, oldest first; omit to read Kraken.","schema":{"type":"string","pattern":"^[0-9]+(\\.[0-9]+)?(,[0-9]+(\\.[0-9]+)?){6}$"}}],"responses":{"200":{"description":"Regime verdict (regime may be insufficient-data when inputs fail the guard); fetchedAt is present only when closesSource is \"kraken\".","headers":{"PAYMENT-RESPONSE":{"schema":{"type":"string"},"description":"Base64-encoded JSON settlement receipt (x402 v2 PAYMENT-RESPONSE).","required":true}},"content":{"application/json":{"schema":{"type":"object","required":["regime","ma7","spotVsMa7Pct","action","closesSource","availability","disclaimer"],"properties":{"regime":{"type":"string","enum":["bull","bear","insufficient-data"]},"ma7":{"type":["number","null"]},"spotVsMa7Pct":{"type":["number","null"]},"action":{"type":["string","null"],"enum":["favor-entry","block-entry",null]},"closesSource":{"type":"string","enum":["client","kraken"]},"fetchedAt":{"type":"string","format":"date-time"},"availability":{"type":"string","enum":["available","unavailable"]},"unavailableReason":{"type":"string","enum":["not_reported","provider_error","stale"]},"disclaimer":{"type":"string"}}},"example":{"regime":"bull","ma7":64800.5,"spotVsMa7Pct":0.31,"action":"favor-entry","closesSource":"client","availability":"available","disclaimer":"Not financial advice."}}}},"400":{"description":"Invalid input","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorEnvelope"}}}},"402":{"description":"Payment required (x402 PAYMENT-REQUIRED header)","headers":{"PAYMENT-REQUIRED":{"schema":{"type":"string"},"description":"Base64-encoded JSON payment challenge (x402 v2 PAYMENT-REQUIRED).","required":true}},"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorEnvelope"}}}},"405":{"description":"Method not allowed","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorEnvelope"}}}},"409":{"description":"Replay blocked","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorEnvelope"}}}},"424":{"description":"Upstream probe failed (no charge applied)","content":{"application/json":{"schema":{"$ref":"#/components/schemas/ErrorEnvelope"}}}}}}},"/v1/x401-probe":{"get":{"operationId":"probeX401Demand","summary":"Fetch a 401 demand-probe challenge without paying","security":[],"description":"Answers 401 with a base64url PROOF-REQUEST header (x401 draft 0.2.0, unsigned OpenID4VP request, fresh nonce). Statelessly probes agent proof capabilities; no payment required.","responses":{"401":{"description":"Proof required (x401 PROOF-REQUEST challenge header)"},"405":{"description":"Method not allowed"}}}}}}
+{
+  "openapi": "3.1.0",
+  "servers": [
+    {
+      "url": "https://aptu.dev"
+    }
+  ],
+  "info": {
+    "title": "aptu.dev",
+    "version": "0.1.0",
+    "description": "Machine-payable API infrastructure for autonomous agents.",
+    "contact": {
+      "name": "aptu.dev",
+      "url": "https://aptu.dev",
+      "email": "info@aptu.dev"
+    },
+    "x-guidance": "All paid endpoints speak x402 v2: an unpaid request receives 402 with a PAYMENT-REQUIRED header; sign the exact-scheme authorization (USDC on Base via EIP-3009 or on Solana via the SVM exact scheme, payTo from the challenge) and retry with a PAYMENT-SIGNATURE header; a settled response carries PAYMENT-RESPONSE with the settlement receipt. Free surfaces are /.well-known/x402, /v1/catalog, /v1/openapi.json, /v1/self-check, and GET /v1/x401-probe (401 + PROOF-REQUEST, no payment). Unauthenticated probes always reach the 402 challenge before request-body validation."
+  },
+  "components": {
+    "schemas": {
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/.well-known/x402": {
+      "get": {
+        "operationId": "getX402DiscoveryManifest",
+        "summary": "Fetch the x402 discovery manifest",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Manifest document"
+          }
+        }
+      }
+    },
+    "/v1/catalog": {
+      "get": {
+        "operationId": "listCatalogEndpoints",
+        "summary": "List all endpoints in the JSON catalog",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Catalog document"
+          }
+        }
+      }
+    },
+    "/v1/openapi.json": {
+      "get": {
+        "operationId": "getOpenApiDocument",
+        "summary": "Fetch the OpenAPI 3.1 document",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OpenAPI document"
+          }
+        }
+      }
+    },
+    "/v1/echo": {
+      "post": {
+        "operationId": "sendEchoMessage",
+        "summary": "Send a JSON message and receive the echo",
+        "security": [],
+        "description": "Echoes a JSON {message} back; the simplest paid call for verifying your x402 payment flow.",
+        "x-payment-info": {
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "message"
+                ],
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "maxLength": 10000,
+                    "description": "Message to echo back verbatim",
+                    "example": "hello from an autonomous agent"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Echoed payload",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON settlement receipt (x402 v2 PAYMENT-RESPONSE).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "echo"
+                  ],
+                  "properties": {
+                    "echo": {
+                      "type": "object"
+                    }
+                  }
+                },
+                "example": {
+                  "echo": {
+                    "message": "hello from an autonomous agent"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 PAYMENT-REQUIRED header)",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON payment challenge (x402 v2 PAYMENT-REQUIRED).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Replay blocked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/resume-eval": {
+      "post": {
+        "operationId": "scoreResumeAgainstRubric",
+        "summary": "Score a resume against the ATS rubric",
+        "security": [],
+        "description": "Scores a resume 0-4 against an ATS rubric (impact, parseability, executive framing, contact).",
+        "x-payment-info": {
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.005"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "resume_text",
+                  "format"
+                ],
+                "properties": {
+                  "resume_text": {
+                    "type": "string",
+                    "maxLength": 30000,
+                    "description": "Full resume text to score"
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": [
+                      "markdown",
+                      "typst",
+                      "json"
+                    ],
+                    "description": "Format of the supplied resume text"
+                  },
+                  "job_description": {
+                    "type": "string",
+                    "maxLength": 6000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Score report (four checks + total)",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON settlement receipt (x402 v2 PAYMENT-RESPONSE).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "scores",
+                    "total",
+                    "findings"
+                  ],
+                  "properties": {
+                    "scores": {
+                      "type": "object",
+                      "required": [
+                        "impact_quantified",
+                        "ats_parseable",
+                        "executive_framing",
+                        "contact_complete"
+                      ],
+                      "properties": {
+                        "impact_quantified": {
+                          "type": "integer",
+                          "enum": [
+                            0,
+                            1
+                          ]
+                        },
+                        "ats_parseable": {
+                          "type": "integer",
+                          "enum": [
+                            0,
+                            1
+                          ]
+                        },
+                        "executive_framing": {
+                          "type": "integer",
+                          "enum": [
+                            0,
+                            1
+                          ]
+                        },
+                        "contact_complete": {
+                          "type": "integer",
+                          "enum": [
+                            0,
+                            1
+                          ]
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "findings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "check",
+                          "pass",
+                          "detail"
+                        ],
+                        "properties": {
+                          "check": {
+                            "type": "string"
+                          },
+                          "pass": {
+                            "type": "boolean"
+                          },
+                          "detail": {
+                            "type": "string"
+                          },
+                          "gap": {
+                            "type": "string"
+                          },
+                          "action": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "code",
+                          "message"
+                        ],
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "scores": {
+                    "impact_quantified": 1,
+                    "ats_parseable": 1,
+                    "executive_framing": 0,
+                    "contact_complete": 1
+                  },
+                  "total": 3,
+                  "findings": [
+                    {
+                      "check": "executive_framing",
+                      "pass": false,
+                      "detail": "No executive framing detected.",
+                      "action": "Lead with scope and outcome."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 PAYMENT-REQUIRED header)",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON payment challenge (x402 v2 PAYMENT-REQUIRED).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Replay blocked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/agent-readiness": {
+      "post": {
+        "operationId": "checkDomainAgentReadiness",
+        "summary": "Check a domain for agent readiness",
+        "security": [],
+        "description": "Audits a domain's agent readiness across 12 checks (origin headers, robots.txt, llms.txt, sitemap, feed, agents.txt, skill.md, JSON-LD, mcp.json, A2A card, x402 manifest, OpenAPI x-payment-info) and scores 0-100.",
+        "x-payment-info": {
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.05"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "domain"
+                ],
+                "properties": {
+                  "domain": {
+                    "type": "string",
+                    "maxLength": 253,
+                    "pattern": "^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Readiness audit (score + findings)",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON settlement receipt (x402 v2 PAYMENT-RESPONSE).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "domain",
+                    "score",
+                    "findings"
+                  ],
+                  "properties": {
+                    "domain": {
+                      "type": "string"
+                    },
+                    "score": {
+                      "type": "number"
+                    },
+                    "findings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "check",
+                          "pass",
+                          "detail",
+                          "ms"
+                        ],
+                        "properties": {
+                          "check": {
+                            "type": "string"
+                          },
+                          "pass": {
+                            "type": "boolean"
+                          },
+                          "detail": {
+                            "type": "string"
+                          },
+                          "ms": {
+                            "type": "number"
+                          },
+                          "hint": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "domain": "example.com",
+                  "score": 92,
+                  "findings": [
+                    {
+                      "check": "robots_txt",
+                      "pass": true,
+                      "detail": "robots.txt present.",
+                      "ms": 34
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 PAYMENT-REQUIRED header)",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON payment challenge (x402 v2 PAYMENT-REQUIRED).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Replay blocked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "Upstream probe failed (no charge applied)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/x402-preflight": {
+      "post": {
+        "operationId": "runX402Preflight",
+        "summary": "Run an x402 conformance pre-flight",
+        "security": [],
+        "description": "Grades a deployed x402 resource URL against the aptu-preflight-1 rubric: @x402/core schema validation, mechanism reachability, facilitator cross-check, and warn-only advisory findings, with a remedy per failure.",
+        "x-payment-info": {
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.05"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "url"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "pattern": "^https://"
+                  },
+                  "resource": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "description": "Explicit resource URL to probe when the manifest advertises several."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preflight report (score + grade + findings)",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON settlement receipt (x402 v2 PAYMENT-RESPONSE).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "url",
+                    "probedResource",
+                    "rubricVersion",
+                    "score",
+                    "grade",
+                    "summary",
+                    "findings"
+                  ],
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    },
+                    "probedResource": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "probedFacilitator": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "rubricVersion": {
+                      "type": "string"
+                    },
+                    "score": {
+                      "type": "number"
+                    },
+                    "grade": {
+                      "type": "string",
+                      "enum": [
+                        "A",
+                        "B",
+                        "C",
+                        "D"
+                      ]
+                    },
+                    "summary": {
+                      "type": "object",
+                      "required": [
+                        "fails",
+                        "warns"
+                      ],
+                      "properties": {
+                        "fails": {
+                          "type": "number"
+                        },
+                        "warns": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "findings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "check",
+                          "pass",
+                          "severity",
+                          "detail",
+                          "ms",
+                          "hint",
+                          "specRef"
+                        ],
+                        "properties": {
+                          "check": {
+                            "type": "string"
+                          },
+                          "pass": {
+                            "type": "boolean"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "fail",
+                              "warn"
+                            ]
+                          },
+                          "detail": {
+                            "type": "string"
+                          },
+                          "ms": {
+                            "type": "number"
+                          },
+                          "hint": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "specRef": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "url": "https://seller.example.com/v1/paid",
+                  "probedResource": "https://seller.example.com/v1/paid",
+                  "probedFacilitator": null,
+                  "rubricVersion": "aptu-preflight-1",
+                  "score": 96,
+                  "grade": "A",
+                  "summary": {
+                    "fails": 0,
+                    "warns": 1
+                  },
+                  "findings": [
+                    {
+                      "check": "manifest_dual_timestamp",
+                      "pass": false,
+                      "severity": "warn",
+                      "detail": "Manifest carries 'updated' but not 'updated_at'.",
+                      "ms": 12,
+                      "hint": "Publish both 'updated' and 'updated_at' on the manifest.",
+                      "specRef": null
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 PAYMENT-REQUIRED header)",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON payment challenge (x402 v2 PAYMENT-REQUIRED).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Replay blocked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "Upstream probe failed (no charge applied)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/btc-regime": {
+      "get": {
+        "operationId": "checkBtcRegimeGate",
+        "summary": "Check BTC spot regime against MA7 gate",
+        "security": [],
+        "description": "Spot vs 7-day moving average regime check: returns bull or bear, MA7, deviation percent, and a favor-entry or block-entry action for a BTC entry gate.",
+        "x-payment-info": {
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.003"
+          }
+        },
+        "parameters": [
+          {
+            "name": "spot",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "example": 65000
+          },
+          {
+            "name": "closes",
+            "in": "query",
+            "required": false,
+            "example": "63500,64200,64800,65100,64700,65500,66000",
+            "description": "Comma-separated list of exactly 7 daily closes, oldest first; omit to read Kraken.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+(\\.[0-9]+)?(,[0-9]+(\\.[0-9]+)?){6}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Regime verdict (regime may be insufficient-data when inputs fail the guard); fetchedAt is present only when closesSource is \"kraken\".",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON settlement receipt (x402 v2 PAYMENT-RESPONSE).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "regime",
+                    "ma7",
+                    "spotVsMa7Pct",
+                    "action",
+                    "closesSource",
+                    "availability",
+                    "disclaimer"
+                  ],
+                  "properties": {
+                    "regime": {
+                      "type": "string",
+                      "enum": [
+                        "bull",
+                        "bear",
+                        "insufficient-data"
+                      ]
+                    },
+                    "ma7": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "spotVsMa7Pct": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "action": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "favor-entry",
+                        "block-entry",
+                        null
+                      ]
+                    },
+                    "closesSource": {
+                      "type": "string",
+                      "enum": [
+                        "client",
+                        "kraken"
+                      ]
+                    },
+                    "fetchedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "availability": {
+                      "type": "string",
+                      "enum": [
+                        "available",
+                        "unavailable"
+                      ]
+                    },
+                    "unavailableReason": {
+                      "type": "string",
+                      "enum": [
+                        "not_reported",
+                        "provider_error",
+                        "stale"
+                      ]
+                    },
+                    "disclaimer": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "regime": "bull",
+                  "ma7": 64800.5,
+                  "spotVsMa7Pct": 0.31,
+                  "action": "favor-entry",
+                  "closesSource": "client",
+                  "availability": "available",
+                  "disclaimer": "Not financial advice."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 PAYMENT-REQUIRED header)",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON payment challenge (x402 v2 PAYMENT-REQUIRED).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Replay blocked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "Upstream probe failed (no charge applied)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/x401-probe": {
+      "get": {
+        "operationId": "probeX401Demand",
+        "summary": "Fetch a 401 demand-probe challenge without paying",
+        "security": [],
+        "description": "Answers 401 with a base64url PROOF-REQUEST header (x401 draft 0.2.0, unsigned OpenID4VP request, fresh nonce). Statelessly probes agent proof capabilities; no payment required.",
+        "responses": {
+          "401": {
+            "description": "Proof required (x401 PROOF-REQUEST challenge header)"
+          },
+          "405": {
+            "description": "Method not allowed"
+          }
+        }
+      }
+    }
+  }
+}
