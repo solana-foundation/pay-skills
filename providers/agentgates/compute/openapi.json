@@ -1,0 +1,891 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Agentgates Compute API",
+    "version": "1.0.0",
+    "description": "Confidential computers for AI swarms: a sealed VM (Intel TDX) for each agent, for trading swarms or any other swarm, by the hour, paid in USDC over x402 on Base, Polygon or Solana. No signup and no API key: the paying wallet owns the machine, and every machine proves what it runs (remote attestation).\n\nWhat's new:\n- 2026-11-05, Buy 15 minutes: Machines now sell by the quarter-hour: send \"minutes\": 15, 30 or 45 in place of \"hours\" on a create or a renewal. A payment refused for lack of USDC now says what the wallet can buy instead (canBuy).\n- 2026-11-05, Fewer failed changes: Sending a machine the setup it already runs now changes nothing and keeps it up. A machine busy with another change answers 409 with Retry-After: send the same call again then.\n- 2026-11-02, x402 version 2: Pay with x402 version 2 or 1: every 402 also carries a PAYMENT-REQUIRED header, and a PAYMENT-SIGNATURE header pays like X-PAYMENT.\nAll of it: https://api.agentgates.ai/changelog.json",
+    "x-guidance": "Rent confidential computers for an AI swarm, one CVM (Intel TDX) per agent, by the hour with USDC over x402. No signup: the wallet that pays owns the machine.\n1. GET /api/compute/catalog: plans and the price per network for each.\n2. POST /api/compute/deployments with {\"plan\",\"hours\",\"image\"} (or \"compose\" instead of \"image\"). The answer is a free 402 quote: its accepts array carries one exact price per network (Base, Polygon, Solana).\n3. Pay one entry and send the same POST again with the X-PAYMENT header. The answer is 202 with a deploymentId.\n4. Poll GET /api/compute/deployments/{id}, signed by the paying wallet (X-Wallet-Auth), until status is running: endpoint and attestation are then live.\n5. POST /api/compute/deployments/{id}/renew with {\"hours\"} adds time, the same 402 loop. Any wallet may pay a renewal; only the owner reads, controls or destroys the machine.\nFull contract, signing details and live prices: GET /api/compute/docs.\nQuarter-hours: send {\"minutes\": 15} (or 30 or 45) in place of \"hours\" on a create or a renewal, on every plan but GPU.",
+    "contact": {
+      "name": "Agentgates",
+      "email": "support@agentgates.ai",
+      "url": "https://agentgates.ai"
+    },
+    "termsOfService": "https://agentgates.ai/terms"
+  },
+  "servers": [
+    {
+      "url": "https://api.agentgates.ai"
+    }
+  ],
+  "externalDocs": {
+    "description": "Compute docs for agents (live prices)",
+    "url": "https://api.agentgates.ai/api/compute/docs"
+  },
+  "x-agentcash-guidance": {
+    "llmsTxtUrl": "https://api.agentgates.ai/llms.txt"
+  },
+  "tags": [
+    {
+      "name": "Compute",
+      "description": "Confidential computers for AI swarms, by the hour"
+    },
+    {
+      "name": "Notices",
+      "description": "What Agentgates tells your wallet, one way"
+    }
+  ],
+  "paths": {
+    "/api/compute/catalog": {
+      "get": {
+        "operationId": "computeCatalog",
+        "summary": "Fetch compute plans and prices per network",
+        "tags": [
+          "Compute"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Plans, prices per network and per hours bought, the prepaid balance rungs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/compute/docs": {
+      "get": {
+        "operationId": "computeDocs",
+        "summary": "Fetch the compute docs: the contract and live prices",
+        "tags": [
+          "Compute"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Markdown",
+            "content": {
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/compute/deployments": {
+      "post": {
+        "operationId": "computeCreate",
+        "summary": "Create a confidential computer for an agent or a swarm",
+        "description": "Send it without X-PAYMENT for a free 402 quote, pay one accepts entry, then send the same request with X-PAYMENT. The paying wallet owns the machine. A wallet with a prepaid balance may send X-Wallet-Auth (or a compute key as Authorization: Bearer) and no X-PAYMENT to pay from it instead. The price depends on the plan, the hours and the network; the 402 carries it exactly.",
+        "tags": [
+          "Compute"
+        ],
+        "security": [],
+        "x-payment-info": {
+          "price": {
+            "mode": "dynamic",
+            "currency": "USD",
+            "min": "0.090000",
+            "max": "844.560000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "plan",
+                  "hours"
+                ],
+                "properties": {
+                  "plan": {
+                    "type": "string",
+                    "enum": [
+                      "compute.starter",
+                      "compute.standard",
+                      "compute.pro"
+                    ],
+                    "description": "A plan id from GET /api/compute/catalog."
+                  },
+                  "hours": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 720,
+                    "description": "Hours this payment buys, within the plan's own minHours and maxHours. The clock starts when the machine runs."
+                  },
+                  "minutes": {
+                    "type": "integer",
+                    "enum": [
+                      15,
+                      30,
+                      45
+                    ],
+                    "description": "In place of hours: minutes this payment buys, on every plan but GPU. A quarter-hour costs more per hour than an hour (one settle per payment). Send hours or minutes, not both."
+                  },
+                  "image": {
+                    "type": "string",
+                    "example": "nginx:alpine",
+                    "description": "One container image, served on host port 8080. Send image or compose."
+                  },
+                  "port": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 65535,
+                    "description": "The container port behind host port 8080 when image is used (default 80)."
+                  },
+                  "compose": {
+                    "type": "string",
+                    "description": "A docker-compose.yml as a string. It must publish a port. Send compose or image."
+                  },
+                  "env": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "Env values, sealed to the machine and never stored."
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "description": "An optional label."
+                  },
+                  "aliasTarget": {
+                    "type": "string",
+                    "description": "Optional \"<service>:<port>\" in your compose, to serve on a dedicated domain (see the docs)."
+                  }
+                },
+                "anyOf": [
+                  {
+                    "required": [
+                      "image"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "compose"
+                    ]
+                  }
+                ]
+              },
+              "example": {
+                "plan": "compute.starter",
+                "hours": 1,
+                "image": "nginx:alpine"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Paid. The machine is provisioning: poll GET /api/compute/deployments/{deploymentId}. A retry with the same X-PAYMENT returns the same machine.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deploymentId": {
+                      "type": "string"
+                    },
+                    "plan": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "description": "provisioning, running, grace, stopped, suspended, destroyed or failed"
+                    },
+                    "endpoint": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "The machine's URL once it runs."
+                    },
+                    "expiresAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "verifyUrl": {
+                      "type": "string",
+                      "description": "A public page with the machine's attestation."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request was refused before any payment (a bad body or setup); the error says why"
+          },
+          "402": {
+            "description": "Payment Required: the quote. accepts carries one entry per network, each with its own exact maxAmountRequired (USDC atomic units). Quoting is free and repeatable; nothing was charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402Quote"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown plan"
+          },
+          "409": {
+            "description": "payment_in_progress: this payment is being processed, send the same X-PAYMENT again after retry-after. payment_already_spent: it matches no receipt, list your machines. Never sign a new one."
+          },
+          "503": {
+            "description": "No capacity right now; nothing was charged"
+          }
+        }
+      }
+    },
+    "/api/compute/deployments/{id}": {
+      "get": {
+        "operationId": "computeRead",
+        "summary": "Read a machine: status, endpoint, expiry, attestation",
+        "description": "Signed by the wallet that owns the machine (X-Wallet-Auth; how to build it: GET /api/compute/docs).",
+        "tags": [
+          "Compute"
+        ],
+        "security": [
+          {
+            "WalletAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The deploymentId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The machine",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deploymentId": {
+                      "type": "string"
+                    },
+                    "plan": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "description": "provisioning, running, grace, stopped, suspended, destroyed or failed"
+                    },
+                    "endpoint": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "The machine's URL once it runs."
+                    },
+                    "expiresAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "verifyUrl": {
+                      "type": "string",
+                      "description": "A public page with the machine's attestation."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or bad X-Wallet-Auth"
+          },
+          "404": {
+            "description": "not found for this wallet: sign with the wallet that paid for the machine"
+          }
+        }
+      }
+    },
+    "/api/compute/deployments/{id}/renew": {
+      "post": {
+        "operationId": "computeRenew",
+        "summary": "Add hours to a machine (x402)",
+        "description": "The same 402 loop as a create, priced at the machine's plan for the hours asked. The hours stack on the end of the clock, so renewing early never loses time. Any wallet may pay a renewal with X-PAYMENT; only the owner reads, controls or destroys the machine. A renewal from a prepaid balance comes from the owner. GPU plans are not renewed.",
+        "tags": [
+          "Compute"
+        ],
+        "security": [],
+        "x-payment-info": {
+          "price": {
+            "mode": "dynamic",
+            "currency": "USD",
+            "min": "0.078000",
+            "max": "844.560000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The deploymentId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "hours"
+                ],
+                "properties": {
+                  "hours": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 720,
+                    "description": "Hours to add to the end of the machine's clock, within its plan's minHours and maxHours."
+                  },
+                  "minutes": {
+                    "type": "integer",
+                    "enum": [
+                      15,
+                      30,
+                      45
+                    ],
+                    "description": "In place of hours: minutes this payment buys, on every plan but GPU. A quarter-hour costs more per hour than an hour (one settle per payment). Send hours or minutes, not both."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The machine with its new expiresAt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deploymentId": {
+                      "type": "string"
+                    },
+                    "plan": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "description": "provisioning, running, grace, stopped, suspended, destroyed or failed"
+                    },
+                    "endpoint": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "The machine's URL once it runs."
+                    },
+                    "expiresAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "verifyUrl": {
+                      "type": "string",
+                      "description": "A public page with the machine's attestation."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad hours; nothing was charged"
+          },
+          "402": {
+            "description": "Payment Required: the quote. accepts carries one entry per network, each with its own exact maxAmountRequired (USDC atomic units). Quoting is free and repeatable; nothing was charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402Quote"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such machine"
+          },
+          "409": {
+            "description": "The machine is destroyed or on a GPU plan (nothing was charged), or this payment is being processed (payment_in_progress: send the same X-PAYMENT again)"
+          }
+        }
+      }
+    },
+    "/api/compute/credits": {
+      "post": {
+        "operationId": "computeCreditsBuy",
+        "summary": "Add to your prepaid compute balance",
+        "description": "The 402 asks for the dollars plus the one settle that delivers them. A balance never expires and is not refundable.",
+        "tags": [
+          "Compute"
+        ],
+        "security": [],
+        "x-payment-info": {
+          "price": {
+            "mode": "dynamic",
+            "currency": "USD",
+            "min": "1.004610",
+            "max": "100.012097"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "amountUsd"
+                ],
+                "properties": {
+                  "amountUsd": {
+                    "type": "integer",
+                    "enum": [
+                      1,
+                      5,
+                      25,
+                      100
+                    ],
+                    "description": "Dollars to add"
+                  }
+                }
+              },
+              "example": {
+                "amountUsd": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The balance after the top-up",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "amountUsd is not one of the rungs; nothing was charged"
+          },
+          "402": {
+            "description": "Payment Required: the quote. accepts carries one entry per network, each with its own exact maxAmountRequired (USDC atomic units). Quoting is free and repeatable; nothing was charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402Quote"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The lane is not selling that much balance right now; nothing was charged"
+          }
+        }
+      },
+      "get": {
+        "operationId": "computeCreditsRead",
+        "summary": "Read your compute balance and its ledger",
+        "tags": [
+          "Compute"
+        ],
+        "security": [
+          {
+            "WalletAuth": []
+          },
+          {
+            "ComputeKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Balance and ledger",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or bad credentials"
+          }
+        }
+      }
+    },
+    "/api/notices": {
+      "get": {
+        "operationId": "noticesInbox",
+        "summary": "List your wallet's notices, newest first",
+        "description": "Signed by the wallet (X-Wallet-Auth). Machine warnings, refused payments, offers and the news; one way.",
+        "tags": [
+          "Notices"
+        ],
+        "security": [
+          {
+            "WalletAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only notices newer than this id"
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only notices older than this id"
+          },
+          {
+            "name": "unread",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "description": "How many notices to return, 1 to 100"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{notices, more}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or bad X-Wallet-Auth"
+          }
+        }
+      }
+    },
+    "/api/notices/read": {
+      "post": {
+        "operationId": "noticesRead",
+        "summary": "Update your wallet's notices as read",
+        "description": "Signed by the wallet. Body {\"upTo\":\"<id>\"} or {\"ids\":[\"<id>\"]}.",
+        "tags": [
+          "Notices"
+        ],
+        "security": [
+          {
+            "WalletAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{marked}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No upTo and no ids"
+          },
+          "401": {
+            "description": "Missing or bad X-Wallet-Auth"
+          }
+        }
+      }
+    },
+    "/api/notices/stream": {
+      "get": {
+        "operationId": "noticesStream",
+        "summary": "Fetch your wallet's notices live, as Server-Sent Events",
+        "description": "Signed by the wallet. Unread first (or after Last-Event-ID), then each new one within 5 seconds; reconnect when it closes. 2 open at most per wallet.",
+        "tags": [
+          "Notices"
+        ],
+        "security": [
+          {
+            "WalletAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "text/event-stream"
+          },
+          "401": {
+            "description": "Missing or bad X-Wallet-Auth"
+          },
+          "429": {
+            "description": "2 streams already open"
+          }
+        }
+      }
+    },
+    "/api/notices/webhooks": {
+      "get": {
+        "operationId": "noticesWebhooks",
+        "summary": "List your wallet's webhooks",
+        "tags": [
+          "Notices"
+        ],
+        "security": [
+          {
+            "WalletAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{webhooks}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or bad X-Wallet-Auth"
+          }
+        }
+      },
+      "post": {
+        "operationId": "noticesWebhookAdd",
+        "summary": "Create a webhook that POSTs your wallet's notices to a URL",
+        "description": "Signed by the wallet. Body {\"url\":\"https://...\"}; answers an id and a secret, shown once. Each POST carries webhook-id, webhook-timestamp and webhook-signature (Standard Webhooks).",
+        "tags": [
+          "Notices"
+        ],
+        "security": [
+          {
+            "WalletAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "{id, url, secret}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not an https URL on a public address"
+          },
+          "401": {
+            "description": "Missing or bad X-Wallet-Auth"
+          },
+          "409": {
+            "description": "3 webhooks already"
+          }
+        }
+      }
+    },
+    "/api/notices/webhooks/{id}": {
+      "delete": {
+        "operationId": "noticesWebhookRemove",
+        "summary": "Remove one of your wallet's webhooks",
+        "tags": [
+          "Notices"
+        ],
+        "security": [
+          {
+            "WalletAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The webhook id its create answered"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{id, removed}",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or bad X-Wallet-Auth"
+          },
+          "404": {
+            "description": "not found for this wallet"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "WalletAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Wallet-Auth",
+        "description": "base64 of {\"address\",\"timestamp\",\"nonce\",\"signature\"}: the wallet signs \"METHOD\\npath\\nnonce\\ntimestamp\" (EIP-191 on EVM, ed25519 on Solana). Details: GET /api/compute/docs."
+      },
+      "ComputeKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "A compute key (agc_...) a wallet mints on its own prepaid balance (POST /api/compute/keys)."
+      }
+    },
+    "schemas": {
+      "X402Quote": {
+        "type": "object",
+        "properties": {
+          "x402Version": {
+            "type": "integer"
+          },
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "description": "Set when a payment was refused, e.g. insufficient_funds"
+          },
+          "needUsd": {
+            "type": "string",
+            "description": "insufficient_funds: what the payment needs on that network"
+          },
+          "haveUsd": {
+            "type": "string",
+            "description": "insufficient_funds: what the paying wallet holds, when a public read gives it"
+          },
+          "accepts": {
+            "type": "array",
+            "description": "One entry per network. Pay the entry of the network you hold USDC on; another network's price never applies to yours.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "scheme": {
+                  "type": "string"
+                },
+                "network": {
+                  "type": "string"
+                },
+                "maxAmountRequired": {
+                  "type": "string",
+                  "description": "USDC atomic units (6 decimals)"
+                },
+                "asset": {
+                  "type": "string"
+                },
+                "payTo": {
+                  "type": "string"
+                },
+                "resource": {
+                  "type": "string"
+                },
+                "extra": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
