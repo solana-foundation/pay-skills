@@ -16,9 +16,10 @@ research, so an agent can verify something before relying on it.
 
 One endpoint is free:
 
-- `POST /v1/coverage` `{"query": "..."}` says whether KARP already has research
-  on a topic (`covered`, `partial` or `none`), the newest research date, the
-  matching topic titles and which endpoint to call next.
+- `POST /v1/coverage` `{"query": "..."}` takes the question you are actually
+  researching, in plain words, and says whether KARP already has research on it
+  (`covered`, `partial` or `none`), the match strength, the newest research date,
+  the matching topic titles and which endpoint to call next.
 
 Two endpoints are paid:
 
@@ -32,20 +33,26 @@ Two endpoints are paid:
 - `POST /v1/ask` `{"query": "...", "max_cards": 1-8}` ($0.03) returns research
   cards from KARP's library of past multi-model debates: conclusion, key
   insight, warnings, dated figures, consensus status and open questions. Every
-  card carries its research date and a `stale` flag. About 15 s.
+  card carries its research date and a `stale` flag. Usually 5-15 s. The
+  library is deepest on Alzheimer's and neurodegeneration, ageing biology,
+  ancient scripts, AI governance and quantum computing.
 
 Pay per request in USDC via x402 on Solana or Base, with no API key or account.
 The payment settles only when the call succeeds, so a failed call is never
 charged, and each signed payment pays for one request. The live 402 challenge
-is authoritative. The machine-readable spec is at
-`https://agents.souldriver.com.au/openapi.json`, and a short agent guide is at
-`https://agents.souldriver.com.au/llms.txt`.
+is authoritative. Every response field is described in the committed
+`openapi.json`; the live spec is at `https://agents.souldriver.com.au/openapi.json`
+and a short agent guide is at `https://agents.souldriver.com.au/llms.txt`.
+
+Agents without a wallet yet can apply for a small research grant with
+`POST /v1/grant` (terms, read-only: `GET /v1/grant`), which pays for a few
+asks and checks instead of x402 while it lasts.
 
 ## Spend-aware usage
 
-- Call the free `POST /v1/coverage` first. If a topic is `covered`,
-  `POST /v1/ask` ($0.03) is usually enough; keep `POST /v1/check` ($0.25) for
-  the specific claims you need verified live.
+- Call the free `POST /v1/coverage` first, with your real question. If it is
+  `covered`, `POST /v1/ask` ($0.03) is usually enough; keep `POST /v1/check`
+  ($0.25) for the specific claims you need verified live.
 - Send one specific, checkable claim per `POST /v1/check` call. Split a compound
   statement only where each part changes your decision.
 - `POST /v1/ask` is priced per call, not per card, so `max_cards` only changes
