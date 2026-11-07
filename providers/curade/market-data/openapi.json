@@ -1,0 +1,278 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "pm-api — Polymarket x402 paid API",
+    "version": "0.1.0",
+    "description": "x402-protocol v2 paid API over the pm-collector Polymarket snapshot archive. Free: GET /health. Paid (USDC, scheme \"exact\"): GET /v1/polymarket/odds ($0.005 = 5,000 atomic USDC), GET /v1/polymarket/disagreement ($0.02 = 20,000), GET /v1/polymarket/package ($2.00 = 2,000,000, one-time purchase). Unauthenticated paid calls return HTTP 402 with an x402 payment challenge; pay per the challenge and retry with the X-PAYMENT header.",
+    "license": { "name": "MIT" },
+    "contact": { "name": "sryantrabot", "email": "sryantrabot@gmail.com" },
+    "x-guidance": "Polymarket odds snapshot API. GET /health is free. Paid endpoints use the x402 protocol (USDC on Base, scheme exact): GET /v1/polymarket/odds ($0.005/call, query params limit and q), GET /v1/funding/current ($0.001/call, Hyperliquid per-coin funding snapshot, query param limit), GET /v1/polymarket/disagreement ($0.02/call), GET /v1/polymarket/package ($2.00 one-time purchase per market, query param market required). Unauthenticated calls return HTTP 402 with an x402 v2 payment challenge; pay it and retry with the X-PAYMENT header."
+  },
+  "servers": [ { "url": "https://api.curade.xyz" } ],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "security": [],
+        "summary": "Liveness probe (free)",
+        "description": "Returns the literal text \"ok\" with 200 when the server is up (axum handler returns &str \"ok\", pm-api src/lib.rs:690).",
+        "responses": {
+          "200": {
+            "description": "Server is alive",
+            "content": {
+              "text/plain": { "schema": { "type": "string", "example": "ok" } }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "operationId": "getOpenApi",
+        "security": [],
+        "summary": "This discovery document",
+        "description": "Serves this OpenAPI 3.1 document (self-describing). Added for x402scan discovery; x402scan's spec fetches GET {origin}/openapi.json.",
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.1 JSON document",
+            "content": {
+              "application/json": { "schema": { "type": "object" } }
+            }
+          }
+        }
+      }
+    },
+    "/v1/polymarket/odds": {
+      "get": {
+        "operationId": "getPolymarketOdds",
+        "x-payment-info": { "price": { "mode": "fixed", "currency": "USD", "amount": "0.005000" }, "protocols": [{ "x402": {} }] },
+        "summary": "Latest Polymarket odds snapshot ($0.005)",
+        "description": "x402-paid (V2Eip155Exact, 5,000 atomic USDC = $0.005; pm-api src/lib.rs:83,691-703). Latest pm-collector Polymarket snapshot rows, volume-ranked, filtered/limited in Gamma order (lib.rs:478-495). Without a valid X-PAYMENT header the middleware answers HTTP 402 with the x402 payment challenge (x402Version 2, accepts[0] scheme \"exact\").",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Max rows. Default 25, hard cap 200; non-numeric or negative -> 400 (lib.rs:461-473,498-500).",
+            "schema": { "type": "integer", "minimum": 0, "maximum": 200, "default": 25 }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring filter on the market question (lib.rs:478).",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "402": { "$ref": "#/components/responses/X402PaymentRequired" },
+          "200": {
+            "description": "Snapshot rows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["snapshot_file", "count", "markets"],
+                  "properties": {
+                    "snapshot_file": { "type": "string", "description": "Path of the source snapshot file (server-local)." },
+                    "count": { "type": "integer" },
+                    "markets": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/MarketOdds" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad ?limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": { "type": "string", "example": "bad_request" },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/polymarket/disagreement": {
+      "get": {
+        "operationId": "getPolymarketDisagreement",
+        "x-payment-info": { "price": { "mode": "fixed", "currency": "USD", "amount": "0.020000" }, "protocols": [{ "x402": {} }] },
+        "summary": "Polymarket vs Kalshi cross-venue disagreement ($0.02)",
+        "description": "x402-paid (V2Eip155Exact, 20,000 atomic USDC = $0.02; pm-api src/lib.rs:85,704-716). Cross-venue disagreement between the latest Polymarket snapshot and live Kalshi markets. Same 402 challenge behavior as /v1/polymarket/odds.",
+        "responses": {
+          "402": { "$ref": "#/components/responses/X402PaymentRequired" },
+          "200": {
+            "description": "Cross-venue disagreement report (application/json)",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          },
+          "503": {
+            "description": "No snapshot / upstream unavailable",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          }
+        }
+      }
+    },
+    "/v1/polymarket/package": {
+      "get": {
+        "operationId": "getPolymarketPackage",
+        "x-payment-info": { "price": { "mode": "fixed", "currency": "USD", "amount": "2.000000" }, "protocols": [{ "x402": {} }] },
+        "summary": "One-time purchase: full attested data package for one market ($2.00)",
+        "description": "x402-paid (V2Eip155Exact, 2,000,000 atomic USDC = $2.00; pm-api src/package.rs:63, src/lib.rs:717-729). One-time purchase, keep the data: full Polymarket attested data package for one market plus a signed license token. Payment settles BEFORE the handler runs (settle_before_execution, lib.rs:683-686).",
+        "parameters": [
+          {
+            "name": "market",
+            "in": "query",
+            "required": true,
+            "description": "Polymarket market slug-or-id, matched exactly, case-insensitive (pm-api src/package.rs:139-145).",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "402": { "$ref": "#/components/responses/X402PaymentRequired" },
+          "200": {
+            "description": "Attested data package + signed license (application/json)",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          },
+          "404": {
+            "description": "Market not found in the latest snapshot",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          }
+        }
+      }
+    },
+    "/v1/funding/current": {
+      "get": {
+        "operationId": "getFundingCurrent",
+        "x-payment-info": { "price": { "mode": "fixed", "currency": "USD", "amount": "0.001000" }, "protocols": [{ "x402": {} }] },
+        "security": [],
+        "summary": "Latest Hyperliquid funding-rate snapshot ($0.001)",
+        "description": "x402-paid (V2Eip155Exact, 1,000 atomic USDC = $0.001; pm-api src/lib.rs FUNDING_PRICE_USDC). Latest per-coin Hyperliquid perpetual-funding snapshot read from the read-only sqlite archive var/data/hyperliquid/funding.db (written every tick by jobs/hl-funding-collector): the newest batch only, up to 100 coins ranked by open interest (query param limit, default 100, hard cap 100; non-numeric -> 400). funding_rate is the stored HOURLY rate (signed: positive = longs pay shorts); apr is derived as funding_rate*24*365*100 (annualized %, 4 decimals). Missing/empty DB returns 200 with latest_ts null and status no_data (honest empty body, never fabricated rows); a broken DB is a 503-class funding_db_read_failed 500. Without a valid X-PAYMENT header the middleware answers HTTP 402 with the x402 payment challenge (same behavior as /v1/polymarket/odds).",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Max coins served, ranked by open interest (desc). Default 100, hard cap 100; non-numeric or negative -> 400.",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 100 }
+          }
+        ],
+        "responses": {
+          "402": { "$ref": "#/components/responses/X402PaymentRequired" },
+          "200": {
+            "description": "Latest funding snapshot, or the honest empty body (latest_ts null, status no_data) when the archive has no data yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["latest_ts", "count", "total_coins", "status", "coins"],
+                  "properties": {
+                    "latest_ts": { "type": "integer", "nullable": true, "description": "Unix seconds of the newest snapshot batch; null when no data yet." },
+                    "count": { "type": "integer", "description": "Coins served (after limit)." },
+                    "total_coins": { "type": "integer", "description": "Coins present at latest_ts (before limit truncation)." },
+                    "status": { "type": "string", "enum": ["ok", "no_data"] },
+                    "message": { "type": "string", "description": "Present only when status is no_data." },
+                    "coins": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["coin", "funding_rate", "apr", "mark_px", "open_interest"],
+                        "properties": {
+                          "coin": { "type": "string" },
+                          "funding_rate": { "type": "number", "description": "Stored Hyperliquid funding rate, per HOUR (signed; positive = longs pay shorts)." },
+                          "apr": { "type": "number", "description": "Annualized percent = funding_rate*24*365*100, rounded to 4 decimals." },
+                          "mark_px": { "type": "number" },
+                          "open_interest": { "type": "number" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad ?limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": { "type": "string", "example": "bad_request" },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Present-but-broken funding DB (funding_db_read_failed)",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "MarketOdds": {
+        "type": "object",
+        "description": "One snapshot row (pm-collector src/lib.rs:25-44).",
+        "required": ["id", "question", "slug", "yes_prob", "volume24hr", "liquidity", "collected_at"],
+        "properties": {
+          "id": { "type": "string" },
+          "question": { "type": "string" },
+          "slug": { "type": "string" },
+          "yes_prob": { "type": "number", "description": "Probability of the first (usually Yes) outcome in [0,1]." },
+          "volume24hr": { "type": "number" },
+          "liquidity": { "type": "number" },
+          "end_date": { "type": "string", "nullable": true },
+          "active": { "type": "boolean" },
+          "closed": { "type": "boolean" },
+          "collected_at": { "type": "integer", "description": "Unix seconds of snapshot collection." }
+        }
+      }
+    },
+    "responses": {
+      "X402PaymentRequired": {
+        "description": "x402 payment challenge (HTTP 402). Body is the x402 v2 PaymentRequired object: { x402Version: 2, error?, resource?, accepts: [...], extensions? } (vendor x402-rs crates/x402-types/src/proto/v2.rs:337-348). Each accepts item carries the USDC payment terms (scheme \"exact\", network = X402_NETWORK CAIP-2 id, default eip155:84532 Base Sepolia; asset, payTo, maxAmountRequired). Send a signed payment in the X-PAYMENT header and retry the GET.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": ["x402Version", "accepts"],
+              "properties": {
+                "x402Version": { "type": "integer", "example": 2 },
+                "error": { "type": "string" },
+                "resource": { "type": "object", "description": "ResourceInfo: url/type/description of the paid resource." },
+                "accepts": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "scheme": { "type": "string", "example": "exact" },
+                      "network": { "type": "string", "description": "CAIP-2 chain id, e.g. eip155:84532" },
+                      "asset": { "type": "string", "description": "USDC contract address" },
+                      "payTo": { "type": "string", "description": "Recipient address (X402_PAY_TO)" },
+                      "maxAmountRequired": { "type": "string", "description": "Atomic USDC units, e.g. \"5000\" for odds" }
+                    }
+                  }
+                },
+                "extensions": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
