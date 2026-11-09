@@ -1,8 +1,8 @@
 ---
 name: api
 title: "Horizon Pulse"
-description: "Pay-per-call web and crypto market data APIs: web search with page text, page to markdown, structured extract, screenshots, PDF to text, HTTP proxy, x402 endpoint checks, crypto spot prices, indicators, funding rates, gas, DeFi yields and wallet holdings."
-use_case: "Use for live web research with sources, reading pages or PDFs as text, scraping page fields, screenshots, calling public APIs, auditing x402 endpoints, or BTC/ETH/SOL prices, RSI/MACD, perp funding, gas fees, DeFi yields and EVM wallet balances."
+description: "Pay-per-call web and crypto market data APIs: web search with page text, page to markdown, structured extract, PDF to text, HTTP proxy, x402 endpoint checks, crypto spot prices, indicators, funding rates, gas, DeFi yields and wallet holdings."
+use_case: "Use for live web research with sources, reading pages or PDFs as text, scraping page fields, calling public APIs, auditing x402 endpoints, or BTC/ETH/SOL prices, RSI/MACD, perp funding, gas fees, DeFi yields and EVM wallet balances."
 category: search
 service_url: https://horizonpulse.dev
 openapi:
@@ -14,7 +14,7 @@ Horizon Pulse: x402 v2 pay-per-call APIs for AI agents, no account or API key. 3
 - Web: `GET /api/search` (search with page contents), `GET /api/fetch` (page to
   markdown), `GET|POST /api/extract` (title, links, JSON-LD, CSS-selector
   fields), `GET|POST /api/http` (raw response from a public URL),
-  `GET /api/screenshot` (rendered PNG/JPEG), `GET /api/pdf` (PDF text layer).
+ `GET /api/pdf` (PDF text layer).
 - Developer: `GET /api/x402-check` (one unpaid probe of an x402 endpoint,
   decoded and checked; never pays), `GET /api/bazaar-check` (whether an x402
   seller is listed in Coinbase CDP Bazaar and, if not, why; never pays),
