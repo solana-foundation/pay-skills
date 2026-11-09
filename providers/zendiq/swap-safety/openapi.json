@@ -15,7 +15,7 @@
       "name": "See repository",
       "url": "https://github.com/ZendIQ/ZendIQ-Agent-API"
     },
-    "x-guidance": "Start with GET /v1/agent (free): it states the live prices, the payment network and which response fields are stable. POST /v1/agent/analyse-token (free) screens one mint. POST /v1/agent/analyse ($0.01) returns a Safe / Protect / Refuse verdict; POST /v1/agent/optimize ($0.02) also returns an unsigned transaction for `taker`, to verify against `plan` before signing. Both are paid over x402: the first request returns 402 with the challenge in the PAYMENT-REQUIRED header; sign it and resend the same request with PAYMENT-SIGNATURE. A call that fails (any 4xx/5xx) is not charged. Treat an `unknown` signal as unknown, never as safe. Allow at least 120 s on paid calls."
+    "x-guidance": "Start with GET /v1/agent (free): it states the live prices, the payment network and which response fields are stable. POST /v1/agent/analyse-token (free) screens one mint. POST /v1/agent/analyse ($0.01) returns a Safe / Protect / Refuse verdict; POST /v1/agent/optimize ($0.02) also returns an unsigned transaction for `taker`, to verify against `plan` before signing. Both are paid over x402: the first request returns 402 with the challenge in the PAYMENT-REQUIRED header; sign it and resend the same request with PAYMENT-SIGNATURE. Not charged: 400, 422, 429, 500, 502 and 503, and a 402 whose PAYMENT-RESPONSE `errorReason` is `settlement_failed_on_chain` or `settlement_not_landed`. A 402 with `settlement_pending` may have charged: retry once with the same PAYMENT-SIGNATURE header and never pay again. A 409 charges nothing itself but answers a header already presented, which may have been charged: `in_flight` means retry it shortly; `priorOutcome` `charged_unserved`, `settle_threw` or `settle_unknown`, or `charged` true or null, means do not pay again for that call; otherwise request a fresh 402. Treat an `unknown` signal as unknown, never as safe. Allow at least 120 s on paid calls."
   },
   "externalDocs": {
     "description": "Full reference",
@@ -304,7 +304,7 @@
         }
       },
       "AuthorizationAlreadyUsed": {
-        "description": "This payment authorization was already presented and has not settled into a result that can be replayed. Read `priorOutcome`: `in_flight` means retry shortly with the same authorization; any other value means request a fresh 402 challenge — except `settle_threw` and `settle_unknown`, where the transfer may have landed and paying again could double-charge; check it on chain first. A replay of an authorization that did settle is not a 409: it returns the original 200 body with `replayed: true`. A retry of a `settlement_pending` payment is answered by redemption instead: `already_served` (redeemed once already), `redemption_in_progress`, `redemption_route_mismatch` (only the route it paid for), `redemption_amount_mismatch`, `redemption_expired` (after 24 h; email support@zendiq.ai with the `settlement` signature for a refund) or `settlement_unresolved` (not yet known; do not pay again). Those carry `charged` and `settlement`.",
+        "description": "This payment authorization was already presented and has not settled into a result that can be replayed. Read `priorOutcome`: `in_flight` means retry shortly with the same authorization; `charged_unserved` means the transfer landed after the response was sent, so you were charged and not served: contact support and do not pay again; `settle_threw` and `settle_unknown` mean the transfer may have landed and paying again could double-charge, so check it on chain first; any other value (`rejected`, `settle_failed`, `canceled:*`, `unsettled:*`) means it was not charged, so request a fresh 402 challenge. A replay of an authorization that did settle is not a 409: it returns the original 200 body with `replayed: true`. A retry of a `settlement_pending` payment is answered by redemption instead: `already_served` (redeemed once already), `redemption_in_progress`, `redemption_route_mismatch` (only the route it paid for), `redemption_amount_mismatch`, `redemption_expired` (after 24 h; email support@zendiq.ai with the `settlement` signature for a refund) or `settlement_unresolved` (not yet known; do not pay again). Those carry `charged` and `settlement`.",
         "content": {
           "application/json": {
             "schema": {
@@ -970,6 +970,7 @@
               "days",
               "tokens",
               "transactions",
+              "wallets",
               "ratio_7d_to_baseline"
             ]
           },
@@ -1366,9 +1367,9 @@
           }
         }
       },
-      "AnalyseRequest": {
+      "SwapRequestFields": {
         "type": "object",
-        "additionalProperties": false,
+        "description": "The swap fields /analyse and /optimize share. Open on its own: AnalyseRequest and OptimizeRequest close it with unevaluatedProperties, so each accepts its own fields and nothing else.",
         "required": [
           "inputMint",
           "outputMint",
@@ -1397,10 +1398,20 @@
           }
         }
       },
-      "OptimizeRequest": {
+      "AnalyseRequest": {
+        "type": "object",
         "allOf": [
           {
-            "$ref": "#/components/schemas/AnalyseRequest"
+            "$ref": "#/components/schemas/SwapRequestFields"
+          }
+        ],
+        "unevaluatedProperties": false
+      },
+      "OptimizeRequest": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SwapRequestFields"
           },
           {
             "type": "object",
@@ -1430,7 +1441,8 @@
               }
             }
           }
-        ]
+        ],
+        "unevaluatedProperties": false
       },
       "AnalyseResponse": {
         "allOf": [
