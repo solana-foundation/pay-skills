@@ -9,7 +9,7 @@ openapi:
   path: openapi.json
 ---
 
-Horizon Pulse: x402 v2 pay-per-call APIs for AI agents, no account or API key. 33 paid services (as of 2026-10-28) on Base, Solana, Polygon (USDC) and XRP Ledger (RLUSD), including a $1 verified brief (Base USDC only; prices untested). Hosted MCP with 35 tools (as of 2026-10-28).
+Horizon Pulse: x402 v2 pay-per-call APIs for AI agents, no account or API key. 55 paid routes (as of 2026-11-09), 30 listed here: 28 payable in USDC on Solana, plus a $1 brief and $5 seller due-diligence in Base USDC only. Selected routes also accept USDC on Base or Polygon, or RLUSD on the XRP Ledger. Hosted MCP with 53 tools (as of 2026-11-09).
 
 - Web: `GET /api/search` (search with page contents), `GET /api/fetch` (page to
   markdown), `GET|POST /api/extract` (title, links, JSON-LD, CSS-selector
