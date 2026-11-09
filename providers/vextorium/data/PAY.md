@@ -1,23 +1,23 @@
 ---
 name: data
 title: "Vextorium"
-description: "552 pay-per-call data APIs: token safety, wallet balances and transactions on 30+ chains (EVM, Solana, XRP Ledger, Tron, TON, Bitcoin), DeFi (Aave, Hyperliquid, Jupiter), tokenized stocks, Polymarket, economic statistics, sanctions and IBAN/VAT checks."
-use_case: "Use for token safety and pre-trade checks, wallet balances, transaction history, gas fees, DeFi positions, crypto and FX prices, prediction markets, official economic data (Eurostat, ECB, Fed), sanctions screening, IBAN/VAT/LEI checks and web tools."
-category: finance
+description: "200+ pay-per-call data APIs: official statistics and rates (ECB, Fed, Eurostat, World Bank), SEC filings, crypto prices, sanctions and IBAN/VAT/LEI checks, EU and Spanish public data, web and developer tools."
+use_case: "Use for macro and interest-rate data, US company filings, crypto prices, sanctions and KYB checks (OFAC, EU, VAT, LEI), EU and Spanish public records, weather, science lookups, and web or data utilities."
+category: data
 service_url: https://api.vextorium.com
 version: v1
 openapi:
   path: openapi.json
 ---
 
-Vextorium serves 552 focused data endpoints for agents under `/v1/`. On-chain data is read directly from nodes and indexers for 12 EVM chains, Solana, the XRP Ledger, Tron, TON and Bitcoin; prices come from Chainlink oracles, DEX quotes and official sources; economic data comes from Eurostat, the ECB, the Fed, BLS and other public statistics offices; social data comes from the public Bluesky, Mastodon and Hacker News APIs. Every endpoint is `POST` with a JSON body and returns JSON. Payment is per call over x402 (from $0.001), in USDC on Solana, Base or Polygon, Circle Gateway (Optimism, Arc), or RLUSD on XRPL.
+Vextorium serves 200+ focused data endpoints for agents under `/v1/`: official statistics and interest rates (ECB, Fed, Eurostat, World Bank, BOE, INE), US company data from the SEC, crypto prices, compliance checks (sanctions, VAT, IBAN, LEI), EU and Spanish public data, science, weather, web, data and developer tools. Every endpoint is `POST` with a JSON body and returns JSON. Payment is per call over x402 (from $0.001), in USDC on Solana, Base, Polygon, Optimism or Arc, or RLUSD or XRP on the XRP Ledger.
 
 Requests that fail (invalid input, not found, upstream source down) return 4xx/5xx and are not charged. A human-readable catalog is at https://api.vextorium.com/, a machine-readable one at https://api.vextorium.com/catalog.json, and a remote MCP server at https://api.vextorium.com/mcp.
 
 ## Spend-aware usage
 
-- Use the narrowest endpoint: `/v1/wallet-balances` for balances, `/v1/wallet-analysis` only when you also need account type, activity count or ENS.
-- Batch where available: `/v1/token-safety-batch` checks 25 tokens per call and `/v1/token-price-batch` prices many tokens at once.
-- For trading bots: `/v1/new-safe-tokens` → `/v1/pre-trade-check` before buying → `/v1/position-check` while holding.
-- XRP Ledger: `/v1/xrpl-amm-pool`, `/v1/xrpl-order-book` and `/v1/xrpl-swap-quote` for liquidity and prices, `/v1/xrpl-rlusd` and `/v1/xrpl-token` for issued tokens, `/v1/xrp-account` for a full portfolio.
-- Send only the fields you need; defaults are sensible (network defaults to `base`).
+- Use the narrowest endpoint: `/v1/fed-rates` or `/v1/ecb-interest-rates` for one central bank, `/v1/g7-policy-rates` only when you need the comparison.
+- Batch where available: `/v1/crypto-price` prices up to 50 tickers per call.
+- Due diligence on a wallet or counterparty: `/v1/wallet-sanctions-check` by address, `/v1/sanctions-screening` by name, then `/v1/lei-search`, `/v1/eu-vat-vies` and `/v1/iban-validate` for companies.
+- Macro: start with `/v1/economic-calendar`, then call only the series you need, such as `/v1/us-cpi` or `/v1/us-treasury-yield-curve`.
+- Send only the fields you need; each operation in `openapi.json` includes a request example.
