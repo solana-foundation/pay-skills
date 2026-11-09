@@ -1,0 +1,2767 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ZendIQ Agent API",
+    "version": "1.4.0",
+    "summary": "Execution-layer swap protection for Solana, priced per call over x402.",
+    "description": "Scores token risk and sandwich exposure for a proposed Solana swap and returns a Safe / Protect / Refuse verdict; /optimize returns the same verdict together with an unsigned optimised transaction.\n\nIMPORTANT — NETWORK: everything runs on Solana **mainnet**. Payments settle in **mainnet USDC** over x402; token scores, sandwich exposure and quotes are read from mainnet; and /optimize returns a real mainnet transaction. The `network` field of GET /v1/agent states the payment network, so read it there rather than hardcoding it. The paying wallet needs USDC and no SOL: the facilitator sponsors the payment's network fee. POST /v1/agent/optimize builds its route for `taker`, a mainnet wallet holding the input amount and SOL for fees and rent (a gasless Jupiter Ultra fill is exempt from the SOL); it can be the paying wallet or a different one.\n\nCUSTODY: none. ZendIQ never holds keys or funds. /analyse builds no transaction; /optimize returns an unsigned transaction you sign and submit yourself.\n\nLATENCY: most of a call is token screening, shared by all callers and cached per mint for 60 s. A first scan of a token typically takes 1–5 s (measured 0.5–4.6 s on the live service, 2 Oct 2026) and usually completes within ~12 s; under concurrent load it can take longer (15–16 s observed on 9 Nov 2026); a mint scanned in the last 60 s returns in under 1 s; /optimize with a valid `analysisId` skips the scan and typically takes 1–2 s. Set your client timeout to at least 120 s on /analyse and /optimize (see SETTLEMENT) and at least 30 s on /analyse-token. A scan always runs to completion and is never returned partially, because an agent cannot act on a partly scanned token. The one bounded read is creator history: when a creator's record is longer than its 4 s budget allows, `creator_launches_30d` reports the count read so far as a lower bound (`reason: partial_scan_lower_bound`), never as a pass. A source that does not answer within its own timeout is reported as an `unknown` signal inside a completed 200; treat unknown as unknown, never as safe.\n\nSETTLEMENT: a paid call replies only once the server knows whether your payment landed, usually within a second or two. If the facilitator cannot confirm the transfer itself, the server reads the chain until the transfer confirms, fails, or can no longer land because its blockhash expired (about 60 s after you signed), and never waits more than 90 s. Keep the connection open. A 402 after a paid attempt carries a PAYMENT-RESPONSE header whose `errorReason` says what happened: `settlement_failed_on_chain` or `settlement_not_landed` means you were not charged; `settlement_pending` means it could not be confirmed either way, so look up that header's `transaction` on chain before paying again.\n\nHANDSHAKE: /analyse-token and /analyse return an `analysisId`. Pass it to /optimize within 60 s to reuse that token scan; market state (quote, price impact, sandwich exposure, congestion) is always fetched fresh. A missing, expired or unknown ID means a full scan, never an error. An ID for a different mint is rejected with 400 `analysis_mint_mismatch`, uncharged.\n\nAUTHORITATIVE SOURCE: GET /v1/agent returns a live, free, unauthenticated manifest of every endpoint, its price, the rate limits, and the field-stability contract. If this document and that manifest disagree, the manifest is correct.\n\nNot financial advice.",
+    "termsOfService": "https://zendiq.ai/agents/terms/",
+    "contact": {
+      "name": "ZendIQ (Leviathan Technologies AB)",
+      "email": "support@zendiq.ai",
+      "url": "https://zendiq.ai"
+    },
+    "license": {
+      "name": "See repository",
+      "url": "https://github.com/ZendIQ/ZendIQ-Agent-API"
+    },
+    "x-guidance": "Start with GET /v1/agent (free): it states the live prices, the payment network and which response fields are stable. POST /v1/agent/analyse-token (free) screens one mint. POST /v1/agent/analyse ($0.01) returns a Safe / Protect / Refuse verdict; POST /v1/agent/optimize ($0.02) also returns an unsigned transaction for `taker`, to verify against `plan` before signing. Both are paid over x402: the first request returns 402 with the challenge in the PAYMENT-REQUIRED header; sign it and resend the same request with PAYMENT-SIGNATURE. A call that fails (any 4xx/5xx) is not charged. Treat an `unknown` signal as unknown, never as safe. Allow at least 120 s on paid calls."
+  },
+  "externalDocs": {
+    "description": "Full reference",
+    "url": "https://zendiq.ai/llms-full.txt"
+  },
+  "servers": [
+    {
+      "url": "https://api.zendiq.ai",
+      "description": "Production. Payments settle in USDC on Solana mainnet."
+    }
+  ],
+  "tags": [
+    {
+      "name": "triage",
+      "description": "Paid swap analysis and transaction building."
+    }
+  ],
+  "paths": {
+    "/v1/agent/analyse": {
+      "post": {
+        "operationId": "analyseSwap",
+        "tags": [
+          "triage"
+        ],
+        "x-payment-info": {
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          }
+        },
+        "summary": "Get a Safe/Protect/Refuse verdict for a Solana swap ($0.01)",
+        "description": "Costs $0.01, paid over x402. Returns a Safe / Protect / Refuse verdict with token risk, sandwich exposure, and a recommended execution path. Builds no transaction. Always settles on success, because the verdict itself is the deliverable — a Refuse verdict is a useful answer, not a failure. Returns an `analysisId` for the token scan of `outputMint`, reusable by /optimize for 60 s. A first scan of a token can take up to ~12 s and settlement up to 90 s; set a client timeout of at least 120 s.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyseRequest"
+              },
+              "example": {
+                "inputMint": "So11111111111111111111111111111111111111112",
+                "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                "amount": "100000000",
+                "slippageBps": 50
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verdict and supporting evidence.",
+            "headers": {
+              "X-API-Version": {
+                "$ref": "#/components/headers/XApiVersion"
+              },
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          },
+          "409": {
+            "$ref": "#/components/responses/AuthorizationAlreadyUsed"
+          },
+          "422": {
+            "$ref": "#/components/responses/NotAMint"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/AnalysisUnavailable"
+          },
+          "503": {
+            "$ref": "#/components/responses/ScreeningUnavailable"
+          }
+        }
+      }
+    },
+    "/v1/agent/optimize": {
+      "post": {
+        "operationId": "optimizeSwap",
+        "tags": [
+          "triage"
+        ],
+        "x-payment-info": {
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.02"
+          }
+        },
+        "summary": "Create an unsigned, simulated Solana swap transaction ($0.02)",
+        "description": "Costs $0.02, paid over x402. Returns an unsigned swap transaction, the structured `plan` it is supposed to contain, how to `submit` it, a simulation result, and an itemised `netBenefit` breakdown. The venue is chosen by risk, then by net benefit: a Jupiter route, or a direct venue when it beats that route after costs (`plan.venueDecision` shows the comparison) — read `plan.venue` and follow `submit` rather than assuming one. Verify the decoded transaction against `plan` before signing — do not blind-sign. A failed build returns >= 400 and charges nothing.\n\nThis endpoint returns the same `verdict` (Safe / Protect / Refuse), `confidence` and `reasons` as /analyse, but does not refuse to build: a Refuse still comes back with a transaction, because calling /optimize means you have decided to trade. Read `verdict` before signing, and do not sign a Refuse unless you mean to trade against it.\n\nPass `analysisId` from /analyse-token or /analyse (for this `outputMint`, within 60 s) to skip the token scan; the call then typically takes 1–2 s. `analysis` states whether the scan was reused, served from the shared 60 s cache, or run fresh, and why. A missing, expired or unknown ID means a full scan, never an error; an ID for another mint is 400 `analysis_mint_mismatch`, uncharged. Without a usable ID a first scan can take up to ~12 s, and settlement can add up to 90 s; set a client timeout of at least 120 s.\n\nThe route is built against mainnet liquidity, so `taker` is a mainnet wallet. It can be the wallet that pays for the call (which needs USDC and no SOL) or a different one. The `taker` must hold the input amount and mainnet SOL for the network fee, any priority fee, and rent for token accounts the swap opens; on a SOL input the SOL being swapped comes on top. A gasless Jupiter Ultra fill, where `plan.priorityFee.feePayer` is not the `taker`, is exempt from the SOL. A `taker` that cannot fund the trade gets 422 `taker_insufficient_balance`, uncharged, naming the token and the shortfall.\n\nBuild-only trial: `taker` is only a public key and nothing is signed here, so any funded mainnet address can be passed to see the full `plan`, `simulation` and `plan.venueDecision`. A transaction built for a wallet you do not control cannot be signed or submitted; to land a trade, pass your own wallet.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OptimizeRequest"
+              },
+              "example": {
+                "inputMint": "So11111111111111111111111111111111111111112",
+                "outputMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                "amount": "1000000",
+                "taker": "BS9DnoBnndNj6QmeEbH2mxizefWYyrLond5G8bKUYxHC"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Unsigned transaction with the arithmetic behind it.",
+            "headers": {
+              "X-API-Version": {
+                "$ref": "#/components/headers/XApiVersion"
+              },
+              "PAYMENT-RESPONSE": {
+                "$ref": "#/components/headers/PaymentResponse"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OptimizeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/OptimizeBadRequest"
+          },
+          "402": {
+            "$ref": "#/components/responses/PaymentRequired"
+          },
+          "409": {
+            "$ref": "#/components/responses/AuthorizationAlreadyUsed"
+          },
+          "422": {
+            "$ref": "#/components/responses/TakerInsufficientBalance"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/OptimizeUnavailable"
+          },
+          "503": {
+            "$ref": "#/components/responses/ScreeningUnavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "headers": {
+      "XApiVersion": {
+        "description": "The API version that served this response.",
+        "schema": {
+          "type": "string",
+          "examples": [
+            "v1"
+          ]
+        }
+      },
+      "PaymentResponse": {
+        "description": "Base64-encoded x402 settlement receipt, including the settlement transaction.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "PaymentRequired": {
+        "description": "Base64-encoded x402 challenge naming the price, asset, network and payee.",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "RetryAfter": {
+        "description": "Seconds to wait before retrying. A 429 does not consume a payment authorization — present the same one again.",
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "TermsLink": {
+        "description": "The API terms that a payment accepts.",
+        "schema": {
+          "type": "string",
+          "examples": [
+            "<https://zendiq.ai/agents/terms/>; rel=\"terms-of-service\""
+          ]
+        }
+      }
+    },
+    "responses": {
+      "InvalidRequest": {
+        "description": "A field failed validation. The message names the field. You were not charged.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "OptimizeBadRequest": {
+        "description": "You were not charged. Either `invalid_request` (a field failed validation; the message names it) or `analysis_mint_mismatch`: `analysisId` was issued for a different mint than this request's `outputMint`. A mismatch is rejected rather than scanned past, because pairing one token's analysis with another token's trade is a caller bug that a silent rescan would hide. The body names both mints; screen the right mint, or omit `analysisId`. A missing, expired or unknown `analysisId` is never a 400 — it means a full scan.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "PaymentRequired": {
+        "description": "Payment required. Paying for a call accepts the API terms at https://zendiq.ai/agents/terms/, also linked from the `Link` header (rel=terms-of-service) on every response. Sign an authorization for exactly the amount in the PAYMENT-REQUIRED header and retry the identical request with a PAYMENT-SIGNATURE header (X-PAYMENT is accepted as an alias; a bare PAYMENT header is not read). This is the normal first response to a valid request on a paid endpoint, not an error. Requests are validated before the challenge: a malformed body is 400 `invalid_request`, an address that is not a token mint is 422 `not_a_mint`, and on /optimize a `taker` that does not hold the input amount is 422 `taker_insufficient_balance`, all without a 402, so you never sign a payment for a request that cannot be served. A 402 in reply to a paid attempt instead carries a PAYMENT-RESPONSE header: its `errorReason` `settlement_failed_on_chain` or `settlement_not_landed` means the transfer did not move and you were not charged; `settlement_pending` means it could not be confirmed within 90 s and may have landed: keep the PAYMENT-SIGNATURE header and retry once with the same header after about 5 s. If the transfer landed, that retry is redeemed for one fresh response on the same route within 24 h, and its PAYMENT-RESPONSE carries `redeemed: true`. Do not sign a new authorization.",
+        "headers": {
+          "PAYMENT-REQUIRED": {
+            "$ref": "#/components/headers/PaymentRequired"
+          },
+          "PAYMENT-RESPONSE": {
+            "$ref": "#/components/headers/PaymentResponse"
+          },
+          "Link": {
+            "$ref": "#/components/headers/TermsLink"
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Rate limited: 60 requests per IP per minute, 30 per payer per minute. Does not consume a payment authorization — present the same one again after Retry-After.",
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/RetryAfter"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/RateLimitError"
+            }
+          }
+        }
+      },
+      "ScreeningUnavailable": {
+        "description": "Paid calls are paused because the OFAC SDN list every paying wallet is screened against is unavailable: it never loaded, or it is older than its maximum age (see `sanctionsScreening` on GET /v1/agent). Returned before the 402, so no payment is requested; an authorization presented now is not consumed. Retry after Retry-After seconds. A payment whose screening lapses between the 402 and settlement is refused with a 402 whose PAYMENT-RESPONSE carries errorReason `screening_unavailable`, and is not charged.",
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/RetryAfter"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ScreeningUnavailableError"
+            }
+          }
+        }
+      },
+      "AuthorizationAlreadyUsed": {
+        "description": "This payment authorization was already presented and has not settled into a result that can be replayed. Read `priorOutcome`: `in_flight` means retry shortly with the same authorization; any other value means request a fresh 402 challenge — except `settle_threw` and `settle_unknown`, where the transfer may have landed and paying again could double-charge; check it on chain first. A replay of an authorization that did settle is not a 409: it returns the original 200 body with `replayed: true`. A retry of a `settlement_pending` payment is answered by redemption instead: `already_served` (redeemed once already), `redemption_in_progress`, `redemption_route_mismatch` (only the route it paid for), `redemption_amount_mismatch`, `redemption_expired` (after 24 h; email support@zendiq.ai with the `settlement` signature for a refund) or `settlement_unresolved` (not yet known; do not pay again). Those carry `charged` and `settlement`.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuthorizationError"
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "Unexpected server error. You were not charged.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "TakerInsufficientBalance": {
+        "description": "Error code `taker_insufficient_balance` or `not_a_mint`; you were not charged for either. `not_a_mint`: `inputMint` or `outputMint` is not a token mint (see the NotAMint response). `taker_insufficient_balance`: No transaction is returned, and you were not charged. The `taker` cannot fund the trade: `need` is `input_token` when it does not hold the input amount (checked before anything is quoted or built), or `sol_for_fees` when it cannot pay for the transaction it would sign (base fee, priority fee and Jito tip in the bytes, plus rent for token accounts the swap opens). A transaction whose fee payer is not the taker (a gasless Ultra fill) is exempt, and another venue that can fill gaslessly is tried before refusing. The body names the token, the amount required and held, and the shortfall. Balances are read from the taker's associated token accounts. SOL requirements are lower bounds, and when the balances cannot be read the check is skipped and the build proceeds. If no venue builds and Jupiter itself reports the shortfall (`/order` errorCode 1 or 2 from an aggregator router), the error has `source: \"jupiter_order\"` and a `jupiter` object; amounts ZendIQ could not read are null rather than estimated.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotAMint": {
+        "description": "Error code `not_a_mint`. The address in `field` (`mint`, `inputMint` or `outputMint`) is not an SPL Token or Token-2022 mint, so no score is produced and no `analysisId` is issued. `reason` is `account_not_found` (no account exists at the address; usually a typo, or a mint created seconds ago, so retry shortly) or `not_a_mint_account` (an account exists but is not a mint, such as a wallet or token account; `owner` names its program). Checked before the 402 challenge, so you never sign a payment for it, and never charged.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "OptimizeUnavailable": {
+        "description": "No transaction is returned, and you were not charged. Error code `optimize_unavailable`; `causes` names what each venue returned. Raised when: no venue could build a transaction, including after falling back; the Jupiter route could not be priced and Ultra could not be built (an unprotected direct venue is never substituted for it); the built transaction's programs contradict its venue, or a bundle carries no Jito tip; or the built transaction's venue could not be verified from its bytes or, on jupiter_ultra, from its provenance.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "AnalysisUnavailable": {
+        "description": "An upstream data source failed and no honest verdict could be produced. ZendIQ returns this rather than guessing, because a safety check that fails open is worse than no check. A slow source does not cause this: a source that runs out its timeout is an `unknown` signal inside a completed 200. You were not charged.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Base58Pubkey": {
+        "type": "string",
+        "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+        "description": "A Solana public key in base58.",
+        "examples": [
+          "So11111111111111111111111111111111111111112"
+        ]
+      },
+      "AtomicAmount": {
+        "type": "string",
+        "pattern": "^\\d{1,20}$",
+        "description": "Amount in atomic units as a decimal string — not a number and not a float. 1 SOL is \"1000000000\". Must be greater than zero.",
+        "examples": [
+          "1000000000"
+        ]
+      },
+      "RiskLevel": {
+        "type": "string",
+        "enum": [
+          "LOW",
+          "MEDIUM",
+          "HIGH",
+          "CRITICAL"
+        ],
+        "description": "On tokenRisk: CRITICAL = evidence the token is rigged against you (score 75+ with at least one red flag; 75+ without one is reported as HIGH, and the score is unchanged). HIGH = a risky kind of token, a falling price, or not fully checked. MEDIUM / LOW = established tokens without red flags."
+      },
+      "Verdict": {
+        "type": "string",
+        "enum": [
+          "Safe",
+          "Protect",
+          "Refuse"
+        ],
+        "description": "Closed enum within v1 — no new values will be added inside this version, so it is safe to switch on exhaustively. Safe: proceed. Protect: proceed only with the protection in recommendedExecution. Refuse: do not execute. Refuse is reached only on evidence: a hard red flag (tokenRisk.components.redFlags.hardFlags) on its own, or a CRITICAL level computed from red flags and priors alone, with coverage points excluded (tokenRisk.components.levelWithoutCoverage), that includes at least one red flag whose signal failed. Priors (base rates) and coverage (unchecked signals) can raise a trade to Protect but never to Refuse: a token whose displayed level is CRITICAL only because of coverage is Protect with confidence low, and reasons name the checks that could not be read. Before schema 1.11 the CRITICAL test included coverage points. Safe requires uncapped priors below the cap: a token in the highest base-rate class (tokenRisk.components.priors.points >= priors.cap, such as a fresh launchpad token) is at most Protect on every route, RFQ and gasless included."
+      },
+      "Provenance": {
+        "type": "object",
+        "description": "Where the answer came from, so it can be audited rather than trusted.",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "description": "The scoring model behind the verdict. From 1.11, /analyse, /analyse-token and /optimize report the same value, also served in the manifest as compatibility.schema_version. Before 1.11 /optimize had its own number, shown in brackets below. 1.2 (/optimize 1.1) added `rejected_value` on signals and `inputs.marketPair`; 1.3 (/optimize 1.2) added `inputs.priceHistory` and the `rate_limited` reason; 1.4 (/optimize 1.3) added `tokenRisk.components` (red flags, capped priors, coverage), and the score became their total; 1.5 (/optimize 1.4) added `inputs.marketSource`, the dexscreener_unavailable and no_own_market_pair reasons and a +5 coverage factor for each unreadable market signal, and lp_locked now reads the LP lock of the pool the market data came from, out of RugCheck's full report (`inputs.lpSource`); 1.6 (/optimize 1.5) added `inputs.marketSource.fields` (source per market field: a curve token's liquidity now comes from pump.fun's curve reserves when DexScreener has none), the 5-minute `dexscreener_cached` fallback with `inputs.marketCachedAt`, and Retry-After handling (`dexscreener.retrySkipped`); 1.7 (/optimize 1.6) added the verification_partial reason and the `Bridged asset` class (Wormhole ETH and WBTC), and a bridge-controlled authority on a bridged stablecoin reads issuer_controlled instead of regulated_issuer; 1.8 (/optimize 1.7) added the token_extensions signal (appended last: permanent delegate, frozen default accounts, pause authority and transfer hook, read from the mint), the default_account_frozen and pausable hard flags, permanent_delegate read from the mint with RugCheck only as a fallback, the extensions_not_decoded reason, and `rowsUsed`, `supplyCoveredPct` and `perWalletLowerBound` on top_holder_concentration, whose factors now say account, not wallet; 1.9 (/optimize 1.8) excludes the pump.fun Mayhem Mode agent vault from holder concentration (reason pumpfun_mayhem_vault), adds `inputs.launchMode` (mayhem | standard | null) with `inputs.launchModeSource` (vault, pumpfun or supply) and `topRows` on top_holder_concentration, and moves creator_rug_rate from red flags to priors (same points, inside the cap; earlier tokens with no market pair are unread, not rugged, with `readable`, `rugged` and `unread` in its inputs); 1.10 (/optimize 1.9) makes creation_slot_transactions a count of buyer wallets in the token's first slot (unit `wallets`): the distinct wallets that bought there, without the creator, the Mayhem agent and transactions that do not trade, read from up to 20 of the slot's transactions, with the breakdown in its inputs. 5 or more wallets is a red flag at fail (+15), 3–4 at warn (+8). bundled_launch_confirmed is no longer a hard flag: snipers buy in the creation slot too, and without funding links they cannot be told from a creator's bundle. A read that leaves the count able to cross a threshold is unknown (reason creation_slot_partial, +5 coverage), never a pass. 1.11 refuses only on a CRITICAL level computed without coverage points (`components.levelWithoutCoverage`, with `scoreWithCoverage` and `scoreWithoutCoverage`): a token CRITICAL only because checks could not be read is Protect with confidence low. It reads where a pump.fun launch is from the chain (`inputs.launchState`; recognises launches at any mint address), takes market figures DexScreener lacks from the curve or pool account (`marketSource.source` onchain_fallback) instead of pump.fun, whose API is reported in `inputs.pumpfun` and feeds no score, and reads known zeros as zero: $0 liquidity on a curve no buyer paid into, and 0% outside custody when the holder table is entirely custody. When the on-chain launch read fails, lp_locked is unknown (reason launch_state_unavailable, +5 coverage) instead of reading RugCheck's LP figure. /optimize, which returns the same verdict, moves to 1.11 with it."
+          },
+          "snapshot": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The chain position the evidence was observed at. Null on /analyse-token when the slot lookup failed entirely.",
+            "properties": {
+              "slot": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Confirmed slot, or null when the RPC could not supply one."
+              },
+              "observed_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "reason": {
+                "type": "string",
+                "description": "Present only when slot is null. Either \"slot_unavailable\" when the node answered but had no confirmed slot, or \"rpc_unavailable (<error>)\" when no node answered at all; the parenthesised part is the underlying error text and is not a fixed set."
+              }
+            }
+          },
+          "evidence_fingerprint": {
+            "type": "string",
+            "description": "16-character SHA-256 prefix over the evidence used."
+          },
+          "signals_resolved": {
+            "type": "string",
+            "description": "Coverage: resolved signals over the total, e.g. \"11/17\" means six came back unknown. An unknown never lowers the score; most add a `…: unavailable` factor with +5 caution points. The exception is a short list of established assets (regulated stablecoins, bridged assets, established protocol tokens, liquid staking tokens), named by an asset-class factor such as `Regulated stablecoin` or `Bridged asset`: checks that do not apply to that class are not scored, so an unknown on one of them adds nothing. Treat unknown as unknown, never as safe: a LOW score with low coverage means few checks were answered, not that the token is low-risk.",
+            "examples": [
+              "14/17"
+            ]
+          },
+          "signals": {
+            "type": "array",
+            "description": "Always all 17 signals, in a fixed order (a new signal is appended, never inserted), whether or not each one resolved. A signal that could not be read is present with status \"unknown\" and a reason, never omitted and never silently downgraded to a pass. The example below is illustrative and shows one of every status; it is not a live reading of any particular token.",
+            "items": {
+              "$ref": "#/components/schemas/Signal"
+            },
+            "examples": [
+              [
+                {
+                  "id": "mint_authority",
+                  "type": "categorical",
+                  "value": null,
+                  "unit": null,
+                  "status": "pass"
+                },
+                {
+                  "id": "freeze_authority",
+                  "type": "categorical",
+                  "value": null,
+                  "unit": null,
+                  "status": "pass"
+                },
+                {
+                  "id": "top_holder_concentration",
+                  "type": "continuous",
+                  "value": 18.42,
+                  "unit": "percent",
+                  "status": "warn"
+                },
+                {
+                  "id": "rugcheck_report",
+                  "type": "categorical",
+                  "value": {
+                    "rugged": false,
+                    "risks": [
+                      {
+                        "name": "Large amount of LP Unlocked",
+                        "level": "warn"
+                      }
+                    ]
+                  },
+                  "unit": null,
+                  "status": "warn"
+                },
+                {
+                  "id": "launch_platform",
+                  "type": "categorical",
+                  "value": "non_launchpad",
+                  "unit": null,
+                  "status": "pass"
+                },
+                {
+                  "id": "lp_locked",
+                  "type": "continuous",
+                  "value": 96.2,
+                  "unit": "percent",
+                  "status": "pass"
+                },
+                {
+                  "id": "price_change_3m",
+                  "type": "continuous",
+                  "value": -21.7,
+                  "unit": "percent",
+                  "status": "warn"
+                },
+                {
+                  "id": "price_change_long_term",
+                  "type": "continuous",
+                  "value": null,
+                  "unit": "percent",
+                  "status": "unknown",
+                  "reason": "insufficient_history"
+                },
+                {
+                  "id": "volume_trend",
+                  "type": "continuous",
+                  "value": 0.42,
+                  "unit": "ratio_7d_to_baseline",
+                  "status": "pass"
+                },
+                {
+                  "id": "token_age",
+                  "type": "continuous",
+                  "value": 412.6,
+                  "unit": "days",
+                  "status": "pass"
+                },
+                {
+                  "id": "price_change_24h",
+                  "type": "continuous",
+                  "value": 3.81,
+                  "unit": "percent",
+                  "status": "pass"
+                },
+                {
+                  "id": "liquidity_depth",
+                  "type": "continuous",
+                  "value": 184000,
+                  "unit": "usd",
+                  "status": "pass"
+                },
+                {
+                  "id": "market_cap",
+                  "type": "continuous",
+                  "value": 2450000,
+                  "unit": "usd",
+                  "status": "pass"
+                },
+                {
+                  "id": "creator_launches_30d",
+                  "type": "continuous",
+                  "value": 1,
+                  "unit": "tokens",
+                  "status": "pass"
+                },
+                {
+                  "id": "creator_rug_rate",
+                  "type": "continuous",
+                  "value": null,
+                  "unit": "percent",
+                  "status": "unknown",
+                  "reason": "creator_history_unavailable"
+                },
+                {
+                  "id": "creation_slot_transactions",
+                  "type": "continuous",
+                  "value": 1,
+                  "unit": "wallets",
+                  "status": "pass"
+                },
+                {
+                  "id": "token_extensions",
+                  "type": "categorical",
+                  "value": [],
+                  "unit": null,
+                  "status": "pass"
+                }
+              ]
+            ]
+          },
+          "inputs": {
+            "type": "object",
+            "properties": {
+              "launchMode": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "mayhem",
+                  "standard",
+                  null
+                ],
+                "description": "pump.fun launch mode. mayhem: Mayhem Mode, which mints 2B tokens and gives 1B to an AI trading agent whose vault is excluded from holder concentration; unsold agent tokens are burned at 24 h. Null for a non-launchpad token, or when it cannot be decided."
+              },
+              "launchModeSource": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "vault",
+                  "pumpfun",
+                  "supply",
+                  "curve_account",
+                  null
+                ],
+                "description": "What decided launchMode: the agent vault in the holder table, the bonding-curve account's own Mayhem flag (curve_account, from 1.11), an on-chain supply above 1B, or pump.fun's coin record (before 1.11)."
+              },
+              "launchState": {
+                "type": "string",
+                "enum": [
+                  "on_curve",
+                  "graduated",
+                  "not_pump",
+                  "unreadable"
+                ],
+                "description": "From 1.11. Where the launch is, read on chain: the bonding-curve account derived from the mint exists and the pump program owns it (on_curve), it is complete (graduated), there is no such account (not_pump, the chain's own answer), or the read failed (unreadable; launch_platform is then unknown). Works for any mint address, not only ones ending in pump."
+              },
+              "launchStateWhy": {
+                "type": "string",
+                "description": "Present when launchState is unreadable: why."
+              },
+              "pumpfun": {
+                "type": "object",
+                "description": "From 1.11. Whether pump.fun's coin API answered on this scan, and why not (reason, e.g. cloudflare_challenge, http_404, timeout). Reported only: it feeds no scored field, so its failure adds no points.",
+                "properties": {
+                  "answered": {
+                    "type": "boolean"
+                  },
+                  "reason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              },
+              "marketPair": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "description": "The DexScreener pool the market signals (price_change_24h, liquidity_depth, market_cap) were read from. With three or more priced pools, pools priced more than 5× from the median are dropped before the deepest is chosen (method median_consensus); with fewer, the deepest is used (method deepest). Null when the data came from another source or none.",
+                "properties": {
+                  "pairAddress": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "median_consensus",
+                      "deepest"
+                    ]
+                  },
+                  "poolsConsidered": {
+                    "type": "integer"
+                  },
+                  "poolsDropped": {
+                    "type": "integer"
+                  },
+                  "medianPriceUsd": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                }
+              },
+              "priceHistory": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "description": "Where price_change_3m, price_change_long_term and volume_trend came from. source is fresh (fetched on this scan), cache (a series fetched up to 6 h earlier; daily candles change once a day), skipped (token under a day old) or none (not available; reason says why). cache_age_s is the cache age when the scan ran; it is left out of evidence_fingerprint, so responses served from one cached series share a fingerprint.",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "fresh",
+                      "cache",
+                      "skipped",
+                      "none"
+                    ]
+                  },
+                  "fetched_at": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  },
+                  "cache_age_s": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "pool": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "The pool the daily candles belong to."
+                  },
+                  "reason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      null,
+                      "rate_limited",
+                      "timeout",
+                      "http_error",
+                      "network",
+                      "fetch_failed",
+                      "under_a_day_old"
+                    ]
+                  },
+                  "http_status": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "description": "The upstream status when one answered, e.g. 429. Null when no request was sent, for example because the rate limiter held it back."
+                  }
+                }
+              },
+              "marketSource": {
+                "type": "object",
+                "description": "Which source supplied the market signals (price_change_24h, liquidity_depth, market_cap), and why DexScreener did not when it did not. DexScreener is tried twice; a 429's Retry-After is waited out when it fits the 7.5 s budget. When the live call fails, DexScreener's last good answer for the mint is used if it is at most 5 minutes old (source dexscreener_cached, with `inputs.marketCachedAt`); it is never served as fresh. Otherwise pump.fun's coin data is used. Each field is filled separately: a figure DexScreener lacks is taken from pump.fun where pump.fun has it (a curve token's liquidity from its curve reserves, never a graduated coin's). pump.fun has no 24h price change, and no liquidity once a coin has left its curve; a field no source has is unknown and adds 5 coverage points.",
+                "properties": {
+                  "source": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "dexscreener",
+                      "dexscreener_cached",
+                      "onchain_fallback",
+                      "pumpfun_fallback",
+                      null
+                    ],
+                    "description": "The base source. dexscreener_cached: the live call failed (see dexscreener) and an answer at most 5 minutes old was used. onchain_fallback (from 1.11): DexScreener had nothing and the figures came from the curve or pool account on chain. pumpfun_fallback appears only before 1.11."
+                  },
+                  "onchain": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "description": "From 1.11. What the on-chain read supplied (source) and, when it could not supply a figure, why.",
+                    "properties": {
+                      "source": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "why": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    }
+                  },
+                  "fields": {
+                    "type": "object",
+                    "description": "The source of each market field; null when no source had it (the signal is then unknown).",
+                    "properties": {
+                      "priceChange24h": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "dexscreener",
+                          "dexscreener_cached",
+                          "pumpfun",
+                          null
+                        ],
+                        "description": "The chain has no 24h change, so from 1.11 only DexScreener supplies it."
+                      },
+                      "liquidity": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "dexscreener",
+                          "dexscreener_cached",
+                          "curve_onchain",
+                          "pool_pumpswap",
+                          "pool_raydium_amm",
+                          "pool_raydium_cpmm",
+                          "pumpfun_curve",
+                          null
+                        ],
+                        "description": "curve_onchain: the curve's real SOL reserve, both sides, at the SOL price; a curve no buyer has paid into reads $0. pool_*: the graduated pool's vaults. pumpfun_curve appears only before 1.11."
+                      },
+                      "marketCap": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "dexscreener",
+                          "dexscreener_cached",
+                          "curve_onchain",
+                          "pool_pumpswap",
+                          "pool_raydium_amm",
+                          "pool_raydium_cpmm",
+                          "pumpfun",
+                          null
+                        ],
+                        "description": "On chain: the curve or pool price times the mint's own supply (2B on a Mayhem launch, not pump.fun's fixed 1B). pumpfun appears only before 1.11."
+                      }
+                    }
+                  },
+                  "dexscreener": {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "ok",
+                          "quote_only",
+                          "failed"
+                        ],
+                        "description": "quote_only: DexScreener lists the token only as the quote side of other tokens' pairs, so it has no market figures of its own."
+                      },
+                      "attempts": {
+                        "type": "integer"
+                      },
+                      "reason": {
+                        "type": "string",
+                        "enum": [
+                          "timeout",
+                          "rate_limited",
+                          "http_error",
+                          "network_error",
+                          "no_pairs",
+                          "no_solana_pairs",
+                          "no_pair_for_mint",
+                          "no_pair_after_consensus"
+                        ],
+                        "description": "Present when status is failed: why the last attempt returned nothing."
+                      },
+                      "httpStatus": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ]
+                      },
+                      "retrySkipped": {
+                        "type": "string",
+                        "enum": [
+                          "retry_after_exceeds_budget",
+                          "budget_exhausted"
+                        ],
+                        "description": "Present when the first attempt failed and no retry was made: the 429's Retry-After, or the time left, did not fit the 7.5 s budget."
+                      }
+                    }
+                  },
+                  "sourceFailures": {
+                    "type": "array",
+                    "description": "One entry per failed DexScreener attempt, kept when a retry then succeeded.",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "source": {
+                          "type": "string"
+                        },
+                        "attempt": {
+                          "type": "integer"
+                        },
+                        "detail": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "marketCachedAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Present only when marketSource.source is dexscreener_cached: when the cached DexScreener answer was fetched. Never more than 5 minutes before the scan."
+              },
+              "lpSource": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "rugcheck_report",
+                  "rugcheck_summary_fallback",
+                  null
+                ],
+                "description": "Which RugCheck reading lpLockedPct is. rugcheck_report: the LP lock of the pool the market data came from. rugcheck_summary_fallback: the report had no LP reading, so the token-wide summary (a liquidity-weighted average over every pool, which has returned 0 and 100 on identical requests) was used. Null when lpLockedPct is null."
+              }
+            }
+          }
+        }
+      },
+      "Signal": {
+        "type": "object",
+        "description": "One piece of evidence. `status` is the scorer's reading of `value`, not a summary of the token. Treat \"unknown\" as absence of evidence: it is not a pass, and it is why `signals_resolved` is below 17.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable identifier. The full set is 17 and every response contains all of them. token_extensions was added in schema 1.8, appended after the original 16 so their order is unchanged.",
+            "enum": [
+              "mint_authority",
+              "freeze_authority",
+              "top_holder_concentration",
+              "rugcheck_report",
+              "launch_platform",
+              "lp_locked",
+              "price_change_3m",
+              "price_change_long_term",
+              "volume_trend",
+              "token_age",
+              "price_change_24h",
+              "liquidity_depth",
+              "market_cap",
+              "creator_launches_30d",
+              "creator_rug_rate",
+              "creation_slot_transactions",
+              "token_extensions"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "categorical",
+              "continuous"
+            ]
+          },
+          "value": {
+            "type": [
+              "string",
+              "number",
+              "object",
+              "array",
+              "null"
+            ],
+            "description": "The observed reading, in `unit`. For token_extensions, an array of the holder controls found on the mint, each `{ control, authority, programId?, paused?, issuer? }` with control permanent_delegate, default_account_frozen, pausable or transfer_hook; empty when there are none. Null whenever status is \"unknown\", and on a pass with reason no_lp_on_curve. For mint_authority and freeze_authority, null is the good case and means the authority is revoked; a base58 address means it is still held. An authority set to the all-zero address (11111111111111111111111111111111) is reported as held, because that is what the chain stores."
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Null for categorical signals.",
+            "enum": [
+              null,
+              "percent",
+              "usd",
+              "days",
+              "tokens",
+              "transactions",
+              "ratio_7d_to_baseline"
+            ]
+          },
+          "rejected_value": {
+            "type": "number",
+            "description": "Present only with reason implausible_value: the figure the source reported, in `unit`, which no real token can have. It is kept for audit and is not a reading of the token; do not repeat it as fact."
+          },
+          "status": {
+            "type": "string",
+            "description": "pass = read and unremarkable. warn / fail = read and concerning, at increasing severity. unknown = could not be read at all. A pass with a `reason` means the risk this check measures cannot occur for this token; read reason before treating it as a measured pass (lp_locked with no_lp_on_curve: a token still on its launchpad bonding curve has no LP).",
+            "enum": [
+              "pass",
+              "warn",
+              "fail",
+              "unknown"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "description": "Present when status is \"unknown\", naming which source did not answer, either because it failed or because it ran its full timeout. insufficient_history is a fact about the token; every other unknown value is a fact about our data sources on this call, so the same mint can resolve differently on a later call. When ZendIQ cannot read a signal but RugCheck reports the same fact, the signal resolves from RugCheck instead (status warn, or fail for mint/freeze authority, no reason, `inputs.source: \"rugcheck_fallback\"`). implausible_value means the source answered with a figure no real token can have (market cap above $5T, or a 24h gain above +10,000% on a token over 30 days old); the figure is in `rejected_value`. rate_limited means the price-history source was rate-limiting requests, so price_change_3m, price_change_long_term and volume_trend were not checked on this call; a later call can resolve them. holder_owner_lookup_failed means the largest holders were read but their owners were not, so pool and bonding-curve vaults could not be told apart from real holders; holder_sources_unavailable means neither holder source answered (both failures are in `inputs.sourceFailures`). On price_change_24h, liquidity_depth and market_cap: dexscreener_unavailable means DexScreener did not answer after a retry and the on-chain fallback (the curve or pool account; pump.fun before 1.11) has no such figure (the cause is in the signal's `inputs.dexscreener` and in `inputs.marketSource`); no_own_market_pair means DexScreener lists the token only as the quote side of other tokens' pairs; market_data_unavailable means the source answered without that figure. Each of these adds 5 coverage points. Two values appear on a read signal: partial_scan_lower_bound on creator_launches_30d, meaning the creator's history ran past its time budget and `value` is a lower bound, so its status is then warn or fail, never pass; and no_lp_on_curve on lp_locked, with status pass, meaning the check cannot apply (see `status`). launch_state_unavailable, on lp_locked (from 1.11), means the on-chain launch read failed, so it is not known whether the token is still on a bonding curve, where the check cannot apply; RugCheck's LP figure is not read in its place (on a curve token it reads 0% locked), and the signal adds 5 coverage points, never a red flag. The read's error is in `inputs.onchain`. creation_slot_partial, on creation_slot_transactions, means some of the first slot's transactions could not be read (or were past the 20-read cap) and the unread ones could move the buyer-wallet count across a threshold; the counts read so far are in `inputs`. issuer_controlled, on mint_authority or freeze_authority with status warn, means the authority is a verified program-derived address of a listed bridge or issuer (Wormhole Token Bridge, NEAR Omni Bridge), named in `inputs.authority`: no key holder controls it, so it is not a hard red flag. verification_partial is the same with one check missing: the address is listed and re-derives from the bridge program's seeds (offline), but the on-chain read confirming the program is deployed could not run on this scan; `inputs.verification` says which checks ran. It also scores +5 and is never a hard flag. On a stablecoin wrapped by a bridge (Portal USDC, Wormhole DAI) the authority reads issuer_controlled, naming the bridge, with `inputs.assetClass`, and the class does not score it. Two values mark a listed asset (regulated stablecoins, bridged assets, established protocol tokens, liquid staking tokens) whose class does not score the check: regulated_issuer, on mint_authority or freeze_authority of a regulated stablecoin whose authority is not a listed bridge, status warn, with `inputs.authority` { address, issuer }; and asset_class_exempt, status warn, on any other check the class does not score that would have read warn or fail, with `inputs.assetClass`. In both, `value` keeps the measured reading and `inputs.measuredStatus` the status it would have had (with `inputs.measuredReason` if it had a reason); nothing is added to the score. A check the class does score is unaffected, and an exempt check that passes stays pass.",
+            "enum": [
+              "onchain_unavailable",
+              "holder_distribution_unavailable",
+              "rugcheck_unavailable",
+              "launch_platform_unavailable",
+              "lp_lock_unavailable",
+              "price_history_fetch_failed",
+              "insufficient_history",
+              "volume_history_unavailable",
+              "creation_time_unavailable",
+              "market_data_unavailable",
+              "creator_history_unavailable",
+              "creation_slot_unavailable",
+              "implausible_value",
+              "rate_limited",
+              "partial_scan_lower_bound",
+              "holder_owner_lookup_failed",
+              "holder_sources_unavailable",
+              "no_lp_on_curve",
+              "issuer_controlled",
+              "dexscreener_unavailable",
+              "no_own_market_pair",
+              "verification_partial",
+              "regulated_issuer",
+              "asset_class_exempt",
+              "extensions_not_decoded",
+              "creation_slot_partial",
+              "launch_state_unavailable"
+            ]
+          },
+          "inputs": {
+            "type": "object",
+            "description": "Present on some signals: what the reading was computed from. On top_holder_concentration: `holderSource` (rugcheck_report or rpc), `sourceFailures`, `excludedAccounts` (custody accounts removed before measuring: the pump.fun bonding curve, the pump.fun Mayhem Mode agent vault (re-derived as PDA([\"sol-vault\"]) under MAyhSmzXzV1pTf7LsNkrNwkWKTo4ougAJ1PPg47MD4e and checked off-curve; reason pumpfun_mayhem_vault), pool vaults, burn, each with `address`, `reason`, `owner`, `pct`), `unclassifiedProgramHolders` (program-owned accounts that matched no rule and stay counted), `unresolvedChecks`, `rowsUsed` (rows in the holder table, at most 20: RugCheck and getTokenLargestAccounts both list the largest token accounts, not owners), `supplyCoveredPct` (share of supply those rows hold, custody included, before exclusions), `perWalletLowerBound: true` and `topRows` (the table's 3 largest rows as read: `owner`, `pct` and `excluded`, the exclusion reason, or null when the row counted). The value is the largest single token account's share: exact for that account, but a lower bound for a wallet, which can split its balance across accounts or hold accounts below row 20. On token_extensions: `tokenProgram` and `extensions` (every extension on the mint, by name); reason onchain_unavailable when the mint could not be read, extensions_not_decoded when it came back as raw bytes. On lp_locked with reason no_lp_on_curve: `applicable: false`. On any other lp_locked: `lpSource` (rugcheck_report: the LP lock of `market`, the pool the market data came from, out of RugCheck's full report; rugcheck_summary_fallback: the report had no LP reading, so RugCheck's token-wide summary was used, with `reportError` saying why; null when neither had one), and `market` (`pubkey`, `marketType`, `matchedBy`: dexscreener_pair, pumpfun_pool or deepest_report_market). On price_change_24h, liquidity_depth or market_cap with reason dexscreener_unavailable: `marketSource` and `dexscreener` (`reason`, `httpStatus`, `attempts`). On mint_authority / freeze_authority with reason issuer_controlled: `authority` (`address`, `program`, `issuer`); with reason regulated_issuer: `authority` (`address`, `issuer`) and `measuredStatus`. With reason asset_class_exempt: `assetClass`, `measuredStatus` and, when the reading had one, `measuredReason`.",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "value",
+          "unit",
+          "status"
+        ]
+      },
+      "TokenRisk": {
+        "description": "Degrades to an explicit available:false object when screening did not complete because of an unexpected upstream failure (/analyse and /optimize only — /analyse-token returns 502 instead). A slow source never causes this; it is reported as an unknown signal inside a completed scan. It never returns a safe-looking score it could not compute. On the unavailable variant, fees and overall risk were sized as if the token scored assumedLevel, and on /analyse the verdict fails closed to Protect with confidence \"low\" and a token_screening entry in `degraded` — a Protect reached this way means the token was not checked, not that it was found risky.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "mint": {
+                "$ref": "#/components/schemas/Base58Pubkey"
+              },
+              "symbol": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "score": {
+                "type": "number",
+                "description": "redFlags.points + priors.cappedPoints + coverage.points from `components`, clamped to 0–100; 100 when RugCheck reports a confirmed rug."
+              },
+              "level": {
+                "$ref": "#/components/schemas/RiskLevel"
+              },
+              "components": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "description": "The score split by what kind of claim each point makes. redFlags: evidence of rug or extraction risk about this token (live authorities, real holder concentration after custody exclusions, the creator's launch count, a crowded creation slot (5+ buyer wallets), unlocked LP, RugCheck findings we do not measure ourselves). Every red flag sits on a signal that read warn or fail. priors: the base rate of loss for this kind of token (launchpad, age, size), not evidence of manipulation: launch platform, age, market cap, liquidity, price and volume movement, and creator_rug_rate (how many of the creator's earlier tokens sit at near-zero liquidity, which is how most launches end; earlier tokens with no market pair count as unread, not rugged). At most `cap` (45) of them count toward the score, so priors alone stay just below the HIGH band. coverage: caution points for checks that could not run (each `…: unavailable` factor). Each entry in a component's factors names the factor, its points and its signal. From 1.11, scoreWithoutCoverage and levelWithoutCoverage give the score and level from red flags and priors alone: Refuse is decided on that level, so coverage can raise the displayed score and level but never refuse. A known zero (a curve no buyer has paid into, a holder table that is entirely protocol custody) is read as zero, not as an unread check.",
+                "properties": {
+                  "redFlags": {
+                    "type": "object",
+                    "properties": {
+                      "points": {
+                        "type": "number"
+                      },
+                      "hardFlags": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "mint_authority_live",
+                            "freeze_authority_live",
+                            "permanent_delegate",
+                            "default_account_frozen",
+                            "pausable",
+                            "previously_rugged",
+                            "top_holder_majority"
+                          ]
+                        },
+                        "description": "Red flags that refuse on their own, whatever the score. permanent_delegate, default_account_frozen and pausable are read from the mint's own Token-2022 extensions (signal token_extensions): a permanent delegate, new token accounts that start frozen, and a pause authority or transfers already paused. RugCheck's permanent-control finding stands in only when the extensions could not be read. A transfer hook is a red flag on the same signal but never a hard flag. top_holder_majority is the largest single token account over 50% after custody exclusions, from ZendIQ's own holder read only. A crowded creation slot (5+ buyer wallets) is a red flag, not a hard flag: without funding links, snipers cannot be told from a creator's bundle."
+                      },
+                      "factors": {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/components/schemas/ComponentFactor"
+                        }
+                      }
+                    }
+                  },
+                  "priors": {
+                    "type": "object",
+                    "properties": {
+                      "points": {
+                        "type": "number",
+                        "description": "Uncapped total."
+                      },
+                      "cappedPoints": {
+                        "type": "number",
+                        "description": "What counts toward score: min(points, cap)."
+                      },
+                      "cap": {
+                        "type": "number",
+                        "examples": [
+                          45
+                        ]
+                      },
+                      "factors": {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/components/schemas/ComponentFactor"
+                        }
+                      }
+                    }
+                  },
+                  "coverage": {
+                    "type": "object",
+                    "properties": {
+                      "points": {
+                        "type": "number"
+                      },
+                      "factors": {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/components/schemas/ComponentFactor"
+                        }
+                      }
+                    }
+                  },
+                  "scoreWithCoverage": {
+                    "type": "number",
+                    "description": "From 1.11. The displayed score, coverage included: equal to tokenRisk.score."
+                  },
+                  "scoreWithoutCoverage": {
+                    "type": "number",
+                    "description": "From 1.11. redFlags.points + priors.cappedPoints, clamped to 0–100 (100 on a confirmed rug)."
+                  },
+                  "levelWithoutCoverage": {
+                    "$ref": "#/components/schemas/RiskLevel",
+                    "description": "From 1.11. The level of scoreWithoutCoverage (CRITICAL still needs a red flag). The verdict refuses on this level, not on `level`."
+                  }
+                }
+              },
+              "factors": {
+                "type": "array",
+                "description": "Omitted on /optimize.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "severity": {
+                      "$ref": "#/components/schemas/RiskLevel"
+                    },
+                    "detail": {
+                      "type": "string"
+                    },
+                    "points": {
+                      "type": "number",
+                      "description": "This factor's own points, before the priors cap. Points no longer sum to score: see `components`."
+                    },
+                    "component": {
+                      "type": "string",
+                      "enum": [
+                        "redFlags",
+                        "priors",
+                        "coverage"
+                      ],
+                      "description": "Present only on factors with points above 0."
+                    },
+                    "signal": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "The signal this factor reads. Null for a factor no signal backs, such as the name-keyword speculative prior or total data loss."
+                    },
+                    "signalStatus": {
+                      "type": "string",
+                      "enum": [
+                        "warn",
+                        "fail"
+                      ],
+                      "description": "On red flags: the status of `signal`."
+                    },
+                    "hardFlag": {
+                      "type": "string",
+                      "description": "On red flags that refuse on their own; see components.redFlags.hardFlags."
+                    },
+                    "source": {
+                      "type": "string",
+                      "description": "rugcheck_fallback: ZendIQ could not read this signal itself on this scan, so RugCheck's report of the same fact resolved it (the signal's inputs.source says the same). name_keyword / known_memecoin_list: what triggered the speculative-asset prior."
+                    }
+                  }
+                }
+              },
+              "dataSource": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Omitted on /optimize."
+              }
+            },
+            "required": [
+              "mint",
+              "score",
+              "level"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "mint": {
+                "$ref": "#/components/schemas/Base58Pubkey"
+              },
+              "available": {
+                "const": false
+              },
+              "error": {
+                "type": "string",
+                "examples": [
+                  "scan_failed"
+                ]
+              },
+              "assumedScore": {
+                "type": "number",
+                "examples": [
+                  50
+                ]
+              },
+              "assumedLevel": {
+                "$ref": "#/components/schemas/RiskLevel"
+              },
+              "note": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "available",
+              "assumedScore",
+              "assumedLevel"
+            ]
+          }
+        ]
+      },
+      "ComponentFactor": {
+        "type": "object",
+        "description": "A scored factor as listed inside tokenRisk.components.",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "points": {
+            "type": "number"
+          },
+          "signal": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "signalStatus": {
+            "type": "string",
+            "enum": [
+              "warn",
+              "fail"
+            ]
+          },
+          "hardFlag": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "points",
+          "signal"
+        ]
+      },
+      "SandwichExposure": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "score": {
+                "type": "number"
+              },
+              "level": {
+                "$ref": "#/components/schemas/RiskLevel"
+              },
+              "estimatedLossPercentage": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "A model estimate, not a measurement: the sandwich risk score maps to a fixed share of the trade (score 80+: 2%, 60+: 0.8%, 40+: 0.3%, 20+: 0.05%, below 20: 0.01%). If a trade is sandwiched, the loss is bounded by its slippage tolerance, not by this figure."
+              },
+              "estimatedLossUsd": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "estimatedLossPercentage applied to the trade value. A model estimate, not a measurement."
+              },
+              "confidence": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "high when pool liquidity was known when scoring, or when the fill is off-chain (RFQ: there is no pool to sandwich); medium otherwise."
+              },
+              "factors": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            },
+            "required": [
+              "score",
+              "level"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "available": {
+                "const": false
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "available"
+            ]
+          }
+        ]
+      },
+      "RiskBlock": {
+        "type": "object",
+        "properties": {
+          "score": {
+            "type": "number"
+          },
+          "level": {
+            "$ref": "#/components/schemas/RiskLevel"
+          },
+          "floored": {
+            "type": "boolean"
+          },
+          "factors": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "AnalyseRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "inputMint",
+          "outputMint",
+          "amount"
+        ],
+        "properties": {
+          "inputMint": {
+            "$ref": "#/components/schemas/Base58Pubkey"
+          },
+          "outputMint": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Base58Pubkey"
+              }
+            ],
+            "description": "Must differ from inputMint."
+          },
+          "amount": {
+            "$ref": "#/components/schemas/AtomicAmount"
+          },
+          "slippageBps": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000,
+            "description": "Optional. Omit to let the router decide."
+          }
+        }
+      },
+      "OptimizeRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AnalyseRequest"
+          },
+          {
+            "type": "object",
+            "required": [
+              "taker"
+            ],
+            "properties": {
+              "taker": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/Base58Pubkey"
+                  }
+                ],
+                "description": "The mainnet wallet that will sign and submit. Not the wallet that pays for the call. Must hold the input amount and SOL for the network fee, priority fee and token account rent, except on a gasless Jupiter Ultra fill; otherwise the call returns 422 `taker_insufficient_balance`, uncharged. Only the public key is needed: any funded mainnet address can be passed to see a build-only plan and simulation."
+              },
+              "analysisId": {
+                "type": "string",
+                "maxLength": 128,
+                "description": "Optional. The `analysisId` from /analyse-token or /analyse for this `outputMint`, within 60 s of issue. Reuses that token scan (authorities, holders, RugCheck, launch platform, age, creator history, bundled-launch check); the quote, price impact, sandwich exposure and congestion are always fetched fresh. A missing, expired or unknown ID means a full scan, never an error. An ID for a different mint is rejected with 400 `analysis_mint_mismatch`, uncharged."
+              },
+              "method": {
+                "type": "string",
+                "enum": [
+                  "jito"
+                ],
+                "description": "Optional. `jito` forces a Jito bundle venue (raydium_jito or jupiter_swap_jito), even where risk scoring would not bundle. Only bundle venues are considered, ranked by net value after tip, and no unbundled route is substituted if none builds. `plan.choice` is then `forced`. Any other value is 400."
+              }
+            }
+          }
+        ]
+      },
+      "AnalyseResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Provenance"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "verdict": {
+                "$ref": "#/components/schemas/Verdict"
+              },
+              "analysisId": {
+                "$ref": "#/components/schemas/AnalysisId"
+              },
+              "analysisExpiresAt": {
+                "$ref": "#/components/schemas/AnalysisExpiresAt"
+              },
+              "confidence": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Experimental field. From 1.11, on a Protect for a HIGH or CRITICAL token: low when the token is CRITICAL only because of coverage points (checks that could not be read), otherwise medium when any coverage points count and high when none do."
+              },
+              "reasons": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "recommendedExecution": {
+                "type": "object",
+                "description": "Stable fields. How to execute if you proceed.",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "jupiter_direct on Safe, jito_bundle on Protect, none on Refuse.",
+                    "enum": [
+                      "jupiter_direct",
+                      "jito_bundle",
+                      "none"
+                    ]
+                  },
+                  "priorityFeeLamports": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "description": "Null means omit the parameter and let the venue size it."
+                  },
+                  "jitoTipLamports": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "description": "Non-null only when path is jito_bundle. A tip outside a bundle buys nothing."
+                  }
+                }
+              },
+              "overallRisk": {
+                "$ref": "#/components/schemas/RiskBlock"
+              },
+              "executionRisk": {
+                "$ref": "#/components/schemas/RiskBlock"
+              },
+              "tokenRisk": {
+                "$ref": "#/components/schemas/TokenRisk"
+              },
+              "sandwichExposure": {
+                "$ref": "#/components/schemas/SandwichExposure"
+              },
+              "route": {
+                "type": "object",
+                "description": "Degrades to available:false when routing data is unavailable.",
+                "properties": {
+                  "type": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "swapType": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "hops": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "description": "Sequential swaps in the route. A hop split across several pools counts once; see legs."
+                  },
+                  "legs": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "description": "Pool legs in the route plan. Above hops when a hop is split across pools."
+                  },
+                  "split": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ],
+                    "description": "True when at least one hop is split across pools. Null when the route plan carries no mints to tell."
+                  },
+                  "priceImpactPct": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "slippageBps": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "inAmount": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "outAmount": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "inUsdValue": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "outUsdValue": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "available": {
+                    "type": "boolean"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              },
+              "marketContext": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "degraded": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                },
+                "description": "Null when all three sub-analyses (token screening, route, sandwich exposure) produced a result, even if some of the sixteen token checks came back unknown: per-check coverage is in signals_resolved, not here. Otherwise a non-empty array of \"source:reason\" strings naming what did not. Test for null rather than comparing against true. Check it before trusting the verdict at full confidence.",
+                "examples": [
+                  [
+                    "token_screening:unavailable",
+                    "sandwich_exposure:unavailable"
+                  ]
+                ]
+              },
+              "disclaimer": {
+                "type": "string"
+              },
+              "latencyMs": {
+                "type": "integer"
+              },
+              "replayed": {
+                "$ref": "#/components/schemas/Replayed"
+              }
+            },
+            "required": [
+              "verdict",
+              "recommendedExecution",
+              "reasons",
+              "disclaimer"
+            ]
+          }
+        ]
+      },
+      "OptimizeResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Provenance"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "analysis": {
+                "type": "object",
+                "description": "Experimental. Where this response's token analysis came from, so reuse is stated rather than assumed.",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "reused",
+                      "cached",
+                      "full_scan"
+                    ],
+                    "description": "reused = your analysisId was valid and its scan was reused. cached = no usable ID, but a completed scan of this mint from the last 60 s (by any caller) was used. full_scan = a new scan was run for this call."
+                  },
+                  "reason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      null,
+                      "no_analysis_id",
+                      "analysis_id_expired",
+                      "analysis_id_unknown"
+                    ],
+                    "description": "Why the analysisId was not used; null when it was. analysis_id_unknown includes IDs issued before a server restart."
+                  },
+                  "analysisId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "The ID of the scan actually used, reusable until expiresAt. Null if the scan did not complete."
+                  },
+                  "expiresAt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  },
+                  "observedAt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time",
+                    "description": "When the token scan completed."
+                  },
+                  "ageSeconds": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "description": "Age of the token scan at response time; at most 60 when reused or cached."
+                  }
+                }
+              },
+              "overallRisk": {
+                "$ref": "#/components/schemas/RiskBlock"
+              },
+              "executionRisk": {
+                "$ref": "#/components/schemas/RiskBlock"
+              },
+              "verdict": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/Verdict"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The same verdict /analyse gives for this trade. The transaction is built even on Refuse; do not sign it unless you mean to trade against the verdict."
+              },
+              "confidence": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Experimental field. From 1.11, on a Protect for a HIGH or CRITICAL token: low when the token is CRITICAL only because of coverage points (checks that could not be read), otherwise medium when any coverage points count and high when none do."
+              },
+              "reasons": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "tokenRisk": {
+                "$ref": "#/components/schemas/TokenRisk",
+                "description": "Reduced here: /optimize returns mint, symbol, score, level and components only. The factors array and dataSource are carried by /analyse and /analyse-token, not by this endpoint. An available:false object means the token was never screened."
+              },
+              "sandwichExposure": {
+                "$ref": "#/components/schemas/SandwichExposure",
+                "description": "Reduced here: /optimize returns score, level, the two estimatedLoss fields and confidence. The factors array is carried by /analyse, not by this endpoint."
+              },
+              "plan": {
+                "type": "object",
+                "description": "The structured plan to verify the transaction bytes against before signing.",
+                "properties": {
+                  "venue": {
+                    "type": "string",
+                    "description": "jupiter_ultra or jupiter_swap under risk-based selection; raydium when the verdict is Safe and its direct quote beats that Jupiter route after costs; raydium_jito or jupiter_swap_jito (a Jito bundle) on any verdict when the bundle beats the Jupiter route after its tip and landing risk, or when the request sent method: jito (see venueDecision and choice). Other venue names appear only when a venue was forced through the authenticated debug override, in which case `override` is non-null. Treat unrecognised values as unknown, not as an error.",
+                    "examples": [
+                      "jupiter_ultra",
+                      "jupiter_swap",
+                      "raydium",
+                      "raydium_jito",
+                      "jupiter_swap_jito"
+                    ]
+                  },
+                  "choice": {
+                    "type": "string",
+                    "enum": [
+                      "selected",
+                      "forced"
+                    ],
+                    "description": "selected = ZendIQ chose the venue. forced = the request forced it (method: jito, or the debug override); `override` says how, and the plan is not a risk-derived routing decision."
+                  },
+                  "venueLabel": {
+                    "type": "string"
+                  },
+                  "venueFallback": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Null normally. When the venue that was chosen could not build, this carries its error and `venue` is the one that was built instead: the Jupiter route, then jupiter_ultra. A fallback only ever moves toward the Jupiter route; a direct venue is built only when it won the comparison. If the Jupiter route could not be priced and Ultra cannot be built, the call fails with optimize_unavailable (uncharged) rather than substituting an unprotected route. Whatever the chosen venue would have provided was not applied; read `mevProtection` and `reason` for the venue actually built."
+                  },
+                  "venueDecision": {
+                    "type": "object",
+                    "description": "Experimental. The cross-venue comparison behind `venue`. netUsd = outUsd + unspentInputUsd − priorityFeeUsd − tipUsd − expectedMevLossUsd − landingRiskUsd, per candidate. A direct venue wins only when it beats the Jupiter baseline by more than marginUsd; Jupiter wins ties and anything unpriced. Unprotected raydium competes only on a Safe verdict. Jito bundle venues compete on every verdict, except that on Safe they step aside while ZendIQ's shared Jito submission budget is more than half used.",
+                    "properties": {
+                      "evaluated": {
+                        "type": "boolean"
+                      },
+                      "basis": {
+                        "type": "string",
+                        "enum": [
+                          "net_benefit",
+                          "unavailable_no_usd_rates",
+                          "unavailable_baseline_unpriced",
+                          "not_evaluated_venue_forced",
+                          "forced_method_ranked",
+                          "forced_method_unpriced"
+                        ],
+                        "description": "forced_method_* = method: jito; bundle venues were ranked against each other only, with no baseline."
+                      },
+                      "baseline": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "The Jupiter venue risk scoring selected. Null under method: jito."
+                      },
+                      "chosen": {
+                        "type": "string",
+                        "description": "The ranking's winner. If it could not be built, `plan.venue` differs and `plan.venueFallback` says why."
+                      },
+                      "marginUsd": {
+                        "type": "number",
+                        "description": "0.1% of the trade, capped at $1. The share absorbs quote-to-fill noise, which grows with trade size; past $1 a gap between venues is a real price difference. No fixed dollar floor."
+                      },
+                      "advantageUsd": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "description": "Winner's netUsd minus the baseline's; null when the baseline was kept."
+                      },
+                      "candidates": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "venue": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "quoted",
+                                "ineligible",
+                                "failed",
+                                "unknown",
+                                "build_failed"
+                              ],
+                              "description": "unknown = the quote was slower than 2.5 s or a cost could not be priced; it does not compete. build_failed = it won but could not be built (see buildError), so the next venue was built."
+                            },
+                            "buildError": {
+                              "type": "string",
+                              "description": "Present on build_failed, for example a route too large to carry a Jito tip under the 1,232-byte limit."
+                            },
+                            "reason": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "description": "Why the venue is ineligible."
+                            },
+                            "error": {
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "inAmount": {
+                              "type": "string"
+                            },
+                            "outAmount": {
+                              "type": "string"
+                            },
+                            "outUsd": {
+                              "type": "number"
+                            },
+                            "unspentInputUsd": {
+                              "type": "number",
+                              "description": "Input the venue did not spend, which stays in the wallet."
+                            },
+                            "priorityFeeUsd": {
+                              "type": "number"
+                            },
+                            "tipUsd": {
+                              "type": "number"
+                            },
+                            "expectedMevLossUsd": {
+                              "type": "number",
+                              "description": "The modelled sandwich cost (sandwichExposure.estimatedLossUsd), charged only to routes exposed to the public mempool. An estimate, not a measurement."
+                            },
+                            "landingRiskUsd": {
+                              "type": "number",
+                              "description": "Charged only to Jito bundle venues: an assumed 5% not-landed rate times the /optimize fee, the cost of rebuilding after a bundle that does not land. Nothing moves when a bundle does not land."
+                            },
+                            "netUsd": {
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            }
+                          }
+                        }
+                      },
+                      "note": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "override": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "description": "Null unless the caller forced a Jito bundle with method: jito. When present, this plan does not reflect risk-based routing.",
+                    "properties": {
+                      "forcedVenue": {
+                        "type": "null"
+                      },
+                      "method": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "examples": [
+                          "jito"
+                        ]
+                      },
+                      "riskVenue": {
+                        "type": "string"
+                      },
+                      "enabledBy": {
+                        "type": "string",
+                        "enum": [
+                          "request"
+                        ]
+                      },
+                      "warning": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "bundle": {
+                    "type": "boolean"
+                  },
+                  "mevProtection": {
+                    "type": "string",
+                    "description": "upstream = the venue provides MEV protection (Ultra). jito_bundle = the transaction carries a Jito tip and is submitted through /v1/agent/bundle to Jito's block engine rather than the public mempool; it lands whole or not at all. none = the route is exposed like any pool swap; a priority fee buys inclusion, not protection.",
+                    "enum": [
+                      "upstream",
+                      "jito_bundle",
+                      "none"
+                    ]
+                  },
+                  "jito": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "description": "Present on bundle venues. The tip is the last instruction of the swap transaction: a SystemProgram transfer from the fee payer to tipAccount.",
+                    "properties": {
+                      "tipLamports": {
+                        "type": "integer",
+                        "description": "At least 10,000. Above that, sized from the trade size and its modelled sandwich exposure, up to 500,000; tipSource says which applied. A bundle lands whole or not at all and is not guaranteed to land."
+                      },
+                      "tipUsd": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "tipAccount": {
+                        "type": "string"
+                      },
+                      "tipSource": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "zendiq_risk_model",
+                          "bundle_tip_floor",
+                          null
+                        ]
+                      },
+                      "tipInstruction": {
+                        "type": "string"
+                      },
+                      "bytes": {
+                        "type": "integer",
+                        "description": "Size of the transaction with the tip."
+                      },
+                      "headroomBytes": {
+                        "type": "integer",
+                        "description": "1,232 minus bytes."
+                      },
+                      "lookupTable": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "description": "jupiter_swap_jito only. The frozen ZendIQ address lookup table (HHhmPLodSmawV1EtMCNBiQTHdYpECQB2X7w1MbM6pdEw), verified at server start to be frozen, active and hold exactly its 17 protocol-wide addresses. A table that fails that check makes jupiter_swap_jito refuse to build.",
+                        "properties": {
+                          "address": {
+                            "type": "string"
+                          },
+                          "frozen": {
+                            "const": true
+                          },
+                          "active": {
+                            "const": true
+                          },
+                          "used": {
+                            "type": "boolean",
+                            "description": "Whether the transaction resolves accounts through it. When compiling without it is smaller, the smaller transaction is kept."
+                          },
+                          "verifiedAtSlot": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "description": "Slot of the start-up verification."
+                          },
+                          "verifiedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "writtenInFull": {
+                            "type": "object",
+                            "description": "Non-signer, non-program accounts no table resolved. An account outside the table costs 32 bytes and never causes a refusal.",
+                            "properties": {
+                              "accounts": {
+                                "type": "integer"
+                              },
+                              "bytes": {
+                                "type": "integer"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "transaction": {
+                    "type": "object",
+                    "description": "Experimental. Read from the returned transaction's own bytes, so the venue and protection claims can be checked rather than trusted. A transaction whose programs contradict plan.venue, a bundle with no Jito tip, or a transaction whose venue cannot be verified (from its programs, or on jupiter_ultra from its provenance) is never returned: the call fails with optimize_unavailable and is not charged.",
+                    "properties": {
+                      "programs": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "Top-level program ids invoked by the transaction, including a third-party router's."
+                      },
+                      "bytes": {
+                        "type": "integer",
+                        "description": "Size of the returned transaction."
+                      },
+                      "venueVerified": {
+                        "type": "boolean",
+                        "description": "Always true in a returned plan. A transaction whose venue cannot be verified is refused, never returned with false."
+                      },
+                      "verifiedBy": {
+                        "type": "string",
+                        "enum": [
+                          "programs",
+                          "provenance"
+                        ],
+                        "description": "How the venue was verified. programs: a program belonging to plan.venue is present. provenance: jupiter_ultra only, when Ultra filled through a third-party router (plan.route.router) whose programs are not published; the bytes are exactly the transaction Ultra returned for this requestId, the taker signs it, and Ultra /execute only lands that transaction. Provenance never excuses undecodable bytes or a bundle without a tip."
+                      },
+                      "jitoTip": {
+                        "type": [
+                          "object",
+                          "null"
+                        ],
+                        "description": "A SystemProgram transfer to a Jito tip account inside the transaction, or null.",
+                        "properties": {
+                          "lamports": {
+                            "type": "integer"
+                          },
+                          "account": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "note": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "priorityFee": {
+                    "$ref": "#/components/schemas/PriorityFee"
+                  },
+                  "jitoTipLamports": {
+                    "type": "integer"
+                  },
+                  "slippageBps": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "route": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "swapType": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "router": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "jupiter_ultra only. The router Ultra filled the order through, as Ultra names it (for example metis, jupiterz, okx)."
+                      },
+                      "hops": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "description": "Sequential swaps in the route. A hop split across several pools counts once; see legs."
+                      },
+                      "legs": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "description": "Pool legs in the route plan. Above hops when a hop is split across pools."
+                      },
+                      "split": {
+                        "type": [
+                          "boolean",
+                          "null"
+                        ],
+                        "description": "True when at least one hop is split across pools. Null when the route plan carries no mints to tell."
+                      },
+                      "inAmount": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "The amount actually quoted. On raydium with a SOL input this is below the requested amount by solReserveLamports."
+                      },
+                      "outAmount": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "priceImpactPct": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "requestedInAmount": {
+                        "type": "string",
+                        "description": "raydium only. The amount you asked to swap."
+                      },
+                      "solReserveLamports": {
+                        "type": "integer",
+                        "description": "raydium only. SOL held back from the input to cover fees and rent; it stays in the wallet."
+                      },
+                      "reserveNote": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "raydium only. Why solReserveLamports was held back, present whenever it is above 0. A wallet that holds less SOL than the requested amount is refused rather than built."
+                      },
+                      "minimumOutAmount": {
+                        "type": "string",
+                        "description": "raydium only. The slippage floor encoded in the transaction."
+                      }
+                    }
+                  },
+                  "reason": {
+                    "type": "string",
+                    "description": "Experimental. Why this venue was built. On a route with no MEV protection (raydium, jupiter_swap) it also states the modelled sandwich cost and the worst case: the loss if the trade is sandwiched, bounded by the slippage floor in the transaction."
+                  }
+                }
+              },
+              "submit": {
+                "type": "object",
+                "description": "How to submit the signed transaction. Differs by venue — branch on `method`, never on a venue guess.",
+                "properties": {
+                  "method": {
+                    "type": "string",
+                    "description": "jupiter_ultra_execute: POST `body` to `url`; broadcasting yourself forfeits Ultra's MEV protection and invalidates netBenefit. rpc_send_transaction: send to your own Solana RPC; the priority fee is already inside. jito_bundle: POST { signedTransaction } to `path` on this API (free); ZendIQ forwards it to Jito under its whitelisted key. Never send a jito_bundle transaction to an RPC or a block engine yourself.",
+                    "enum": [
+                      "jupiter_ultra_execute",
+                      "rpc_send_transaction",
+                      "jito_bundle"
+                    ]
+                  },
+                  "path": {
+                    "type": "string",
+                    "description": "Present on jito_bundle.",
+                    "examples": [
+                      "/v1/agent/bundle"
+                    ]
+                  },
+                  "url": {
+                    "type": "string",
+                    "description": "Present on jupiter_ultra_execute. POST `{ signedTransaction, requestId }` to exactly this URL. An Ultra order can only be executed on the Jupiter gateway that issued it, so take the URL from each response rather than hard-coding one; the host is expected to move from lite-api.jup.ag/ultra/v1 to api.jup.ag/swap/v2.",
+                    "examples": [
+                      "https://lite-api.jup.ag/ultra/v1/execute"
+                    ]
+                  },
+                  "requestId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "body": {
+                    "type": "string",
+                    "description": "Present on jupiter_ultra_execute.",
+                    "examples": [
+                      "{ signedTransaction, requestId }"
+                    ]
+                  },
+                  "lastValidBlockHeight": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "description": "Present on rpc_send_transaction and jito_bundle. Null when the venue embedded a blockhash whose remaining validity is unknown — send promptly."
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "method"
+                ]
+              },
+              "netBenefit": {
+                "type": "object",
+                "description": "Every cost itemised so the stated net can be checked rather than trusted.",
+                "properties": {
+                  "currency": {
+                    "const": "USD"
+                  },
+                  "expectedMevLossUsd": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "The modelled sandwich cost for this trade. An estimate, not a measurement."
+                  },
+                  "priorityFee": {
+                    "type": [
+                      "string",
+                      "number",
+                      "null"
+                    ],
+                    "description": "A string on jupiter_ultra, where the fee is venue-managed; its decoded amount is in plan.priorityFee. On other venues, the applied fee in USD, or null when no SOL price was available."
+                  },
+                  "jitoTipUsd": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "0 when no tip is paid. Null when a tip is paid but no SOL price was available."
+                  },
+                  "priorityFeeUsd": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "The priority fee your taker pays, decoded from the transaction and priced in USD. 0 on a bundle (none is set) and on a gasless fill (Jupiter pays it). Null when it could not be read or priced."
+                  },
+                  "jupiterPlatformFeeUsd": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "Jupiter's own fee on this trade, in USD. On jupiter_ultra it is the fee Ultra reports (0–50 bps by pair; for example 2 bps on SOL–USDC). It is already inside the quoted amounts, so it is not deducted from the route comparison again. 0 on every other venue, where no Jupiter fee applies. Null when Jupiter did not report it or it could not be priced: unknown, never zero."
+                  },
+                  "jupiterPlatformFee": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "description": "How jupiterPlatformFeeUsd was derived.",
+                    "properties": {
+                      "feeBps": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "feeMint": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "side": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "input",
+                          "output",
+                          null
+                        ],
+                        "description": "Which leg of the trade the fee is taken from."
+                      },
+                      "amount": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Raw fee amount in feeMint's atomic units."
+                      },
+                      "usd": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "quote",
+                          "not_applicable"
+                        ]
+                      },
+                      "note": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "zendiqFeeUsd": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "netUsd": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "netUsd = expectedMevLossUsd − zendiqFeeUsd − jitoTipUsd − jupiterPlatformFeeUsd − priorityFeeUsd: the sandwich loss this route avoids, less every fee you pay to execute it. Stated only on routes that claim MEV protection (jupiter_ultra and the Jito bundle venues). The 5,000-lamport base signature fee is paid on every route alike and is not included. Read netUsdBasis before treating null as a failure."
+                  },
+                  "netUsdBasis": {
+                    "type": "string",
+                    "description": "Why netUsd has the value it does. not_claimed_on_this_route = null by design: the route provides no MEV protection, so no avoided-loss credit is claimed. unavailable_no_mev_estimate = no sandwich estimate was available. unavailable_no_sol_price = a bundle's Jito tip could not be priced. unavailable_platform_fee = Jupiter's fee could not be priced. unavailable_priority_fee = the priority fee could not be read from the transaction or priced. In every unavailable case no net is stated.",
+                    "enum": [
+                      "computed",
+                      "unavailable_no_mev_estimate",
+                      "not_claimed_on_this_route",
+                      "unavailable_no_sol_price",
+                      "unavailable_platform_fee",
+                      "unavailable_priority_fee"
+                    ]
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                }
+              },
+              "simulation": {
+                "type": "object",
+                "description": "An 'unknown' simulation is not a passing simulation.",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "ok",
+                      "failed",
+                      "unknown"
+                    ]
+                  },
+                  "err": {
+                    "type": [
+                      "object",
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "unitsConsumed": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "logs": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Last 10 log lines."
+                  },
+                  "reason": {
+                    "type": "string",
+                    "description": "Present when status is unknown."
+                  }
+                }
+              },
+              "transaction": {
+                "type": "string",
+                "contentEncoding": "base64",
+                "description": "Unsigned VersionedTransaction. ZendIQ never sees a key. On a jito_bundle venue ZendIQ broadcasts it after you sign it, and only those exact bytes."
+              },
+              "requestId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Always present. Non-null only on jupiter_ultra, where it is required for /execute."
+              },
+              "custody": {
+                "type": "string",
+                "examples": [
+                  "none — transaction is unsigned; sign and submit with your own wallet"
+                ]
+              },
+              "latencyMs": {
+                "type": "integer"
+              },
+              "replayed": {
+                "$ref": "#/components/schemas/Replayed"
+              }
+            },
+            "required": [
+              "plan",
+              "submit",
+              "netBenefit",
+              "transaction",
+              "requestId",
+              "custody"
+            ]
+          }
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "examples": [
+              "invalid_request",
+              "analysis_mint_mismatch",
+              "taker_insufficient_balance",
+              "analysis_unavailable",
+              "optimize_unavailable",
+              "internal_error"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "causes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Present on 502 and on taker_insufficient_balance. The underlying failure of each source or venue."
+          },
+          "analysisMint": {
+            "type": "string",
+            "description": "Present on analysis_mint_mismatch: the mint the analysisId was issued for."
+          },
+          "outputMint": {
+            "type": "string",
+            "description": "Present on analysis_mint_mismatch: this request's outputMint."
+          },
+          "need": {
+            "type": "string",
+            "enum": [
+              "input_token",
+              "sol_for_fees"
+            ],
+            "description": "Present on taker_insufficient_balance: what the taker is short of."
+          },
+          "taker": {
+            "type": "string",
+            "description": "Present on taker_insufficient_balance."
+          },
+          "token": {
+            "type": "object",
+            "description": "Present on taker_insufficient_balance: the token the taker is short of. SOL on `sol_for_fees`.",
+            "properties": {
+              "mint": {
+                "type": "string"
+              },
+              "symbol": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "decimals": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            }
+          },
+          "required": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Present on taker_insufficient_balance: amount needed, in whole tokens as a decimal string. Null when the mint's decimals could not be read; use requiredAtomic."
+          },
+          "held": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Present on taker_insufficient_balance: amount the taker holds, in whole tokens."
+          },
+          "shortfall": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Present on taker_insufficient_balance: required minus held, in whole tokens."
+          },
+          "requiredAtomic": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Present on taker_insufficient_balance: required, in atomic units. Null only with source jupiter_order on sol_for_fees, where Jupiter does not report its requirement."
+          },
+          "heldAtomic": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Present on taker_insufficient_balance: held, in atomic units. Null only with source jupiter_order when ZendIQ could not read the balance."
+          },
+          "shortfallAtomic": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Present on taker_insufficient_balance: shortfall, in atomic units. Null only with source jupiter_order when required or held is unknown."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "chain",
+              "jupiter_order"
+            ],
+            "description": "Present on taker_insufficient_balance: chain = ZendIQ read the balances and computed the shortfall; jupiter_order = Jupiter's /order reported it and no venue could build."
+          },
+          "jupiter": {
+            "type": "object",
+            "description": "Present when source is jupiter_order: what Jupiter's /order returned.",
+            "properties": {
+              "router": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "examples": [
+                  "metis"
+                ]
+              },
+              "errorCode": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "examples": [
+                  1
+                ]
+              },
+              "errorMessage": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "examples": [
+                  "Insufficient funds"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "AnalysisId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Experimental. Identifies this token scan for reuse by /optimize until analysisExpiresAt (60 s from the scan, shared with the scan cache). Null when the scan did not complete. Held in server memory: a restart makes it unknown, which costs a full scan, not an error.",
+        "examples": [
+          "an_Q2hsZ3v0mK7pX1aRt9Yc"
+        ]
+      },
+      "AnalysisExpiresAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time",
+        "description": "Experimental. When analysisId stops being reusable. A scan served from the cache keeps its original expiry."
+      },
+      "RateLimitError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "const": "rate_limited"
+          },
+          "limit": {
+            "type": "string",
+            "enum": [
+              "ip",
+              "payer"
+            ]
+          },
+          "retryAfterSeconds": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ScreeningUnavailableError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "const": "screening_unavailable"
+          },
+          "charged": {
+            "const": false
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "never_loaded",
+              "too_old"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "AuthorizationError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "enum": [
+              "authorization_already_used",
+              "already_served",
+              "redemption_in_progress",
+              "redemption_route_mismatch",
+              "redemption_amount_mismatch",
+              "redemption_expired",
+              "settlement_unresolved"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "priorOutcome": {
+            "type": "string",
+            "examples": [
+              "in_flight",
+              "settle_threw",
+              "charged_unserved"
+            ]
+          },
+          "priorRoute": {
+            "type": "string"
+          },
+          "charged": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "On a settlement_pending retry: whether that payment was charged. Null means not yet known."
+          },
+          "settlement": {
+            "type": "string",
+            "description": "On a settlement_pending retry: the payment's settlement transaction signature."
+          }
+        }
+      },
+      "Replayed": {
+        "type": "boolean",
+        "const": true,
+        "description": "Present only when this 200 is the cached result of a payment authorization that already settled. Same body and PAYMENT-RESPONSE as the original; you were not charged again."
+      },
+      "PriorityFee": {
+        "type": "object",
+        "description": "An object on every venue. Read `control` before any number: it states what requestedLamports means. appliedLamports is read back from the built transaction and is the only verified charge.",
+        "properties": {
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Null when no fee was requested.",
+            "enum": [
+              "zendiq_risk_model",
+              "trade_size_cap",
+              "debug_override_default",
+              null
+            ]
+          },
+          "control": {
+            "type": "string",
+            "description": "venue_managed = the venue sized it (always on jupiter_ultra). ceiling = requestedLamports is an upper bound the venue may undercut. exact_budget = requestedLamports is spent in full, rounded up to the compute-unit price.",
+            "enum": [
+              "venue_managed",
+              "ceiling",
+              "exact_budget"
+            ]
+          },
+          "requestedLamports": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "appliedLamports": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The priority fee decoded from the built transaction's ComputeBudget instructions. Null only when those could not be read, in which case nothing in this object is a verified charge."
+          },
+          "appliedUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "microLamports": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "computeUnitLimit": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "feePayer": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The transaction's fee payer, decoded from the bytes. When it is not your taker (a gasless jupiter_ultra fill), Jupiter pays the decoded fee, not your wallet."
+          },
+          "solPriceUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "solPriceSource": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "control"
+        ]
+      }
+    }
+  }
+}
