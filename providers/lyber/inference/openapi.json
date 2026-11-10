@@ -1,0 +1,175 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Lyber wallet-paid inference",
+    "version": "2026-11-11",
+    "description": "Solana-mainnet USDC x402 upto access to JSON Chat Completions on Lyber."
+  },
+  "servers": [
+    {
+      "url": "https://api.lyber.ai/x402"
+    }
+  ],
+  "paths": {
+    "/v1/models": {
+      "get": {
+        "operationId": "listModels",
+        "summary": "List Lyber wallet-payment models and current availability",
+        "description": "List checkpoint identity, live availability, limits and per-model token tariffs.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Current model catalog"
+          },
+          "503": {
+            "description": "Model discovery unavailable"
+          }
+        }
+      }
+    },
+    "/v1/chat/completions": {
+      "post": {
+        "operationId": "chatCompletions",
+        "summary": "Generate a wallet-paid Lyber text completion",
+        "description": "Authorize a bounded Solana USDC deposit through x402 upto, then settle measured token usage. DeepSeek rates per million tokens are $0.29 input, $0.029 cached input and $0.99 output. The full-context-plus-output authorization bound is published in the challenge.",
+        "security": [],
+        "tags": [
+          "openai"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "dynamic",
+            "currency": "USD",
+            "min": "0.000001",
+            "max": "0.429794"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "model",
+                  "messages"
+                ],
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "enum": [
+                      "deepseek-v4.1-flash-1017-abliterated"
+                    ]
+                  },
+                  "messages": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 4096,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "role",
+                        "content"
+                      ],
+                      "properties": {
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "system",
+                            "developer",
+                            "user",
+                            "assistant"
+                          ]
+                        },
+                        "content": {
+                          "type": "string",
+                          "description": "Text supplied by this conversation participant."
+                        }
+                      }
+                    },
+                    "description": "Conversation messages with a role and text content for each turn."
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 126976
+                  },
+                  "max_completion_tokens": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 126976
+                  },
+                  "stream": {
+                    "type": "boolean",
+                    "const": false,
+                    "default": false
+                  },
+                  "temperature": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 2
+                  },
+                  "top_p": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  }
+                }
+              },
+              "example": {
+                "model": "deepseek-v4.1-flash-1017-abliterated",
+                "messages": [
+                  {
+                    "role": "user",
+                    "content": "Reply with a brief hello."
+                  }
+                ],
+                "max_tokens": 256,
+                "stream": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "JSON completion with PAYMENT-RESPONSE settlement receipt"
+          },
+          "202": {
+            "description": "Original payment or settlement remains pending. Reuse the same body and authorization."
+          },
+          "400": {
+            "description": "Invalid request, model or unsupported delivery mode"
+          },
+          "402": {
+            "description": "x402 v2 upto authorization required. PAYMENT-REQUIRED contains the bounded Solana-mainnet USDC challenge."
+          },
+          "409": {
+            "description": "Request/payment conflict or closed payment admission"
+          },
+          "410": {
+            "description": "The paid answer recovery cache has expired"
+          },
+          "422": {
+            "description": "Invalid payment authorization"
+          },
+          "502": {
+            "description": "Failed or unserved completion with payment recovery details"
+          },
+          "503": {
+            "description": "Payment or model authority unavailable"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "openai"
+    }
+  ]
+}
