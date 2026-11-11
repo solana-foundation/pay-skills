@@ -1,8 +1,8 @@
 ---
 name: reads
 title: "APEX Faucet"
-description: "Paid HTTP reads for agents. A web page extract, an EVM token read, an NFT read, a cell sample, and a chat completion. Each unpaid call returns HTTP 402 for USDC on Solana."
-use_case: "Use when an agent needs one public web page extract, one EVM token read, one NFT read, the cell sample, or a chat completion, and can pay USDC on Solana."
+description: "Paid HTTP reads for agents. A web page as Markdown, a web page extract, an EVM token read, an NFT read, a cell sample, and a chat completion. Each unpaid call returns HTTP 402 for USDC on Solana."
+use_case: "Use when an agent needs one public web page as Markdown, one public web page extract, one EVM token read, one NFT read, the cell sample, or a chat completion, and can pay USDC on Solana."
 category: data
 service_url: https://apexfaucet.xyz
 openapi:
@@ -14,8 +14,8 @@ route returns HTTP 402 with an x402 challenge for USDC on Solana. A paid call
 returns the read.
 
 These routes are the ones in the OpenAPI sidecar. A call that leaves out a
-required query is HTTP 400 and is not a payment challenge. Page markdown is
-not listed here because that route accepts Base only.
+required query is HTTP 400 and is not a payment challenge. Page markdown
+accepts USDC on Solana since 11 Nov 2026 and is listed first.
 
 ## Spend-aware usage
 
