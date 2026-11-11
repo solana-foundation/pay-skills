@@ -14,7 +14,8 @@ route returns HTTP 402 with an x402 challenge for USDC on Solana. A paid call
 returns the read.
 
 These routes are the ones in the OpenAPI sidecar. A call that leaves out a
-required query is HTTP 400 and is not a payment challenge. Page markdown
+required query gets the 402 with a hint naming the missing query; with a
+payment attached it is HTTP 400 and nothing is charged. Page markdown
 accepts USDC on Solana since 11 Nov 2026 and is listed first.
 
 ## Spend-aware usage
