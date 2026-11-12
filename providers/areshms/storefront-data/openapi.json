@@ -1,0 +1,177 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "HMS Storefront Data",
+    "version": "1.0.0",
+    "description": "Agent-payable data rails for HMS storefronts: verified daily car-rental rates per class (Enterprise/Hertz, Columbus pilot) and HOS-aware, 72ft-trailer-filtered overnight truck sleep stops with Jason's Law scarcity scoring. x402 pay-per-call, USDC on Base (eip155:8453, permit2, facilitator Coinbase CDP). Honesty rule: both data routes serve free zero-record responses until >= 1 real verified record lands; the /v1/coverage endpoint exposes live coverage so agents never pay for empty data.",
+    "x-guidance": "Pay-per-call x402 v2 (scheme exact, USDC on Base permit2). While a dataset has zero real records (check the free /v1/coverage endpoint first), its route serves a free 200 zero-records response and charges nothing. Once coverage >= 1 real record, an unpaid GET on the route returns HTTP 402 with a base64 JSON challenge in the PAYMENT-REQUIRED header (x402Version 2, accepts[].amount in USDC atomic units, top-level extensions.bazaar discovery); pay and replay with the x-payment header to receive 200 JSON plus a PAYMENT-RESPONSE settle receipt. Free: /health, /v1/coverage, and this /openapi.json. Rate limit 20 requests/min/IP.",
+    "contact": {
+      "name": "HMS LLC",
+      "email": "ares.hms@icloud.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://storefront-data-hms.ares-hms.workers.dev"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Car rental rates"
+    },
+    {
+      "name": "Truck sleep stops"
+    },
+    {
+      "name": "Free"
+    }
+  ],
+  "paths": {
+    "/v1/rental/rates": {
+      "get": {
+        "operationId": "rentalRates",
+        "summary": "Fetch verified daily car-rental rates per class",
+        "tags": [
+          "Car rental rates"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.03"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "city",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "City with verified rate coverage, e.g. Columbus (Columbus, OH pilot)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rates payload (car-rental class, daily rate, vendor, source URL, verified_at)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/v1/truck/sleep-stops": {
+      "get": {
+        "operationId": "truckSleepStops",
+        "summary": "Search overnight truck sleep stops by corridor",
+        "tags": [
+          "Truck sleep stops"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Origin city/state, e.g. \"Columbus, OH\""
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Destination city/state, e.g. \"Indianapolis, IN\""
+          },
+          {
+            "name": "hos_hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number"
+            },
+            "description": "Remaining hours-of-service drive window, e.g. 4.5"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Corridor sleep-stops payload (stops: [], stable stop_schema) \u2014 free 200 while coverage is zero; x-payment-info ($0.05) + a 402 response get re-declared only when it serves real records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "summary": "Report service health and resource list",
+        "tags": [
+          "Free"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "ok, service, resources",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/coverage": {
+      "get": {
+        "operationId": "coverage",
+        "summary": "Report live record counts per dataset",
+        "tags": [
+          "Free"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "real_records, status and corridor list per dataset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
