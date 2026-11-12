@@ -1,0 +1,204 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ClawdX402Facilitator",
+    "version": "1.0.0",
+    "description": "Solana x402 payment facilitator — verifies, settles, and routes USDC micropayments for API paywalls. Handles the full x402 lifecycle: decode payment payload, verify the on-chain SPL transfer, submit to Solana RPC, and return a settlement signature."
+  },
+  "servers": [
+    { "url": "https://clawdrouter.fly.dev", "description": "Production facilitator (Solana mainnet)" },
+    { "url": "https://x402.wtf/facilitator", "description": "Gateway-proxied facilitator" }
+  ],
+  "paths": {
+    "/verify": {
+      "post": {
+        "operationId": "verifyPayment",
+        "summary": "Verify an x402 payment payload",
+        "description": "Decodes and validates an x402 PaymentPayload without submitting to chain. Checks signature, amount, recipient, nonce, and expiry. Use this before settle when you want a dry-run or when the API server manages its own settlement.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PaymentPayload" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verification result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VerificationResult" }
+              }
+            }
+          },
+          "400": { "description": "Malformed payment payload" }
+        }
+      }
+    },
+    "/settle": {
+      "post": {
+        "operationId": "settlePayment",
+        "summary": "Verify and settle an x402 payment on-chain",
+        "description": "Verifies the PaymentPayload then submits the Solana SPL-token transfer transaction to the network. Returns the transaction signature on success. Idempotent for the same nonce within the expiry window.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PaymentPayload" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Settlement result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SettlementResult" }
+              }
+            }
+          },
+          "400": { "description": "Malformed or already-settled payment" },
+          "402": { "description": "Payment verification failed" }
+        }
+      }
+    },
+    "/status/{txSignature}": {
+      "get": {
+        "operationId": "settlementStatus",
+        "summary": "Check settlement confirmation status",
+        "description": "Polls the Solana cluster for the confirmation status of a previously submitted settlement transaction.",
+        "parameters": [
+          {
+            "name": "txSignature",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Base58 Solana transaction signature returned by /settle"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Settlement status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "confirmed": { "type": "boolean" },
+                    "slot": { "type": "integer" },
+                    "err": { "type": "string", "nullable": true }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/slugs/{slug}": {
+      "get": {
+        "operationId": "resolveSlug",
+        "summary": "Resolve a payment slug to its price and recipient",
+        "description": "Slugs are short named pricing rules registered by API operators. Resolving a slug returns the USDC amount, Solana recipient, and network for building a payment payload without a live 402 challenge.",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Slug name (e.g. premium-data-feed, deep-chain-analysis)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Slug definition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "slug": { "type": "string" },
+                    "label": { "type": "string" },
+                    "description": { "type": "string" },
+                    "amount": { "type": "string", "description": "USDC base units (6 decimals)" },
+                    "token": { "type": "string", "description": "USDC mint address" },
+                    "network": { "type": "string", "enum": ["solana-mainnet"] },
+                    "payTo": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "404": { "description": "Slug not found" }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "summary": "Facilitator health check",
+        "description": "Returns facilitator uptime, Solana RPC connectivity, and current slot.",
+        "responses": {
+          "200": {
+            "description": "Health status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "enum": ["ok", "degraded"] },
+                    "network": { "type": "string" },
+                    "slot": { "type": "integer" },
+                    "rpc_latency_ms": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "PaymentPayload": {
+        "type": "object",
+        "required": ["x402Version", "scheme", "network", "transaction", "amount", "token", "payer", "payTo", "resource"],
+        "properties": {
+          "x402Version": { "type": "integer", "example": 1 },
+          "scheme": { "type": "string", "enum": ["exact"] },
+          "network": { "type": "string", "enum": ["solana-mainnet", "solana-devnet"] },
+          "transaction": { "type": "string", "description": "Base64 partially-signed Solana transaction" },
+          "amount": { "type": "string", "description": "USDC base units paid" },
+          "token": { "type": "string", "description": "USDC mint address" },
+          "payer": { "type": "string", "description": "Payer Solana address (Base58)" },
+          "payTo": { "type": "string", "description": "Recipient Solana address (Base58)" },
+          "resource": { "type": "string", "description": "URL of the resource being accessed" },
+          "nonce": { "type": "string" }
+        }
+      },
+      "VerificationResult": {
+        "type": "object",
+        "properties": {
+          "valid": { "type": "boolean" },
+          "error": { "type": "string" },
+          "amount": { "type": "string" },
+          "payer": { "type": "string" },
+          "payTo": { "type": "string" }
+        }
+      },
+      "SettlementResult": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "txSignature": { "type": "string" },
+          "error": { "type": "string" },
+          "network": { "type": "string" },
+          "payer": { "type": "string" },
+          "amount": { "type": "string" }
+        }
+      }
+    }
+  }
+}
