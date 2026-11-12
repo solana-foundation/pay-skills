@@ -1,0 +1,1899 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Dagon Inference API",
+    "version": "2026-11-11.9",
+    "summary": "OpenAI and Anthropic compatible API for abliterated LLMs, metered per token and paid in USDC.",
+    "description": "A metered gateway in front of abliteration.ai, Refuseless, Experiential Labs, Lutheos, Silk Compute and Cheaper Inference. Each request goes to the cheapest healthy provider serving its model id (or the one its `provider` field chooses) and is charged that provider's token rates plus 10%, in whole micro-USD, with an Ed25519 signed receipt. Live models and prices: GET /v1/models. Static snapshot: https://inference.dagon.so/models.json. Price version 2026-11-11.9.",
+    "termsOfService": "https://inference.dagon.so/terms",
+    "contact": {
+      "name": "Dagon Inference",
+      "url": "https://inference.dagon.so/",
+      "email": "security@inkwell.finance"
+    },
+    "x-guidance": "For agents: GET /v1/models lists model ids and per-token prices (no key). To pay per request with x402, POST /v1/chat/completions (OpenAI format), /v1/responses or /v1/messages (Anthropic format) with no key: the 402 response's accepts[] asks for a USDC TransferChecked on Solana sized to the request's maximum cost; retry with the signed payment in X-PAYMENT (v1) or PAYMENT-SIGNATURE (v2). The answer carries a prepaid key in x-dagon-key holding the unspent rest: send it as Authorization: Bearer on later requests instead of paying again. Every response names its signed receipt (x-gateway-receipt-id); verify it with POST /v1/receipts/verify. Guide: https://inference.dagon.so/x402-llm-api"
+  },
+  "servers": [
+    {
+      "url": "https://inference.dagon.so",
+      "description": "Production. OpenAI SDKs use base URL /v1; Anthropic SDKs use the bare origin."
+    }
+  ],
+  "externalDocs": {
+    "description": "llms.txt: models, prices and usage for language models",
+    "url": "https://inference.dagon.so/llms.txt"
+  },
+  "tags": [
+    {
+      "name": "Models"
+    },
+    {
+      "name": "Inference"
+    },
+    {
+      "name": "Receipts"
+    }
+  ],
+  "paths": {
+    "/v1/models": {
+      "get": {
+        "summary": "List models with per-token prices",
+        "tags": [
+          "Models"
+        ],
+        "security": [],
+        "description": "The canonical, live catalog: every public model id served by an enabled provider, priced at the provider with the lowest typical cost for it plus the markup, with every provider's offer listed. The request field `provider` (or the `x-dagon-provider` header) selects among a model's offers. No key needed.",
+        "responses": {
+          "200": {
+            "description": "The catalog.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/chat/completions": {
+      "post": {
+        "summary": "Create an OpenAI-compatible chat completion",
+        "description": "OpenAI Chat Completions. Streaming supported; set max_tokens or max_completion_tokens to cap the hold. Without a key, or with a key short of funds, the 402 carries x402 payment requirements; retry with X-PAYMENT or PAYMENT-SIGNATURE to pay per request in USDC on Solana (network fee paid by the gateway).",
+        "externalDocs": {
+          "description": "Pay per request with x402 (USDC on Solana)",
+          "url": "https://inference.dagon.so/x402-llm-api"
+        },
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "dynamic",
+            "currency": "USD",
+            "min": "0.5",
+            "max": "1000"
+          }
+        },
+        "tags": [
+          "Inference"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          },
+          {}
+        ],
+        "parameters": [
+          {
+            "name": "X-PAYMENT",
+            "in": "header",
+            "required": false,
+            "description": "x402 v1 PaymentPayload, base64 JSON: { x402Version: 1, scheme: \"exact\", network: \"solana\", payload: { transaction } } with a partially signed USDC TransferChecked to the treasury, fee payer `extra.feePayer`.",
+            "schema": {
+              "type": "string",
+              "contentEncoding": "base64"
+            }
+          },
+          {
+            "name": "PAYMENT-SIGNATURE",
+            "in": "header",
+            "required": false,
+            "description": "x402 v2 PaymentPayload, base64 JSON: { x402Version: 2, accepted: <one of accepts>, payload: { transaction } }.",
+            "schema": {
+              "type": "string",
+              "contentEncoding": "base64"
+            }
+          },
+          {
+            "name": "x-dagon-provider",
+            "in": "header",
+            "required": false,
+            "description": "Comma-separated provider ids that may serve this request, the same as the body's `provider: { only: [...] }` (for SDKs where adding a body field is awkward). Sending both is a 400 `invalid_provider`. Never forwarded upstream.",
+            "schema": {
+              "type": "string"
+            },
+            "examples": {
+              "one": {
+                "value": "refuseless"
+              }
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "model",
+                  "messages"
+                ],
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "description": "A model id from GET /v1/models.",
+                    "examples": [
+                      "glm-5.3-abliterated",
+                      "deepseek-v4.1-flash-abliterated",
+                      "glm-5.3-flash-abliterated",
+                      "abliterated-model-large-flash",
+                      "abliterated-model",
+                      "abliterated-model-large-v2",
+                      "kimi-k3.1-pro-abliterated",
+                      "deepseek-v4.1-flash-fast",
+                      "minimax-m3.1-flash",
+                      "deepseek-v4.1-flash",
+                      "glm-5.3-flash",
+                      "kimi-k3.1-pro",
+                      "hy4"
+                    ]
+                  },
+                  "messages": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "role",
+                        "content"
+                      ],
+                      "properties": {
+                        "role": {
+                          "type": "string",
+                          "description": "Who wrote the turn, for example `system`, `user`, `assistant` or `tool`."
+                        },
+                        "content": {
+                          "oneOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "additionalProperties": true
+                              }
+                            }
+                          ],
+                          "description": "Text of the turn, or an array of content parts (text, images)."
+                        }
+                      },
+                      "additionalProperties": true
+                    },
+                    "description": "Conversation turns in OpenAI chat format, oldest first."
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "maximum": 65536
+                  },
+                  "max_completion_tokens": {
+                    "type": "integer",
+                    "maximum": 65536
+                  },
+                  "n": {},
+                  "stream": {
+                    "type": "boolean"
+                  },
+                  "stream_options": {},
+                  "temperature": {},
+                  "top_p": {},
+                  "stop": {},
+                  "presence_penalty": {},
+                  "frequency_penalty": {},
+                  "logit_bias": {},
+                  "logprobs": {},
+                  "top_logprobs": {},
+                  "seed": {},
+                  "response_format": {},
+                  "tools": {},
+                  "tool_choice": {},
+                  "parallel_tool_calls": {},
+                  "functions": {},
+                  "function_call": {},
+                  "reasoning_effort": {},
+                  "verbosity": {},
+                  "prompt_cache_key": {},
+                  "store": {},
+                  "metadata": {},
+                  "user": {},
+                  "safety_identifier": {},
+                  "provider": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Choose which upstream provider serves this request, for models several providers serve (each model's `offers` in GET /v1/models). Read by the gateway, never forwarded. Provider ids: abliteration, refuseless, experiential-labs, lutheos, silk, cheaperinference (enabled ones only). The header `x-dagon-provider: <id>[,<id>...]` is the same as `only`; sending both is a 400.",
+                    "properties": {
+                      "only": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "description": "Only these providers may serve the request."
+                      },
+                      "order": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "description": "Try these first, in this order; then the rest by cost unless allow_fallbacks is false."
+                      },
+                      "ignore": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "Never route to these providers."
+                      },
+                      "allow_fallbacks": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "False: never fall back beyond `order` (without `order`, beyond the first provider chosen)."
+                      }
+                    },
+                    "examples": [
+                      {
+                        "only": [
+                          "refuseless"
+                        ]
+                      },
+                      {
+                        "order": [
+                          "silk",
+                          "refuseless"
+                        ],
+                        "allow_fallbacks": false
+                      },
+                      {
+                        "ignore": [
+                          "experiential-labs"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "model": "glm-5.3-abliterated",
+                "messages": [
+                  {
+                    "role": "user",
+                    "content": "Hello"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The OpenAI Chat Completions response, or a text/event-stream when `stream` is true. Usage is metered from it; the charge is on the receipt.",
+            "headers": {
+              "x-gateway-request-id": {
+                "description": "The gateway's id for this request.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-gateway-receipt-id": {
+                "description": "Id of the signed receipt for this request; fetch it at /v1/receipts/{id}.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-gateway-receipt": {
+                "description": "On non-streamed responses: the signed receipt itself, base64url JSON.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-dagon-provider": {
+                "description": "The provider that served the request (the receipt's `provider`).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-payment-response": {
+                "description": "After an x402 payment: base64 JSON SettlementResponse (v1 network name) { success, transaction, network, payer, amount }.",
+                "schema": {
+                  "type": "string",
+                  "contentEncoding": "base64"
+                }
+              },
+              "payment-response": {
+                "description": "The same SettlementResponse with the CAIP-2 network id (x402 v2).",
+                "schema": {
+                  "type": "string",
+                  "contentEncoding": "base64"
+                }
+              },
+              "x-dagon-transaction": {
+                "description": "After an x402 payment: the Solana transaction signature.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-dagon-key": {
+                "description": "After an x402 payment made without a key: the gk_ prepaid key holding the payment minus this request's cost. Each keyless payment funds a new key of its own, returned only in its own response. Reuse it as the bearer key.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "402": {
+            "description": "Payment required: no key (`payment_required`; a keyless request whose body would be refused gets it too, at the minimum price, the refusal named in the message), a key short of funds (`insufficient_credits`), or an x402 payment that was refused (an x402 reason such as `invalid_exact_svm_payload_amount_mismatch`, `duplicate_settlement`, `settlement_pending`, or `paid_daily_cap_exceeded`). The PAYMENT-REQUIRED object carries the request and response schemas as the x402 Bazaar extension (`extensions.bazaar`).",
+            "headers": {
+              "payment-required": {
+                "description": "x402 v2 PaymentRequired, base64 JSON (schema PaymentRequiredV2).",
+                "schema": {
+                  "type": "string",
+                  "contentEncoding": "base64"
+                }
+              },
+              "payment-response": {
+                "description": "For a refused payment: x402 v2 SettlementResponse with success false and errorReason.",
+                "schema": {
+                  "type": "string",
+                  "contentEncoding": "base64"
+                }
+              },
+              "x-payment-response": {
+                "description": "For a refused payment: the same SettlementResponse with the v1 network name.",
+                "schema": {
+                  "type": "string",
+                  "contentEncoding": "base64"
+                }
+              },
+              "x-dagon-transaction": {
+                "description": "For a payment that was broadcast: its transaction signature.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-dagon-key": {
+                "description": "With `settlement_pending` on a keyless payment: the key the payment will fund; retry with it and the same payment header.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "retry-after": {
+                "description": "With `settlement_pending`: seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequired"
+                },
+                "example": {
+                  "x402Version": 1,
+                  "accepts": [
+                    {
+                      "scheme": "exact",
+                      "network": "solana",
+                      "maxAmountRequired": "500000",
+                      "resource": "https://inference.dagon.so/v1/chat/completions",
+                      "description": "One glm-5.3-abliterated request on Dagon, prepaid at its maximum cost. The unspent rest stays as credit on the key returned once in x-dagon-key and is not refunded; reuse that key. Terms: https://inference.dagon.so/terms",
+                      "mimeType": "application/json",
+                      "payTo": "9rMdbu4KdLWH2nPXbzhm9HTKaibGZ2ckakQbW1wPh6KK",
+                      "maxTimeoutSeconds": 60,
+                      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                      "extra": {
+                        "feePayer": "4UZVmNWoetLmDeQnfFFCYrFuN7epN6WgchiDxJ6VVA52"
+                      }
+                    }
+                  ],
+                  "error": {
+                    "message": "Pay for this request with x402 (USDC on Solana; requirements in `accepts` and the PAYMENT-REQUIRED header), or send an API key as 'Authorization: Bearer <key>'.",
+                    "type": "billing_error",
+                    "param": null,
+                    "code": "payment_required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "451": {
+            "$ref": "#/components/responses/E451"
+          },
+          "502": {
+            "$ref": "#/components/responses/E502"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503"
+          }
+        }
+      }
+    },
+    "/v1/responses": {
+      "post": {
+        "summary": "Create an OpenAI-compatible Responses API response",
+        "description": "OpenAI Responses API. Served on models whose providers support it (see each model's `endpoints`). Without a key, or with a key short of funds, the 402 carries x402 payment requirements; retry with X-PAYMENT or PAYMENT-SIGNATURE to pay per request in USDC on Solana (network fee paid by the gateway).",
+        "externalDocs": {
+          "description": "Pay per request with x402 (USDC on Solana)",
+          "url": "https://inference.dagon.so/x402-llm-api"
+        },
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "dynamic",
+            "currency": "USD",
+            "min": "0.5",
+            "max": "1000"
+          }
+        },
+        "tags": [
+          "Inference"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          },
+          {}
+        ],
+        "parameters": [
+          {
+            "name": "X-PAYMENT",
+            "in": "header",
+            "required": false,
+            "description": "x402 v1 PaymentPayload, base64 JSON: { x402Version: 1, scheme: \"exact\", network: \"solana\", payload: { transaction } } with a partially signed USDC TransferChecked to the treasury, fee payer `extra.feePayer`.",
+            "schema": {
+              "type": "string",
+              "contentEncoding": "base64"
+            }
+          },
+          {
+            "name": "PAYMENT-SIGNATURE",
+            "in": "header",
+            "required": false,
+            "description": "x402 v2 PaymentPayload, base64 JSON: { x402Version: 2, accepted: <one of accepts>, payload: { transaction } }.",
+            "schema": {
+              "type": "string",
+              "contentEncoding": "base64"
+            }
+          },
+          {
+            "name": "x-dagon-provider",
+            "in": "header",
+            "required": false,
+            "description": "Comma-separated provider ids that may serve this request, the same as the body's `provider: { only: [...] }` (for SDKs where adding a body field is awkward). Sending both is a 400 `invalid_provider`. Never forwarded upstream.",
+            "schema": {
+              "type": "string"
+            },
+            "examples": {
+              "one": {
+                "value": "refuseless"
+              }
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "model",
+                  "input"
+                ],
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "description": "A model id from GET /v1/models.",
+                    "examples": [
+                      "glm-5.3-abliterated",
+                      "deepseek-v4.1-flash-abliterated",
+                      "glm-5.3-flash-abliterated",
+                      "abliterated-model-large-flash",
+                      "abliterated-model",
+                      "abliterated-model-large-v2",
+                      "kimi-k3.1-pro-abliterated",
+                      "deepseek-v4.1-flash-fast",
+                      "minimax-m3.1-flash",
+                      "deepseek-v4.1-flash",
+                      "glm-5.3-flash",
+                      "kimi-k3.1-pro",
+                      "hy4"
+                    ]
+                  },
+                  "input": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": true
+                        }
+                      }
+                    ],
+                    "description": "Input text, or an array of input items in OpenAI Responses format."
+                  },
+                  "instructions": {},
+                  "max_output_tokens": {
+                    "type": "integer",
+                    "maximum": 65536
+                  },
+                  "stream": {
+                    "type": "boolean"
+                  },
+                  "stream_options": {},
+                  "temperature": {},
+                  "top_p": {},
+                  "top_logprobs": {},
+                  "tools": {},
+                  "tool_choice": {},
+                  "parallel_tool_calls": {},
+                  "max_tool_calls": {},
+                  "text": {},
+                  "reasoning": {},
+                  "include": {},
+                  "truncation": {},
+                  "prompt_cache_key": {},
+                  "store": {},
+                  "metadata": {},
+                  "user": {},
+                  "safety_identifier": {},
+                  "provider": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Choose which upstream provider serves this request, for models several providers serve (each model's `offers` in GET /v1/models). Read by the gateway, never forwarded. Provider ids: abliteration, refuseless, experiential-labs, lutheos, silk, cheaperinference (enabled ones only). The header `x-dagon-provider: <id>[,<id>...]` is the same as `only`; sending both is a 400.",
+                    "properties": {
+                      "only": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "description": "Only these providers may serve the request."
+                      },
+                      "order": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "description": "Try these first, in this order; then the rest by cost unless allow_fallbacks is false."
+                      },
+                      "ignore": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "Never route to these providers."
+                      },
+                      "allow_fallbacks": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "False: never fall back beyond `order` (without `order`, beyond the first provider chosen)."
+                      }
+                    },
+                    "examples": [
+                      {
+                        "only": [
+                          "refuseless"
+                        ]
+                      },
+                      {
+                        "order": [
+                          "silk",
+                          "refuseless"
+                        ],
+                        "allow_fallbacks": false
+                      },
+                      {
+                        "ignore": [
+                          "experiential-labs"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "model": "glm-5.3-abliterated",
+                "input": "Hello"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The OpenAI Responses response, or a text/event-stream when `stream` is true. Usage is metered from it; the charge is on the receipt.",
+            "headers": {
+              "x-gateway-request-id": {
+                "description": "The gateway's id for this request.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-gateway-receipt-id": {
+                "description": "Id of the signed receipt for this request; fetch it at /v1/receipts/{id}.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-gateway-receipt": {
+                "description": "On non-streamed responses: the signed receipt itself, base64url JSON.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-dagon-provider": {
+                "description": "The provider that served the request (the receipt's `provider`).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-payment-response": {
+                "description": "After an x402 payment: base64 JSON SettlementResponse (v1 network name) { success, transaction, network, payer, amount }.",
+                "schema": {
+                  "type": "string",
+                  "contentEncoding": "base64"
+                }
+              },
+              "payment-response": {
+                "description": "The same SettlementResponse with the CAIP-2 network id (x402 v2).",
+                "schema": {
+                  "type": "string",
+                  "contentEncoding": "base64"
+                }
+              },
+              "x-dagon-transaction": {
+                "description": "After an x402 payment: the Solana transaction signature.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-dagon-key": {
+                "description": "After an x402 payment made without a key: the gk_ prepaid key holding the payment minus this request's cost. Each keyless payment funds a new key of its own, returned only in its own response. Reuse it as the bearer key.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "402": {
+            "description": "Payment required: no key (`payment_required`; a keyless request whose body would be refused gets it too, at the minimum price, the refusal named in the message), a key short of funds (`insufficient_credits`), or an x402 payment that was refused (an x402 reason such as `invalid_exact_svm_payload_amount_mismatch`, `duplicate_settlement`, `settlement_pending`, or `paid_daily_cap_exceeded`). The PAYMENT-REQUIRED object carries the request and response schemas as the x402 Bazaar extension (`extensions.bazaar`).",
+            "headers": {
+              "payment-required": {
+                "description": "x402 v2 PaymentRequired, base64 JSON (schema PaymentRequiredV2).",
+                "schema": {
+                  "type": "string",
+                  "contentEncoding": "base64"
+                }
+              },
+              "payment-response": {
+                "description": "For a refused payment: x402 v2 SettlementResponse with success false and errorReason.",
+                "schema": {
+                  "type": "string",
+                  "contentEncoding": "base64"
+                }
+              },
+              "x-payment-response": {
+                "description": "For a refused payment: the same SettlementResponse with the v1 network name.",
+                "schema": {
+                  "type": "string",
+                  "contentEncoding": "base64"
+                }
+              },
+              "x-dagon-transaction": {
+                "description": "For a payment that was broadcast: its transaction signature.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-dagon-key": {
+                "description": "With `settlement_pending` on a keyless payment: the key the payment will fund; retry with it and the same payment header.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "retry-after": {
+                "description": "With `settlement_pending`: seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequired"
+                },
+                "example": {
+                  "x402Version": 1,
+                  "accepts": [
+                    {
+                      "scheme": "exact",
+                      "network": "solana",
+                      "maxAmountRequired": "500000",
+                      "resource": "https://inference.dagon.so/v1/responses",
+                      "description": "One glm-5.3-abliterated request on Dagon, prepaid at its maximum cost. The unspent rest stays as credit on the key returned once in x-dagon-key and is not refunded; reuse that key. Terms: https://inference.dagon.so/terms",
+                      "mimeType": "application/json",
+                      "payTo": "9rMdbu4KdLWH2nPXbzhm9HTKaibGZ2ckakQbW1wPh6KK",
+                      "maxTimeoutSeconds": 60,
+                      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                      "extra": {
+                        "feePayer": "4UZVmNWoetLmDeQnfFFCYrFuN7epN6WgchiDxJ6VVA52"
+                      }
+                    }
+                  ],
+                  "error": {
+                    "message": "Pay for this request with x402 (USDC on Solana; requirements in `accepts` and the PAYMENT-REQUIRED header), or send an API key as 'Authorization: Bearer <key>'.",
+                    "type": "billing_error",
+                    "param": null,
+                    "code": "payment_required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "451": {
+            "$ref": "#/components/responses/E451"
+          },
+          "502": {
+            "$ref": "#/components/responses/E502"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503"
+          }
+        }
+      }
+    },
+    "/v1/messages": {
+      "post": {
+        "summary": "Create an Anthropic-compatible message",
+        "description": "Anthropic Messages API, for SDKs whose base URL is the bare origin. Served on models whose providers support it (see each model's `endpoints`). Accepts `x-api-key` as well as a bearer token. Without a key, or with a key short of funds, the 402 carries x402 payment requirements; retry with X-PAYMENT or PAYMENT-SIGNATURE to pay per request in USDC on Solana (network fee paid by the gateway).",
+        "externalDocs": {
+          "description": "Pay per request with x402 (USDC on Solana)",
+          "url": "https://inference.dagon.so/x402-llm-api"
+        },
+        "x-payment-info": {
+          "protocols": [
+            "x402"
+          ],
+          "price": {
+            "mode": "dynamic",
+            "currency": "USD",
+            "min": "0.5",
+            "max": "1000"
+          }
+        },
+        "tags": [
+          "Inference"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          },
+          {}
+        ],
+        "parameters": [
+          {
+            "name": "X-PAYMENT",
+            "in": "header",
+            "required": false,
+            "description": "x402 v1 PaymentPayload, base64 JSON: { x402Version: 1, scheme: \"exact\", network: \"solana\", payload: { transaction } } with a partially signed USDC TransferChecked to the treasury, fee payer `extra.feePayer`.",
+            "schema": {
+              "type": "string",
+              "contentEncoding": "base64"
+            }
+          },
+          {
+            "name": "PAYMENT-SIGNATURE",
+            "in": "header",
+            "required": false,
+            "description": "x402 v2 PaymentPayload, base64 JSON: { x402Version: 2, accepted: <one of accepts>, payload: { transaction } }.",
+            "schema": {
+              "type": "string",
+              "contentEncoding": "base64"
+            }
+          },
+          {
+            "name": "x-dagon-provider",
+            "in": "header",
+            "required": false,
+            "description": "Comma-separated provider ids that may serve this request, the same as the body's `provider: { only: [...] }` (for SDKs where adding a body field is awkward). Sending both is a 400 `invalid_provider`. Never forwarded upstream.",
+            "schema": {
+              "type": "string"
+            },
+            "examples": {
+              "one": {
+                "value": "refuseless"
+              }
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "model",
+                  "messages",
+                  "max_tokens"
+                ],
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "description": "A model id from GET /v1/models.",
+                    "examples": [
+                      "glm-5.3-abliterated",
+                      "deepseek-v4.1-flash-abliterated",
+                      "glm-5.3-flash-abliterated",
+                      "abliterated-model-large-flash",
+                      "abliterated-model",
+                      "abliterated-model-large-v2",
+                      "kimi-k3.1-pro-abliterated",
+                      "deepseek-v4.1-flash-fast",
+                      "minimax-m3.1-flash",
+                      "deepseek-v4.1-flash",
+                      "glm-5.3-flash",
+                      "kimi-k3.1-pro",
+                      "hy4"
+                    ]
+                  },
+                  "messages": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "role",
+                        "content"
+                      ],
+                      "properties": {
+                        "role": {
+                          "type": "string",
+                          "description": "Who wrote the turn: `user` or `assistant`."
+                        },
+                        "content": {
+                          "oneOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "additionalProperties": true
+                              }
+                            }
+                          ],
+                          "description": "Text of the turn, or an array of content parts (text, images)."
+                        }
+                      },
+                      "additionalProperties": true
+                    },
+                    "description": "Conversation turns in Anthropic Messages format; the system prompt goes in `system`."
+                  },
+                  "max_tokens": {
+                    "type": "integer",
+                    "maximum": 65536,
+                    "description": "Maximum number of output tokens; it also bounds the prepaid maximum cost."
+                  },
+                  "system": {},
+                  "stop_sequences": {},
+                  "stream": {
+                    "type": "boolean"
+                  },
+                  "temperature": {},
+                  "top_p": {},
+                  "top_k": {},
+                  "tools": {},
+                  "tool_choice": {},
+                  "thinking": {},
+                  "output_config": {},
+                  "metadata": {},
+                  "provider": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Choose which upstream provider serves this request, for models several providers serve (each model's `offers` in GET /v1/models). Read by the gateway, never forwarded. Provider ids: abliteration, refuseless, experiential-labs, lutheos, silk, cheaperinference (enabled ones only). The header `x-dagon-provider: <id>[,<id>...]` is the same as `only`; sending both is a 400.",
+                    "properties": {
+                      "only": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "description": "Only these providers may serve the request."
+                      },
+                      "order": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "description": "Try these first, in this order; then the rest by cost unless allow_fallbacks is false."
+                      },
+                      "ignore": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "Never route to these providers."
+                      },
+                      "allow_fallbacks": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "False: never fall back beyond `order` (without `order`, beyond the first provider chosen)."
+                      }
+                    },
+                    "examples": [
+                      {
+                        "only": [
+                          "refuseless"
+                        ]
+                      },
+                      {
+                        "order": [
+                          "silk",
+                          "refuseless"
+                        ],
+                        "allow_fallbacks": false
+                      },
+                      {
+                        "ignore": [
+                          "experiential-labs"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              },
+              "example": {
+                "model": "glm-5.3-abliterated",
+                "max_tokens": 1024,
+                "messages": [
+                  {
+                    "role": "user",
+                    "content": "Hello"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The Anthropic Messages response, or a text/event-stream when `stream` is true. Usage is metered from it; the charge is on the receipt.",
+            "headers": {
+              "x-gateway-request-id": {
+                "description": "The gateway's id for this request.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-gateway-receipt-id": {
+                "description": "Id of the signed receipt for this request; fetch it at /v1/receipts/{id}.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-gateway-receipt": {
+                "description": "On non-streamed responses: the signed receipt itself, base64url JSON.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-dagon-provider": {
+                "description": "The provider that served the request (the receipt's `provider`).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-payment-response": {
+                "description": "After an x402 payment: base64 JSON SettlementResponse (v1 network name) { success, transaction, network, payer, amount }.",
+                "schema": {
+                  "type": "string",
+                  "contentEncoding": "base64"
+                }
+              },
+              "payment-response": {
+                "description": "The same SettlementResponse with the CAIP-2 network id (x402 v2).",
+                "schema": {
+                  "type": "string",
+                  "contentEncoding": "base64"
+                }
+              },
+              "x-dagon-transaction": {
+                "description": "After an x402 payment: the Solana transaction signature.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-dagon-key": {
+                "description": "After an x402 payment made without a key: the gk_ prepaid key holding the payment minus this request's cost. Each keyless payment funds a new key of its own, returned only in its own response. Reuse it as the bearer key.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/E400"
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "402": {
+            "description": "Payment required: no key (`payment_required`; a keyless request whose body would be refused gets it too, at the minimum price, the refusal named in the message), a key short of funds (`insufficient_credits`), or an x402 payment that was refused (an x402 reason such as `invalid_exact_svm_payload_amount_mismatch`, `duplicate_settlement`, `settlement_pending`, or `paid_daily_cap_exceeded`). The PAYMENT-REQUIRED object carries the request and response schemas as the x402 Bazaar extension (`extensions.bazaar`).",
+            "headers": {
+              "payment-required": {
+                "description": "x402 v2 PaymentRequired, base64 JSON (schema PaymentRequiredV2).",
+                "schema": {
+                  "type": "string",
+                  "contentEncoding": "base64"
+                }
+              },
+              "payment-response": {
+                "description": "For a refused payment: x402 v2 SettlementResponse with success false and errorReason.",
+                "schema": {
+                  "type": "string",
+                  "contentEncoding": "base64"
+                }
+              },
+              "x-payment-response": {
+                "description": "For a refused payment: the same SettlementResponse with the v1 network name.",
+                "schema": {
+                  "type": "string",
+                  "contentEncoding": "base64"
+                }
+              },
+              "x-dagon-transaction": {
+                "description": "For a payment that was broadcast: its transaction signature.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-dagon-key": {
+                "description": "With `settlement_pending` on a keyless payment: the key the payment will fund; retry with it and the same payment header.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "retry-after": {
+                "description": "With `settlement_pending`: seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequired"
+                },
+                "example": {
+                  "x402Version": 1,
+                  "accepts": [
+                    {
+                      "scheme": "exact",
+                      "network": "solana",
+                      "maxAmountRequired": "500000",
+                      "resource": "https://inference.dagon.so/v1/messages",
+                      "description": "One glm-5.3-abliterated request on Dagon, prepaid at its maximum cost. The unspent rest stays as credit on the key returned once in x-dagon-key and is not refunded; reuse that key. Terms: https://inference.dagon.so/terms",
+                      "mimeType": "application/json",
+                      "payTo": "9rMdbu4KdLWH2nPXbzhm9HTKaibGZ2ckakQbW1wPh6KK",
+                      "maxTimeoutSeconds": 60,
+                      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                      "extra": {
+                        "feePayer": "4UZVmNWoetLmDeQnfFFCYrFuN7epN6WgchiDxJ6VVA52"
+                      }
+                    }
+                  ],
+                  "type": "error",
+                  "error": {
+                    "type": "invalid_request_error",
+                    "message": "Pay for this request with x402 (USDC on Solana; requirements in `accepts` and the PAYMENT-REQUIRED header), or send an API key as 'Authorization: Bearer <key>'.",
+                    "code": "payment_required"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/E403"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          },
+          "413": {
+            "$ref": "#/components/responses/E413"
+          },
+          "429": {
+            "$ref": "#/components/responses/E429"
+          },
+          "451": {
+            "$ref": "#/components/responses/E451"
+          },
+          "502": {
+            "$ref": "#/components/responses/E502"
+          },
+          "503": {
+            "$ref": "#/components/responses/E503"
+          }
+        }
+      }
+    },
+    "/v1/receipts/{id}": {
+      "get": {
+        "summary": "Fetch the signed receipt of a request",
+        "tags": [
+          "Receipts"
+        ],
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Receipt id from the x-gateway-receipt-id response header."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The receipt.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/E401"
+          },
+          "404": {
+            "$ref": "#/components/responses/E404"
+          }
+        }
+      }
+    },
+    "/v1/receipts/verify": {
+      "post": {
+        "summary": "Verify the signature of a receipt",
+        "tags": [
+          "Receipts"
+        ],
+        "security": [],
+        "description": "Checks the Ed25519 signature, the gateway identity and the price arithmetic against the published rates. No key needed.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Receipt"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "valid"
+                  ],
+                  "properties": {
+                    "valid": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ModelList": {
+        "type": "object",
+        "required": [
+          "object",
+          "data",
+          "price_version",
+          "prices_updated_at",
+          "markup_bps"
+        ],
+        "properties": {
+          "object": {
+            "const": "list"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Model"
+            }
+          },
+          "price_version": {
+            "type": "string",
+            "description": "The active price schedule; new receipts pin it. Changes when a provider changes its prices."
+          },
+          "prices_updated_at": {
+            "type": "integer",
+            "description": "When the active price version took effect, in milliseconds since the Unix epoch."
+          },
+          "markup_bps": {
+            "type": "integer"
+          }
+        }
+      },
+      "Model": {
+        "type": "object",
+        "required": [
+          "id",
+          "object",
+          "owned_by",
+          "name",
+          "description",
+          "deprecated",
+          "context_length",
+          "max_output_tokens",
+          "input_modalities",
+          "refusals",
+          "notes",
+          "reasoning",
+          "supported_reasoning_levels",
+          "pricing_per_mtok_micros",
+          "providers",
+          "routes",
+          "endpoints",
+          "blend",
+          "offers"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "examples": [
+              "glm-5.3-abliterated",
+              "deepseek-v4.1-flash-abliterated",
+              "glm-5.3-flash-abliterated",
+              "abliterated-model-large-flash",
+              "abliterated-model",
+              "abliterated-model-large-v2",
+              "kimi-k3.1-pro-abliterated",
+              "deepseek-v4.1-flash-fast",
+              "minimax-m3.1-flash",
+              "deepseek-v4.1-flash",
+              "glm-5.3-flash",
+              "kimi-k3.1-pro",
+              "hy4"
+            ]
+          },
+          "object": {
+            "const": "model"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "owned_by": {
+            "type": "string",
+            "description": "The provider with the lowest typical cost at `blend` (offers[0]), whose rates are shown."
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "deprecated": {
+            "type": "boolean"
+          },
+          "context_length": {
+            "type": "integer"
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "description": "The most this gateway accepts for this model."
+          },
+          "input_modalities": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "text",
+                "image"
+              ]
+            }
+          },
+          "refusals": {
+            "enum": [
+              "removed",
+              "reduced",
+              "standard"
+            ],
+            "description": "How much refusal behaviour is gone, from live probes: removed; reduced (still declines some requests); standard (declines many requests that abliterated models answer)."
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Serving facts a caller should know, such as a minimum reasoning effort the gateway enforces; empty when there are none."
+          },
+          "reasoning": {
+            "type": "boolean",
+            "description": "Whether the model reasons before answering (true when supported_reasoning_levels is not empty)."
+          },
+          "supported_reasoning_levels": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "none",
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ]
+            },
+            "description": "The `reasoning_effort` (or `reasoning.effort`) values the model honours, weakest first, from live probes. `none`, when listed, turns reasoning off; a model without it reasons at every level. Other values are forwarded as asked, but the provider may reject them or reason anyway."
+          },
+          "pricing_per_mtok_micros": {
+            "$ref": "#/components/schemas/Rates",
+            "description": "offers[0]'s rates."
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "routes": {
+            "type": "integer"
+          },
+          "endpoints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The inference paths this model is served on."
+          },
+          "blend": {
+            "$ref": "#/components/schemas/Blend"
+          },
+          "offers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Offer"
+            },
+            "description": "Every provider serving the model, cheapest first at `blend`. A request goes to the cheapest healthy provider for its own size, so this is the typical order, not a guarantee; choose one with the request field `provider: { only: [\"<provider>\"] }`."
+          }
+        }
+      },
+      "Rates": {
+        "type": "object",
+        "required": [
+          "inputPerMtok",
+          "cachedInputPerMtok",
+          "outputPerMtok"
+        ],
+        "description": "Micro-USD per 1,000,000 tokens with the markup included (fractions allowed). Divide by 1,000,000 for USD.",
+        "properties": {
+          "inputPerMtok": {
+            "type": "number"
+          },
+          "cachedInputPerMtok": {
+            "type": "number"
+          },
+          "outputPerMtok": {
+            "type": "number"
+          }
+        }
+      },
+      "Blend": {
+        "type": "object",
+        "required": [
+          "input_share",
+          "cached_share",
+          "output_share",
+          "source",
+          "window_days"
+        ],
+        "description": "The token shares the offers are ranked by (they sum to 1): this model's own traffic (uncached input, cached input and output tokens on the gateway's receipts), or 3:1 input to output without enough traffic.",
+        "properties": {
+          "input_share": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "cached_share": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "output_share": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "source": {
+            "enum": [
+              "traffic",
+              "default"
+            ],
+            "description": "`default` is 0.75 input, 0 cached, 0.25 output."
+          },
+          "window_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The traffic window in days; null when `source` is `default`."
+          }
+        }
+      },
+      "Offer": {
+        "type": "object",
+        "required": [
+          "provider",
+          "rates_per_mtok_micros",
+          "blended_per_mtok_micros",
+          "quantization",
+          "context_length",
+          "max_output_tokens",
+          "endpoints"
+        ],
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "rates_per_mtok_micros": {
+            "$ref": "#/components/schemas/Rates"
+          },
+          "blended_per_mtok_micros": {
+            "type": "number",
+            "description": "The rates weighted by the model's `blend`: the typical price per 1M tokens, markup included."
+          },
+          "quantization": {
+            "oneOf": [
+              {
+                "enum": [
+                  "bf16",
+                  "fp16",
+                  "fp8",
+                  "int8",
+                  "nvfp4",
+                  "mxfp4",
+                  "awq_int4",
+                  "gptq_int4",
+                  "gguf_q8_0",
+                  "gguf_q6_k",
+                  "gguf_q5_k_m",
+                  "gguf_q4_k_m",
+                  "other"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Precision of the served weights as the provider publishes it; null when it does not."
+          },
+          "context_length": {
+            "type": "integer"
+          },
+          "max_output_tokens": {
+            "type": "integer",
+            "description": "The most this gateway accepts from this provider."
+          },
+          "endpoints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The inference paths this provider serves."
+          }
+        }
+      },
+      "Error": {
+        "description": "OpenAI shape on /v1/chat/completions, /v1/responses and the rest of the API; Anthropic shape ({ type: \"error\", error: { type, message } }) on /v1/messages.",
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "param": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "code": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "PaymentRequired": {
+        "description": "The usual error object (see Error) plus the x402 v1 PaymentRequired fields.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Error"
+          },
+          {
+            "type": "object",
+            "required": [
+              "x402Version",
+              "accepts"
+            ],
+            "properties": {
+              "x402Version": {
+                "const": 1
+              },
+              "accepts": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PaymentRequirements"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "PaymentRequirements": {
+        "type": "object",
+        "description": "x402 v1 PaymentRequirements for the exact scheme on Solana mainnet. Amounts are USDC base units (micro-USD).",
+        "required": [
+          "scheme",
+          "network",
+          "maxAmountRequired",
+          "resource",
+          "description",
+          "mimeType",
+          "payTo",
+          "maxTimeoutSeconds",
+          "asset",
+          "extra"
+        ],
+        "properties": {
+          "scheme": {
+            "const": "exact"
+          },
+          "network": {
+            "const": "solana"
+          },
+          "maxAmountRequired": {
+            "type": "string",
+            "description": "Keyless: this request's maximum cost, at least $0.5. Keyed: the shortfall, at least $1."
+          },
+          "resource": {
+            "type": "string",
+            "format": "uri"
+          },
+          "description": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "payTo": {
+            "const": "9rMdbu4KdLWH2nPXbzhm9HTKaibGZ2ckakQbW1wPh6KK"
+          },
+          "maxTimeoutSeconds": {
+            "type": "integer"
+          },
+          "asset": {
+            "const": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+          },
+          "extra": {
+            "type": "object",
+            "properties": {
+              "feePayer": {
+                "type": "string",
+                "description": "The gateway's fee payer; present when it pays network fees. Use it as the transaction's fee payer."
+              }
+            }
+          },
+          "outputSchema": {
+            "type": "object",
+            "description": "For discovery (v1 Bazaar): `input` ({ type: \"http\", method: \"POST\", bodyType: \"json\", bodyFields }) and `output` (the response's JSON Schema).",
+            "properties": {
+              "input": {
+                "type": "object"
+              },
+              "output": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "Receipt": {
+        "type": "object",
+        "required": [
+          "payload",
+          "signature"
+        ],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "v": {},
+              "id": {},
+              "gateway": {},
+              "key_id": {},
+              "created": {},
+              "model": {},
+              "provider": {},
+              "endpoint": {},
+              "usage": {},
+              "usage_source": {},
+              "price_version": {},
+              "markup_bps": {},
+              "charged_micros": {},
+              "output_sha256": {},
+              "upstream_request_id": {}
+            },
+            "description": "Receipt payload exactly as returned by the gateway."
+          },
+          "signature": {
+            "type": "string",
+            "description": "Ed25519 signature over the payload, as returned with the receipt."
+          }
+        }
+      }
+    },
+    "responses": {
+      "E400": {
+        "description": "Invalid request: bad JSON, an unsupported parameter (web search is refused), an endpoint the model is not served on, an output cap over the limit, an unknown or disabled provider id in `provider` or `x-dagon-provider` (`invalid_provider`), or a provider selection that leaves no provider serving the model on this endpoint (`provider_unavailable_for_model`; the message names the providers that do).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "E401": {
+        "description": "Missing, invalid, disabled or expired key.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "E403": {
+        "description": "Payment refused: a wallet that signed the payment is on the OFAC sanctions list (`payment_refused`). Nothing was broadcast.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "E404": {
+        "description": "Unknown model id or resource.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "E413": {
+        "description": "Request body too large.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "E429": {
+        "description": "Rate limited; see Retry-After.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "E451": {
+        "description": "Not available in the caller's location (`location_blocked`).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "E502": {
+        "description": "The upstream provider could not be reached; nothing was charged.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "E503": {
+        "description": "Busy or paused, or payments temporarily unavailable (`payment_unavailable`, `sanctions_unavailable`, `geo_unavailable`); see Retry-After.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "A gk_ prepaid key."
+      },
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key",
+        "description": "The same key, as Anthropic SDKs send it."
+      },
+      "statusToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "A provider application's status_token, returned once by POST /v1/provider-applications."
+      }
+    }
+  }
+}
