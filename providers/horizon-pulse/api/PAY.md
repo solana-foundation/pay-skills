@@ -9,7 +9,7 @@ openapi:
   path: openapi.json
 ---
 
-Horizon Pulse: x402 v2 pay-per-call APIs for AI agents, no account or API key. 55 paid routes (as of 2026-11-09), 30 listed here: 28 payable in USDC on Solana, plus a $1 brief and $5 seller due-diligence in Base USDC only. Selected routes also accept USDC on Base or Polygon, or RLUSD on the XRP Ledger. Hosted MCP with 53 tools (as of 2026-11-09).
+Horizon Pulse: x402 v2 pay-per-call APIs for AI agents, no account or API key. 55 paid routes (as of 2026-11-09), 30 listed here: 28 payable in USDC on Solana, plus a $0.25 brief and $1 seller due-diligence in Base USDC only. Selected routes also accept USDC on Base or Polygon, or RLUSD on the XRP Ledger. Hosted MCP with 53 tools (as of 2026-11-09).
 
 - Web: `GET /api/search` (search with page contents), `GET /api/fetch` (page to
   markdown), `GET|POST /api/extract` (title, links, JSON-LD, CSS-selector
@@ -64,10 +64,10 @@ Horizon Pulse: x402 v2 pay-per-call APIs for AI agents, no account or API key. 5
 - Agent marketplace: `GET /api/market/search` and `GET /api/market/quote`,
   $0.005 per call, USDC on Base, Solana or Polygon, or RLUSD on the XRP
   Ledger; checked seller quotes with evidence fields.
-- Verified brief: `GET /api/research/report/brief`, $1, Base USDC only.
+- Verified brief: `GET /api/research/report/brief`, $0.25, Base USDC only.
   Verified brief, three question types only: Base or Ethereum gas (on-chain read), USDC supply on Ethereum and Base (on-chain totalSupply), or an x402 spec fact. Charged only if at least 2 claims are confirmed in two sources as defined by the contract (two independent nodes, or two separate specification documents); otherwise a 422, unpaid.
   Contract: https://horizonpulse.dev/contracts/brief-verified.
-- Seller due-diligence: `POST /api/seller-dd/single`, $5, Base USDC only.
+- Seller due-diligence: `POST /api/seller-dd/single`, $1, Base USDC only.
   Seller due-diligence for one x402 endpoint. We make a real capped test payment, check the paid response against the listed schema, compare payTo with the CDP listing, read a recent window of on-chain USDC payments to the payTo and screen for lookalike addresses. Returns a signed JSON verdict of evidenced facts. No charge unless the test payment and all 4 other checks complete. Facts, not endorsement; no warranty. Not affiliated with the seller checked. $5.
   Terms: https://horizonpulse.dev/premium-terms.
 
