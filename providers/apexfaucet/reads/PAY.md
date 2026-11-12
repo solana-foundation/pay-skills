@@ -21,5 +21,6 @@ accepts USDC on Solana since 11 Nov 2026 and is listed first.
 ## Spend-aware usage
 
 - Use one listed route per question.
-- Keep the sample query values unless the user named a different page, token, or NFT.
+- Each read declares its query parameters with an example; use the example only when the user named no page, token, or NFT.
+- Chat completions is a POST with an OpenAI-style JSON body (`messages`, optional `model` and `max_tokens`), documented in the OpenAPI file.
 - Do not poll a route.
