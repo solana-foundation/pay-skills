@@ -1,7 +1,7 @@
 ---
 name: router
 title: "Phantom AI: prepaid LLM inference and model router"
-description: "OpenAI- and Anthropic-compatible large language model (LLM) chat over hundreds of models, plus embeddings, images, speech, transcription, rerank and video. phantom-1 picks a model per request. Paid in Solana USDC over x402 or MPP."
+description: "OpenAI- and Anthropic-compatible large language model (LLM) chat over hundreds of models, plus embeddings, images, speech, transcription, rerank and video. phantom-1 picks a model per request. Credit is bought in Solana USDC over x402 or MPP, paid into Stripe."
 use_case: "Use for LLM chat, Anthropic Messages or OpenAI Responses calls, embeddings, image generation, text to speech, transcription, reranking or video, paid from prepaid USDC credit with no account, or when an agent wants a model picked for it."
 category: ai_ml
 service_url: https://phantom.codes
@@ -30,28 +30,47 @@ when providers ship new models, so read the list first.
 
 ## Buy credit and pay for calls
 
-You pay once for credit, then spend it with an API key.
+You pay once for credit, then spend it with an API key. Every model call
+needs the key: a call without one gets a 401, and Phantom takes no payment
+per call.
 
-1. Buy credit:
+1. Ask for a quote:
 
    ```sh
-   pay curl -X POST https://phantom.codes/v1/x402/top-up \
+   curl -X POST https://phantom.codes/v1/purchase/x402 \
      -H 'content-type: application/json' -d '{"amount_usd": 1}'
    ```
 
-   Phantom answers with a 402 for that amount in Solana USDC, over x402 or
-   the Machine Payments Protocol (MPP). `pay` pays it and resends the
-   request. The paid response contains
-   `api_key`, `recovery_code`, `credit_usd` (what this payment added),
-   `workspace_id` and `recovery`. You can buy $0.10 to $10,000. An empty
-   body buys $1.
+   The answer holds `payment_id`, `payment_url`, `recovery_code`,
+   `price_usd`, `credit_usd` (what the payment adds) and `expires_at`. The
+   quote lasts 30 minutes. You can buy $0.10 to $10,000, in whole cents.
+   Save the `recovery_code`: you see it once, and it collects the key.
+2. Pay the quote:
 
-   The key comes in its own workspace, which holds the credit. Save the
-   `recovery_code`: you see it once. It gives the key back at
+   ```sh
+   pay curl -X POST <payment_url>
+   ```
+
+   Phantom answers with a 402 for the price in Solana USDC, over x402 or the
+   Machine Payments Protocol (MPP). The USDC goes to Phantom's Stripe deposit
+   address. `pay` pays it and resends the request, and the answer says
+   `"payment_received": true`. Don't pay again.
+3. Collect the key. Stripe confirms the transfer, and then the credit lands.
+   Poll until `status` is `completed`:
+
+   ```sh
+   curl https://phantom.codes/v1/purchase/<payment_id>/status \
+     -H 'x-phantom-recovery-code: <recovery_code>'
+   ```
+
+   The completed answer contains `api_key`, shown once, plus `workspace_id`
+   and `recovery`. The key comes in its own workspace, which holds the
+   credit. The `recovery_code` also gives the key back at
    `POST /v1/purchase/recover`, and it is the workspace's management
    credential, so `recovery` is a ready recovery file for
-   `POST /v1/workspaces/recover`.
-2. Call the chat routes with `Authorization: Bearer <api_key>`. Use plain
+   `POST /v1/workspaces/recover`. If a poll fails or the answer is lost,
+   poll again: the payment is recorded, so you never pay twice for it.
+4. Call the chat routes with `Authorization: Bearer <api_key>`. Use plain
    `curl` or any HTTP client here; you already paid, so `pay` has nothing
    to do. Each call costs the listed token price of the model that answered,
    plus 5%. On a non-streaming call, `x-phantom-cost-usd` and
@@ -59,18 +78,22 @@ You pay once for credit, then spend it with an API key.
    cost in an `event: phantom.receipt` before it ends.
    `GET /v1/key/balance` shows the credit at any time.
 
-A paid response with `"status": "pending"` (a 503 or 409) means the transfer
-is still confirming. Send the same request again or poll `status_url`, and
-don't pay twice. Send the `recovery_code` on the poll in the
-`x-phantom-recovery-code` header to collect the new key. A top-up to a key
-you already hold needs no code.
+To add credit to a key you hold, put it in the quote body as
+`target_api_key`:
 
-To add credit to a key you hold, put it in the top-up body as
-`target_api_key`. The credit goes to that key's workspace. Keep the key out
-of the `Authorization` header, because `pay` replaces that header when it
-pays over MPP. Phantom checks the key before it asks for money and refuses
-an unknown or deactivated key with a 400. Sending the same paid request
-twice adds the credit once.
+```sh
+curl -X POST https://phantom.codes/v1/purchase/x402 \
+  -H 'content-type: application/json' \
+  -d '{"amount_usd": 5, "target_api_key": "sk-phantom-..."}'
+```
+
+Then pay the `payment_url` as above. The credit goes to that key's
+workspace once Stripe confirms, and the status poll says `completed` and
+`topped_up: true` without a code. Keep the key out of the `Authorization`
+header, because `pay` replaces that header when it pays over MPP. Phantom
+checks the key before it quotes and refuses an unknown or deactivated key
+with a 400. Keep the `recovery_code` anyway: if the key is burned before
+Stripe confirms, the credit goes to a new key, which the code collects.
 
 Each priced response includes an Ed25519 receipt in `x-phantom-receipt` with
 the model, tokens and cost. Check it against the public key at
@@ -96,7 +119,8 @@ These routes take the same Bearer key and cost nothing, except where noted.
 - `GET /v1/privacy` lists what Phantom stores about the key and what it is
   linked to. Phantom keeps token counts and costs, never prompt or
   completion text.
-- `POST /v1/receipts/anchor` writes a receipt's hash to Solana for $0.01.
+- `POST /v1/receipts/anchor` writes a receipt's hash to Solana for $0.01,
+  taken from the key's credit.
 
 To add keys that share the credit, or a monthly Pro or Max plan for
 `phantom-1`, use the workspace's recovery credential with `/v1/workspaces`
