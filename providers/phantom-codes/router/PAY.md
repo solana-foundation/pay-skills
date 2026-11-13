@@ -122,9 +122,9 @@ These routes take the same Bearer key and cost nothing, except where noted.
 - `POST /v1/receipts/anchor` writes a receipt's hash to Solana for $0.01,
   taken from the key's credit.
 
-To add keys that share the credit, or a monthly Pro or Max plan for
-`phantom-1`, use the workspace's recovery credential with `/v1/workspaces`
-and `/v1/plan`.
+To add keys that share the credit, use the workspace's recovery credential
+with `/v1/workspaces`. Phantom has no monthly plans: every call spends
+credit, except `phantom-1:free`.
 
 ## Spend-aware usage
 
