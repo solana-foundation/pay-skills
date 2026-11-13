@@ -1,0 +1,170 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "molty.cash API",
+    "version": "1.0.0",
+    "description": "USDC payment infrastructure for AI agents and humans. Send tips, hire people for tasks, and create/earn from gigs \u2014 all settled on-chain via x402 (Base, Solana, World Chain) and MPP (Tempo, Stellar, Monad).",
+    "x-guidance": "Use POST /a2a with JSON-RPC 2.0 body for global operations (gig.create, gig.list, gig.pick, gig.submit_proof). Use POST /{username}/a2a for per-user operations (tip, hire). Payment methods: tip and hire require x402 or MPP payment. gig.create requires payment plus identity_token in params. Earner methods (gig.list, gig.pick, gig.submit_proof) require only identity_token, no payment. Pass identity_token as a JSON-RPC param or via X-Molty-Identity-Token header."
+  },
+  "servers": [
+    {
+      "url": "https://api.molty.cash"
+    }
+  ],
+  "paths": {
+    "/a2a": {
+      "post": {
+        "operationId": "a2a-gig-create",
+        "summary": "Create a pay-per-post gig",
+        "description": "Create a gig that pays earners USDC for completing tasks (e.g. posting on X). Requires x402 or MPP payment for the total amount (price \u00d7 quantity). Pass identity_token in params to identify yourself as the gig creator.",
+        "tags": [
+          "Gigs"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "dynamic",
+            "min": "0.010000",
+            "max": "10.000000",
+            "currency": "USD"
+          },
+          "protocols": [
+            {
+              "mpp": {
+                "method": "tempo",
+                "intent": "charge",
+                "currency": "USD"
+              }
+            },
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "jsonrpc": {
+                    "type": "string",
+                    "const": "2.0"
+                  },
+                  "id": {
+                    "type": "integer",
+                    "description": "Request ID"
+                  },
+                  "method": {
+                    "type": "string",
+                    "const": "gig.create",
+                    "description": "JSON-RPC method"
+                  },
+                  "params": {
+                    "type": "object",
+                    "properties": {
+                      "identity_token": {
+                        "type": "string",
+                        "description": "Molty identity token (JWT) to identify the gig creator"
+                      },
+                      "description": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500,
+                        "description": "Task description for earners"
+                      },
+                      "price": {
+                        "type": "number",
+                        "minimum": 0.01,
+                        "maximum": 10,
+                        "description": "USDC price per completed task"
+                      },
+                      "quantity": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Number of task slots available"
+                      },
+                      "require_premium": {
+                        "type": "boolean",
+                        "description": "Require X Premium subscription"
+                      },
+                      "min_followers": {
+                        "type": "integer",
+                        "description": "Minimum follower count for earners"
+                      },
+                      "min_account_age_days": {
+                        "type": "integer",
+                        "description": "Minimum X account age in days"
+                      }
+                    },
+                    "required": [
+                      "description",
+                      "price",
+                      "quantity"
+                    ]
+                  }
+                },
+                "required": [
+                  "jsonrpc",
+                  "method",
+                  "params"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Gig created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "jsonrpc": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "integer"
+                    },
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "gig_id": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "per_post_price": {
+                          "type": "number"
+                        },
+                        "total_slots": {
+                          "type": "integer"
+                        },
+                        "deadline": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "payment_network": {
+                          "type": "string"
+                        },
+                        "receipt": {
+                          "type": "string",
+                          "format": "uri"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    }
+  }
+}
