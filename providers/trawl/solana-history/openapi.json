@@ -630,7 +630,8 @@
             "description": "A preset slug from GET /presets, such as \"pumpfun\"."
           },
           "filter": {
-            "$ref": "#/components/schemas/ScanFilter"
+            "$ref": "#/components/schemas/ScanFilter",
+            "description": "Which instructions to keep. Without a preset, it needs at least one program or one account."
           },
           "idl": {
             "type": "object",
@@ -638,11 +639,13 @@
           },
           "start_epoch": {
             "type": "integer",
-            "description": "The first epoch, inclusive."
+            "description": "The first epoch, inclusive.",
+            "minimum": 0
           },
           "end_epoch": {
             "type": "integer",
-            "description": "The last epoch, inclusive."
+            "description": "The last epoch, inclusive. Defaults to start_epoch.",
+            "minimum": 0
           },
           "start_date": {
             "type": "string",
@@ -650,13 +653,113 @@
           },
           "end_date": {
             "type": "string",
-            "description": "In place of end_epoch: a UTC day or a time with a zone, inclusive."
+            "description": "In place of end_epoch: a UTC day or a time with a zone, inclusive. Defaults to start_date."
           }
-        }
+        },
+        "allOf": [
+          {
+            "description": "Send start_epoch (and end_epoch), or start_date (and end_date). Do not mix them.",
+            "oneOf": [
+              {
+                "required": [
+                  "start_epoch"
+                ],
+                "not": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "start_date"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "end_date"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "required": [
+                  "start_date"
+                ],
+                "not": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "start_epoch"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "end_epoch"
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "description": "Send a preset, or a filter with at least one program or one account.",
+            "anyOf": [
+              {
+                "required": [
+                  "preset"
+                ]
+              },
+              {
+                "required": [
+                  "filter"
+                ],
+                "properties": {
+                  "filter": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "programs"
+                        ],
+                        "properties": {
+                          "programs": {
+                            "type": "array",
+                            "minItems": 1,
+                            "description": "At least one base58 program id."
+                          }
+                        }
+                      },
+                      {
+                        "required": [
+                          "accounts"
+                        ],
+                        "properties": {
+                          "accounts": {
+                            "type": "array",
+                            "minItems": 1,
+                            "description": "At least one base58 key."
+                          }
+                        }
+                      }
+                    ],
+                    "description": "Without a preset: a filter with at least one program or one account."
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "description": "A preset and an idl together are refused.",
+            "not": {
+              "required": [
+                "preset",
+                "idl"
+              ]
+            }
+          }
+        ]
       },
       "ScanFilter": {
         "type": "object",
-        "description": "programs or accounts must hold at least one key.",
+        "description": "Without a preset, programs or accounts must hold at least one key. With a preset, each field sent replaces the field of the preset.",
         "properties": {
           "programs": {
             "type": "array",
@@ -723,11 +826,12 @@
         "required": [
           "slot"
         ],
-        "description": "Send holders_of, an owner filter or a list of accounts.",
+        "description": "Send holders_of, or a filter with at least one owner or one account.",
         "properties": {
           "slot": {
             "type": "integer",
-            "description": "The slot you want the account state at."
+            "description": "The slot you want the account state at.",
+            "minimum": 0
           },
           "pick": {
             "type": "string",
@@ -758,7 +862,9 @@
                       "description": "Base58 owner program."
                     },
                     "data_size": {
-                      "type": "integer"
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Account data length in bytes."
                     },
                     "memcmp": {
                       "type": "array",
@@ -766,18 +872,27 @@
                         "type": "object",
                         "properties": {
                           "offset": {
-                            "type": "integer"
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Byte offset in the account data."
                           },
                           "bytes": {
                             "type": "string",
                             "description": "Base58, or hex with a 0x prefix."
                           }
-                        }
+                        },
+                        "required": [
+                          "offset",
+                          "bytes"
+                        ]
                       }
                     }
-                  }
+                  },
+                  "required": [
+                    "program"
+                  ]
                 },
-                "description": "As in getProgramAccounts. The System and token programs need data_size or memcmp."
+                "description": "As in getProgramAccounts. The System and token programs need data_size or memcmp. holders_of counts as 2 of the 8 owners."
               },
               "accounts": {
                 "type": "array",
@@ -787,9 +902,53 @@
                 "maxItems": 1000,
                 "description": "Base58 keys."
               }
+            },
+            "description": "Which accounts to give: owner filters, a list of accounts, or both."
+          }
+        },
+        "anyOf": [
+          {
+            "required": [
+              "holders_of"
+            ]
+          },
+          {
+            "required": [
+              "filter"
+            ],
+            "properties": {
+              "filter": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "owners"
+                    ],
+                    "properties": {
+                      "owners": {
+                        "type": "array",
+                        "minItems": 1,
+                        "description": "At least one owner filter."
+                      }
+                    }
+                  },
+                  {
+                    "required": [
+                      "accounts"
+                    ],
+                    "properties": {
+                      "accounts": {
+                        "type": "array",
+                        "minItems": 1,
+                        "description": "At least one base58 key."
+                      }
+                    }
+                  }
+                ],
+                "description": "A filter with at least one owner or one account."
+              }
             }
           }
-        }
+        ]
       },
       "JobCreated": {
         "type": "object",
