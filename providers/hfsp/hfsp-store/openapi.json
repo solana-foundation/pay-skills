@@ -1,0 +1,457 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "HFSP Store x402 (Solana)",
+        "version": "1.0.0",
+        "description": "Gift cards, mobile top-ups, and eSIMs for AI agents. 10,500+ brands, 180+ countries. Powered by Cryptorefills. Pay USDC on Solana mainnet via x402 v2. No account, no API key. Commission: 2.5% added to Cryptorefills catalog price. Flow: 1) GET /api/brands or /api/catalog to discover products. 2) POST /api/orders \u2192 402 with pay.amount and pay.payTo. 3) Send Solana mainnet USDC to pay.payTo (mint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v). 4) Wait for confirmation, retry POST with X-Solana-Tx: <signature>. 5) Receive gift card code in 200 response. 6) Poll GET /api/orders/{id} until status=completed if delivery is async.",
+        "contact": {
+            "email": "info@hfsp.xyz",
+            "url": "https://hfsp.xyz"
+        }
+    },
+    "servers": [
+        {
+            "url": "https://store.hfsp.cloud"
+        }
+    ],
+    "security": [
+        {
+            "x402": []
+        }
+    ],
+    "components": {
+        "securitySchemes": {
+            "x402": {
+                "type": "apiKey",
+                "in": "header",
+                "name": "X-Solana-Tx",
+                "description": "x402 v2 payment. Send confirmed Solana mainnet USDC to the address in the 402 response, then retry with X-Solana-Tx: <signature>."
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Catalog",
+            "description": "Browse brands and products (free, no payment)"
+        },
+        {
+            "name": "Orders",
+            "description": "Place and track orders (x402 payment required)"
+        }
+    ],
+    "paths": {
+        "/api/brands": {
+            "get": {
+                "operationId": "get-brands",
+                "summary": "List available brands for a country",
+                "tags": [
+                    "Catalog"
+                ],
+                "security": [],
+                "parameters": [
+                    {
+                        "name": "country_code",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "example": "us"
+                        },
+                        "description": "Lowercase ISO 3166-1 Alpha-2 country code (e.g. us, gb, de)"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of brand objects",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "brand_name": {
+                                                "type": "string",
+                                                "description": "Brand display name, use as brand_name in /api/catalog"
+                                            },
+                                            "country_code": {
+                                                "type": "string",
+                                                "description": "ISO 3166-1 Alpha-2 country code"
+                                            },
+                                            "category": {
+                                                "type": "string",
+                                                "description": "Brand category (e.g. gaming, shopping, telecom)"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/catalog": {
+            "get": {
+                "operationId": "get-catalog",
+                "summary": "List products for a brand",
+                "tags": [
+                    "Catalog"
+                ],
+                "security": [],
+                "parameters": [
+                    {
+                        "name": "country_code",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "example": "us"
+                        }
+                    },
+                    {
+                        "name": "brand_name",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "example": "Amazon.com"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of products with product_id, price_usdc, is_range, etc.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "product_id": {
+                                                "type": "string",
+                                                "description": "Use this value in POST /api/orders items[].product_id"
+                                            },
+                                            "brand_name": {
+                                                "type": "string"
+                                            },
+                                            "product_name": {
+                                                "type": "string"
+                                            },
+                                            "price_usdc": {
+                                                "type": [
+                                                    "number",
+                                                    "null"
+                                                ],
+                                                "description": "Fixed price in USD (USDC). Null for range products."
+                                            },
+                                            "is_range": {
+                                                "type": "boolean",
+                                                "description": "If true, pass product_value in the order body"
+                                            },
+                                            "min_value": {
+                                                "type": "number",
+                                                "description": "Minimum value in the product's local currency for range products"
+                                            },
+                                            "max_value": {
+                                                "type": "number",
+                                                "description": "Maximum value in the product's local currency for range products"
+                                            },
+                                            "currency": {
+                                                "type": "string",
+                                                "description": "Local currency code for range products"
+                                            },
+                                            "country_code": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/orders": {
+            "post": {
+                "operationId": "create-order",
+                "summary": "Buy a gift card, top-up, or eSIM",
+                "tags": [
+                    "Orders"
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "dynamic",
+                        "currency": "USD",
+                        "note": "Price determined by product. Check pay.amountUsd in 402 response."
+                    },
+                    "protocols": [
+                        {
+                            "x402": {
+                                "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                                "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                                "header": "X-Solana-Tx",
+                                "note": "Send confirmed Solana mainnet USDC to the payTo address in the 402 response body, then retry with X-Solana-Tx: <signature>."
+                            }
+                        }
+                    ]
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "email",
+                                    "items"
+                                ],
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "description": "Delivery email for the gift card / top-up"
+                                    },
+                                    "items": {
+                                        "type": "array",
+                                        "description": "Line items to purchase in this order (1-10). Each item needs a product_id from /api/catalog; range products (is_range=true) also require product_value.",
+                                        "items": {
+                                            "type": "object",
+                                            "required": [
+                                                "product_id"
+                                            ],
+                                            "properties": {
+                                                "product_id": {
+                                                    "type": "string",
+                                                    "description": "Product ID from /api/catalog"
+                                                },
+                                                "product_value": {
+                                                    "type": "number",
+                                                    "description": "Amount in the product's local currency for range products; must fall between min_value and max_value from /api/catalog"
+                                                },
+                                                "beneficiary_account": {
+                                                    "type": "string",
+                                                    "description": "Delivery email or account (if different from order email)"
+                                                }
+                                            }
+                                        },
+                                        "minItems": 1,
+                                        "maxItems": 10
+                                    },
+                                    "callback_url": {
+                                        "type": "string",
+                                        "format": "uri",
+                                        "description": "Optional webhook for delivery notification"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Order placed. May include immediate gift card delivery or order_id for polling.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "order_id": {
+                                                    "type": "string",
+                                                    "description": "Cryptorefills-issued UUID v4. Treat as a bearer token \u2014 anyone with this ID can poll the order and retrieve voucher codes. Store securely."
+                                                },
+                                                "status": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "processing",
+                                                        "completed",
+                                                        "failed"
+                                                    ]
+                                                },
+                                                "estimated_delivery_seconds": {
+                                                    "type": "integer"
+                                                },
+                                                "poll_url": {
+                                                    "type": "string"
+                                                },
+                                                "deliveries": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "voucher_code": {
+                                                                "type": "string"
+                                                            },
+                                                            "pin": {
+                                                                "type": "string"
+                                                            },
+                                                            "url": {
+                                                                "type": "string"
+                                                            },
+                                                            "brand_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "product_name": {
+                                                                "type": "string"
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment Required \u2014 x402 v2 challenge. PAYMENT-REQUIRED header contains base64(JSON). Pay USDC on Solana, retry with X-Solana-Tx.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "x402Version": {
+                                            "type": "integer",
+                                            "example": 2
+                                        },
+                                        "accepts": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
+                                            }
+                                        },
+                                        "resource": {
+                                            "type": "object"
+                                        },
+                                        "pay": {
+                                            "type": "object",
+                                            "properties": {
+                                                "amount": {
+                                                    "type": "integer",
+                                                    "description": "Atomic USDC units (6 decimals)"
+                                                },
+                                                "amountUsd": {
+                                                    "type": "string",
+                                                    "description": "Human-readable USD amount"
+                                                },
+                                                "crAmount": {
+                                                    "type": "integer",
+                                                    "description": "Cryptorefills base price (atomic)"
+                                                },
+                                                "crAmountUsd": {
+                                                    "type": "string",
+                                                    "description": "Cryptorefills base price (USD)"
+                                                },
+                                                "commissionUsd": {
+                                                    "type": "string",
+                                                    "description": "HFSP Store commission (USD)"
+                                                },
+                                                "payTo": {
+                                                    "type": "string",
+                                                    "description": "Solana wallet to send USDC to"
+                                                },
+                                                "instructions": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/orders/{id}": {
+            "get": {
+                "operationId": "get-order",
+                "summary": "Poll order status and retrieve gift card when ready",
+                "tags": [
+                    "Orders"
+                ],
+                "security": [],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "order_id from POST /api/orders response. This is a Cryptorefills UUID v4 that acts as a bearer token \u2014 keep it private."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Order status and deliveries if completed",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "order_id": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "processing",
+                                                        "completed",
+                                                        "failed"
+                                                    ]
+                                                },
+                                                "deliveries": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "voucher_code": {
+                                                                "type": "string"
+                                                            },
+                                                            "pin": {
+                                                                "type": "string"
+                                                            },
+                                                            "url": {
+                                                                "type": "string"
+                                                            },
+                                                            "brand_name": {
+                                                                "type": "string"
+                                                            },
+                                                            "product_name": {
+                                                                "type": "string"
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Order not found"
+                    }
+                }
+            }
+        }
+    }
+}
