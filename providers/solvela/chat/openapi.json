@@ -1,0 +1,343 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Solvela Gateway",
+    "description": "Solana-native AI agent payment gateway. OpenAI-compatible LLM chat completions paid per request in USDC-SPL over the x402 protocol — no API key, no account, just a wallet. A rule-based smart router selects a model per request, an exact-match response cache returns prior answers at zero upstream cost, and a trustless on-chain escrow scheme is available for prepaid sessions.",
+    "version": "0.1.0",
+    "license": { "name": "BUSL-1.1", "identifier": "BUSL-1.1" }
+  },
+  "servers": [
+    { "url": "https://solvela-gateway.fly.dev", "description": "Production" }
+  ],
+  "paths": {
+    "/v1/chat/completions": {
+      "post": {
+        "operationId": "createChatCompletion",
+        "summary": "Create an OpenAI-compatible chat completion",
+        "description": "OpenAI-compatible chat completion. Without a `PAYMENT-SIGNATURE` header the gateway returns HTTP 402 with an x402 challenge: a legacy snake_case JSON body plus a canonical x402 v2 challenge (camelCase) in the `PAYMENT-REQUIRED` response header, both quoting the USDC cost on Solana mainnet. Sign the quoted `exact` (or `escrow`) payment with your wallet and resubmit the same request with the signed payment payload in the `PAYMENT-SIGNATURE` header to receive the completion.",
+        "security": [{}, { "x402Payment": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ChatCompletionRequest" },
+              "example": {
+                "model": "auto",
+                "messages": [
+                  { "role": "user", "content": "What is 2+2?" }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Chat completion (or an SSE stream when `stream` is true).",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ChatCompletionResponse" }
+              },
+              "text/event-stream": {
+                "schema": { "type": "string", "description": "Server-sent events: `data: {chunk}` lines terminated by `data: [DONE]`." }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. Two distinct bodies share this status: (1) the x402 **challenge** (`PaymentRequired`, snake_case fields) when the request carries no `PAYMENT-SIGNATURE` header — sign and resubmit; (2) the standard **error envelope** (`Error`, with `error.type` of `payment_required` or `invalid_payment`) when a payment header was present but could not be decoded or verified — do not blindly retry. The `PAYMENT-REQUIRED` response header accompanies the challenge form.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded canonical x402 v2 challenge as camelCase JSON (`x402Version`, `accepts[].payTo`, `accepts[].maxTimeoutSeconds`, …) — note the JSON *body* uses snake_case; the two casings are intentional and must not be mixed. Carries only `exact` scheme entries, each with `extra: {\"decimals\": 6}`. Present whenever an `exact` scheme is offered (i.e., on every challenge).",
+                "schema": { "type": "string" }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/PaymentRequired" },
+                    { "$ref": "#/components/schemas/Error" }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (`error.type`: `bad_request`).",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "404": {
+            "description": "Unknown model ID, alias, or profile (`error.type`: `model_not_found`).",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "415": {
+            "description": "Image content sent to a model without vision capability (`error.type`: `unsupported_media_type`).",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "429": {
+            "description": "Rate limited (`error.type`: `rate_limit_exceeded` or `rate_limited`). Honor `retry-after` before retrying.",
+            "headers": {
+              "retry-after": { "description": "Seconds until the rate-limit window resets.", "schema": { "type": "integer" } },
+              "x-ratelimit-limit": { "description": "Requests allowed per window.", "schema": { "type": "integer" } },
+              "x-ratelimit-remaining": { "description": "Requests remaining in the current window (always 0 on a 429).", "schema": { "type": "integer" } },
+              "x-ratelimit-reset": { "description": "Seconds until the window resets.", "schema": { "type": "integer" } }
+            },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "5XX": {
+            "description": "Upstream or gateway failure: 502 (`provider_error`), 503 (`upstream_unavailable` — all providers down), 500 (`settlement_failed`, `internal_error`).",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
+      }
+    },
+    "/v1/models": {
+      "get": {
+        "operationId": "listModels",
+        "summary": "List available models with pricing and capabilities",
+        "description": "Returns the model catalog with per-token pricing and capabilities. No payment required.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Model list.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ModelList" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "summary": "Report gateway and dependency health status",
+        "description": "Liveness/readiness probe. No payment required.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Service status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "status": { "type": "string", "enum": ["ok", "degraded", "error"] } },
+                  "required": ["status"]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "x402Payment": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "PAYMENT-SIGNATURE",
+        "description": "x402 payment payload: JSON (raw or base64-encoded) of the form `{ x402_version, resource: {url, method}, accepted: <one entry from the 402 challenge's accepts[]>, payload: { transaction } | { deposit_tx, service_id, agent_pubkey } }`, where `transaction`/`deposit_tx` is a base64-encoded signed Solana versioned transaction. Omit the header to receive the 402 challenge quoting the price."
+      }
+    },
+    "schemas": {
+      "ChatCompletionRequest": {
+        "type": "object",
+        "required": ["model", "messages"],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Model ID (e.g. `openai/gpt-4o`), alias (e.g. `sonnet`), or routing profile (`auto`, `eco`, `premium`, `free`). Call `GET /v1/models` for available IDs.",
+            "example": "auto"
+          },
+          "messages": {
+            "type": "array",
+            "description": "Conversation messages in OpenAI chat format, ordered oldest to newest (roles: system, user, assistant, tool, developer).",
+            "minItems": 1,
+            "items": { "$ref": "#/components/schemas/ChatMessage" }
+          },
+          "max_tokens": { "type": "integer", "minimum": 1, "description": "Max output tokens; clamped to the model limit." },
+          "temperature": { "type": "number", "minimum": 0, "maximum": 2 },
+          "top_p": { "type": "number", "minimum": 0, "maximum": 1 },
+          "stream": { "type": "boolean", "default": false, "description": "Stream the response as Server-Sent Events." },
+          "tools": { "type": "array", "items": { "type": "object" }, "description": "OpenAI-style tool/function definitions." },
+          "tool_choice": { "description": "OpenAI-style tool choice." }
+        }
+      },
+      "ChatMessage": {
+        "type": "object",
+        "required": ["role"],
+        "properties": {
+          "role": { "type": "string", "enum": ["system", "user", "assistant", "tool", "developer"] },
+          "content": {
+            "description": "Plain string, an array of content parts (text and image_url) for vision-capable models, or null/absent on assistant turns that carry only `tool_calls`. The gateway maps absent and null content to the empty string on input.",
+            "anyOf": [
+              { "type": "string" },
+              { "type": "array", "items": { "type": "object" } },
+              { "type": "null" }
+            ]
+          },
+          "name": { "type": "string" },
+          "tool_calls": {
+            "type": "array",
+            "description": "Tool calls requested by the model (assistant messages only). Reply with a `role: tool` message carrying the matching `tool_call_id`.",
+            "items": { "$ref": "#/components/schemas/ToolCall" }
+          },
+          "tool_call_id": { "type": "string" }
+        }
+      },
+      "ToolCall": {
+        "type": "object",
+        "required": ["id", "type", "function"],
+        "properties": {
+          "id": { "type": "string", "description": "Unique identifier for this tool call; echo it back as `tool_call_id` on the follow-up `role: tool` message." },
+          "type": { "type": "string", "example": "function" },
+          "function": {
+            "type": "object",
+            "description": "The function the model wants invoked.",
+            "required": ["name", "arguments"],
+            "properties": {
+              "name": { "type": "string", "description": "Function name, matching a `tools[].function.name` from the request." },
+              "arguments": { "type": "string", "description": "JSON-encoded function arguments." }
+            }
+          }
+        }
+      },
+      "ChatCompletionResponse": {
+        "type": "object",
+        "required": ["id", "object", "created", "model", "choices"],
+        "properties": {
+          "id": { "type": "string" },
+          "object": { "type": "string", "example": "chat.completion" },
+          "created": { "type": "integer" },
+          "model": { "type": "string" },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["index", "message"],
+              "properties": {
+                "index": { "type": "integer" },
+                "message": { "$ref": "#/components/schemas/ChatMessage" },
+                "finish_reason": { "type": ["string", "null"] }
+              }
+            }
+          },
+          "usage": {
+            "type": ["object", "null"],
+            "required": ["prompt_tokens", "completion_tokens", "total_tokens"],
+            "properties": {
+              "prompt_tokens": { "type": "integer" },
+              "completion_tokens": { "type": "integer" },
+              "total_tokens": { "type": "integer" }
+            }
+          }
+        }
+      },
+      "PaymentRequired": {
+        "type": "object",
+        "description": "x402 challenge returned with HTTP 402 when no `PAYMENT-SIGNATURE` header is present. Field names are snake_case; the canonical camelCase rendering travels in the `PAYMENT-REQUIRED` response header.",
+        "required": ["x402_version", "resource", "accepts", "cost_breakdown", "error"],
+        "properties": {
+          "x402_version": { "type": "integer", "example": 2 },
+          "resource": {
+            "type": "object",
+            "required": ["url", "method"],
+            "properties": {
+              "url": { "type": "string", "example": "/v1/chat/completions" },
+              "method": { "type": "string", "example": "POST" }
+            }
+          },
+          "accepts": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["scheme", "network", "amount", "asset", "pay_to", "max_timeout_seconds"],
+              "properties": {
+                "scheme": { "type": "string", "enum": ["exact", "escrow"] },
+                "network": { "type": "string", "example": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" },
+                "amount": { "type": "string", "description": "Atomic units (USDC has 6 decimals)." },
+                "asset": { "type": "string", "description": "USDC SPL mint address." },
+                "pay_to": { "type": "string", "description": "Recipient wallet address." },
+                "max_timeout_seconds": { "type": "integer", "example": 300 },
+                "escrow_program_id": { "type": "string", "description": "Escrow program ID. Present only on `scheme: escrow` entries; absent otherwise." }
+              }
+            }
+          },
+          "cost_breakdown": {
+            "type": "object",
+            "required": ["provider_cost", "platform_fee", "total", "currency", "fee_percent"],
+            "properties": {
+              "provider_cost": { "type": "string" },
+              "platform_fee": { "type": "string" },
+              "total": { "type": "string" },
+              "currency": { "type": "string", "example": "USDC" },
+              "fee_percent": { "type": "integer", "example": 5 }
+            }
+          },
+          "error": { "type": "string" }
+        }
+      },
+      "ModelList": {
+        "type": "object",
+        "required": ["object", "data"],
+        "properties": {
+          "object": { "type": "string", "example": "list" },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "object", "provider", "display_name", "context_window", "capabilities", "pricing"],
+              "properties": {
+                "id": { "type": "string" },
+                "object": { "type": "string", "example": "model" },
+                "provider": { "type": "string" },
+                "display_name": { "type": "string" },
+                "context_window": { "type": "integer" },
+                "capabilities": {
+                  "type": "object",
+                  "required": ["streaming", "tools", "vision", "reasoning"],
+                  "properties": {
+                    "streaming": { "type": "boolean" },
+                    "tools": { "type": "boolean" },
+                    "vision": { "type": "boolean" },
+                    "reasoning": { "type": "boolean" }
+                  }
+                },
+                "pricing": {
+                  "type": "object",
+                  "required": ["input_per_million", "output_per_million", "currency", "fee_percent"],
+                  "properties": {
+                    "input_per_million": { "type": "number" },
+                    "output_per_million": { "type": "number" },
+                    "currency": { "type": "string", "example": "USDC" },
+                    "fee_percent": { "type": "integer", "example": 5 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": ["type", "message"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "description": "Machine-readable error kind. Known values: `bad_request`, `model_not_found`, `payment_required`, `invalid_payment`, `settlement_failed`, `forbidden`, `unsupported_media_type`, `rate_limited`, `rate_limit_exceeded`, `provider_error`, `upstream_unavailable`, `internal_error`. New values may be added; treat unknown values as retriable-or-not by HTTP status.",
+                "example": "invalid_payment"
+              },
+              "message": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
