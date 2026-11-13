@@ -42,9 +42,7 @@ use_case: "Use for ..."                    # 32–255 chars, helps LLMs route
 category: compute                          # see categories list below
 service_url: https://x402.quicknode.com    # production HTTPS URL, no IPs
 openapi:
-  url: https://x402.quicknode.com/openapi.json
-  # OR (for co-located specs):
-  # path: openapi.json
+  path: openapi.json                       # commit the spec next to PAY.md
 ---
 
 Free-form prose. Explain what the API offers, when an agent should reach
