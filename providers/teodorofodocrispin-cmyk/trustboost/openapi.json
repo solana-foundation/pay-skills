@@ -1,0 +1,440 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "TrustBoost PII Sanitizer",
+    "version": "2.6.0",
+    "description": "Privacy firewall for autonomous AI agent pipelines. Sanitizes PII before text reaches LLMs. Every paid sanitization anchored on Solana.",
+    "x-agentcash-auth": {
+      "mode": "paid"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.trustboost.dev",
+      "description": "TrustBoost production API"
+    }
+  ],
+  "paths": {
+    "/sanitize": {
+      "post": {
+        "summary": "Sanitize PII from text",
+        "description": "Detects and redacts PII from text before it reaches an LLM. Supports 8 languages and 5 context modes. Returns sanitized_content, safety_score, risk_category, and entities[]. Proof of Sanitization anchored on Solana for paid requests.",
+        "x-pay": {
+          "price": 0.0149,
+          "currency": "USDC",
+          "network": "solana",
+          "trial": "tx_hash=TRIAL for 50 free sanitizations per wallet"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "description": "Text to sanitize. Max 10,000 chars.",
+                    "example": "Contact John at john@example.com, SSN 123-45-6789"
+                  },
+                  "tx_hash": {
+                    "type": "string",
+                    "description": "Solana tx_hash for paid access. Use TRIAL for 50 free sanitizations.",
+                    "example": "TRIAL"
+                  },
+                  "wallet_address": {
+                    "type": "string",
+                    "description": "Agent wallet identifier for quota tracking.",
+                    "example": "your-agent-wallet"
+                  },
+                  "context": {
+                    "type": "string",
+                    "enum": [
+                      "general",
+                      "legal",
+                      "financial",
+                      "medical",
+                      "code"
+                    ],
+                    "description": "Domain context for specialized redaction rules.",
+                    "default": "general"
+                  }
+                },
+                "required": [
+                  "text"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sanitization successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "success"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "sanitized_content": {
+                          "type": "string",
+                          "example": "Contact [REDACTED] at [REDACTED], SSN [REDACTED]"
+                        },
+                        "safety_score": {
+                          "type": "number",
+                          "example": 0.6
+                        },
+                        "risk_category": {
+                          "type": "string",
+                          "enum": [
+                            "CLEAN",
+                            "SENSITIVE",
+                            "PRIVATE",
+                            "CRITICAL"
+                          ],
+                          "example": "PRIVATE"
+                        },
+                        "entities_removed": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "entities": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "example": "email"
+                              },
+                              "category": {
+                                "type": "string",
+                                "example": "PRIVATE"
+                              },
+                              "redacted_text": {
+                                "type": "string",
+                                "example": "[original-value-redacted-from-response-logs]",
+                                "description": "Original value that was redacted. WARNING: contains raw PII — do not log this field for EU AI Act audit compliance. Store only sanitized_content."
+                              }
+                            }
+                          }
+                        },
+                        "context_applied": {
+                          "type": "string",
+                          "example": "general"
+                        },
+                        "proof_of_sanitization": {
+                          "type": "object",
+                          "description": "Solana anchor — paid requests only",
+                          "properties": {
+                            "solana_tx": {
+                              "type": "string"
+                            },
+                            "verify_url": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "usage_metrics": {
+                          "type": "object",
+                          "properties": {
+                            "quota_remaining": {
+                              "type": "integer",
+                              "example": 49
+                            },
+                            "quota_limit": {
+                              "type": "integer",
+                              "example": 50
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required — x402 payment info returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "payment_required"
+                    },
+                    "x402": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Text too long — split into chunks and retry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "error"
+                    },
+                    "code": {
+                      "type": "string",
+                      "example": "TEXT_TOO_LONG"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Text is 15,000 chars. Maximum is 10,000 chars per request."
+                    },
+                    "split": {
+                      "type": "object",
+                      "properties": {
+                        "max_chars_per_chunk": {
+                          "type": "integer",
+                          "example": 10000
+                        },
+                        "chunks_needed": {
+                          "type": "integer",
+                          "example": 2
+                        },
+                        "sanitizations_needed": {
+                          "type": "integer",
+                          "example": 2
+                        },
+                        "quota_cost": {
+                          "type": "string",
+                          "example": "2 sanitizations from your quota"
+                        }
+                      }
+                    },
+                    "how_to_split": {
+                      "type": "object",
+                      "properties": {
+                        "example_python": {
+                          "type": "string",
+                          "example": "chunks = [text[i:i+10000] for i in range(0, len(text), 10000)]"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "x402 discovery — returns payment requirements",
+        "description": "Returns HTTP 402 with PAYMENT-REQUIRED header for x402 validator crawlers and agent discovery.",
+        "responses": {
+          "402": {
+            "description": "Payment required — x402 v2 discovery response",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded x402 v2 payment requirements",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sanitize/preview": {
+      "post": {
+        "summary": "Free PII preview — no wallet required",
+        "description": "3 free sanitizations per IP per hour. Max 500 chars. No tx_hash or wallet required. Response is a flat object (no data wrapper) — see POST /sanitize for the full paid envelope.",
+        "x-pay": {
+          "price": 0,
+          "currency": "USDC",
+          "mode": "free"
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "description": "Text to sanitize. Max 500 chars.",
+                    "example": "My email is john@example.com"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preview sanitization result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sanitized_content": {
+                      "type": "string",
+                      "example": "My email is [REDACTED]"
+                    },
+                    "safety_score": {
+                      "type": "number",
+                      "example": 0.2
+                    },
+                    "risk_category": {
+                      "type": "string",
+                      "example": "PRIVATE"
+                    },
+                    "demo": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "requests_remaining": {
+                      "type": "integer",
+                      "example": 2
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/score/{wallet_address}": {
+      "get": {
+        "summary": "TrustBoost Score — M2M trust verification",
+        "description": "Returns trust tier and score for a wallet/agent based on sanitization history. Tiers: NEW, ACTIVE, VERIFIED, TRUSTED.",
+        "x-pay": {
+          "price": 0,
+          "currency": "USDC",
+          "mode": "free"
+        },
+        "parameters": [
+          {
+            "name": "wallet_address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "your-agent-wallet"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Trust score and tier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "trust_tier": {
+                      "type": "string",
+                      "example": "ACTIVE"
+                    },
+                    "trustboost_score": {
+                      "type": "number",
+                      "example": 0.74
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/verify/{anchor_tx}": {
+      "get": {
+        "summary": "Verify Proof of Sanitization on Solana",
+        "description": "Verifies a paid sanitization proof anchored on Solana. Returns immutable audit trail for EU AI Act compliance.",
+        "x-pay": {
+          "price": 0,
+          "currency": "USDC",
+          "mode": "free"
+        },
+        "parameters": [
+          {
+            "name": "anchor_tx",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "solana-tx-signature"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Proof verified",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "verified"
+                    },
+                    "proof": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Service health check",
+        "description": "Returns service status and version.",
+        "x-pay": {
+          "price": 0,
+          "currency": "USDC",
+          "mode": "free"
+        },
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "version": {
+                      "type": "string",
+                      "example": "2.6.0"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
