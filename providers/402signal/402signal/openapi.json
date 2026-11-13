@@ -1,0 +1,694 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "402Signal",
+        "version": "0.3.0",
+        "description": "Fail-closed live-endpoint x402 router. Pay $0.01 USDC on Base, Solana, or Algorand for a URL that answers unpaid HTTP 402 with a payment envelope, or an honest miss. Reachable 200s are misses. MCP: GET /mcp.json.",
+        "x-guidance": "POST /route with JSON {need, url?}. Unpaid calls return HTTP 402. Agents that intend to pay should POST, not GET. GET /route with Accept: application/json (or no Accept) returns the 402 challenge so crawlers can index payment; browsers that send text/html get a human page. Pay $0.01 USDC (protocol amount 10000 atomic, 6 decimals) then retry with PAYMENT-SIGNATURE or X-PAYMENT. We verify, probe, then settle. Live means a parseable unpaid 402 (PAYMENT-REQUIRED or JSON accepts[]/x402Version), not merely reachable. HTTP 200 after pay is a live URL; 503 is an honest miss (same $0.01). GET /mcp.json lists the MCP tool; POST /mcp initialize and tools/list are free; tools/call route is the same paid probe as POST /route. GET /pulse and GET /dashboard are free sample lookups. GET /health is free liveness.",
+        "contact": {
+            "url": "https://402signal.com",
+            "name": "402Signal"
+        }
+    },
+    "servers": [
+        {
+            "url": "https://402signal.com",
+            "description": "This origin"
+        }
+    ],
+    "tags": [
+        {
+            "name": "Paid",
+            "description": "x402-gated routes"
+        },
+        {
+            "name": "Free",
+            "description": "Public catalog and liveness"
+        }
+    ],
+    "paths": {
+        "/route": {
+            "get": {
+                "operationId": "getRoute",
+                "tags": [
+                    "Paid"
+                ],
+                "summary": "Get JSON 402 challenge or HTML page",
+                "description": "Agents and crawlers that omit Accept or send application/json receive HTTP 402 with accepts[]. Browsers that send text/html receive an HTML page. Agents that intend to pay should POST.",
+                "parameters": [
+                    {
+                        "in": "header",
+                        "name": "Accept",
+                        "required": false,
+                        "description": "text/html returns HTML; application/json or omitted returns HTTP 402 with accepts[].",
+                        "schema": {
+                            "type": "string",
+                            "example": "application/json"
+                        }
+                    }
+                ],
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ],
+                    "networks": [
+                        "eip155:8453",
+                        "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                        "algorand:wGHE2Pwdvd7S12BL5FaOP20EGYesN73ktiC1qzkkit8="
+                    ],
+                    "asset": "USDC",
+                    "amountAtomic": "10000"
+                },
+                "responses": {
+                    "200": {
+                        "description": "HTML page for browsers that send Accept: text/html",
+                        "content": {
+                            "text/html": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment challenge for agents and crawlers. JSON body includes accepts[].",
+                        "headers": {
+                            "PAYMENT-REQUIRED": {
+                                "description": "Base64 x402 PaymentRequired (v2)",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaymentRequired"
+                                },
+                                "example": {
+                                    "x402Version": 2,
+                                    "error": "Payment required",
+                                    "amount": "$0.01",
+                                    "asset": "USDC",
+                                    "network": "eip155:8453",
+                                    "accepts": [
+                                        {
+                                            "scheme": "exact",
+                                            "network": "eip155:8453",
+                                            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                                            "currency": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                                            "amount": "10000",
+                                            "payTo": "0xb18fc2275f36dae99eb215caeff03b431f887d16",
+                                            "maxTimeoutSeconds": 60,
+                                            "extra": {
+                                                "name": "USD Coin",
+                                                "version": "2",
+                                                "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402",
+                                                "caip2": "eip155:8453",
+                                                "displayAmount": "$0.01"
+                                            }
+                                        },
+                                        {
+                                            "scheme": "exact",
+                                            "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                                            "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                                            "currency": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                                            "amount": "10000",
+                                            "payTo": "HCM423cyKYVUoq9GvmqUphZwYVB6M2wez34i9jzSewLy",
+                                            "maxTimeoutSeconds": 60,
+                                            "extra": {
+                                                "name": "USD Coin",
+                                                "facilitator": "https://facilitator.payai.network",
+                                                "feePayer": "CjNFTjvBhbJJd2B5ePPMHRLx1ELZpa8dwQgGL727eKww",
+                                                "displayAmount": "$0.01"
+                                            }
+                                        },
+                                        {
+                                            "scheme": "exact",
+                                            "network": "algorand:wGHE2Pwdvd7S12BL5FaOP20EGYesN73ktiC1qzkkit8=",
+                                            "asset": "31566704",
+                                            "currency": "31566704",
+                                            "amount": "10000",
+                                            "payTo": "N2JSJZCSORMYGYO2NSIYRUEMBFRHEOMYODVXV2MXYYHB5H2JVUGG6NJ4NQ",
+                                            "maxTimeoutSeconds": 60,
+                                            "extra": {
+                                                "name": "USD Coin",
+                                                "facilitator": "https://facilitator.goplausible.xyz",
+                                                "feePayer": "ZMFK2OI7ZBD2U27ISERZC4S6LKM6WMFJPZQ4MYNJDZ2VNBNMBA67RA22AA",
+                                                "displayAmount": "$0.01"
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "operationId": "route",
+                "tags": [
+                    "Paid"
+                ],
+                "summary": "Pay $0.01 USDC for a live paid-API URL or an honest miss",
+                "description": "Fail-closed live-endpoint x402 router. Pay $0.01 USDC on Base, Solana, or Algorand for a URL that answers unpaid HTTP 402 with a payment envelope, or an honest miss. Reachable 200s are misses. MCP: GET /mcp.json.",
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ],
+                    "networks": [
+                        "eip155:8453",
+                        "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                        "algorand:wGHE2Pwdvd7S12BL5FaOP20EGYesN73ktiC1qzkkit8="
+                    ],
+                    "asset": "USDC",
+                    "amountAtomic": "10000"
+                },
+                "x-discovery": {
+                    "ownershipProofs": [
+                        "0xb18fc2275f36dae99eb215caeff03b431f887d16",
+                        "HCM423cyKYVUoq9GvmqUphZwYVB6M2wez34i9jzSewLy",
+                        "N2JSJZCSORMYGYO2NSIYRUEMBFRHEOMYODVXV2MXYYHB5H2JVUGG6NJ4NQ"
+                    ]
+                },
+                "security": [
+                    {
+                        "paymentSignature": []
+                    },
+                    {
+                        "xPayment": []
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "need": {
+                                        "type": "string",
+                                        "description": "What the caller wants routed (plain English).",
+                                        "example": "erc20 token balance"
+                                    },
+                                    "url": {
+                                        "type": "string",
+                                        "description": "Optional https URL to probe instead of discovery.",
+                                        "example": "https://example.com/x402/balance"
+                                    }
+                                },
+                                "additionalProperties": false
+                            },
+                            "example": {
+                                "need": "erc20 token balance",
+                                "url": "https://example.com/x402/balance"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Live URL found after payment",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "live": {
+                                            "type": "boolean"
+                                        },
+                                        "url": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "status": {
+                                            "type": [
+                                                "integer",
+                                                "null"
+                                            ]
+                                        },
+                                        "latency_ms": {
+                                            "type": [
+                                                "integer",
+                                                "null"
+                                            ]
+                                        },
+                                        "has_402_challenge": {
+                                            "type": "boolean"
+                                        },
+                                        "probed_at": {
+                                            "type": "string"
+                                        },
+                                        "tried": {
+                                            "type": "integer"
+                                        },
+                                        "payTo": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "payTo_changed": {
+                                            "type": "boolean"
+                                        },
+                                        "traction": {
+                                            "type": "string"
+                                        },
+                                        "miss_reason": {
+                                            "type": "string"
+                                        },
+                                        "probes": {
+                                            "type": "array"
+                                        },
+                                        "health": {
+                                            "type": "object",
+                                            "properties": {
+                                                "live": {
+                                                    "type": "boolean"
+                                                },
+                                                "last_probe": {
+                                                    "type": "string"
+                                                },
+                                                "latency_ms": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "has_402_challenge": {
+                                                    "type": "boolean"
+                                                },
+                                                "status": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "example": {
+                                    "live": true,
+                                    "url": "https://example.com/x402/balance",
+                                    "status": 402,
+                                    "latency_ms": 87,
+                                    "has_402_challenge": true,
+                                    "probed_at": "2026-08-29T22:00:00-04:00",
+                                    "tried": 1
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Payment required. $0.01 USDC. Protocol amount is 10000 atomic (6 decimals), not 10,000 dollars.",
+                        "headers": {
+                            "PAYMENT-REQUIRED": {
+                                "description": "Base64 x402 PaymentRequired (v2)",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaymentRequired"
+                                },
+                                "example": {
+                                    "x402Version": 2,
+                                    "error": "Payment required",
+                                    "amount": "$0.01",
+                                    "asset": "USDC",
+                                    "network": "eip155:8453",
+                                    "accepts": [
+                                        {
+                                            "scheme": "exact",
+                                            "network": "eip155:8453",
+                                            "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                                            "currency": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                                            "amount": "10000",
+                                            "payTo": "0xb18fc2275f36dae99eb215caeff03b431f887d16",
+                                            "maxTimeoutSeconds": 60,
+                                            "extra": {
+                                                "name": "USD Coin",
+                                                "version": "2",
+                                                "facilitator": "https://api.cdp.coinbase.com/platform/v2/x402",
+                                                "caip2": "eip155:8453",
+                                                "displayAmount": "$0.01"
+                                            }
+                                        },
+                                        {
+                                            "scheme": "exact",
+                                            "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+                                            "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                                            "currency": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                                            "amount": "10000",
+                                            "payTo": "HCM423cyKYVUoq9GvmqUphZwYVB6M2wez34i9jzSewLy",
+                                            "maxTimeoutSeconds": 60,
+                                            "extra": {
+                                                "name": "USD Coin",
+                                                "facilitator": "https://facilitator.payai.network",
+                                                "feePayer": "CjNFTjvBhbJJd2B5ePPMHRLx1ELZpa8dwQgGL727eKww",
+                                                "displayAmount": "$0.01"
+                                            }
+                                        },
+                                        {
+                                            "scheme": "exact",
+                                            "network": "algorand:wGHE2Pwdvd7S12BL5FaOP20EGYesN73ktiC1qzkkit8=",
+                                            "asset": "31566704",
+                                            "currency": "31566704",
+                                            "amount": "10000",
+                                            "payTo": "N2JSJZCSORMYGYO2NSIYRUEMBFRHEOMYODVXV2MXYYHB5H2JVUGG6NJ4NQ",
+                                            "maxTimeoutSeconds": 60,
+                                            "extra": {
+                                                "name": "USD Coin",
+                                                "facilitator": "https://facilitator.goplausible.xyz",
+                                                "feePayer": "ZMFK2OI7ZBD2U27ISERZC4S6LKM6WMFJPZQ4MYNJDZ2VNBNMBA67RA22AA",
+                                                "displayAmount": "$0.01"
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Honest miss. Paid probe found nothing live.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "live": {
+                                            "type": "boolean"
+                                        },
+                                        "url": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "status": {
+                                            "type": [
+                                                "integer",
+                                                "null"
+                                            ]
+                                        },
+                                        "latency_ms": {
+                                            "type": [
+                                                "integer",
+                                                "null"
+                                            ]
+                                        },
+                                        "has_402_challenge": {
+                                            "type": "boolean"
+                                        },
+                                        "probed_at": {
+                                            "type": "string"
+                                        },
+                                        "tried": {
+                                            "type": "integer"
+                                        },
+                                        "payTo": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "payTo_changed": {
+                                            "type": "boolean"
+                                        },
+                                        "traction": {
+                                            "type": "string"
+                                        },
+                                        "miss_reason": {
+                                            "type": "string"
+                                        },
+                                        "probes": {
+                                            "type": "array"
+                                        },
+                                        "health": {
+                                            "type": "object",
+                                            "properties": {
+                                                "live": {
+                                                    "type": "boolean"
+                                                },
+                                                "last_probe": {
+                                                    "type": "string"
+                                                },
+                                                "latency_ms": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "has_402_challenge": {
+                                                    "type": "boolean"
+                                                },
+                                                "status": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "example": {
+                                    "live": false,
+                                    "url": null,
+                                    "tried": 0
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/mcp.json": {
+            "get": {
+                "operationId": "mcpManifest",
+                "tags": [
+                    "Free"
+                ],
+                "summary": "List MCP tools without a payment",
+                "description": "One tool: route. Unpaid tools/call returns HTTP 402.",
+                "responses": {
+                    "200": {
+                        "description": "MCP manifest"
+                    }
+                }
+            }
+        },
+        "/.well-known/mcp.json": {
+            "get": {
+                "operationId": "mcpManifestWellKnown",
+                "tags": [
+                    "Free"
+                ],
+                "summary": "List MCP tools at the well-known path",
+                "responses": {
+                    "200": {
+                        "description": "MCP manifest"
+                    }
+                }
+            }
+        },
+        "/mcp": {
+            "get": {
+                "operationId": "mcpManifestAlias",
+                "tags": [
+                    "Free"
+                ],
+                "summary": "List MCP tools at the MCP alias",
+                "responses": {
+                    "200": {
+                        "description": "MCP manifest"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "mcpJsonRpc",
+                "tags": [
+                    "Paid"
+                ],
+                "summary": "Post MCP JSON-RPC; tools/call route is x402-gated",
+                "description": "Fail-closed live-endpoint x402 router. Pay $0.01 USDC on Base, Solana, or Algorand for a URL that answers unpaid HTTP 402 with a payment envelope, or an honest miss. Reachable 200s are misses. MCP: GET /mcp.json.",
+                "x-payment-info": {
+                    "price": {
+                        "mode": "fixed",
+                        "currency": "USD",
+                        "amount": "0.01"
+                    },
+                    "protocols": [
+                        {
+                            "x402": {}
+                        }
+                    ]
+                },
+                "responses": {
+                    "200": {
+                        "description": "initialize / tools/list / paid route result"
+                    },
+                    "402": {
+                        "description": "Payment required for tools/call route"
+                    }
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "operationId": "health",
+                "tags": [
+                    "Free"
+                ],
+                "summary": "Check service liveness as JSON ok",
+                "responses": {
+                    "200": {
+                        "description": "ok",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/pulse": {
+            "get": {
+                "operationId": "pulse",
+                "tags": [
+                    "Free"
+                ],
+                "summary": "Get JSON snapshot of sample lookups",
+                "responses": {
+                    "200": {
+                        "description": "Public sample lookups snapshot"
+                    }
+                }
+            }
+        },
+        "/dashboard": {
+            "get": {
+                "operationId": "dashboard",
+                "tags": [
+                    "Free"
+                ],
+                "summary": "Render HTML examples of sample lookups",
+                "responses": {
+                    "200": {
+                        "description": "HTML"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "paymentSignature": {
+                "type": "apiKey",
+                "in": "header",
+                "name": "PAYMENT-SIGNATURE",
+                "description": "x402 v2 PaymentPayload, base64 JSON"
+            },
+            "xPayment": {
+                "type": "apiKey",
+                "in": "header",
+                "name": "X-PAYMENT",
+                "description": "x402 v1/v2 payment header"
+            }
+        },
+        "schemas": {
+            "PaymentRequired": {
+                "type": "object",
+                "description": "x402 PaymentRequired. accepts[].amount is atomic USDC (10000 = $0.01).",
+                "properties": {
+                    "x402Version": {
+                        "type": "integer",
+                        "example": 2
+                    },
+                    "error": {
+                        "type": "string"
+                    },
+                    "payTo": {
+                        "type": "string"
+                    },
+                    "network": {
+                        "type": "string"
+                    },
+                    "asset": {
+                        "type": "string"
+                    },
+                    "amount": {
+                        "type": "string",
+                        "example": "$0.01"
+                    },
+                    "resource": {
+                        "type": "object"
+                    },
+                    "accepts": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "scheme": {
+                                    "type": "string"
+                                },
+                                "network": {
+                                    "type": "string"
+                                },
+                                "asset": {
+                                    "type": "string"
+                                },
+                                "amount": {
+                                    "type": "string",
+                                    "description": "Atomic USDC. 10000 = $0.01",
+                                    "example": "10000"
+                                },
+                                "payTo": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "extensions": {
+                        "type": "object"
+                    }
+                }
+            }
+        }
+    },
+    "x-discovery": {
+        "ownershipProofs": [
+            "0xb18fc2275f36dae99eb215caeff03b431f887d16",
+            "HCM423cyKYVUoq9GvmqUphZwYVB6M2wez34i9jzSewLy",
+            "N2JSJZCSORMYGYO2NSIYRUEMBFRHEOMYODVXV2MXYYHB5H2JVUGG6NJ4NQ"
+        ]
+    }
+}
