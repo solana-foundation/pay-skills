@@ -1,0 +1,324 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SAP MCP Server",
+    "version": "0.6.0",
+    "description": "MCP gateway for Solana DeFi, SAP agent registry, and x402 micropayments. 248 tools across Jupiter, Drift, Metaplex, Pump.fun, Raydium, Orca, and more.",
+    "x-guidance": "Connect to POST /mcp with Accept: application/json, text/event-stream. Initialize an MCP session first, then call tools. Paid tools return a payment_required JSON-RPC error (HTTP 200 for MCP SDK compatibility) or HTTP 402 for non-MCP clients. Use x402_paid_call or npx sap-mcp-x402-paid-call to self-pay and retry.",
+    "contact": {
+      "name": "OOBE Protocol Labs",
+      "url": "https://github.com/OOBE-PROTOCOL/sap-mcp",
+      "email": "oobe@oobeprotocol.ai"
+    }
+  },
+  "x-discovery": {
+    "resources": [
+      "https://mcp.sap.oobeprotocol.ai/mcp"
+    ],
+    "openApi": "https://mcp.sap.oobeprotocol.ai/openapi.json",
+    "x402Discovery": "https://mcp.sap.oobeprotocol.ai/.well-known/x402",
+    "payShProvider": "https://mcp.sap.oobeprotocol.ai/pay/provider.yml",
+    "payments": {
+      "provider": "x402",
+      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "assetSymbol": "USDC",
+      "payTo": "J7PyZAGKvprCz4SQ5DKBLAHstJxgVqZcz6kguUoWpP7P",
+      "seller": {
+        "name": "OOBE Protocol",
+        "payTo": "J7PyZAGKvprCz4SQ5DKBLAHstJxgVqZcz6kguUoWpP7P"
+      },
+      "facilitator": {
+        "role": "x402-svm-fee-payer",
+        "publicKey": "EQfGLHBFyWfE3auGdNc1t7sNXaZEB2zXpqhgaGRYwob2"
+      },
+      "headers": {
+        "paymentRequired": "PAYMENT-REQUIRED",
+        "paymentSignature": "PAYMENT-SIGNATURE",
+        "paymentResponse": "PAYMENT-RESPONSE"
+      }
+    }
+  },
+  "x-pay-sh": {
+    "providerYaml": "https://mcp.sap.oobeprotocol.ai/pay/provider.yml",
+    "routing": {
+      "type": "proxy",
+      "upstream": "https://mcp.sap.oobeprotocol.ai/"
+    },
+    "monetization": {
+      "mode": "metered",
+      "unit": "requests",
+      "sourceOfTruth": "SAP MCP per-tool x402 pricing remains authoritative after proxy forwarding."
+    }
+  },
+  "servers": [
+    {
+      "url": "https://mcp.sap.oobeprotocol.ai",
+      "description": "SAP MCP Hosted Server"
+    }
+  ],
+  "paths": {
+    "/mcp": {
+      "post": {
+        "operationId": "mcpCall",
+        "summary": "Fetch SAP MCP JSON-RPC response",
+        "tags": [
+          "MCP"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "dynamic",
+            "currency": "USD",
+            "min": "0.001",
+            "max": "100"
+          },
+          "protocols": [
+            "x402"
+          ],
+          "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+          "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+          "assetSymbol": "USDC",
+          "payTo": "J7PyZAGKvprCz4SQ5DKBLAHstJxgVqZcz6kguUoWpP7P",
+          "seller": {
+            "name": "OOBE Protocol",
+            "payTo": "J7PyZAGKvprCz4SQ5DKBLAHstJxgVqZcz6kguUoWpP7P"
+          },
+          "facilitator": {
+            "role": "x402-svm-fee-payer",
+            "publicKey": "EQfGLHBFyWfE3auGdNc1t7sNXaZEB2zXpqhgaGRYwob2"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "description": "General MCP JSON-RPC request such as initialize, tools/list, prompts/list, resources/list, or ping.",
+                    "properties": {
+                      "jsonrpc": {
+                        "type": "string",
+                        "const": "2.0"
+                      },
+                      "id": {
+                        "oneOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "string"
+                          }
+                        ],
+                        "description": "JSON-RPC request ID"
+                      },
+                      "method": {
+                        "type": "string",
+                        "description": "MCP method.",
+                        "examples": [
+                          "initialize",
+                          "tools/list",
+                          "prompts/list",
+                          "resources/list",
+                          "ping"
+                        ]
+                      },
+                      "params": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "required": [
+                      "jsonrpc",
+                      "id",
+                      "method"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "description": "MCP tools/call request. Paid tool calls may require x402 payment before execution.",
+                    "properties": {
+                      "jsonrpc": {
+                        "type": "string",
+                        "const": "2.0"
+                      },
+                      "id": {
+                        "oneOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "string"
+                          }
+                        ],
+                        "description": "JSON-RPC request ID"
+                      },
+                      "method": {
+                        "type": "string",
+                        "const": "tools/call"
+                      },
+                      "params": {
+                        "type": "object",
+                        "description": "MCP tools/call parameters containing the target tool name and optional tool arguments.",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "description": "Tool name (e.g. jupiter_getPrice)"
+                          },
+                          "arguments": {
+                            "type": "object",
+                            "description": "Tool arguments",
+                            "additionalProperties": true
+                          }
+                        },
+                        "required": [
+                          "name"
+                        ],
+                        "additionalProperties": true
+                      }
+                    },
+                    "required": [
+                      "jsonrpc",
+                      "id",
+                      "method",
+                      "params"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "MCP tool result or payment_required JSON-RPC error (for MCP SDK clients)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "jsonrpc": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "integer"
+                    },
+                    "result": {
+                      "type": "object",
+                      "description": "Tool result (if free or paid)"
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "protocol": {
+                              "type": "string"
+                            },
+                            "paymentRequirements": {
+                              "type": "array"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Streamable HTTP MCP event stream containing JSON-RPC response events."
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required (x402 challenge for non-MCP clients)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "x402Version": {
+                      "type": "integer"
+                    },
+                    "error": {
+                      "type": "string"
+                    },
+                    "accepts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "scheme": {
+                            "type": "string"
+                          },
+                          "network": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "string",
+                            "description": "USDC atomic units (6 decimals)"
+                          },
+                          "asset": {
+                            "type": "string"
+                          },
+                          "payTo": {
+                            "type": "string"
+                          },
+                          "maxTimeoutSeconds": {
+                            "type": "integer"
+                          },
+                          "extra": {
+                            "type": "object",
+                            "properties": {
+                              "feePayer": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "resource": {
+                      "type": "object",
+                      "properties": {
+                        "url": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "mimeType": {
+                          "type": "string"
+                        },
+                        "serviceName": {
+                          "type": "string"
+                        },
+                        "tags": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
