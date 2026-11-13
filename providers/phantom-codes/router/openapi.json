@@ -130,7 +130,7 @@
                     },
                     "error": {
                       "type": "string",
-                      "description": "The database error message."
+                      "description": "A fixed message. The driver's own error text is logged without the host or user, and never sent."
                     }
                   },
                   "required": [
@@ -495,7 +495,7 @@
             "name": "x-phantom-session",
             "in": "header",
             "required": false,
-            "description": "Your own conversation id. phantom-1 picks a tier for each new user message and keeps that model for its tool calls. Anthropic messages containing only `tool_result` blocks continue the same user message. Other routing (`auto` with a key policy) can keep one model for the session while `stick_minutes` lasts. Only the first 200 characters count. Without this header, Phantom uses Claude Code's `x-claude-code-session-id` when it arrives, and otherwise groups requests by prompt or conversation opening, depending on the route. Phantom stores a salted hash with the selected model and expiry, and keeps provider affinity for the session so its prompt cache stays warm.",
+            "description": "Your own conversation id. phantom-1 keeps a conversation's routing state under it: paid chat starts each task on standard and can move it to frontier on any request, tool calls included. Anthropic messages containing only `tool_result` blocks continue the same user message. Other routing (`auto` with a key policy) can keep one model for the session while `stick_minutes` lasts. Only the first 200 characters count. Without this header, Phantom uses Claude Code's `x-claude-code-session-id` when it arrives, and otherwise groups requests by prompt or conversation opening, depending on the route. Phantom stores a salted hash with the selected model and expiry, and keeps provider affinity for the session so its prompt cache stays warm.",
             "schema": {
               "type": "string"
             }
@@ -567,7 +567,7 @@
             "name": "x-phantom-escalate",
             "in": "header",
             "required": false,
-            "description": "Send `1` when the current model isn't managing the task. phantom-1 moves this request one tier up (economy, then standard, then frontier). It picks again on the next request, so send the header on each request that should stay up, tool calls included. A key's route policy moves it to the policy's last model. Phantom can't tell a weak answer from a good one, so escalation is your call.",
+            "description": "Send `1` when the current model isn't managing the task. phantom-1 moves this request one tier up, from standard to frontier. It picks again on the next request, so send the header on each request that should stay up, tool calls included. A key's route policy moves it to the policy's last model. Phantom can't tell a weak answer from a good one, so escalation is your call.",
             "schema": {
               "type": "string"
             }
@@ -576,7 +576,7 @@
             "name": "x-phantom-free",
             "in": "header",
             "required": false,
-            "description": "Send `off` so phantom-1 doesn't pick its free model for this request. On a key with no credit, where phantom-1 runs free models only, the request is refused with `402` instead. `zdr` or `no_training`, on the request or in the key's route policy, leaves it out too.",
+            "description": "Send `off` on a key with no credit to get a `402` instead of having phantom-1 run as `phantom-1:free`, on free models only. A key with credit never runs a free model on phantom-1, so there the header changes nothing.",
             "schema": {
               "type": "string"
             }
@@ -613,7 +613,7 @@
                   },
                   "model": {
                     "type": "string",
-                    "description": "A chat model id from `GET /v1/models`; `phantom-1` to let phantom-1 pick its economy, standard or frontier model per task; or `auto` to route by the key's route policy (phantom-1 when the key has none). Renamed ids resolve to the current one. `phantom-1` with an image runs its frontier model. `phantom-1:free` runs only free models, at $0, and needs no credit. `phantom-1:zdr` routes between models with zero data retention on every provider and requires it on every call.",
+                    "description": "A chat model id from `GET /v1/models`; `phantom-1` to let phantom-1 pick its standard or frontier model (a key with no credit runs it as `phantom-1:free`); or `auto` to route by the key's route policy (phantom-1 when the key has none). Renamed ids resolve to the current one. `phantom-1` with an image runs its frontier model. `phantom-1:free` runs only free models, at $0, and needs no credit. `phantom-1:zdr` routes between models with zero data retention on every provider and requires it on every call.",
                     "default": "phantom-1",
                     "examples": [
                       "anthropic/claude-sonnet-5.5"
@@ -808,7 +808,7 @@
               "text/event-stream": {
                 "schema": {
                   "type": "string",
-                  "description": "With `stream: true`: the upstream's `data: {chunk}` lines, passed through, ending with `data: [DONE]`. Just before the chunk that holds `data: [DONE]`, Phantom inserts `event: phantom.receipt` with `data: {\"receipt\":\"<compact receipt>\",\"phantom\":{...}}`, where `phantom` has the same fields as in a non-streaming answer. That receipt's `output_hash` covers the text you received. Without a signing key the event carries `phantom` only."
+                  "description": "With `stream: true`: the upstream's `data: {chunk}` lines, passed through, ending with `data: [DONE]`. Right before the chunk that holds `data: [DONE]`, Phantom inserts `event: phantom.receipt` with `data: {\"receipt\":\"<compact receipt>\",\"phantom\":{...}}`, where `phantom` has the same fields as in a non-streaming answer. That receipt's `output_hash` covers the text you received. Without a signing key the event carries `phantom` only."
                 }
               }
             },
@@ -1044,7 +1044,7 @@
             "name": "x-phantom-session",
             "in": "header",
             "required": false,
-            "description": "Your own conversation id. phantom-1 picks a tier for each new user message and keeps that model for its tool calls. Anthropic messages containing only `tool_result` blocks continue the same user message. Other routing (`auto` with a key policy) can keep one model for the session while `stick_minutes` lasts. Only the first 200 characters count. Without this header, Phantom uses Claude Code's `x-claude-code-session-id` when it arrives, and otherwise groups requests by prompt or conversation opening, depending on the route. Phantom stores a salted hash with the selected model and expiry, and keeps provider affinity for the session so its prompt cache stays warm.",
+            "description": "Your own conversation id. phantom-1 keeps a conversation's routing state under it: paid chat starts each task on standard and can move it to frontier on any request, tool calls included. Anthropic messages containing only `tool_result` blocks continue the same user message. Other routing (`auto` with a key policy) can keep one model for the session while `stick_minutes` lasts. Only the first 200 characters count. Without this header, Phantom uses Claude Code's `x-claude-code-session-id` when it arrives, and otherwise groups requests by prompt or conversation opening, depending on the route. Phantom stores a salted hash with the selected model and expiry, and keeps provider affinity for the session so its prompt cache stays warm.",
             "schema": {
               "type": "string"
             }
@@ -1116,7 +1116,7 @@
             "name": "x-phantom-escalate",
             "in": "header",
             "required": false,
-            "description": "Send `1` when the current model isn't managing the task. phantom-1 moves this request one tier up (economy, then standard, then frontier). It picks again on the next request, so send the header on each request that should stay up, tool calls included. A key's route policy moves it to the policy's last model. Phantom can't tell a weak answer from a good one, so escalation is your call.",
+            "description": "Send `1` when the current model isn't managing the task. phantom-1 moves this request one tier up, from standard to frontier. It picks again on the next request, so send the header on each request that should stay up, tool calls included. A key's route policy moves it to the policy's last model. Phantom can't tell a weak answer from a good one, so escalation is your call.",
             "schema": {
               "type": "string"
             }
@@ -1125,7 +1125,7 @@
             "name": "x-phantom-free",
             "in": "header",
             "required": false,
-            "description": "Send `off` so phantom-1 doesn't pick its free model for this request. On a key with no credit, where phantom-1 runs free models only, the request is refused with `402` instead. `zdr` or `no_training`, on the request or in the key's route policy, leaves it out too.",
+            "description": "Send `off` on a key with no credit to get a `402` instead of having phantom-1 run as `phantom-1:free`, on free models only. A key with credit never runs a free model on phantom-1, so there the header changes nothing.",
             "schema": {
               "type": "string"
             }
@@ -1615,7 +1615,7 @@
       "delete": {
         "operationId": "deleteV1Account",
         "summary": "Erase the signed-in account and its links",
-        "description": "Deletes grants, referrals and workspace ownership, disables automatic reload, and ends sessions. Paid keys and balance remain accessible with the guest recovery files returned here; save them before leaving. Neon Auth retains the sign-in identity, and the hashed grant ledger remains as historical payment records.",
+        "description": "Deletes grants, referrals and workspace ownership, disables automatic reload, and ends sessions, including this browser's workspace session: the `phantom_workspace` cookie is cleared. Paid keys and balance remain accessible with the guest recovery files returned here; save them before leaving. Neon Auth retains the sign-in identity, and the hashed grant ledger remains as historical payment records.",
         "tags": [
           "Account"
         ],
@@ -2684,7 +2684,7 @@
             "name": "x-phantom-session",
             "in": "header",
             "required": false,
-            "description": "Your own conversation id. phantom-1 picks a tier for each new user message and keeps that model for its tool calls. Anthropic messages containing only `tool_result` blocks continue the same user message. Other routing (`auto` with a key policy) can keep one model for the session while `stick_minutes` lasts. Only the first 200 characters count. Without this header, Phantom uses Claude Code's `x-claude-code-session-id` when it arrives, and otherwise groups requests by prompt or conversation opening, depending on the route. Phantom stores a salted hash with the selected model and expiry, and keeps provider affinity for the session so its prompt cache stays warm.",
+            "description": "Your own conversation id. phantom-1 keeps a conversation's routing state under it: paid chat starts each task on standard and can move it to frontier on any request, tool calls included. Anthropic messages containing only `tool_result` blocks continue the same user message. Other routing (`auto` with a key policy) can keep one model for the session while `stick_minutes` lasts. Only the first 200 characters count. Without this header, Phantom uses Claude Code's `x-claude-code-session-id` when it arrives, and otherwise groups requests by prompt or conversation opening, depending on the route. Phantom stores a salted hash with the selected model and expiry, and keeps provider affinity for the session so its prompt cache stays warm.",
             "schema": {
               "type": "string"
             }
@@ -2756,7 +2756,7 @@
             "name": "x-phantom-escalate",
             "in": "header",
             "required": false,
-            "description": "Send `1` when the current model isn't managing the task. phantom-1 moves this request one tier up (economy, then standard, then frontier). It picks again on the next request, so send the header on each request that should stay up, tool calls included. A key's route policy moves it to the policy's last model. Phantom can't tell a weak answer from a good one, so escalation is your call.",
+            "description": "Send `1` when the current model isn't managing the task. phantom-1 moves this request one tier up, from standard to frontier. It picks again on the next request, so send the header on each request that should stay up, tool calls included. A key's route policy moves it to the policy's last model. Phantom can't tell a weak answer from a good one, so escalation is your call.",
             "schema": {
               "type": "string"
             }
@@ -2765,7 +2765,7 @@
             "name": "x-phantom-free",
             "in": "header",
             "required": false,
-            "description": "Send `off` so phantom-1 doesn't pick its free model for this request. On a key with no credit, where phantom-1 runs free models only, the request is refused with `402` instead. `zdr` or `no_training`, on the request or in the key's route policy, leaves it out too.",
+            "description": "Send `off` on a key with no credit to get a `402` instead of having phantom-1 run as `phantom-1:free`, on free models only. A key with credit never runs a free model on phantom-1, so there the header changes nothing.",
             "schema": {
               "type": "string"
             }
@@ -2802,7 +2802,7 @@
                   },
                   "model": {
                     "type": "string",
-                    "description": "A chat model id from `GET /v1/models`; `phantom-1` to let phantom-1 pick its economy, standard or frontier model per task; or `auto` to route by the key's route policy (phantom-1 when the key has none). Renamed ids resolve to the current one. `phantom-1` with an image runs its frontier model. `phantom-1:free` runs only free models, at $0, and needs no credit. `phantom-1:zdr` routes between models with zero data retention on every provider and requires it on every call.",
+                    "description": "A chat model id from `GET /v1/models`; `phantom-1` to let phantom-1 pick its standard or frontier model (a key with no credit runs it as `phantom-1:free`); or `auto` to route by the key's route policy (phantom-1 when the key has none). Renamed ids resolve to the current one. `phantom-1` with an image runs its frontier model. `phantom-1:free` runs only free models, at $0, and needs no credit. `phantom-1:zdr` routes between models with zero data retention on every provider and requires it on every call.",
                     "default": "phantom-1",
                     "examples": [
                       "anthropic/claude-sonnet-5.5"
@@ -2987,7 +2987,7 @@
               "text/event-stream": {
                 "schema": {
                   "type": "string",
-                  "description": "With `stream: true`: the upstream's `data: {chunk}` lines, passed through, ending with `data: [DONE]`. Just before the chunk that holds `data: [DONE]`, Phantom inserts `event: phantom.receipt` with `data: {\"receipt\":\"<compact receipt>\",\"phantom\":{...}}`, where `phantom` has the same fields as in a non-streaming answer. That receipt's `output_hash` covers the text you received. Without a signing key the event carries `phantom` only."
+                  "description": "With `stream: true`: the upstream's `data: {chunk}` lines, passed through, ending with `data: [DONE]`. Right before the chunk that holds `data: [DONE]`, Phantom inserts `event: phantom.receipt` with `data: {\"receipt\":\"<compact receipt>\",\"phantom\":{...}}`, where `phantom` has the same fields as in a non-streaming answer. That receipt's `output_hash` covers the text you received. Without a signing key the event carries `phantom` only."
                 }
               }
             },
@@ -4058,8 +4058,8 @@
       },
       "patch": {
         "operationId": "patchV1KeyBudget",
-        "summary": "Set the key's budget and spend-rate caps",
-        "description": "Sets, changes or clears the spend cap, its window and the per-minute cap. Send only the fields to change; `null` clears one. Setting `budget_usd` starts a new window from now with nothing spent. Changing `period_days` alone keeps the current window start and spend. Every field is checked before anything is written.",
+        "summary": "Tighten the key's budget and spend-rate caps",
+        "description": "With the key alone, a caller can add a cap the key does not have, lower one it has, or make the budget's window longer. Raising or removing a cap, or making the window shorter, answers 403: the workspace does that, under Edit controls on /keys or with `PATCH /v1/workspaces/{id}/keys/{key}`. Send only the fields to change. A budget added to a key with none starts a new window from now with nothing spent; a lowered budget keeps its window start and what was spent in it. Every field is checked before anything is written, and the caps are written together only if they did not change while the request ran.",
         "tags": [
           "Keys"
         ],
@@ -4081,7 +4081,7 @@
                       "number",
                       "null"
                     ],
-                    "description": "Spend cap per window in US dollars, above zero. `null` removes the cap.",
+                    "description": "Spend cap per window in US dollars, above zero, and no more than the key's current cap. `null` is accepted only on a key with no cap.",
                     "examples": [
                       20
                     ]
@@ -4091,7 +4091,7 @@
                       "integer",
                       "null"
                     ],
-                    "description": "Window length in whole days. `null` sets one calendar month.",
+                    "description": "Window length in whole days, no shorter than the current window while the key has a budget. `null` is one calendar month, which runs from 28 to 31 days, so it counts as shorter than a window of 29 days or more.",
                     "minimum": 1,
                     "maximum": 3650,
                     "examples": [
@@ -4103,7 +4103,7 @@
                       "number",
                       "null"
                     ],
-                    "description": "Per-minute spend cap in US dollars, above zero. `null` removes it.",
+                    "description": "Per-minute spend cap in US dollars, above zero, and no more than the key's current cap. `null` is accepted only on a key with no cap.",
                     "examples": [
                       0.5
                     ]
@@ -4228,7 +4228,7 @@
             }
           },
           "400": {
-            "description": "Bad JSON, none of the three fields, a value out of range, or the per-minute cap could not be saved.",
+            "description": "Bad JSON, none of the three fields, or a value out of range.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4255,6 +4255,26 @@
                   "required": [
                     "error"
                   ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The change would raise or remove a cap, or shorten the budget's window. Nothing is written; the message names the workspace's controls.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The key's caps changed while the request ran, such as the workspace lowering one. Nothing is written; read them again and retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleError"
                 }
               }
             }
@@ -4293,31 +4313,24 @@
                         {
                           "frontier": "anthropic/claude-opus-5.5",
                           "fallbacks": {
-                            "economy": "openai/gpt-6-luna"
+                            "standard": "anthropic/claude-haiku-5.5"
                           }
                         }
                       ],
                       "properties": {
-                        "economy": {
-                          "type": [
-                            "string",
-                            "null"
-                          ],
-                          "description": "The model for short, simple jobs. One of `nvidia/nemotron-3.5-lightning-free`, `openai/gpt-6-luna`, `google/gemini-2.5-flash-lite`, `deepseek/deepseek-v4-flash`, `alibaba/qwen3.8-flash`, `anthropic/claude-haiku-5.5`, `openai/gpt-oss-120b`, `zai/glm-5.3-flash`. `null` or left out runs the default."
-                        },
                         "standard": {
                           "type": [
                             "string",
                             "null"
                           ],
-                          "description": "The model for most requests. One of `deepseek/deepseek-v4.1-flash`, `anthropic/claude-haiku-5.5`, `minimax/minimax-m3`, `google/gemini-3-flash`, `alibaba/qwen3-coder-next`, `moonshotai/kimi-k2.7-code`, `deepseek/deepseek-v4-pro`, `openai/gpt-6.1-terra`. `null` or left out runs the default."
+                          "description": "The model every task starts on. One of `deepseek/deepseek-v4.1-flash`, `anthropic/claude-haiku-5.5`, `minimax/minimax-m3`, `google/gemini-3-flash`, `alibaba/qwen3-coder-next`, `moonshotai/kimi-k2.7-code`, `deepseek/deepseek-v4-pro`, `openai/gpt-6.1-terra`. `null` or left out runs the default."
                         },
                         "frontier": {
                           "type": [
                             "string",
                             "null"
                           ],
-                          "description": "The model for hard tasks. One of `anthropic/claude-sonnet-5.5`, `anthropic/claude-opus-5.5`, `openai/gpt-6.1-sol`, `moonshotai/kimi-k3`, `moonshotai/kimi-k3.1-pro`, `google/gemini-4-argon`, `anthropic/claude-fable-5.1`. `null` or left out runs the default."
+                          "description": "The model hard steps move up to. One of `anthropic/claude-sonnet-5.5`, `anthropic/claude-opus-5.5`, `openai/gpt-6.1-sol`, `moonshotai/kimi-k3`, `moonshotai/kimi-k3.1-pro`, `google/gemini-4-argon`, `anthropic/claude-fable-5.1`. `null` or left out runs the default."
                         },
                         "fallbacks": {
                           "type": [
@@ -4327,17 +4340,10 @@
                           "description": "The fallback model for each tier you name. A request that fails on the tier's model tries it next. It is billed at its own price, and a fallback the catalog does not list right now is skipped.",
                           "examples": [
                             {
-                              "economy": "openai/gpt-6-luna"
+                              "standard": "anthropic/claude-haiku-5.5"
                             }
                           ],
                           "properties": {
-                            "economy": {
-                              "type": [
-                                "string",
-                                "null"
-                              ],
-                              "description": "The model to try when the economy model fails. One of `nvidia/nemotron-3.5-lightning-free`, `openai/gpt-6-luna`, `google/gemini-2.5-flash-lite`, `deepseek/deepseek-v4-flash`, `alibaba/qwen3.8-flash`, `anthropic/claude-haiku-5.5`, `openai/gpt-oss-120b`, `zai/glm-5.3-flash`, other than the economy model. `null` or left out keeps the usual fallback: the standard model."
-                            },
                             "standard": {
                               "type": [
                                 "string",
@@ -4360,24 +4366,6 @@
                       "type": "object",
                       "description": "The model each tier runs for this key: its pick, else the default. A pick the catalog does not list right now shows as the default, as a request runs it.",
                       "properties": {
-                        "economy": {
-                          "type": "object",
-                          "description": "The model this tier runs.",
-                          "properties": {
-                            "model": {
-                              "type": "string",
-                              "description": "Model id."
-                            },
-                            "name": {
-                              "type": "string",
-                              "description": "Display name."
-                            }
-                          },
-                          "required": [
-                            "model",
-                            "name"
-                          ]
-                        },
                         "standard": {
                           "type": "object",
                           "description": "The model this tier runs.",
@@ -4416,7 +4404,6 @@
                         }
                       },
                       "required": [
-                        "economy",
                         "standard",
                         "frontier"
                       ]
@@ -4425,57 +4412,6 @@
                       "type": "object",
                       "description": "Each tier's choices.",
                       "properties": {
-                        "economy": {
-                          "type": "array",
-                          "description": "The models this tier can run, default first.",
-                          "items": {
-                            "type": "object",
-                            "description": "One model.",
-                            "properties": {
-                              "model": {
-                                "type": "string",
-                                "description": "Model id."
-                              },
-                              "name": {
-                                "type": "string",
-                                "description": "Display name."
-                              },
-                              "input_per_m": {
-                                "type": [
-                                  "number",
-                                  "null"
-                                ],
-                                "description": "USD per million input tokens. `null` when the catalog does not list the model right now."
-                              },
-                              "output_per_m": {
-                                "type": [
-                                  "number",
-                                  "null"
-                                ],
-                                "description": "USD per million output tokens. `null` when the catalog does not list the model right now."
-                              },
-                              "context": {
-                                "type": [
-                                  "integer",
-                                  "null"
-                                ],
-                                "description": "Context window in tokens."
-                              },
-                              "default": {
-                                "type": "boolean",
-                                "description": "`true` for the tier's default, such as `anthropic/claude-sonnet-5.5` for frontier."
-                              }
-                            },
-                            "required": [
-                              "model",
-                              "name",
-                              "input_per_m",
-                              "output_per_m",
-                              "context",
-                              "default"
-                            ]
-                          }
-                        },
                         "standard": {
                           "type": "array",
                           "description": "The models this tier can run, default first.",
@@ -4580,7 +4516,6 @@
                         }
                       },
                       "required": [
-                        "economy",
                         "standard",
                         "frontier"
                       ]
@@ -4639,26 +4574,19 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "economy": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "description": "The model for short, simple jobs. One of `nvidia/nemotron-3.5-lightning-free`, `openai/gpt-6-luna`, `google/gemini-2.5-flash-lite`, `deepseek/deepseek-v4-flash`, `alibaba/qwen3.8-flash`, `anthropic/claude-haiku-5.5`, `openai/gpt-oss-120b`, `zai/glm-5.3-flash`. `null` or left out runs the default."
-                  },
                   "standard": {
                     "type": [
                       "string",
                       "null"
                     ],
-                    "description": "The model for most requests. One of `deepseek/deepseek-v4.1-flash`, `anthropic/claude-haiku-5.5`, `minimax/minimax-m3`, `google/gemini-3-flash`, `alibaba/qwen3-coder-next`, `moonshotai/kimi-k2.7-code`, `deepseek/deepseek-v4-pro`, `openai/gpt-6.1-terra`. `null` or left out runs the default."
+                    "description": "The model every task starts on. One of `deepseek/deepseek-v4.1-flash`, `anthropic/claude-haiku-5.5`, `minimax/minimax-m3`, `google/gemini-3-flash`, `alibaba/qwen3-coder-next`, `moonshotai/kimi-k2.7-code`, `deepseek/deepseek-v4-pro`, `openai/gpt-6.1-terra`. `null` or left out runs the default."
                   },
                   "frontier": {
                     "type": [
                       "string",
                       "null"
                     ],
-                    "description": "The model for hard tasks. One of `anthropic/claude-sonnet-5.5`, `anthropic/claude-opus-5.5`, `openai/gpt-6.1-sol`, `moonshotai/kimi-k3`, `moonshotai/kimi-k3.1-pro`, `google/gemini-4-argon`, `anthropic/claude-fable-5.1`. `null` or left out runs the default."
+                    "description": "The model hard steps move up to. One of `anthropic/claude-sonnet-5.5`, `anthropic/claude-opus-5.5`, `openai/gpt-6.1-sol`, `moonshotai/kimi-k3`, `moonshotai/kimi-k3.1-pro`, `google/gemini-4-argon`, `anthropic/claude-fable-5.1`. `null` or left out runs the default."
                   },
                   "fallbacks": {
                     "type": [
@@ -4668,17 +4596,10 @@
                     "description": "The fallback model for each tier you name. A request that fails on the tier's model tries it next. It is billed at its own price, and a fallback the catalog does not list right now is skipped.",
                     "examples": [
                       {
-                        "economy": "openai/gpt-6-luna"
+                        "standard": "anthropic/claude-haiku-5.5"
                       }
                     ],
                     "properties": {
-                      "economy": {
-                        "type": [
-                          "string",
-                          "null"
-                        ],
-                        "description": "The model to try when the economy model fails. One of `nvidia/nemotron-3.5-lightning-free`, `openai/gpt-6-luna`, `google/gemini-2.5-flash-lite`, `deepseek/deepseek-v4-flash`, `alibaba/qwen3.8-flash`, `anthropic/claude-haiku-5.5`, `openai/gpt-oss-120b`, `zai/glm-5.3-flash`, other than the economy model. `null` or left out keeps the usual fallback: the standard model."
-                      },
                       "standard": {
                         "type": [
                           "string",
@@ -4718,31 +4639,24 @@
                         {
                           "frontier": "anthropic/claude-opus-5.5",
                           "fallbacks": {
-                            "economy": "openai/gpt-6-luna"
+                            "standard": "anthropic/claude-haiku-5.5"
                           }
                         }
                       ],
                       "properties": {
-                        "economy": {
-                          "type": [
-                            "string",
-                            "null"
-                          ],
-                          "description": "The model for short, simple jobs. One of `nvidia/nemotron-3.5-lightning-free`, `openai/gpt-6-luna`, `google/gemini-2.5-flash-lite`, `deepseek/deepseek-v4-flash`, `alibaba/qwen3.8-flash`, `anthropic/claude-haiku-5.5`, `openai/gpt-oss-120b`, `zai/glm-5.3-flash`. `null` or left out runs the default."
-                        },
                         "standard": {
                           "type": [
                             "string",
                             "null"
                           ],
-                          "description": "The model for most requests. One of `deepseek/deepseek-v4.1-flash`, `anthropic/claude-haiku-5.5`, `minimax/minimax-m3`, `google/gemini-3-flash`, `alibaba/qwen3-coder-next`, `moonshotai/kimi-k2.7-code`, `deepseek/deepseek-v4-pro`, `openai/gpt-6.1-terra`. `null` or left out runs the default."
+                          "description": "The model every task starts on. One of `deepseek/deepseek-v4.1-flash`, `anthropic/claude-haiku-5.5`, `minimax/minimax-m3`, `google/gemini-3-flash`, `alibaba/qwen3-coder-next`, `moonshotai/kimi-k2.7-code`, `deepseek/deepseek-v4-pro`, `openai/gpt-6.1-terra`. `null` or left out runs the default."
                         },
                         "frontier": {
                           "type": [
                             "string",
                             "null"
                           ],
-                          "description": "The model for hard tasks. One of `anthropic/claude-sonnet-5.5`, `anthropic/claude-opus-5.5`, `openai/gpt-6.1-sol`, `moonshotai/kimi-k3`, `moonshotai/kimi-k3.1-pro`, `google/gemini-4-argon`, `anthropic/claude-fable-5.1`. `null` or left out runs the default."
+                          "description": "The model hard steps move up to. One of `anthropic/claude-sonnet-5.5`, `anthropic/claude-opus-5.5`, `openai/gpt-6.1-sol`, `moonshotai/kimi-k3`, `moonshotai/kimi-k3.1-pro`, `google/gemini-4-argon`, `anthropic/claude-fable-5.1`. `null` or left out runs the default."
                         },
                         "fallbacks": {
                           "type": [
@@ -4752,17 +4666,10 @@
                           "description": "The fallback model for each tier you name. A request that fails on the tier's model tries it next. It is billed at its own price, and a fallback the catalog does not list right now is skipped.",
                           "examples": [
                             {
-                              "economy": "openai/gpt-6-luna"
+                              "standard": "anthropic/claude-haiku-5.5"
                             }
                           ],
                           "properties": {
-                            "economy": {
-                              "type": [
-                                "string",
-                                "null"
-                              ],
-                              "description": "The model to try when the economy model fails. One of `nvidia/nemotron-3.5-lightning-free`, `openai/gpt-6-luna`, `google/gemini-2.5-flash-lite`, `deepseek/deepseek-v4-flash`, `alibaba/qwen3.8-flash`, `anthropic/claude-haiku-5.5`, `openai/gpt-oss-120b`, `zai/glm-5.3-flash`, other than the economy model. `null` or left out keeps the usual fallback: the standard model."
-                            },
                             "standard": {
                               "type": [
                                 "string",
@@ -4785,24 +4692,6 @@
                       "type": "object",
                       "description": "The model each tier runs for this key: its pick, else the default. A pick the catalog does not list right now shows as the default, as a request runs it.",
                       "properties": {
-                        "economy": {
-                          "type": "object",
-                          "description": "The model this tier runs.",
-                          "properties": {
-                            "model": {
-                              "type": "string",
-                              "description": "Model id."
-                            },
-                            "name": {
-                              "type": "string",
-                              "description": "Display name."
-                            }
-                          },
-                          "required": [
-                            "model",
-                            "name"
-                          ]
-                        },
                         "standard": {
                           "type": "object",
                           "description": "The model this tier runs.",
@@ -4841,7 +4730,6 @@
                         }
                       },
                       "required": [
-                        "economy",
                         "standard",
                         "frontier"
                       ]
@@ -4856,7 +4744,7 @@
             }
           },
           "400": {
-            "description": "The body is not a JSON object, names an unknown tier, a model or fallback that is not one of the tier's choices, or a fallback equal to the tier's own model (`Invalid lineup: ...`), or could not be saved.",
+            "description": "The body is not a JSON object, names an unknown tier (`economy` included: phantom-1 has two tiers, Standard and Frontier, and Economy is no longer a lineup setting), a model or fallback that is not one of the tier's choices, or a fallback equal to the tier's own model (`Invalid lineup: ...`), or could not be saved.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4919,31 +4807,24 @@
                         {
                           "frontier": "anthropic/claude-opus-5.5",
                           "fallbacks": {
-                            "economy": "openai/gpt-6-luna"
+                            "standard": "anthropic/claude-haiku-5.5"
                           }
                         }
                       ],
                       "properties": {
-                        "economy": {
-                          "type": [
-                            "string",
-                            "null"
-                          ],
-                          "description": "The model for short, simple jobs. One of `nvidia/nemotron-3.5-lightning-free`, `openai/gpt-6-luna`, `google/gemini-2.5-flash-lite`, `deepseek/deepseek-v4-flash`, `alibaba/qwen3.8-flash`, `anthropic/claude-haiku-5.5`, `openai/gpt-oss-120b`, `zai/glm-5.3-flash`. `null` or left out runs the default."
-                        },
                         "standard": {
                           "type": [
                             "string",
                             "null"
                           ],
-                          "description": "The model for most requests. One of `deepseek/deepseek-v4.1-flash`, `anthropic/claude-haiku-5.5`, `minimax/minimax-m3`, `google/gemini-3-flash`, `alibaba/qwen3-coder-next`, `moonshotai/kimi-k2.7-code`, `deepseek/deepseek-v4-pro`, `openai/gpt-6.1-terra`. `null` or left out runs the default."
+                          "description": "The model every task starts on. One of `deepseek/deepseek-v4.1-flash`, `anthropic/claude-haiku-5.5`, `minimax/minimax-m3`, `google/gemini-3-flash`, `alibaba/qwen3-coder-next`, `moonshotai/kimi-k2.7-code`, `deepseek/deepseek-v4-pro`, `openai/gpt-6.1-terra`. `null` or left out runs the default."
                         },
                         "frontier": {
                           "type": [
                             "string",
                             "null"
                           ],
-                          "description": "The model for hard tasks. One of `anthropic/claude-sonnet-5.5`, `anthropic/claude-opus-5.5`, `openai/gpt-6.1-sol`, `moonshotai/kimi-k3`, `moonshotai/kimi-k3.1-pro`, `google/gemini-4-argon`, `anthropic/claude-fable-5.1`. `null` or left out runs the default."
+                          "description": "The model hard steps move up to. One of `anthropic/claude-sonnet-5.5`, `anthropic/claude-opus-5.5`, `openai/gpt-6.1-sol`, `moonshotai/kimi-k3`, `moonshotai/kimi-k3.1-pro`, `google/gemini-4-argon`, `anthropic/claude-fable-5.1`. `null` or left out runs the default."
                         },
                         "fallbacks": {
                           "type": [
@@ -4953,17 +4834,10 @@
                           "description": "The fallback model for each tier you name. A request that fails on the tier's model tries it next. It is billed at its own price, and a fallback the catalog does not list right now is skipped.",
                           "examples": [
                             {
-                              "economy": "openai/gpt-6-luna"
+                              "standard": "anthropic/claude-haiku-5.5"
                             }
                           ],
                           "properties": {
-                            "economy": {
-                              "type": [
-                                "string",
-                                "null"
-                              ],
-                              "description": "The model to try when the economy model fails. One of `nvidia/nemotron-3.5-lightning-free`, `openai/gpt-6-luna`, `google/gemini-2.5-flash-lite`, `deepseek/deepseek-v4-flash`, `alibaba/qwen3.8-flash`, `anthropic/claude-haiku-5.5`, `openai/gpt-oss-120b`, `zai/glm-5.3-flash`, other than the economy model. `null` or left out keeps the usual fallback: the standard model."
-                            },
                             "standard": {
                               "type": [
                                 "string",
@@ -4986,24 +4860,6 @@
                       "type": "object",
                       "description": "The model each tier runs for this key: its pick, else the default. A pick the catalog does not list right now shows as the default, as a request runs it.",
                       "properties": {
-                        "economy": {
-                          "type": "object",
-                          "description": "The model this tier runs.",
-                          "properties": {
-                            "model": {
-                              "type": "string",
-                              "description": "Model id."
-                            },
-                            "name": {
-                              "type": "string",
-                              "description": "Display name."
-                            }
-                          },
-                          "required": [
-                            "model",
-                            "name"
-                          ]
-                        },
                         "standard": {
                           "type": "object",
                           "description": "The model this tier runs.",
@@ -5042,7 +4898,6 @@
                         }
                       },
                       "required": [
-                        "economy",
                         "standard",
                         "frontier"
                       ]
@@ -6159,7 +6014,7 @@
             "name": "x-phantom-session",
             "in": "header",
             "required": false,
-            "description": "Your own conversation id. phantom-1 picks a tier for each new user message and keeps that model for its tool calls. Anthropic messages containing only `tool_result` blocks continue the same user message. Other routing (`auto` with a key policy) can keep one model for the session while `stick_minutes` lasts. Only the first 200 characters count. Without this header, Phantom uses Claude Code's `x-claude-code-session-id` when it arrives, and otherwise groups requests by prompt or conversation opening, depending on the route. Phantom stores a salted hash with the selected model and expiry, and keeps provider affinity for the session so its prompt cache stays warm. Read to find the conversation's remembered model.",
+            "description": "Your own conversation id. phantom-1 keeps a conversation's routing state under it: paid chat starts each task on standard and can move it to frontier on any request, tool calls included. Anthropic messages containing only `tool_result` blocks continue the same user message. Other routing (`auto` with a key policy) can keep one model for the session while `stick_minutes` lasts. Only the first 200 characters count. Without this header, Phantom uses Claude Code's `x-claude-code-session-id` when it arrives, and otherwise groups requests by prompt or conversation opening, depending on the route. Phantom stores a salted hash with the selected model and expiry, and keeps provider affinity for the session so its prompt cache stays warm. Read to find the conversation's remembered model.",
             "schema": {
               "type": "string"
             }
@@ -6222,7 +6077,7 @@
             "name": "x-phantom-escalate",
             "in": "header",
             "required": false,
-            "description": "Send `1` when the current model isn't managing the task. phantom-1 moves this request one tier up (economy, then standard, then frontier). It picks again on the next request, so send the header on each request that should stay up, tool calls included. A key's route policy moves it to the policy's last model. Phantom can't tell a weak answer from a good one, so escalation is your call. Read the same way the chat route reads it; nothing is remembered.",
+            "description": "Send `1` when the current model isn't managing the task. phantom-1 moves this request one tier up, from standard to frontier. It picks again on the next request, so send the header on each request that should stay up, tool calls included. A key's route policy moves it to the policy's last model. Phantom can't tell a weak answer from a good one, so escalation is your call. Read the same way the chat route reads it; nothing is remembered.",
             "schema": {
               "type": "string"
             }
@@ -6340,7 +6195,7 @@
                     },
                     "tier": {
                       "type": "string",
-                      "description": "The tier phantom-1 picked: `economy`, `standard` or `frontier`."
+                      "description": "The tier phantom-1 picked: `standard` or `frontier` for paid phantom-1 and phantom-1:zdr, `free` for phantom-1:free."
                     },
                     "confidence": {
                       "type": "number",
@@ -6348,7 +6203,7 @@
                     },
                     "scores": {
                       "type": "object",
-                      "description": "phantom-1's score for each tier: `economy`, `standard` and `frontier`."
+                      "description": "phantom-1's score for each tier: `standard` and `frontier`."
                     }
                   },
                   "required": [
@@ -6371,7 +6226,7 @@
             }
           },
           "401": {
-            "description": "No `Bearer` key, or a key Phantom does not know.",
+            "description": "No `Bearer` key, or a key Phantom does not know, has revoked or has expired.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6793,7 +6648,7 @@
             "name": "x-phantom-session",
             "in": "header",
             "required": false,
-            "description": "Your own conversation id. phantom-1 picks a tier for each new user message and keeps that model for its tool calls. Anthropic messages containing only `tool_result` blocks continue the same user message. Other routing (`auto` with a key policy) can keep one model for the session while `stick_minutes` lasts. Only the first 200 characters count. Without this header, Phantom uses Claude Code's `x-claude-code-session-id` when it arrives, and otherwise groups requests by prompt or conversation opening, depending on the route. Phantom stores a salted hash with the selected model and expiry, and keeps provider affinity for the session so its prompt cache stays warm.",
+            "description": "Your own conversation id. phantom-1 keeps a conversation's routing state under it: paid chat starts each task on standard and can move it to frontier on any request, tool calls included. Anthropic messages containing only `tool_result` blocks continue the same user message. Other routing (`auto` with a key policy) can keep one model for the session while `stick_minutes` lasts. Only the first 200 characters count. Without this header, Phantom uses Claude Code's `x-claude-code-session-id` when it arrives, and otherwise groups requests by prompt or conversation opening, depending on the route. Phantom stores a salted hash with the selected model and expiry, and keeps provider affinity for the session so its prompt cache stays warm.",
             "schema": {
               "type": "string"
             }
@@ -6865,7 +6720,7 @@
             "name": "x-phantom-escalate",
             "in": "header",
             "required": false,
-            "description": "Send `1` when the current model isn't managing the task. phantom-1 moves this request one tier up (economy, then standard, then frontier). It picks again on the next request, so send the header on each request that should stay up, tool calls included. A key's route policy moves it to the policy's last model. Phantom can't tell a weak answer from a good one, so escalation is your call.",
+            "description": "Send `1` when the current model isn't managing the task. phantom-1 moves this request one tier up, from standard to frontier. It picks again on the next request, so send the header on each request that should stay up, tool calls included. A key's route policy moves it to the policy's last model. Phantom can't tell a weak answer from a good one, so escalation is your call.",
             "schema": {
               "type": "string"
             }
@@ -6874,7 +6729,7 @@
             "name": "x-phantom-free",
             "in": "header",
             "required": false,
-            "description": "Send `off` so phantom-1 doesn't pick its free model for this request. On a key with no credit, where phantom-1 runs free models only, the request is refused with `402` instead. `zdr` or `no_training`, on the request or in the key's route policy, leaves it out too.",
+            "description": "Send `off` on a key with no credit to get a `402` instead of having phantom-1 run as `phantom-1:free`, on free models only. A key with credit never runs a free model on phantom-1, so there the header changes nothing.",
             "schema": {
               "type": "string"
             }
@@ -7093,7 +6948,7 @@
               "text/event-stream": {
                 "schema": {
                   "type": "string",
-                  "description": "With `stream: true`: the upstream's Anthropic events (`message_start`, `content_block_delta`, `message_delta`, `message_stop` and the rest), passed through. Just before the chunk that holds `event: message_stop`, Phantom inserts `event: phantom.receipt` with `data: {\"type\":\"phantom.receipt\",\"receipt\":\"<compact receipt>\",\"phantom\":{...}}`, where `phantom` has the same fields as in a non-streaming answer. Without a signing key the event carries `phantom` only."
+                  "description": "With `stream: true`: the upstream's Anthropic events (`message_start`, `content_block_delta`, `message_delta`, `message_stop` and the rest), passed through. Right before the chunk that holds `event: message_stop`, Phantom inserts `event: phantom.receipt` with `data: {\"type\":\"phantom.receipt\",\"receipt\":\"<compact receipt>\",\"phantom\":{...}}`, where `phantom` has the same fields as in a non-streaming answer. Without a signing key the event carries `phantom` only."
                 }
               }
             },
@@ -8339,7 +8194,7 @@
       "post": {
         "operationId": "postV1PurchaseRecover",
         "summary": "Recover a purchased key from its recovery code",
-        "description": "Returns the key a paid purchase issued, given the recovery code shown at checkout. Needs no payment id and does not expire; it works for as long as the payment row exists. If the key was never handed out, this call creates it. An unknown code and an unpaid payment get the same answer, so the route does not reveal which codes exist. Needs no API key.",
+        "description": "Returns the key a paid purchase issued, given the recovery code shown at checkout. Needs no payment id and does not expire; it works for as long as the payment row exists. If the key was never handed out, this call creates it. For a Solana purchase that is not paid yet, it first looks on chain for the transfer, as the status poll does, and records one it finds with Stripe. It still answers 404 then: Stripe's webhook marks the payment paid, usually within a minute, and the next call returns the key. An unknown code and an unpaid payment get the same answer, so the route does not reveal which codes exist. Needs no API key.",
         "tags": [
           "Purchases"
         ],
@@ -8407,7 +8262,7 @@
             }
           },
           "404": {
-            "description": "No paid purchase has that code.",
+            "description": "No paid purchase has that code. A Solana transfer this call just found and recorded is paid once Stripe confirms it: try again in a minute.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8866,7 +8721,7 @@
                     },
                     "recovery_code": {
                       "type": "string",
-                      "description": "Shown once, except for workspace funding. It opens a new key at `GET /v1/purchase/{id}/status` (in `x-phantom-recovery-code`). A top-up of target_api_key needs it only if that key is burned before Stripe confirms, when the credit goes to a new key instead."
+                      "description": "Shown once, except for workspace funding. It opens a new key at `GET /v1/purchase/{id}/status` (in `x-phantom-recovery-code`). A top-up of target_api_key needs it only if that key's workspace is deleted before Stripe confirms, when the credit goes to a new key instead; a key rotated or revoked in the meantime still gets the credit in its workspace."
                     },
                     "price_usd": {
                       "type": "number",
@@ -9000,7 +8855,7 @@
       "get": {
         "operationId": "getV1PurchaseIdStatus",
         "summary": "Poll a purchase and collect its key once paid",
-        "description": "Reports where a purchase stands and, once it is paid, hands back the key. For a Solana payment each poll also looks for the transfer on chain (at most every few seconds per server) and marks the payment paid when a transfer with the reference, at least the owed amount and a time inside the quote window plus a short grace has landed. A card payment is marked paid by Stripe's webhook.\n\nA paid purchase that named a key credits that key and extends its expiry to at least the new validity; no key comes back. Otherwise the new key is sealed with the recovery code, so send `x-phantom-recovery-code` to get it. The first poll with the code creates the key; later polls with the code return the same key. Needs no API key. This route is left out of the purchase rate limit.",
+        "description": "Reports where a purchase stands and, once it is paid, hands back the key. For a Solana payment each poll also looks for the transfer on chain (at most every few seconds per server). When a finalized transfer has landed with the reference, exactly the owed amount (Stripe books only an exact amount, so more or less is not counted) and a time inside the quote window plus a short grace, the poll records it with Stripe. The payment stays `pending` until Stripe's signed webhook marks it paid, usually within a minute. A buyer who closes the page early is not stuck: the daily cleanup job and `POST /v1/purchase/recover` look for the transfer too. A card or Stripe crypto payment is marked paid by Stripe's webhook.\n\nA paid purchase that named a key credits that key's workspace and extends the key's expiry to at least the new validity; no key comes back. If the key was rotated or revoked before Stripe confirmed the payment, the credit still lands in its workspace, where the replacement key spends it. Otherwise the new key is sealed with the recovery code, so send `x-phantom-recovery-code` to get it. The first poll with the code creates the key; later polls with the code return the same key. Needs no API key. This route is left out of the purchase rate limit.",
         "tags": [
           "Purchases"
         ],
@@ -9020,7 +8875,7 @@
             "name": "x-phantom-recovery-code",
             "in": "header",
             "required": false,
-            "description": "The recovery code shown at checkout. With it, the status poll decrypts and returns the key of a paid purchase. Sent as a header so it never lands in a URL or access log. Without it, a paid purchase that issues a new key reports `ready` and `recovery_required: true`, and no key.",
+            "description": "The recovery code shown at checkout. With it, the status poll decrypts and returns the key of a paid purchase. Sent as a header so it never lands in a URL or access log. Without it, a paid purchase that issues a new key reports `ready` and `recovery_required: true`, and no key. A top-up or a workspace purchase does not need it.",
             "schema": {
               "type": "string"
             }
@@ -9036,7 +8891,7 @@
                   "properties": {
                     "status": {
                       "type": "string",
-                      "description": "`pending` until paid; `ready` when paid but the key was not handed out on this poll; `completed` when this poll returned the key or the top-up landed; `expired` when the daily cleanup job marked a payment still pending after 7 days. A Solana transfer that lands later can still move an expired payment to paid. `confirming` appears only on old rows.",
+                      "description": "`pending` until paid; `confirming` while Stripe waits for a crypto payment's network to confirm it; `ready` when paid but the key was not handed out on this poll; `completed` when this poll returned the key or the top-up landed; `expired` when the daily cleanup job marked a payment still pending after 7 days, or Stripe said a confirming payment failed or was canceled. A payment that succeeds later, such as a Solana transfer that lands late or a second try on Stripe's crypto page, still moves an expired payment to paid.",
                       "enum": [
                         "pending",
                         "confirming",
@@ -9059,11 +8914,11 @@
                     },
                     "topped_up": {
                       "type": "boolean",
-                      "description": "The credit landed on the key named at checkout. No `api_key` comes back in that case."
+                      "description": "The credit landed in a workspace instead of on a new key: the workspace of the key named at checkout (even if that key was rotated or revoked since), or the workspace the purchase funds. No `api_key` comes back in that case."
                     },
                     "recovery_required": {
                       "type": "boolean",
-                      "description": "The payment needs its recovery code to hand out a key, and none came back on this poll. True while the payment is unpaid too. Always false for a top-up, which lands on a key you already hold."
+                      "description": "The purchase needs its recovery code to hand out a new key, and none came back on this poll. True while such a purchase is unpaid too. False when the credit lands in a workspace: a top-up whose named key still exists, or a workspace purchase. A top-up whose key was deleted with its workspace falls back to a new key, so it needs the code."
                     },
                     "credit_usd": {
                       "type": "number",
@@ -9071,7 +8926,7 @@
                     },
                     "expires_at": {
                       "type": "string",
-                      "description": "When the payment itself expires if unpaid. Not the key's expiry.",
+                      "description": "Once a key exists (the new key, or the key named for a top-up), when that key expires. Before that, when the unpaid quote expires.",
                       "format": "date-time"
                     },
                     "pay_currency": {
@@ -10175,7 +10030,7 @@
             "name": "x-phantom-session",
             "in": "header",
             "required": false,
-            "description": "Your own conversation id. phantom-1 picks a tier for each new user message and keeps that model for its tool calls. Anthropic messages containing only `tool_result` blocks continue the same user message. Other routing (`auto` with a key policy) can keep one model for the session while `stick_minutes` lasts. Only the first 200 characters count. Without this header, Phantom uses Claude Code's `x-claude-code-session-id` when it arrives, and otherwise groups requests by prompt or conversation opening, depending on the route. Phantom stores a salted hash with the selected model and expiry, and keeps provider affinity for the session so its prompt cache stays warm.",
+            "description": "Your own conversation id. phantom-1 keeps a conversation's routing state under it: paid chat starts each task on standard and can move it to frontier on any request, tool calls included. Anthropic messages containing only `tool_result` blocks continue the same user message. Other routing (`auto` with a key policy) can keep one model for the session while `stick_minutes` lasts. Only the first 200 characters count. Without this header, Phantom uses Claude Code's `x-claude-code-session-id` when it arrives, and otherwise groups requests by prompt or conversation opening, depending on the route. Phantom stores a salted hash with the selected model and expiry, and keeps provider affinity for the session so its prompt cache stays warm.",
             "schema": {
               "type": "string"
             }
@@ -10247,7 +10102,7 @@
             "name": "x-phantom-escalate",
             "in": "header",
             "required": false,
-            "description": "Send `1` when the current model isn't managing the task. phantom-1 moves this request one tier up (economy, then standard, then frontier). It picks again on the next request, so send the header on each request that should stay up, tool calls included. A key's route policy moves it to the policy's last model. Phantom can't tell a weak answer from a good one, so escalation is your call.",
+            "description": "Send `1` when the current model isn't managing the task. phantom-1 moves this request one tier up, from standard to frontier. It picks again on the next request, so send the header on each request that should stay up, tool calls included. A key's route policy moves it to the policy's last model. Phantom can't tell a weak answer from a good one, so escalation is your call.",
             "schema": {
               "type": "string"
             }
@@ -10256,7 +10111,7 @@
             "name": "x-phantom-free",
             "in": "header",
             "required": false,
-            "description": "Send `off` so phantom-1 doesn't pick its free model for this request. On a key with no credit, where phantom-1 runs free models only, the request is refused with `402` instead. `zdr` or `no_training`, on the request or in the key's route policy, leaves it out too.",
+            "description": "Send `off` on a key with no credit to get a `402` instead of having phantom-1 run as `phantom-1:free`, on free models only. A key with credit never runs a free model on phantom-1, so there the header changes nothing.",
             "schema": {
               "type": "string"
             }
@@ -10284,7 +10139,7 @@
                   },
                   "model": {
                     "type": "string",
-                    "description": "A chat model id from `GET /v1/models`; `phantom-1` to let phantom-1 pick its economy, standard or frontier model per task; or `auto` to route by the key's route policy (phantom-1 when the key has none). `phantom-1` with an image runs its frontier model. `phantom-1:free` runs only free models, at $0, and needs no credit. `phantom-1:zdr` routes between models with zero data retention on every provider and requires it on every call.",
+                    "description": "A chat model id from `GET /v1/models`; `phantom-1` to let phantom-1 pick its standard or frontier model (a key with no credit runs it as `phantom-1:free`); or `auto` to route by the key's route policy (phantom-1 when the key has none). `phantom-1` with an image runs its frontier model. `phantom-1:free` runs only free models, at $0, and needs no credit. `phantom-1:zdr` routes between models with zero data retention on every provider and requires it on every call.",
                     "default": "phantom-1"
                   },
                   "input": {
@@ -10430,7 +10285,7 @@
               "text/event-stream": {
                 "schema": {
                   "type": "string",
-                  "description": "With `stream: true`: the upstream's Responses events, passed through. Just before the chunk that holds the terminal event (`response.completed`, `response.incomplete` or `response.failed`), Phantom inserts `event: phantom.receipt` with `data: {\"type\":\"phantom.receipt\",\"receipt\":\"<compact receipt>\",\"phantom\":{...}}`. Without a signing key the event carries `phantom` only. Clients that don't know the event ignore it."
+                  "description": "With `stream: true`: the upstream's Responses events, passed through. Right before the chunk that holds the terminal event (`response.completed`, `response.incomplete` or `response.failed`), Phantom inserts `event: phantom.receipt` with `data: {\"type\":\"phantom.receipt\",\"receipt\":\"<compact receipt>\",\"phantom\":{...}}`. Without a signing key the event carries `phantom` only. Clients that don't know the event ignore it."
                 }
               }
             },
@@ -10698,9 +10553,9 @@
                                 },
                                 "tier": {
                                   "type": "string",
-                                  "description": "The tier the router uses it for.",
+                                  "description": "The tier label of the model: `standard` or `frontier` for phantom-1 and phantom-1:zdr, `free` for every model phantom-1:free picks.",
                                   "enum": [
-                                    "economy",
+                                    "free",
                                     "standard",
                                     "frontier"
                                   ]
@@ -11998,7 +11853,7 @@
       "post": {
         "operationId": "postV1WorkspacesIdClaim",
         "summary": "Move a guest workspace into the signed-in account",
-        "description": "An account owns one workspace. With none, the guest workspace becomes it. With one, the guest workspace's keys, credit, payments and open holds move into it (`merged: true`), the keys keep working, and the guest workspace's recovery file, sessions and devices stop working. 409 when the workspace belongs to another account. Management requires workspace ownership or a separate management credential; inference API keys do not grant management access. Responses containing secrets are not cached.",
+        "description": "An account owns one workspace. With none, the guest workspace becomes it. With one, the guest workspace's keys, credit, payments and open holds move into it (`merged: true`), the keys keep working. Either way the guest workspace's recovery file, browser sessions, CLI devices and unredeemed device codes stop working, and a request with one of them gets a 401 that says to sign in again (`phantom login` in the CLI, or sign in on /keys); the account's own sign-in manages the workspace. 409 when the workspace belongs to another account. Management requires workspace ownership or a separate management credential; inference API keys do not grant management access. Responses containing secrets are not cached.",
         "tags": [
           "Keys"
         ],
@@ -12660,7 +12515,7 @@
       "post": {
         "operationId": "postV1WorkspacesIdKeysKey",
         "summary": "Update, rotate or revoke one of the workspace's keys",
-        "description": "With action update the body is the same as PATCH: caps, route_policy, name, and the phantom-1 lineup (lineup replaces it; lineup_changes changes only what it names, null sets one back to its default; both is a 400). Management requires workspace ownership or a separate management credential; inference API keys do not grant management access. Responses containing secrets are not cached.",
+        "description": "With action update the body is the same as PATCH: caps, route_policy, name, and the phantom-1 lineup (lineup replaces it; lineup_changes changes only what it names, null sets one back to its default; both is a 400; an `economy` tier or fallback is a 400 too, because phantom-1 has two tiers, Standard and Frontier). Management requires workspace ownership or a separate management credential; inference API keys do not grant management access. Responses containing secrets are not cached.",
         "tags": [
           "Keys"
         ],
@@ -12800,7 +12655,7 @@
       "patch": {
         "operationId": "patchV1WorkspacesIdKeysKey",
         "summary": "Update, rotate or revoke one of the workspace's keys",
-        "description": "The body can set caps, route_policy, name, and the phantom-1 lineup: lineup replaces it, lineup_changes changes only the tiers and fallbacks it names (null sets one back to its default) on top of the stored lineup. Sending both is a 400. Management requires workspace ownership or a separate management credential; inference API keys do not grant management access. Responses containing secrets are not cached.",
+        "description": "The body can set caps, route_policy, name, and the phantom-1 lineup: lineup replaces it, lineup_changes changes only the tiers and fallbacks it names (null sets one back to its default) on top of the stored lineup. Sending both is a 400, and so is an `economy` tier or fallback: phantom-1 has two tiers, Standard and Frontier. Management requires workspace ownership or a separate management credential; inference API keys do not grant management access. Responses containing secrets are not cached.",
         "tags": [
           "Keys"
         ],

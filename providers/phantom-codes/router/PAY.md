@@ -22,7 +22,8 @@ failed job gets its money back. `GET /v1/models` is free and lists each
 model id with its price.
 
 Send `model: "phantom-1"` and the router picks a model for each request from
-three tiers: Economy, Standard and Frontier. `x-phantom-routed` names the
+two tiers, Standard and Frontier: each task starts on Standard and moves up
+for hard steps. `x-phantom-routed` names the
 model it picked, and `x-phantom-route-receipt` adds the tier and the reason.
 `phantom-1:free` runs free models only and costs nothing, within daily
 limits. To pick a model yourself, copy an id from `/v1/models`. Ids change
@@ -92,8 +93,10 @@ workspace once Stripe confirms, and the status poll says `completed` and
 `topped_up: true` without a code. Keep the key out of the `Authorization`
 header, because `pay` replaces that header when it pays over MPP. Phantom
 checks the key before it quotes and refuses an unknown or deactivated key
-with a 400. Keep the `recovery_code` anyway: if the key is burned before
-Stripe confirms, the credit goes to a new key, which the code collects.
+with a 400. Keep the `recovery_code` anyway: if the key's workspace is
+deleted before Stripe confirms, the credit goes to a new key, which the code
+collects. A key rotated or revoked in the meantime still gets the credit in
+its workspace.
 
 Each priced response includes an Ed25519 receipt in `x-phantom-receipt` with
 the model, tokens and cost. Check it against the public key at
@@ -114,6 +117,9 @@ These routes take the same Bearer key and cost nothing, except where noted.
   same workspace and retires the old one.
 - `DELETE /v1/key` revokes the key. The credit stays in its workspace.
 - `POST /v1/purchase/recover` gives a key back from its `recovery_code`.
+  For a Solana purchase not yet marked paid, it first looks on chain for the
+  transfer and records one it finds. A 404 means nothing is ready yet: try
+  again in a minute.
 - `POST /v1/messages/count_tokens` counts an Anthropic request's tokens, and
   `GET /v1/models/status` says whether a model is answering now.
 - `GET /v1/privacy` lists what Phantom stores about the key and what it is
