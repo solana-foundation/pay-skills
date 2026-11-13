@@ -22,4 +22,4 @@ Requests that fail (invalid input, not found, upstream source down) return 4xx/5
 - Macro: start with `/v1/economic-calendar`, then call only the series you need, such as `/v1/us-cpi` or `/v1/us-treasury-yield-curve`.
 - Send only the fields you need; each operation in `openapi.json` includes a request example.
 
-The HTTP catalog currently contains 244 routes. MCP provides 242 paid services through `call_service`; `/v1/ping` and `/v1/my-ip` are HTTP-only. The three free MCP tools are `current_date`, `search_services` and `service_details`. Use a buyer client that supports the selected network; the Vextorium Python client currently pays on Base.
+The HTTP catalog contains 200+ routes. MCP provides all of them as paid services through `call_service` except `/v1/ping` and `/v1/my-ip`, which are HTTP-only. The three free MCP tools are `current_date`, `search_services` and `service_details`. Use a buyer client that supports the selected network; the Vextorium Python client currently pays on Base.
