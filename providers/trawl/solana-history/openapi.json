@@ -1,0 +1,1210 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Trawl",
+    "version": "1.0.0",
+    "description": "Pay-per-scan Solana history. POST /scan reads whole epochs of the Old Faithful archive with a program or account filter and an optional Anchor IDL, and delivers Parquet files. POST /snapshot gives the state of chosen accounts at a past slot as gzipped CSV. Pay in USDC on Solana with x402 v1. No account, no API key.",
+    "contact": {
+      "name": "Trawl",
+      "email": "contact@trawl.run",
+      "url": "https://trawl.run"
+    },
+    "termsOfService": "https://trawl.run/terms"
+  },
+  "externalDocs": {
+    "description": "Full reference for agents",
+    "url": "https://trawl.run/llms.txt"
+  },
+  "servers": [
+    {
+      "url": "https://trawl.run",
+      "description": "Production"
+    }
+  ],
+  "tags": [
+    {
+      "name": "scan",
+      "description": "Paid jobs over epochs of Solana history."
+    },
+    {
+      "name": "snapshot",
+      "description": "Paid account state at a past slot."
+    },
+    {
+      "name": "jobs",
+      "description": "Free job state and downloads."
+    },
+    {
+      "name": "discovery",
+      "description": "Free presets, epochs and archive head."
+    }
+  ],
+  "paths": {
+    "/scan": {
+      "post": {
+        "tags": [
+          "scan"
+        ],
+        "operationId": "createScan",
+        "summary": "Fetch decoded Solana program history as Parquet files",
+        "description": "Reads whole epochs (or the epochs that hold a date range) for programs or accounts. With an Anchor IDL, each instruction and event gets its own Parquet table. Send the body without X-PAYMENT to get a 402 with the firm price in `quote` and the x402 terms in `accepts`. The quote is free. Send the same body with X-PAYMENT to start the job; the answer is 202 with `job_id` and `status_url`. The price depends on the archive bytes of the epochs only, not on the filter. 13 TB of archive, 100 epochs and 500 GB of output at most for one job.",
+        "parameters": [
+          {
+            "name": "X-PAYMENT",
+            "in": "header",
+            "required": false,
+            "description": "Base64 x402 v1 payment payload, signed against the `accepts` entry of the 402.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CREDIT",
+            "in": "header",
+            "required": false,
+            "description": "A credit id from a failed job. Runs the same job again without a payment.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScanRequest"
+              },
+              "example": {
+                "preset": "pumpfun",
+                "start_epoch": 1084,
+                "end_epoch": 1084
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Paid. The job is queued or running.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body is not valid, or the job is past a limit. `error` tells why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. `quote` holds the firm price, the archive size, the estimated time and output, and the epoch dates.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequired"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Try again later. Send the same request after Retry-After seconds. No payment is taken.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-payment-info": {
+          "price": {
+            "mode": "dynamic",
+            "currency": "USD",
+            "min": "4.00"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        }
+      }
+    },
+    "/snapshot": {
+      "post": {
+        "tags": [
+          "snapshot"
+        ],
+        "operationId": "createSnapshot",
+        "summary": "Get Solana account state at a past slot as CSV",
+        "description": "Token holders of a mint, accounts of a program, or a list of accounts. Send the body without X-PAYMENT to get a 402 with the firm price and the snapshot slot in `quote`. $99 for one snapshot with any filter. `pick: exact` gives the state at the end of the slot itself, checked against the validator votes, for slots 330479689 to 377568055, at $500. Send the same body with X-PAYMENT to start the job.",
+        "parameters": [
+          {
+            "name": "X-PAYMENT",
+            "in": "header",
+            "required": false,
+            "description": "Base64 x402 v1 payment payload, signed against the `accepts` entry of the 402.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CREDIT",
+            "in": "header",
+            "required": false,
+            "description": "A credit id from a failed job. Runs the same job again without a payment.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SnapshotRequest"
+              },
+              "example": {
+                "slot": 370000000,
+                "pick": "before",
+                "filter": {
+                  "accounts": [
+                    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Paid. The job is queued or running.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body is not valid, or the slot is out of range. `error` tells why.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. `quote` holds the firm price, `snapshotSlot` and the estimated time.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequired"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Try again later. Send the same request after Retry-After seconds. No payment is taken.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-payment-info": {
+          "price": {
+            "mode": "dynamic",
+            "currency": "USD",
+            "min": "99.00",
+            "max": "500.00"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        }
+      }
+    },
+    "/job/{job_id}": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "operationId": "getJob",
+        "summary": "Get the state and download URLs of a job",
+        "description": "When done: download URLs, manifest, provenance and a DuckDB query. On failure: a credit id.",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "description": "The `job_id` from the 202.",
+            "schema": {
+              "type": "string",
+              "pattern": "^job_[0-9a-f]{32}$"
+            },
+            "example": "job_00000000000000000000000000000000"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The job.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such job.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/job/{job_id}/urls": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "operationId": "getJobUrls",
+        "summary": "Get the download manifest of a done job",
+        "description": "One signed URL per line, for wget -i.",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^job_[0-9a-f]{32}$"
+            },
+            "example": "job_00000000000000000000000000000000"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One URL per line. The URLs are signed again on each read and stay valid for 7 days after the job.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such job.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/job/{job_id}/provenance": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "operationId": "getJobProvenance",
+        "summary": "Get the provenance JSON of a done scan",
+        "description": "Slots, filter, IDL SHA-256 and build SHA-256, row counts for each epoch, and the SHA-256 of each file.",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^job_[0-9a-f]{32}$"
+            },
+            "example": "job_00000000000000000000000000000000"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The provenance JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such job.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/job/{job_id}/sha256sums": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "operationId": "getJobSha256sums",
+        "summary": "Get the SHA-256 list of the files of a done scan",
+        "description": "For sha256sum -c.",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^job_[0-9a-f]{32}$"
+            },
+            "example": "job_00000000000000000000000000000000"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One line per file: the SHA-256 and the file name.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such job.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/presets": {
+      "get": {
+        "tags": [
+          "discovery"
+        ],
+        "operationId": "listPresets",
+        "summary": "List the program presets and their IDL tables",
+        "description": "DEXes, launchpads, aggregators, perps, lending and order books, with their IDL instructions and events.",
+        "responses": {
+          "200": {
+            "description": "The presets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "presets": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Preset"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/presets/{slug}": {
+      "get": {
+        "tags": [
+          "discovery"
+        ],
+        "operationId": "getPreset",
+        "summary": "Get one preset with its filter, IDL and tables",
+        "description": "The program, the filter, the IDL, and the tables a scan with the preset gives.",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+$"
+            },
+            "example": "pumpfun"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The preset.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Preset"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such preset.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/data/{slug}/idl.json": {
+      "get": {
+        "tags": [
+          "discovery"
+        ],
+        "operationId": "getPresetIdl",
+        "summary": "Get the Anchor IDL that a preset sends to the scan",
+        "description": "The same bytes as the IDL SHA-256 in the provenance of a job with the preset.",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+$"
+            },
+            "example": "pumpfun"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The IDL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No IDL for this preset."
+          }
+        }
+      }
+    },
+    "/epochs": {
+      "get": {
+        "tags": [
+          "discovery"
+        ],
+        "operationId": "listEpochs",
+        "summary": "List the start time of every Solana epoch",
+        "description": "Also the newest epoch in the archive. Use it to map dates to epochs.",
+        "responses": {
+          "200": {
+            "description": "`epochs` is a list of [epoch, start in Unix seconds, 1 when the time is an estimate]. An epoch ends where the next starts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "about": {
+                      "type": "string"
+                    },
+                    "archive_head": {
+                      "type": "integer"
+                    },
+                    "mean_epoch_seconds": {
+                      "type": "integer"
+                    },
+                    "epochs": {
+                      "type": "array",
+                      "items": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer"
+                        },
+                        "minItems": 3,
+                        "maxItems": 3
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "discovery"
+        ],
+        "operationId": "health",
+        "summary": "Check the service and get the newest archive epoch",
+        "responses": {
+          "200": {
+            "description": "The service is up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "archive_head": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ScanRequest": {
+        "type": "object",
+        "description": "Send a preset, or a filter with an optional IDL. Send start_epoch and end_epoch, or start_date and end_date. A filter sent with a preset replaces the preset fields one by one. A job with an IDL names exactly one program.",
+        "properties": {
+          "preset": {
+            "type": "string",
+            "description": "A preset slug from GET /presets, such as \"pumpfun\"."
+          },
+          "filter": {
+            "$ref": "#/components/schemas/ScanFilter",
+            "description": "Which instructions to keep. Without a preset, it needs at least one program or one account."
+          },
+          "idl": {
+            "type": "object",
+            "description": "An Anchor IDL, 0.29 or 0.30 layout, up to 512 KB. Not with a preset."
+          },
+          "start_epoch": {
+            "type": "integer",
+            "description": "The first epoch, inclusive.",
+            "minimum": 0
+          },
+          "end_epoch": {
+            "type": "integer",
+            "description": "The last epoch, inclusive. Defaults to start_epoch.",
+            "minimum": 0
+          },
+          "start_date": {
+            "type": "string",
+            "description": "In place of start_epoch: a UTC day (\"2026-11-01\") or a time with a zone. The job reads the whole epochs that hold the dates."
+          },
+          "end_date": {
+            "type": "string",
+            "description": "In place of end_epoch: a UTC day or a time with a zone, inclusive. Defaults to start_date."
+          }
+        },
+        "allOf": [
+          {
+            "description": "Send start_epoch (and end_epoch), or start_date (and end_date). Do not mix them.",
+            "oneOf": [
+              {
+                "required": [
+                  "start_epoch"
+                ],
+                "not": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "start_date"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "end_date"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "required": [
+                  "start_date"
+                ],
+                "not": {
+                  "anyOf": [
+                    {
+                      "required": [
+                        "start_epoch"
+                      ]
+                    },
+                    {
+                      "required": [
+                        "end_epoch"
+                      ]
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "description": "Send a preset, or a filter with at least one program or one account.",
+            "anyOf": [
+              {
+                "required": [
+                  "preset"
+                ]
+              },
+              {
+                "required": [
+                  "filter"
+                ],
+                "properties": {
+                  "filter": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "programs"
+                        ],
+                        "properties": {
+                          "programs": {
+                            "type": "array",
+                            "minItems": 1,
+                            "description": "At least one base58 program id."
+                          }
+                        }
+                      },
+                      {
+                        "required": [
+                          "accounts"
+                        ],
+                        "properties": {
+                          "accounts": {
+                            "type": "array",
+                            "minItems": 1,
+                            "description": "At least one base58 key."
+                          }
+                        }
+                      }
+                    ],
+                    "description": "Without a preset: a filter with at least one program or one account."
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "description": "A preset and an idl together are refused.",
+            "not": {
+              "required": [
+                "preset",
+                "idl"
+              ]
+            }
+          }
+        ]
+      },
+      "ScanFilter": {
+        "type": "object",
+        "description": "Without a preset, programs or accounts must hold at least one key. With a preset, each field sent replaces the field of the preset.",
+        "properties": {
+          "programs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 32,
+            "description": "Base58 program ids. Keeps the instructions to these programs, top-level and inner."
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 4096,
+            "description": "Base58 keys. Keeps transactions that touch one of these accounts."
+          },
+          "discriminators": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 256,
+            "description": "Hex, 8 bytes each. Keeps only these instructions."
+          },
+          "include_votes": {
+            "type": "boolean",
+            "default": false
+          },
+          "include_failed": {
+            "type": "boolean",
+            "default": true,
+            "description": "False in a preset."
+          },
+          "include_success": {
+            "type": "boolean",
+            "default": true
+          },
+          "only_idl_instructions": {
+            "type": "boolean",
+            "default": false,
+            "description": "Needs an IDL."
+          },
+          "start_slot": {
+            "type": "integer",
+            "description": "Inclusive."
+          },
+          "end_slot": {
+            "type": "integer",
+            "description": "Exclusive."
+          },
+          "min_fee": {
+            "type": "integer",
+            "description": "Lamports, inclusive."
+          },
+          "max_fee": {
+            "type": "integer",
+            "description": "Lamports, inclusive."
+          }
+        }
+      },
+      "SnapshotRequest": {
+        "type": "object",
+        "required": [
+          "slot"
+        ],
+        "description": "Send holders_of, or a filter with at least one owner or one account.",
+        "properties": {
+          "slot": {
+            "type": "integer",
+            "description": "The slot you want the account state at.",
+            "minimum": 0
+          },
+          "pick": {
+            "type": "string",
+            "enum": [
+              "before",
+              "after",
+              "nearest",
+              "exact"
+            ],
+            "default": "before",
+            "description": "The full snapshot before, after or nearest the slot; or exact for the state at the end of the slot itself."
+          },
+          "holders_of": {
+            "type": "string",
+            "description": "A mint, base58. Adds its SPL Token and Token-2022 accounts."
+          },
+          "filter": {
+            "type": "object",
+            "properties": {
+              "owners": {
+                "type": "array",
+                "maxItems": 8,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "program": {
+                      "type": "string",
+                      "description": "Base58 owner program."
+                    },
+                    "data_size": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Account data length in bytes."
+                    },
+                    "memcmp": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "offset": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Byte offset in the account data."
+                          },
+                          "bytes": {
+                            "type": "string",
+                            "description": "Base58, or hex with a 0x prefix."
+                          }
+                        },
+                        "required": [
+                          "offset",
+                          "bytes"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "program"
+                  ]
+                },
+                "description": "As in getProgramAccounts. The System and token programs need data_size or memcmp. holders_of counts as 2 of the 8 owners."
+              },
+              "accounts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 1000,
+                "description": "Base58 keys."
+              }
+            },
+            "description": "Which accounts to give: owner filters, a list of accounts, or both."
+          }
+        },
+        "anyOf": [
+          {
+            "required": [
+              "holders_of"
+            ]
+          },
+          {
+            "required": [
+              "filter"
+            ],
+            "properties": {
+              "filter": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "owners"
+                    ],
+                    "properties": {
+                      "owners": {
+                        "type": "array",
+                        "minItems": 1,
+                        "description": "At least one owner filter."
+                      }
+                    }
+                  },
+                  {
+                    "required": [
+                      "accounts"
+                    ],
+                    "properties": {
+                      "accounts": {
+                        "type": "array",
+                        "minItems": 1,
+                        "description": "At least one base58 key."
+                      }
+                    }
+                  }
+                ],
+                "description": "A filter with at least one owner or one account."
+              }
+            }
+          }
+        ]
+      },
+      "JobCreated": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "paid",
+              "running"
+            ]
+          },
+          "status_url": {
+            "type": "string",
+            "description": "Poll this URL with GET."
+          },
+          "price": {
+            "type": "string",
+            "description": "USD."
+          },
+          "estimated_seconds": {
+            "type": "integer"
+          },
+          "expected_end_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Job": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "scan",
+              "snapshot"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "paid",
+              "running",
+              "done",
+              "failed",
+              "timeout"
+            ]
+          },
+          "start_epoch": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "end_epoch": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expected_end_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "credit_issued": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "On a failed job: send it as X-CREDIT to run the same job again for free."
+          },
+          "download_urls": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "manifest_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provenance_url": {
+            "type": "string"
+          },
+          "duckdb": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A DuckDB query that reads the result in place."
+          },
+          "download_expires_in_s": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "queue_ahead": {
+            "type": "integer"
+          },
+          "epochs_done": {
+            "type": "integer"
+          },
+          "decode_errors": {
+            "type": "integer"
+          }
+        }
+      },
+      "PaymentRequired": {
+        "type": "object",
+        "properties": {
+          "x402Version": {
+            "type": "integer",
+            "const": 1
+          },
+          "error": {
+            "type": "string"
+          },
+          "accepts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "scheme": {
+                  "type": "string",
+                  "const": "exact"
+                },
+                "network": {
+                  "type": "string",
+                  "const": "solana"
+                },
+                "maxAmountRequired": {
+                  "type": "string",
+                  "description": "USDC atomic units (6 decimals)."
+                },
+                "resource": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "payTo": {
+                  "type": "string"
+                },
+                "asset": {
+                  "type": "string",
+                  "description": "USDC mint."
+                },
+                "maxTimeoutSeconds": {
+                  "type": "integer"
+                },
+                "extra": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "quote": {
+            "type": "object",
+            "description": "The firm price and the job estimates."
+          }
+        }
+      },
+      "Preset": {
+        "type": "object",
+        "properties": {
+          "slug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "program": {
+            "type": "string"
+          },
+          "has_idl": {
+            "type": "boolean"
+          },
+          "instructions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "IDL instructions; each gives one ix-<name> table."
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "IDL events; each gives one ev-<name> table."
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_epoch": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The last epoch the preset covers, for a program that stopped."
+          },
+          "filter": {
+            "type": "object",
+            "description": "In GET /presets/{slug} only: the filter the preset sends."
+          },
+          "idl": {
+            "type": "object",
+            "description": "In GET /presets/{slug} only: the IDL the preset sends."
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
