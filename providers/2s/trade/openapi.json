@@ -1,0 +1,1292 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "2s",
+    "version": "1",
+    "description": "Unified JSON REST API for AI agents — an ever-expanding catalog of endpoints, pay per call in USDC on Base or Solana via x402, no accounts, no API keys. Fund a wallet on either chain with USDC, hit any endpoint, and your client signs an EIP-3009 authorization (Base) or a partial SPL transfer (Solana) to settle the call. Try before you buy: add ?trial=1 (or header X-2s-Trial: 1) to any endpoint for one free real call per endpoint per hour — no wallet needed — to verify it works before paying. 2s is an open-ended experiment in maximally-comprehensive agent infrastructure — new endpoints land regularly.",
+    "contact": {
+      "name": "2s",
+      "url": "https://2s.io",
+      "email": "alley@2s.io"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://2s.io"
+    }
+  ],
+  "components": {
+    "parameters": {
+      "TrialMode": {
+        "name": "trial",
+        "in": "query",
+        "required": false,
+        "description": "Try before you buy. Set to 1 for one free real call per endpoint per hour — no wallet or payment needed — to verify the endpoint before paying. Equivalent to sending the \"X-2s-Trial: 1\" request header. Works on every endpoint.",
+        "schema": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        }
+      }
+    },
+    "securitySchemes": {
+      "x402Payment": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "PAYMENT-SIGNATURE",
+        "description": "x402 protocol v2: base64-encoded PaymentPayload. Call any paid endpoint without auth to receive a 402 with a multi-network PaymentRequirements envelope. Sign for either rail: EIP-3009 transferWithAuthorization (Base USDC) OR a partial SPL token transfer (Solana USDC). Retry with PAYMENT-SIGNATURE header. X-PAYMENT is also accepted for v1 buyer clients. See https://x402.org."
+      }
+    },
+    "schemas": {
+      "X402PaymentRequiredV2": {
+        "type": "object",
+        "description": "x402 v2 PaymentRequired envelope. Pick any entry from accepts[], sign for that rail, retry with the PAYMENT-SIGNATURE header.",
+        "required": [
+          "x402Version",
+          "accepts"
+        ],
+        "properties": {
+          "x402Version": {
+            "type": "integer",
+            "const": 2
+          },
+          "error": {
+            "type": "string",
+            "description": "Human-readable reason payment is required."
+          },
+          "resource": {
+            "type": "string",
+            "description": "The resource URL being purchased."
+          },
+          "accepts": {
+            "type": "array",
+            "description": "Payment requirement options, one per supported network (Base USDC, Solana USDC).",
+            "items": {
+              "type": "object",
+              "required": [
+                "scheme",
+                "network",
+                "amount",
+                "asset",
+                "payTo",
+                "maxTimeoutSeconds"
+              ],
+              "properties": {
+                "scheme": {
+                  "type": "string",
+                  "enum": [
+                    "exact"
+                  ]
+                },
+                "network": {
+                  "type": "string",
+                  "description": "CAIP-2 network id, e.g. \"eip155:8453\" (Base) or \"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp\"."
+                },
+                "amount": {
+                  "type": "string",
+                  "description": "Price in atomic asset units (USDC has 6 decimals)."
+                },
+                "asset": {
+                  "type": "string",
+                  "description": "Asset contract address / mint."
+                },
+                "payTo": {
+                  "type": "string",
+                  "description": "Treasury address to pay."
+                },
+                "maxTimeoutSeconds": {
+                  "type": "integer"
+                },
+                "extra": {
+                  "type": "object",
+                  "description": "Rail-specific extras (EVM: EIP-712 domain name/version; Solana: feePayer).",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "extensions": {
+            "type": "object",
+            "description": "Optional discovery metadata (e.g. bazaar input/output schemas).",
+            "additionalProperties": true
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/edi/ack": {
+      "post": {
+        "tags": [
+          "edi"
+        ],
+        "summary": "Generate the ANSI ASC X12 997 Functional Acknowledgment for...",
+        "description": "Generate the ANSI ASC X12 997 Functional Acknowledgment for a received EDI interchange. POST { edi } with the raw inbound interchange text (the 850/810/856/etc. you received); returns the ready-to-send 997 in meta.ack — sender/receiver mirrored back, delimiters echoed, one ST(997) per inbound functional group with correct AK1 (functional id + group control number), AK2/AK5 per transaction set, and AK9 with accurate included/received/accepted counts. Set status to control the response: A=Accepted (default), E=Accepted with errors, P=Partially accepted, R=Rejected, M/W/X=authentication/security rejection. Deterministic, no external calls. This is the reply leg of EDI: every transaction set you receive is supposed to be acknowledged, and assembling a valid 997 (especially the AK9 counts) is exactly the fiddly envelope bookkeeping agents shouldn't hand-roll.",
+        "operationId": "edi_ack",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: meta.ack = the generated 997 text; items = per functional group acknowledged (status + AK9 counts + per-transaction-set response).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "acknowledgedFunctionalGroup": {
+                                "type": "string"
+                              },
+                              "acknowledgedGroupControlNumber": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "transactionSetsIncluded": {
+                                "type": "integer"
+                              },
+                              "transactionSetsReceived": {
+                                "type": "integer"
+                              },
+                              "transactionSetsAccepted": {
+                                "type": "integer"
+                              },
+                              "transactionSets": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string"
+                                    },
+                                    "controlNumber": {
+                                      "type": "string",
+                                      "nullable": true
+                                    },
+                                    "response": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "type",
+                                    "controlNumber",
+                                    "response"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": [
+                              "acknowledgedFunctionalGroup",
+                              "acknowledgedGroupControlNumber",
+                              "status",
+                              "transactionSetsIncluded",
+                              "transactionSetsReceived",
+                              "transactionSetsAccepted",
+                              "transactionSets"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "ack": {
+                              "type": "string",
+                              "description": "The ready-to-send 997 interchange text."
+                            },
+                            "controlNumber": {
+                              "type": "string"
+                            },
+                            "acknowledges": {
+                              "type": "object",
+                              "properties": {
+                                "senderId": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "receiverId": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "interchangeControlNumber": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "functionalGroupCount": {
+                                  "type": "integer"
+                                },
+                                "transactionSetCount": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "senderId",
+                                "receiverId",
+                                "interchangeControlNumber",
+                                "functionalGroupCount",
+                                "transactionSetCount"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "delimiters": {
+                              "type": "object",
+                              "properties": {
+                                "element": {
+                                  "type": "string"
+                                },
+                                "component": {
+                                  "type": "string"
+                                },
+                                "segment": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "element",
+                                "component",
+                                "segment"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "ack",
+                            "controlNumber",
+                            "acknowledges",
+                            "delimiters"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0018 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "edi.ack",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0018,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001800"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "edi": {
+                    "type": "string",
+                    "minLength": 106,
+                    "maxLength": 500000,
+                    "description": "Edi."
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "A",
+                      "E",
+                      "P",
+                      "R",
+                      "M",
+                      "W",
+                      "X"
+                    ],
+                    "description": "Filter results by status."
+                  },
+                  "controlNumber": {
+                    "type": "string",
+                    "maxLength": 15,
+                    "description": "Control number."
+                  }
+                },
+                "required": [
+                  "edi"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/edi/parse": {
+      "post": {
+        "tags": [
+          "edi"
+        ],
+        "summary": "Parse a raw ANSI ASC X12 EDI document (the format used for...",
+        "description": "Parse a raw ANSI ASC X12 EDI document (the format used for B2B purchase orders, invoices, ship notices, etc.) into clean, structured JSON. POST { edi } with the raw interchange text. Auto-detects the delimiters from the ISA envelope, then returns the interchange metadata (sender/receiver/date/control number/test-or-production), each functional group, and each transaction set with its type decoded (e.g. 850 = Purchase Order, 810 = Invoice, 856 = Ship Notice/ASN, 855 = PO Acknowledgment, 997 = Functional Acknowledgment), every segment named (BEG, N1, PO1, …), and a semantic summary — for a PO that's the PO number, dates, parties (ship-to/vendor with address), and line items (qty/uom/price/product id); for an invoice the invoice + PO numbers and total; for an ASN the shipment id and carrier; for a 997 the acknowledged group + status. Deterministic, no external calls. Turns opaque EDI into something an agent can actually use without hand-rolling an X12 parser.",
+        "operationId": "edi_parse",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = transaction sets (each decoded + summarized); meta = interchange envelope + detected delimiters + counts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "functionalCode": {
+                                "type": "string"
+                              },
+                              "functionalName": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              },
+                              "typeName": {
+                                "type": "string"
+                              },
+                              "controlNumber": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "segmentCount": {
+                                "type": "integer"
+                              },
+                              "summary": {
+                                "type": "object",
+                                "additionalProperties": {},
+                                "description": "Type-specific semantic summary (PO number, parties, line items, totals, etc.)."
+                              },
+                              "segments": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "tag": {
+                                      "type": "string"
+                                    },
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "elements": {
+                                      "type": "array",
+                                      "items": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  },
+                                  "required": [
+                                    "tag",
+                                    "name",
+                                    "elements"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": [
+                              "functionalCode",
+                              "functionalName",
+                              "type",
+                              "typeName",
+                              "controlNumber",
+                              "segmentCount",
+                              "summary",
+                              "segments"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "interchange": {
+                              "type": "object",
+                              "additionalProperties": {}
+                            },
+                            "delimiters": {
+                              "type": "object",
+                              "properties": {
+                                "element": {
+                                  "type": "string"
+                                },
+                                "component": {
+                                  "type": "string"
+                                },
+                                "segment": {
+                                  "type": "string"
+                                },
+                                "repetition": {
+                                  "type": "string",
+                                  "nullable": true
+                                }
+                              },
+                              "required": [
+                                "element",
+                                "component",
+                                "segment",
+                                "repetition"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "functionalGroupCount": {
+                              "type": "integer"
+                            },
+                            "transactionSetCount": {
+                              "type": "integer"
+                            },
+                            "segmentCount": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "interchange",
+                            "delimiters",
+                            "functionalGroupCount",
+                            "transactionSetCount",
+                            "segmentCount"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0018 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "edi.parse",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0018,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001800"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "edi": {
+                    "type": "string",
+                    "minLength": 106,
+                    "maxLength": 500000,
+                    "description": "Edi."
+                  }
+                },
+                "required": [
+                  "edi"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/trade/locode": {
+      "get": {
+        "tags": [
+          "trade"
+        ],
+        "summary": "Look up or search UN/LOCODE - the United Nations Code for...",
+        "description": "Look up or search UN/LOCODE — the United Nations Code for Trade and Transport Locations (~116k locations, all countries). Pass `locode` for an exact code (e.g. USNYC or 'US NYC'). Or pass `query` to search location names, optionally filtered by `country` (ISO 3166 alpha-2) and `function` (port, rail, road, airport, postal, multimodal, fixed, border). Each result: locode, name, country, subdivision, transport functions, entry status, IATA code where it differs, and coordinates. UN/LOCODE is the standard location identifier in shipping schedules, EDI messages, and customs documents.",
+        "operationId": "trade_locode",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = UN/LOCODE entries (single exact match, or ranked name-search results); total = match count.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "locode": {
+                                "type": "string",
+                                "description": "5-character UN/LOCODE (country + location)."
+                              },
+                              "country": {
+                                "type": "string",
+                                "description": "ISO 3166 alpha-2 country code."
+                              },
+                              "location": {
+                                "type": "string",
+                                "description": "3-character location part of the code."
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "Place name (with diacritics)."
+                              },
+                              "nameAscii": {
+                                "type": "string",
+                                "description": "Place name without diacritics."
+                              },
+                              "subdivision": {
+                                "type": "object",
+                                "properties": {
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string",
+                                    "nullable": true
+                                  }
+                                },
+                                "required": [
+                                  "code",
+                                  "name"
+                                ],
+                                "additionalProperties": false,
+                                "nullable": true,
+                                "description": "ISO 3166-2 subdivision (state/province), when assigned."
+                              },
+                              "functions": {
+                                "type": "object",
+                                "properties": {
+                                  "raw": {
+                                    "type": "string",
+                                    "description": "Raw 8-position UN/LOCODE function classifier."
+                                  },
+                                  "list": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "description": "Decoded transport functions (port, rail terminal, airport, …)."
+                                  }
+                                },
+                                "required": [
+                                  "raw",
+                                  "list"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "status": {
+                                "type": "object",
+                                "properties": {
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "meaning": {
+                                    "type": "string",
+                                    "nullable": true
+                                  }
+                                },
+                                "required": [
+                                  "code",
+                                  "meaning"
+                                ],
+                                "additionalProperties": false,
+                                "nullable": true,
+                                "description": "Entry status code + meaning (e.g. AA = approved by national agency)."
+                              },
+                              "iata": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "IATA code, only when it differs from the location part."
+                              },
+                              "coordinates": {
+                                "type": "object",
+                                "properties": {
+                                  "lat": {
+                                    "type": "number"
+                                  },
+                                  "lon": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "lat",
+                                  "lon"
+                                ],
+                                "additionalProperties": false,
+                                "nullable": true
+                              },
+                              "updated": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "Last-change marker from the source list (YYMM)."
+                              }
+                            },
+                            "required": [
+                              "locode",
+                              "country",
+                              "location",
+                              "name",
+                              "nameAscii",
+                              "subdivision",
+                              "functions",
+                              "status",
+                              "iata",
+                              "coordinates",
+                              "updated"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "page": {
+                          "type": "object",
+                          "properties": {
+                            "number": {
+                              "type": "integer"
+                            },
+                            "size": {
+                              "type": "integer"
+                            },
+                            "pages": {
+                              "type": "integer",
+                              "nullable": true
+                            }
+                          },
+                          "required": [
+                            "number",
+                            "size",
+                            "pages"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.001 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "trade.locode",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.001,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "locode",
+            "in": "query",
+            "required": false,
+            "description": "Exact UN/LOCODE to look up (e.g. USNYC or 'US NYC'). Pass this OR query.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z]{2}[\\s-]?[A-Za-z0-9]{3}$"
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "description": "Location name to search (e.g. Rotterdam). Pass this OR locode.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 120
+            }
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "description": "Restrict query-mode results to one country (ISO 3166 alpha-2, e.g. NL).",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z]{2}$"
+            }
+          },
+          {
+            "name": "function",
+            "in": "query",
+            "required": false,
+            "description": "Restrict query-mode results to locations with this transport function.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "port",
+                "rail",
+                "road",
+                "airport",
+                "postal",
+                "multimodal",
+                "fixed",
+                "border"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Max query-mode results, 1–50 (default 10).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/trade/tariff": {
+      "get": {
+        "tags": [
+          "trade"
+        ],
+        "summary": "Look up or search the US Harmonized Tariff Schedule (HTS /...",
+        "description": "Look up or search the US Harmonized Tariff Schedule (HTS / HS codes). Pass `code` for an exact HTS number (dots optional) — returns that line plus its 10-digit statistical suffixes with duty rates. Or pass `query` for free-text search (e.g. 'electric toothbrush', 'roasted coffee') → ranked candidate HS codes by hierarchical heading. Each result: htsno, chapter, description, full heading path, units, and duty rates (general/MFN, special/FTA, column-2). ~29.6k lines, public-domain USITC data. The deterministic backbone for tariff classification in import/export and ERP item setup.",
+        "operationId": "trade_tariff",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = HTS lines (exact match + suffixes, or ranked search candidates); total = match count.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "htsno": {
+                                "type": "string"
+                              },
+                              "chapter": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "description": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "heading": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "Full hierarchical heading path (ancestors > leaf)."
+                              },
+                              "units": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "nullable": true
+                              },
+                              "duty": {
+                                "type": "object",
+                                "properties": {
+                                  "general": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "description": "General (MFN) duty rate."
+                                  },
+                                  "special": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "description": "Special (FTA / preference) rate."
+                                  },
+                                  "other": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "description": "Column 2 rate."
+                                  }
+                                },
+                                "required": [
+                                  "general",
+                                  "special",
+                                  "other"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "htsno",
+                              "chapter",
+                              "description",
+                              "heading",
+                              "units",
+                              "duty"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "page": {
+                          "type": "object",
+                          "properties": {
+                            "number": {
+                              "type": "integer"
+                            },
+                            "size": {
+                              "type": "integer"
+                            },
+                            "pages": {
+                              "type": "integer",
+                              "nullable": true
+                            }
+                          },
+                          "required": [
+                            "number",
+                            "size",
+                            "pages"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0018 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "trade.tariff",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0018,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001800"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "description": "Code to look up.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9.\\s]{4,14}$"
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "description": "Free-text search query.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 120
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of results to return.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    }
+  }
+}

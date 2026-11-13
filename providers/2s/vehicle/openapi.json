@@ -1,0 +1,3812 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "2s",
+    "version": "1",
+    "description": "Unified JSON REST API for AI agents — an ever-expanding catalog of endpoints, pay per call in USDC on Base or Solana via x402, no accounts, no API keys. Fund a wallet on either chain with USDC, hit any endpoint, and your client signs an EIP-3009 authorization (Base) or a partial SPL transfer (Solana) to settle the call. Try before you buy: add ?trial=1 (or header X-2s-Trial: 1) to any endpoint for one free real call per endpoint per hour — no wallet needed — to verify it works before paying. 2s is an open-ended experiment in maximally-comprehensive agent infrastructure — new endpoints land regularly.",
+    "contact": {
+      "name": "2s",
+      "url": "https://2s.io",
+      "email": "alley@2s.io"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://2s.io"
+    }
+  ],
+  "components": {
+    "parameters": {
+      "TrialMode": {
+        "name": "trial",
+        "in": "query",
+        "required": false,
+        "description": "Try before you buy. Set to 1 for one free real call per endpoint per hour — no wallet or payment needed — to verify the endpoint before paying. Equivalent to sending the \"X-2s-Trial: 1\" request header. Works on every endpoint.",
+        "schema": {
+          "type": "integer",
+          "enum": [
+            1
+          ]
+        }
+      }
+    },
+    "securitySchemes": {
+      "x402Payment": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "PAYMENT-SIGNATURE",
+        "description": "x402 protocol v2: base64-encoded PaymentPayload. Call any paid endpoint without auth to receive a 402 with a multi-network PaymentRequirements envelope. Sign for either rail: EIP-3009 transferWithAuthorization (Base USDC) OR a partial SPL token transfer (Solana USDC). Retry with PAYMENT-SIGNATURE header. X-PAYMENT is also accepted for v1 buyer clients. See https://x402.org."
+      }
+    },
+    "schemas": {
+      "X402PaymentRequiredV2": {
+        "type": "object",
+        "description": "x402 v2 PaymentRequired envelope. Pick any entry from accepts[], sign for that rail, retry with the PAYMENT-SIGNATURE header.",
+        "required": [
+          "x402Version",
+          "accepts"
+        ],
+        "properties": {
+          "x402Version": {
+            "type": "integer",
+            "const": 2
+          },
+          "error": {
+            "type": "string",
+            "description": "Human-readable reason payment is required."
+          },
+          "resource": {
+            "type": "string",
+            "description": "The resource URL being purchased."
+          },
+          "accepts": {
+            "type": "array",
+            "description": "Payment requirement options, one per supported network (Base USDC, Solana USDC).",
+            "items": {
+              "type": "object",
+              "required": [
+                "scheme",
+                "network",
+                "amount",
+                "asset",
+                "payTo",
+                "maxTimeoutSeconds"
+              ],
+              "properties": {
+                "scheme": {
+                  "type": "string",
+                  "enum": [
+                    "exact"
+                  ]
+                },
+                "network": {
+                  "type": "string",
+                  "description": "CAIP-2 network id, e.g. \"eip155:8453\" (Base) or \"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp\"."
+                },
+                "amount": {
+                  "type": "string",
+                  "description": "Price in atomic asset units (USDC has 6 decimals)."
+                },
+                "asset": {
+                  "type": "string",
+                  "description": "Asset contract address / mint."
+                },
+                "payTo": {
+                  "type": "string",
+                  "description": "Treasury address to pay."
+                },
+                "maxTimeoutSeconds": {
+                  "type": "integer"
+                },
+                "extra": {
+                  "type": "object",
+                  "description": "Rail-specific extras (EVM: EIP-712 domain name/version; Solana: feePayer).",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "extensions": {
+            "type": "object",
+            "description": "Optional discovery metadata (e.g. bazaar input/output schemas).",
+            "additionalProperties": true
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/aircraft/lookup": {
+      "get": {
+        "tags": [
+          "aircraft"
+        ],
+        "summary": "Look up a US-registered aircraft by tail number (N-number, e.g.",
+        "description": "Look up a US-registered aircraft by tail number (N-number, e.g. N757F) or icao24 Mode-S hex (e.g. aa3487). Pass exactly one of `tail` or `icao24`. Returns the airframe: registration, manufacturer, model, ICAO type code + class, serial number, operator, owner, build year, engines, category, plus the icao24 Mode-S address that ADS-B transponders broadcast — use it to join live flight-tracking feeds. ~307k US airframes. 404 if no match. Source: OpenSky Network aircraft database (CC-BY-SA).",
+        "operationId": "aircraft_lookup",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = [aircraft] (one airframe matched by tail or icao24); total = 1. 404 if no US airframe matches.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "icao24": {
+                                "type": "string",
+                                "description": "24-bit Mode-S address (lowercase hex) — broadcast by ADS-B."
+                              },
+                              "registration": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "Tail / N-number."
+                              },
+                              "manufacturer": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "model": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "typecode": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "ICAO type designator (e.g. BE36)."
+                              },
+                              "icaoType": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "ICAO aircraft type class (e.g. L1P = land, 1 piston engine)."
+                              },
+                              "serialNumber": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "operator": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "owner": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "built": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "engines": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "category": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "registered": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "regUntil": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            },
+                            "required": [
+                              "icao24",
+                              "registration",
+                              "manufacturer",
+                              "model",
+                              "typecode",
+                              "icaoType",
+                              "serialNumber",
+                              "operator",
+                              "owner",
+                              "built",
+                              "engines",
+                              "category",
+                              "registered",
+                              "regUntil"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.00144 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "aircraft.lookup",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.00144,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001440"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "tail",
+            "in": "query",
+            "required": false,
+            "description": "Tail.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[Nn][0-9A-Za-z]{1,5}$"
+            }
+          },
+          {
+            "name": "icao24",
+            "in": "query",
+            "required": false,
+            "description": "Icao24.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{6}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/aircraft/profile": {
+      "get": {
+        "tags": [
+          "aircraft"
+        ],
+        "summary": "Look up a US-registered aircraft by tail (N-number) or...",
+        "description": "Identify a US-registered aircraft by tail (N-number) or icao24 Mode-S hex, AND screen its owner and operator against the OFAC sanctions list — in one call. Returns the full aircraft record (registration, manufacturer, model, type, serial, owner, operator, year built) plus a sanctions screen of the owner and operator names against OFAC SDN, with fuzzy-match confidence and a flagged boolean. OSINT, asset-tracing, sanctions-evasion investigation, due diligence. Composition of /api/aircraft/lookup + /api/law/sanctions-check (the sanctions section reports found/error independently). Note: screening is name-based and probabilistic — review flagged matches manually.",
+        "operationId": "aircraft_profile",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "aircraft": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "ownerScreen": {
+                          "type": "object",
+                          "properties": {
+                            "found": {
+                              "type": "boolean"
+                            },
+                            "error": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "flagged": {
+                              "type": "boolean"
+                            },
+                            "matchCount": {
+                              "type": "number"
+                            },
+                            "matches": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "additionalProperties": {}
+                              }
+                            }
+                          },
+                          "required": [
+                            "found",
+                            "error",
+                            "flagged",
+                            "matchCount",
+                            "matches"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "operatorScreen": {
+                          "type": "object",
+                          "properties": {
+                            "found": {
+                              "type": "boolean"
+                            },
+                            "error": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "flagged": {
+                              "type": "boolean"
+                            },
+                            "matchCount": {
+                              "type": "number"
+                            },
+                            "matches": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "additionalProperties": {}
+                              }
+                            }
+                          },
+                          "required": [
+                            "found",
+                            "error",
+                            "flagged",
+                            "matchCount",
+                            "matches"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "sources": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": {}
+                          }
+                        }
+                      },
+                      "required": [
+                        "aircraft",
+                        "ownerScreen",
+                        "operatorScreen",
+                        "sources"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.00432 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "aircraft.profile",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.00432,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "legacy",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.004320"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "tail",
+            "in": "query",
+            "required": false,
+            "description": "Tail.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 10
+            }
+          },
+          {
+            "name": "icao24",
+            "in": "query",
+            "required": false,
+            "description": "Icao24.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-fA-F]{6}$"
+            }
+          },
+          {
+            "name": "threshold",
+            "in": "query",
+            "required": false,
+            "description": "Minimum score/threshold required to include a result.",
+            "schema": {
+              "type": "number",
+              "minimum": 0.1,
+              "maximum": 1,
+              "default": 0.5
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/airport/lookup": {
+      "get": {
+        "tags": [
+          "airport"
+        ],
+        "summary": "Look up an airport by 3-letter IATA (e.g.",
+        "description": "Look up an airport by 3-letter IATA (e.g. SFO) or 4-letter ICAO (e.g. KSFO) code. Query: code (3-5 chars, alphanumeric). Returns { airport: { id, ident, type, name, latitude, longitude, elevationFt, continent, isoCountry, isoRegion, municipality, scheduledService, icaoCode, iataCode, gpsCode, localCode, wikipediaLink } } or 404 NOT_FOUND.",
+        "operationId": "airport_lookup",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = [airport] (one OurAirports record); total = 1. 404 if no airport matches the code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "description": "OurAirports stable numeric id."
+                              },
+                              "ident": {
+                                "type": "string",
+                                "description": "Globally unique identifier (usually ICAO)."
+                              },
+                              "type": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "large_airport | medium_airport | small_airport | heliport | seaplane_base | closed."
+                              },
+                              "name": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "latitude": {
+                                "type": "number"
+                              },
+                              "longitude": {
+                                "type": "number"
+                              },
+                              "elevationFt": {
+                                "type": "integer",
+                                "nullable": true
+                              },
+                              "continent": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "isoCountry": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "ISO 3166-1 alpha-2 country code."
+                              },
+                              "isoRegion": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "ISO 3166-2 region code (e.g. US-CA)."
+                              },
+                              "municipality": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "scheduledService": {
+                                "type": "boolean",
+                                "nullable": true
+                              },
+                              "icaoCode": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "iataCode": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "gpsCode": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "localCode": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "wikipediaLink": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "ident",
+                              "type",
+                              "name",
+                              "latitude",
+                              "longitude",
+                              "elevationFt",
+                              "continent",
+                              "isoCountry",
+                              "isoRegion",
+                              "municipality",
+                              "scheduledService",
+                              "icaoCode",
+                              "iataCode",
+                              "gpsCode",
+                              "localCode",
+                              "wikipediaLink"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.001 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "airport.lookup",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.001,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": true,
+            "description": "3-letter IATA or 4-letter ICAO airport code (e.g. SFO, KSFO).",
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 5
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/airport/near": {
+      "get": {
+        "tags": [
+          "airport"
+        ],
+        "summary": "Find airports within a radius of a coordinate",
+        "description": "Airports within a radius of a coordinate, sorted by distance. Query: lat (-90..90), lon (-180..180), radius_km (1-2000, default 200), limit (1-100, default 20), type (optional: large_airport|medium_airport|small_airport|heliport|seaplane_base|balloonport|closed), country (optional 2-letter ISO 3166-1), scheduled_service (optional bool, true = commercial-service airports only). Returns { query, count, airports: [{ id, ident, name, iataCode, icaoCode, type, latitude, longitude, distanceKm, ... }] }.",
+        "operationId": "airport_near",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = airports within radius_km, sorted by ascending distance; total = null (no upstream total; query-bounded set); meta.query echoes the search.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer"
+                              },
+                              "ident": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "iataCode": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "icaoCode": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "type": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "latitude": {
+                                "type": "number"
+                              },
+                              "longitude": {
+                                "type": "number"
+                              },
+                              "distanceKm": {
+                                "type": "number",
+                                "description": "Great-circle distance to (lat, lon), kilometers."
+                              },
+                              "isoCountry": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "isoRegion": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "municipality": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "scheduledService": {
+                                "type": "boolean",
+                                "nullable": true
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "ident",
+                              "name",
+                              "iataCode",
+                              "icaoCode",
+                              "type",
+                              "latitude",
+                              "longitude",
+                              "distanceKm",
+                              "isoCountry",
+                              "isoRegion",
+                              "municipality",
+                              "scheduledService"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "query": {
+                              "type": "object",
+                              "properties": {
+                                "latitude": {
+                                  "type": "number"
+                                },
+                                "longitude": {
+                                  "type": "number"
+                                },
+                                "radiusKm": {
+                                  "type": "number"
+                                },
+                                "limit": {
+                                  "type": "integer"
+                                },
+                                "type": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "country": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "scheduledServiceOnly": {
+                                  "type": "boolean",
+                                  "nullable": true
+                                }
+                              },
+                              "required": [
+                                "latitude",
+                                "longitude",
+                                "radiusKm",
+                                "limit",
+                                "type",
+                                "country",
+                                "scheduledServiceOnly"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "query"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.001 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "airport.near",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.001,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "lat",
+            "in": "query",
+            "required": true,
+            "description": "Latitude in decimal degrees (-90 to 90).",
+            "schema": {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90
+            }
+          },
+          {
+            "name": "lon",
+            "in": "query",
+            "required": true,
+            "description": "Longitude in decimal degrees (-180 to 180).",
+            "schema": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180
+            }
+          },
+          {
+            "name": "radius_km",
+            "in": "query",
+            "required": false,
+            "description": "Search radius in kilometers (1-2000). Default 200.",
+            "schema": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 2000,
+              "default": 200
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Max airports to return (1-100). Default 20.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "description": "Filter by airport type.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "large_airport",
+                "medium_airport",
+                "small_airport",
+                "heliport",
+                "seaplane_base",
+                "balloonport",
+                "closed"
+              ]
+            }
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "description": "Filter by ISO 3166-1 alpha-2 country code (e.g. US).",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$"
+            }
+          },
+          {
+            "name": "scheduled_service",
+            "in": "query",
+            "required": false,
+            "description": "When true, only commercial-service airports.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/aviation/metar": {
+      "get": {
+        "tags": [
+          "aviation"
+        ],
+        "summary": "Fetch current METAR aviation weather for airports",
+        "description": "Current aviation weather observation (METAR) for one or more airports. Pass ids = comma-separated ICAO station ids (e.g. KATL, EGLL, KJFK). Returns the raw METAR plus decoded fields: flight category (VFR/MVFR/IFR/LIFR), temperature + dewpoint (°C), wind direction/speed/gust (kt), visibility, altimeter (inHg), and cloud layers. Source: NOAA Aviation Weather Center (keyless, public domain).",
+        "operationId": "aviation_metar",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = METAR observations (one per station); total = count.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "station": {
+                                "type": "string"
+                              },
+                              "observedAt": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "raw": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "flightCategory": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "tempC": {
+                                "type": "number",
+                                "nullable": true
+                              },
+                              "dewpointC": {
+                                "type": "number",
+                                "nullable": true
+                              },
+                              "windDirDeg": {
+                                "type": "number",
+                                "nullable": true
+                              },
+                              "windSpeedKt": {
+                                "type": "number",
+                                "nullable": true
+                              },
+                              "windGustKt": {
+                                "type": "number",
+                                "nullable": true
+                              },
+                              "visibility": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "altimeterInHg": {
+                                "type": "number",
+                                "nullable": true
+                              },
+                              "clouds": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "cover": {
+                                      "type": "string"
+                                    },
+                                    "baseFtAgl": {
+                                      "type": "number",
+                                      "nullable": true
+                                    }
+                                  },
+                                  "required": [
+                                    "cover",
+                                    "baseFtAgl"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "name": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            },
+                            "required": [
+                              "station",
+                              "observedAt",
+                              "raw",
+                              "flightCategory",
+                              "tempC",
+                              "dewpointC",
+                              "windDirDeg",
+                              "windSpeedKt",
+                              "windGustKt",
+                              "visibility",
+                              "altimeterInHg",
+                              "clouds",
+                              "name"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0012 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "aviation.metar",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0012,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001200"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "ids",
+            "in": "query",
+            "required": true,
+            "description": "Comma-separated list of identifiers.",
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 120
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/aviation/taf": {
+      "get": {
+        "tags": [
+          "aviation"
+        ],
+        "summary": "Fetch Terminal Aerodrome Forecasts (TAF) for airports",
+        "description": "Terminal Aerodrome Forecast (TAF) for one or more airports — the official aviation forecast issued for an airport (~24–30h ahead). Pass ids = comma-separated ICAO station ids (e.g. KATL). Returns the raw TAF text + issue time. Source: NOAA Aviation Weather Center (keyless). For current conditions use aviation.metar.",
+        "operationId": "aviation_taf",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = TAFs (one per station); total = count.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "station": {
+                                "type": "string"
+                              },
+                              "issuedAt": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "raw": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "name": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            },
+                            "required": [
+                              "station",
+                              "issuedAt",
+                              "raw",
+                              "name"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0012 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "aviation.taf",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0012,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001200"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "ids",
+            "in": "query",
+            "required": true,
+            "description": "Comma-separated list of identifiers.",
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 120
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/flight/status": {
+      "get": {
+        "tags": [
+          "flight"
+        ],
+        "summary": "Fetch live flight status and tracking",
+        "description": "Live flight status and tracking. Pass ident as an airline flight designator (ICAO \"UAL1\" or IATA \"UA1\") or an aircraft tail number; returns recent and upcoming instances of that flight with origin/destination airports (ICAO/IATA/name/city/timezone), status, cancellation/diversion flags, scheduled vs estimated vs actual gate and runway times (out/off/on/in), departure and arrival delays, en-route progress percent, aircraft type and registration, and route distance. limit controls how many instances return (default 5, newest first by scheduled departure). Real-time operational data — answer \"where is this flight, is it delayed, when does it land\" with live values. For aircraft registry data see /api/aircraft/lookup; for airport metadata see /api/airport/lookup.",
+        "operationId": "flight_status",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = recent + upcoming instances of a flight with live times, delays, progress, aircraft; total = instances returned; meta.ident echoes the queried designator.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "ident": {
+                                "type": "string"
+                              },
+                              "identIata": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "operator": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "flightNumber": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "registration": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "aircraftType": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "origin": {
+                                "type": "object",
+                                "properties": {
+                                  "icao": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "iata": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "name": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "city": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "timezone": {
+                                    "type": "string",
+                                    "nullable": true
+                                  }
+                                },
+                                "required": [
+                                  "icao",
+                                  "iata",
+                                  "name",
+                                  "city",
+                                  "timezone"
+                                ],
+                                "additionalProperties": false,
+                                "nullable": true
+                              },
+                              "destination": {
+                                "type": "object",
+                                "properties": {
+                                  "icao": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "iata": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "name": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "city": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "timezone": {
+                                    "type": "string",
+                                    "nullable": true
+                                  }
+                                },
+                                "required": [
+                                  "icao",
+                                  "iata",
+                                  "name",
+                                  "city",
+                                  "timezone"
+                                ],
+                                "additionalProperties": false,
+                                "nullable": true
+                              },
+                              "status": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "cancelled": {
+                                "type": "boolean"
+                              },
+                              "diverted": {
+                                "type": "boolean"
+                              },
+                              "scheduledOut": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "estimatedOut": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "actualOut": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "actualOff": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "Actual takeoff time."
+                              },
+                              "actualOn": {
+                                "type": "string",
+                                "nullable": true,
+                                "description": "Actual landing time."
+                              },
+                              "scheduledIn": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "estimatedIn": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "actualIn": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "progressPercent": {
+                                "type": "number",
+                                "nullable": true
+                              },
+                              "departureDelaySec": {
+                                "type": "number",
+                                "nullable": true
+                              },
+                              "arrivalDelaySec": {
+                                "type": "number",
+                                "nullable": true,
+                                "description": "Negative = early."
+                              },
+                              "routeDistanceKm": {
+                                "type": "number",
+                                "nullable": true
+                              }
+                            },
+                            "required": [
+                              "ident",
+                              "identIata",
+                              "operator",
+                              "flightNumber",
+                              "registration",
+                              "aircraftType",
+                              "origin",
+                              "destination",
+                              "status",
+                              "cancelled",
+                              "diverted",
+                              "scheduledOut",
+                              "estimatedOut",
+                              "actualOut",
+                              "actualOff",
+                              "actualOn",
+                              "scheduledIn",
+                              "estimatedIn",
+                              "actualIn",
+                              "progressPercent",
+                              "departureDelaySec",
+                              "arrivalDelaySec",
+                              "routeDistanceKm"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "ident": {
+                              "type": "string",
+                              "description": "Normalized (uppercased) ident that was queried."
+                            }
+                          },
+                          "required": [
+                            "ident"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.018 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "flight.status",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.018,
+          "tier": 2
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.018000"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "ident",
+            "in": "query",
+            "required": true,
+            "description": "Flight designator (ICAO UAL1 or IATA UA1) or aircraft tail number.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 12,
+              "pattern": "^[A-Za-z0-9-]+$"
+            }
+          },
+          {
+            "name": "identType",
+            "in": "query",
+            "required": false,
+            "description": "Ident type.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "designator",
+                "registration",
+                "fa_flight_id"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of results to return.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 15,
+              "default": 5
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/vehicle/complaints": {
+      "get": {
+        "tags": [
+          "vehicle"
+        ],
+        "summary": "Fetch NHTSA consumer complaints for a US vehicle by (make",
+        "description": "NHTSA consumer complaints for a US vehicle by (make, model, modelYear). Returns the top N records (newest-filed first) with ODI number, affected component, plain-English summary, crash/fire flags, injury and death counts, partial VIN, and incident + filing dates. Backed by NHTSA's public complaints database; data is public-domain US government records.",
+        "operationId": "vehicle_complaints",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = NHTSA consumer-complaint records for the queried vehicle, newest first (total = all matching complaints upstream). To go straight from a VIN to its complaints (and recalls), see /api/vehicle/profile.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "odiNumber": {
+                                "type": "integer"
+                              },
+                              "manufacturer": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "components": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "summary": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "crash": {
+                                "type": "boolean"
+                              },
+                              "fire": {
+                                "type": "boolean"
+                              },
+                              "numberOfInjuries": {
+                                "type": "integer"
+                              },
+                              "numberOfDeaths": {
+                                "type": "integer"
+                              },
+                              "vin": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "dateOfIncident": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "dateComplaintFiled": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            },
+                            "required": [
+                              "odiNumber",
+                              "manufacturer",
+                              "components",
+                              "summary",
+                              "crash",
+                              "fire",
+                              "numberOfInjuries",
+                              "numberOfDeaths",
+                              "vin",
+                              "dateOfIncident",
+                              "dateComplaintFiled"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "query": {
+                              "type": "object",
+                              "properties": {
+                                "make": {
+                                  "type": "string"
+                                },
+                                "model": {
+                                  "type": "string"
+                                },
+                                "modelYear": {
+                                  "type": "integer"
+                                },
+                                "limit": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "make",
+                                "model",
+                                "modelYear",
+                                "limit"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "query"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0024 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "vehicle.complaints",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0024,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.002400"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "make",
+            "in": "query",
+            "required": true,
+            "description": "Vehicle make. Examples: \"Honda\", \"Tesla\", \"Ford\".",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 40
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "required": true,
+            "description": "Vehicle model. Examples: \"Accord\", \"Model 3\", \"F-150\".",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
+          {
+            "name": "modelYear",
+            "in": "query",
+            "required": true,
+            "description": "4-digit model year.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1949,
+              "maximum": 2099
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Max records to return, newest-filed first (1-100). Default 25.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/vehicle/decode-wmi": {
+      "get": {
+        "tags": [
+          "vehicle"
+        ],
+        "summary": "Parse a 3-character World Manufacturer Identifier (the...",
+        "description": "Decode a 3-character World Manufacturer Identifier (the first three characters of a VIN) to the assigning manufacturer. Returns full manufacturer legal name, common short name, make, vehicle type, and the date NHTSA published the assignment. Useful for partial-VIN analysis — crash reports, damaged-vehicle photos, fleet records — where only the WMI is recoverable. Backed by NHTSA.gov vPIC; data is public-domain US government records.",
+        "operationId": "vehicle_decode-wmi",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = single manufacturer record decoded from a 3-char WMI prefix.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "wmi": {
+                                "type": "string"
+                              },
+                              "manufacturerName": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "commonName": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "make": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "vehicleType": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "dateAvailableToPublic": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            },
+                            "required": [
+                              "wmi",
+                              "manufacturerName",
+                              "commonName",
+                              "make",
+                              "vehicleType",
+                              "dateAvailableToPublic"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0024 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "vehicle.decode-wmi",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0024,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.002400"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "wmi",
+            "in": "query",
+            "required": true,
+            "description": "3-character WMI (the first 3 chars of a VIN). Case-insensitive. Examples: 1HG (American Honda), 5YJ (Tesla US), WBA (BMW).",
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 3,
+              "pattern": "^[A-HJ-NPR-Z0-9]{3}$"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/vehicle/investigations": {
+      "get": {
+        "tags": [
+          "vehicle"
+        ],
+        "summary": "Fetch Chronological feed of NHTSA ODI (Office of Defects...",
+        "description": "Chronological feed of NHTSA ODI (Office of Defects Investigation) investigations, newest first. Returns preliminary evaluations (PE), engineering analyses (EA), defect petitions (DP), and recall queries (RQ) — each with NHTSA ID, type code, open/close dates, status, subject, and full description (HTML stripped + raw). Useful for tracking what NHTSA is currently investigating (Tesla FSD, autonomous-vehicle crashes, Rivian suspension, etc.). NOTE: NHTSA's endpoint does NOT support make/model/year filtering — use vehicle.recalls or vehicle.complaints for vehicle-scoped lookups. Public-domain US government records.",
+        "operationId": "vehicle_investigations",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = chronological feed of NHTSA ODI investigations (total = all records upstream; paginate via meta.nextOffset).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer"
+                              },
+                              "nhtsaId": {
+                                "type": "string"
+                              },
+                              "investigationNumber": {
+                                "type": "string"
+                              },
+                              "investigationType": {
+                                "type": "string"
+                              },
+                              "issueYear": {
+                                "type": "string"
+                              },
+                              "openDate": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "latestActivityDate": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "status": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "subject": {
+                                "type": "string"
+                              },
+                              "description": {
+                                "type": "string"
+                              },
+                              "descriptionHtml": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "nhtsaId",
+                              "investigationNumber",
+                              "investigationType",
+                              "issueYear",
+                              "openDate",
+                              "latestActivityDate",
+                              "status",
+                              "subject",
+                              "description",
+                              "descriptionHtml"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "query": {
+                              "type": "object",
+                              "properties": {
+                                "limit": {
+                                  "type": "integer"
+                                },
+                                "offset": {
+                                  "type": "integer"
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "nullable": true
+                                }
+                              },
+                              "required": [
+                                "limit",
+                                "offset",
+                                "status"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "nextOffset": {
+                              "type": "integer",
+                              "nullable": true
+                            },
+                            "previousOffset": {
+                              "type": "integer",
+                              "nullable": true
+                            }
+                          },
+                          "required": [
+                            "query",
+                            "nextOffset",
+                            "previousOffset"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0024 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "vehicle.investigations",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0024,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.002400"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Max records to return (1-100). Default 25.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Offset into the chronological feed for pagination. Default 0.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000,
+              "default": 0
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter by status: \"O\" (open), \"C\" (closed). Omit for all.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "O",
+                "C"
+              ]
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/vehicle/manufacturers": {
+      "get": {
+        "tags": [
+          "vehicle"
+        ],
+        "summary": "Fetch Paginated list of every motor vehicle manufacturer",
+        "description": "Paginated list of every motor vehicle manufacturer NHTSA tracks via vPIC. Each record includes the canonical Mfr_ID, full legal name, common short name (e.g., \"Honda\"), country, and the list of vehicle types the manufacturer produces (Passenger Car, Truck, Motorcycle, Bus, MPV, etc.). Pass the optional `manufacturer` param to substring-search Mfr_Name. 100 records per page. Backed by NHTSA.gov; data is public-domain US government records.",
+        "operationId": "vehicle_manufacturers",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = manufacturer directory page (100 per page) with canonical NHTSA IDs. total is null — vPIC does not report an overall count; request the next page until items is empty.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "mfrId": {
+                                "type": "integer"
+                              },
+                              "mfrName": {
+                                "type": "string"
+                              },
+                              "commonName": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "country": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "vehicleTypes": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "isPrimary": {
+                                      "type": "boolean"
+                                    }
+                                  },
+                                  "required": [
+                                    "name",
+                                    "isPrimary"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "required": [
+                              "mfrId",
+                              "mfrName",
+                              "commonName",
+                              "country",
+                              "vehicleTypes"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "query": {
+                              "type": "object",
+                              "properties": {
+                                "page": {
+                                  "type": "integer"
+                                },
+                                "manufacturer": {
+                                  "type": "string",
+                                  "nullable": true
+                                }
+                              },
+                              "required": [
+                                "page",
+                                "manufacturer"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "query"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0024 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "vehicle.manufacturers",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0024,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.002400"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "1-indexed page (100 manufacturers per page). Default 1.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 1
+            }
+          },
+          {
+            "name": "manufacturer",
+            "in": "query",
+            "required": false,
+            "description": "Optional substring filter on the full Mfr_Name (case-insensitive on NHTSA side). Examples: \"honda\", \"tesla\", \"general motors\".",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 80
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/vehicle/models": {
+      "get": {
+        "tags": [
+          "vehicle"
+        ],
+        "summary": "List every model a manufacturer sold in a given model...",
+        "description": "Enumerate every model a manufacturer sold in a given model year via NHTSA's vPIC taxonomy database. Returns canonical NHTSA Model IDs + names plus the Make ID + name for reference. Useful as a discovery step before VIN decode (when the agent only knows make + year) or as input validation for vehicle.recalls / vehicle.complaints. Backed by NHTSA.gov; data is public-domain US government records.",
+        "operationId": "vehicle_models",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = models sold by the make in the queried year, with canonical NHTSA IDs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "modelId": {
+                                "type": "integer"
+                              },
+                              "modelName": {
+                                "type": "string"
+                              },
+                              "makeId": {
+                                "type": "integer"
+                              },
+                              "makeName": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "modelId",
+                              "modelName",
+                              "makeId",
+                              "makeName"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "query": {
+                              "type": "object",
+                              "properties": {
+                                "make": {
+                                  "type": "string"
+                                },
+                                "modelYear": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "make",
+                                "modelYear"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "query"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0024 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "vehicle.models",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0024,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.002400"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "make",
+            "in": "query",
+            "required": true,
+            "description": "Vehicle make. Case-insensitive on NHTSA side. Examples: \"Honda\", \"Tesla\", \"Ford\".",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 40
+            }
+          },
+          {
+            "name": "modelYear",
+            "in": "query",
+            "required": true,
+            "description": "4-digit model year.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1949,
+              "maximum": 2099
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/vehicle/profile": {
+      "get": {
+        "tags": [
+          "vehicle"
+        ],
+        "summary": "Parse a VIN and fetch its full safety picture",
+        "description": "Vehicle 360 — decode a VIN and get its full safety picture in one call. Returns the decoded vehicle (make, model, year, trim, engine, plant, body class, drivetrain — NHTSA vPIC) plus that exact make/model/year's open safety recalls (with park-it / park-outside / over-the-air-update flags) and NHTSA owner complaints (crash/fire/injury/death flags). recalls and complaints are keyed to the decoded make+model+year, so they describe THIS vehicle, not a generic feed. Each section reports found/error independently. Pass vin (17 chars); optional modelYear disambiguates pre-1980 VINs. Used for used-car due diligence, fleet safety, insurance. Individual sources: /api/vehicle/vin-decode, /api/vehicle/recalls, /api/vehicle/complaints.",
+        "operationId": "vehicle_profile",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "vin": {
+                          "type": "string"
+                        },
+                        "vehicle": {
+                          "type": "object",
+                          "properties": {
+                            "found": {
+                              "type": "boolean"
+                            },
+                            "error": {
+                              "type": "string",
+                              "nullable": true
+                            }
+                          },
+                          "required": [
+                            "found",
+                            "error"
+                          ],
+                          "additionalProperties": {}
+                        },
+                        "recalls": {
+                          "type": "object",
+                          "properties": {
+                            "found": {
+                              "type": "boolean"
+                            },
+                            "error": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "count": {
+                              "type": "number",
+                              "nullable": true
+                            },
+                            "recalls": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "additionalProperties": {}
+                              }
+                            }
+                          },
+                          "required": [
+                            "found",
+                            "error",
+                            "count",
+                            "recalls"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "complaints": {
+                          "type": "object",
+                          "properties": {
+                            "found": {
+                              "type": "boolean"
+                            },
+                            "error": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "count": {
+                              "type": "number",
+                              "nullable": true
+                            }
+                          },
+                          "required": [
+                            "found",
+                            "error",
+                            "count"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "sources": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": {}
+                          }
+                        }
+                      },
+                      "required": [
+                        "vin",
+                        "vehicle",
+                        "recalls",
+                        "complaints",
+                        "sources"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.00576 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "vehicle.profile",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.00576,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "legacy",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.005760"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "vin",
+            "in": "query",
+            "required": true,
+            "description": "VIN.",
+            "schema": {
+              "type": "string",
+              "minLength": 17,
+              "maxLength": 17
+            }
+          },
+          {
+            "name": "modelYear",
+            "in": "query",
+            "required": false,
+            "description": "Model year.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1949,
+              "maximum": 2099
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/vehicle/recalls": {
+      "get": {
+        "tags": [
+          "vehicle"
+        ],
+        "summary": "Fetch NHTSA recall campaigns for a US vehicle by (make",
+        "description": "NHTSA recall campaigns for a US vehicle by (make, model, modelYear). Returns every open + historical campaign with the NHTSA campaign number, manufacturer, affected component, plain-English summary/consequence/remedy text, and the parkIt / parkOutside fire-risk advisories. Backed by NHTSA's public recalls database; data is public-domain US government records.",
+        "operationId": "vehicle_recalls",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = recall campaigns matching the (make, model, modelYear) tuple. To go straight from a VIN to its recalls (and complaints), see /api/vehicle/profile.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "campaignNumber": {
+                                "type": "string"
+                              },
+                              "reportReceivedDate": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "manufacturer": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "component": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "summary": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "consequence": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "remedy": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "notes": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "parkIt": {
+                                "type": "boolean"
+                              },
+                              "parkOutside": {
+                                "type": "boolean"
+                              },
+                              "overTheAirUpdate": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "campaignNumber",
+                              "reportReceivedDate",
+                              "manufacturer",
+                              "component",
+                              "summary",
+                              "consequence",
+                              "remedy",
+                              "notes",
+                              "parkIt",
+                              "parkOutside",
+                              "overTheAirUpdate"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "query": {
+                              "type": "object",
+                              "properties": {
+                                "make": {
+                                  "type": "string"
+                                },
+                                "model": {
+                                  "type": "string"
+                                },
+                                "modelYear": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "make",
+                                "model",
+                                "modelYear"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "query"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0024 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "vehicle.recalls",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0024,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.002400"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "make",
+            "in": "query",
+            "required": true,
+            "description": "Vehicle make. Examples: \"Honda\", \"Toyota\", \"Tesla\". Case-insensitive on NHTSA side.",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 40
+            }
+          },
+          {
+            "name": "model",
+            "in": "query",
+            "required": true,
+            "description": "Vehicle model. Examples: \"Accord\", \"Model 3\", \"F-150\".",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
+          {
+            "name": "modelYear",
+            "in": "query",
+            "required": true,
+            "description": "4-digit model year.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1949,
+              "maximum": 2099
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    },
+    "/api/vehicle/vin-decode": {
+      "get": {
+        "tags": [
+          "vehicle"
+        ],
+        "summary": "Parse a 17-character VIN to manufacturer-supplied vehicle...",
+        "description": "Decode a 17-character VIN to manufacturer-supplied vehicle metadata via NHTSA's vPIC database. Returns identity (year, make, model, trim, series, body class, manufacturer), assembly plant (city, state, country), engine (cylinders, displacement, HP, fuel type, configuration, engine model), transmission (style, speeds), and body/weight specs. Curated to the ~30 fields agents actually use from vPIC's ~140-field response. Backed by NHTSA.gov; data is public-domain US government records.",
+        "operationId": "vehicle_vin-decode",
+        "deprecated": false,
+        "security": [
+          {
+            "x402Payment": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalized envelope: items = single decoded-VIN record (identity, plant of origin, powertrain, body class). For the decode PLUS this vehicle's recalls and complaints in one call, see /api/vehicle/profile.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ok": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "vin": {
+                                "type": "string"
+                              },
+                              "modelYear": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "make": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "model": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "trim": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "series": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "bodyClass": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "manufacturer": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "plant": {
+                                "type": "object",
+                                "properties": {
+                                  "city": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "state": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "country": {
+                                    "type": "string",
+                                    "nullable": true
+                                  }
+                                },
+                                "required": [
+                                  "city",
+                                  "state",
+                                  "country"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "engine": {
+                                "type": "object",
+                                "properties": {
+                                  "cylinders": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "displacementL": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "hp": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "fuelTypePrimary": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "configuration": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "model": {
+                                    "type": "string",
+                                    "nullable": true
+                                  }
+                                },
+                                "required": [
+                                  "cylinders",
+                                  "displacementL",
+                                  "hp",
+                                  "fuelTypePrimary",
+                                  "configuration",
+                                  "model"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "transmission": {
+                                "type": "object",
+                                "properties": {
+                                  "style": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "speeds": {
+                                    "type": "string",
+                                    "nullable": true
+                                  }
+                                },
+                                "required": [
+                                  "style",
+                                  "speeds"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "doors": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "driveType": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "vehicleType": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "gvwrClass": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            },
+                            "required": [
+                              "vin",
+                              "modelYear",
+                              "make",
+                              "model",
+                              "trim",
+                              "series",
+                              "bodyClass",
+                              "manufacturer",
+                              "plant",
+                              "engine",
+                              "transmission",
+                              "doors",
+                              "driveType",
+                              "vehicleType",
+                              "gvwrClass"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "nullable": true,
+                          "description": "Total matching rows upstream; null when unknown."
+                        },
+                        "source": {
+                          "type": "object",
+                          "properties": {
+                            "provider": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            },
+                            "license": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "provider",
+                            "url",
+                            "license"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "ok",
+                        "items",
+                        "total",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "meta": {
+                      "type": "object",
+                      "description": "Per-call meta envelope — endpoint id, cost, caller kind, settlement details."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid parameters."
+          },
+          "402": {
+            "description": "Payment required — costs $0.0024 per call. Body contains the x402 PaymentRequirements envelope with a multi-network accepts array. Sign for whichever rail you hold USDC on (EIP-3009 for Base, partial SPL transfer for Solana) and retry with PAYMENT-SIGNATURE header (X-PAYMENT also accepted for v1 clients).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402PaymentRequiredV2"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed — see `Allow` header for the supported method."
+          },
+          "500": {
+            "description": "Internal server error."
+          },
+          "502": {
+            "description": "Upstream provider error."
+          }
+        },
+        "x-2s-id": "vehicle.vin-decode",
+        "x-2s-version": null,
+        "x-2s-price": {
+          "usd": 0.0024,
+          "tier": 0
+        },
+        "x-2s-accepts": [
+          "x402"
+        ],
+        "x-2s-response-shape": "normalized",
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.002400"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "vin",
+            "in": "query",
+            "required": true,
+            "description": "17-character VIN. Case-insensitive. Excludes letters I, O, and Q per VIN standard.",
+            "schema": {
+              "type": "string",
+              "minLength": 17,
+              "maxLength": 17,
+              "pattern": "^[A-HJ-NPR-Z0-9]{17}$"
+            }
+          },
+          {
+            "name": "modelYear",
+            "in": "query",
+            "required": false,
+            "description": "Optional model-year hint — disambiguates VINs where the year-digit wraps (A=1980/2010, etc.).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1949,
+              "maximum": 2099
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TrialMode"
+          }
+        ]
+      }
+    }
+  }
+}
