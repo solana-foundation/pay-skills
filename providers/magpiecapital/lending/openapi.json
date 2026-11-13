@@ -1,0 +1,493 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Magpie x402 API \u2014 agent-native lending on Solana (free data endpoints)",
+    "version": "0.1.0",
+    "description": "Free, no-payment data and routing endpoints for the Magpie agent-native lending protocol on Solana: live lending-pool state across V1/V3/V4 strategies, the approved-collateral catalog, the permissionless liquidation feed, 24h protocol aggregates, anonymized activity, and loan/wallet lookups. Magpie also exposes paid borrow/repay/deposit/withdraw/liquidate-build and in-vault exit-arming endpoints that settle in native SOL via Magpie's own x402/solana/v1 scheme (not USDC/USDT) \u2014 see https://github.com/magpiecapital/magpie-x402 and the catalog at https://x402.magpie.capital/.well-known/x402.json.",
+    "license": {
+      "name": "MIT",
+      "identifier": "MIT"
+    },
+    "contact": {
+      "url": "https://github.com/magpiecapital/magpie-x402/issues"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://x402.magpie.capital"
+    }
+  ],
+  "paths": {
+    "/api/v1/pool": {
+      "get": {
+        "summary": "Fetch LendingPool state for one Magpie strategy version",
+        "description": "Reads the LendingPool Anchor account for one program version. ?version=v1 (memecoin, default) | v3 (RWA) | v4 (exit-order). 15s cache.",
+        "parameters": [
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "v1",
+                "v3",
+                "v4"
+              ],
+              "default": "v1"
+            },
+            "description": "Strategy pool to read: v1 (memecoin), v3 (RWA), or v4 (in-vault exit). Defaults to v1."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pool state (with program_version)"
+          }
+        }
+      }
+    },
+    "/api/v1/pools": {
+      "get": {
+        "summary": "Fetch LendingPool state for all three Magpie strategies",
+        "description": "V1 + V3 + V4 LendingPool state together. Each version is fetched independently; a failed version appears in `partial` and never blanks the others (lane separation).",
+        "responses": {
+          "200": {
+            "description": "{ pools: { v1, v3, v4 }, partial }"
+          }
+        }
+      }
+    },
+    "/api/v1/loan/by-pda/{loanPda}": {
+      "get": {
+        "summary": "Fetch a single Magpie loan by its on-chain PDA",
+        "description": "Decodes the Loan account, routing to V1/V3/V4 purely from the account owner. Returns program_version, category, and (V4) in-vault exit state + exits_supported.",
+        "parameters": [
+          {
+            "name": "loanPda",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Base58 Solana public key of the loan PDA to fetch."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Loan (with program_version + exits_supported)"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/api/v1/loan/{loanId}": {
+      "get": {
+        "summary": "Find Magpie loans by borrower wallet and loan id",
+        "description": "Requires ?borrower= because loan PDAs are seeded by borrower and each program has its own loan_id sequence. Returns a LIST (a borrower can hold the same loan_id in more than one program). For a single unambiguous loan use /api/v1/loan/by-pda/{loanPda}.",
+        "parameters": [
+          {
+            "name": "loanId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "description": "Numeric on-chain loan id (digits only)."
+          },
+          {
+            "name": "borrower",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Base58 Solana public key of the borrower wallet that owns the loan."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ count, loans[] } each tagged with program_version"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/api/v1/wallet/{wallet}/loans": {
+      "get": {
+        "summary": "List all Magpie loans owned by a wallet across versions",
+        "description": "Fans getProgramAccounts (borrower memcmp @offset 16) across all three lending programs and decodes each through the pool-separation-safe guard. Each loan is tagged with program_version + category + (V4) exit state. A failed version appears in `partial` and never blanks the rest. Optional ?status=active|repaid|liquidated. 8s cache.",
+        "parameters": [
+          {
+            "name": "wallet",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Base58 Solana public key of the wallet whose loans to list."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "repaid",
+                "liquidated"
+              ]
+            },
+            "description": "Optional filter: active, repaid, or liquidated. Omit to return all."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ count, by_version, partial, loans[] } newest-first"
+          }
+        }
+      }
+    },
+    "/api/v1/tiers": {
+      "get": {
+        "summary": "List Magpie loan tier definitions and benefits",
+        "description": "Static protocol constants \u2014 fixed 3 tiers (Express / Quick / Standard). 1h cache.",
+        "responses": {
+          "200": {
+            "description": "All tier definitions"
+          }
+        }
+      }
+    },
+    "/api/v1/simulate-borrow": {
+      "get": {
+        "summary": "Simulate a Magpie borrow without submitting on-chain",
+        "description": "Pure-math quote from caller-supplied prices + the public tier constants. Use ?tier=all to get quotes for all three tiers side-by-side.",
+        "parameters": [
+          {
+            "name": "mint",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Base58 Solana mint of the collateral token to simulate borrowing against."
+          },
+          {
+            "name": "amount",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "description": "Collateral amount in base units (integer string, no decimal point)."
+          },
+          {
+            "name": "decimals",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{1,2}$"
+            },
+            "description": "Decimals of the collateral mint (1-2 digit integer string)."
+          },
+          {
+            "name": "pricePerTokenUsd",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "USD price per collateral token used for the simulation."
+          },
+          {
+            "name": "solPriceUsd",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "USD price of SOL used to convert the borrow value to lamports."
+          },
+          {
+            "name": "tier",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "express",
+                "quick",
+                "standard",
+                "all"
+              ],
+              "default": "all"
+            },
+            "description": "Loan tier to simulate: express, quick, standard, or all. Defaults to all."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "BorrowQuote or { tier: 'all', quotes: [...] }"
+          }
+        }
+      }
+    },
+    "/api/v1/agent/intent": {
+      "get": {
+        "summary": "Poll the status of a conditional borrow intent",
+        "description": "When status='matched', the response includes partial_signed_tx_b64 ready to sign + submit.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Intent id returned when the conditional borrow intent was created."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Intent state"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Cancel a pending conditional borrow intent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Intent id of the pending conditional borrow intent to cancel."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cancelled"
+          },
+          "404": {
+            "description": "Not found or terminal"
+          }
+        }
+      }
+    },
+    "/api/v1/agent/intents": {
+      "get": {
+        "summary": "List conditional borrow intents for a wallet",
+        "parameters": [
+          {
+            "name": "wallet",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Base58 Solana public key of the wallet whose intents to list."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Intent list (newest first, max 100)"
+          }
+        }
+      }
+    },
+    "/api/v1/collateral/eligible": {
+      "get": {
+        "summary": "List every token approved as Magpie collateral",
+        "description": "Public token registry \u2014 mint, symbol, decimals, category. 1h cache. First-touch endpoint for agents discovering what they can borrow against.",
+        "responses": {
+          "200": {
+            "description": "Token catalog grouped by category"
+          }
+        }
+      }
+    },
+    "/api/v1/markets/liquidatable": {
+      "get": {
+        "summary": "List Magpie loans at or past their on-chain due time",
+        "description": "Multi-version (V1 memecoin + V3 RWA by default). Sorted most-past-due-first; each loan tagged with program_version. V4 (exit-order) loans auto-sell in-vault and are EXCLUDED by default; pass ?include_v4=true to add them. Optional within_seconds for pre-positioning. Free \u2014 the read surface for liquidation-bot agents.",
+        "parameters": [
+          {
+            "name": "within_seconds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 604800,
+              "default": 0
+            },
+            "description": "Also include loans due within this many seconds (0-604800). Defaults to 0 (already past due)."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100
+            },
+            "description": "Maximum number of loans to return (1-500). Defaults to 100."
+          },
+          {
+            "name": "include_v4",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "default": "false"
+            },
+            "description": "Set 'true' to include V4 exit-order loans (excluded by default; they auto-sell in-vault)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Liquidatable loan list with per-loan program_version + seconds_past_due"
+          }
+        }
+      }
+    },
+    "/api/v1/agent/activity": {
+      "get": {
+        "summary": "List anonymized recent Magpie protocol activity",
+        "description": "Last N borrow/repay/liquidate events. Wallets anonymized to Xxxx\u2026Yyyy. No PII. The first-touch 'is this protocol alive' feed for new agents and third-party monitors. Free \u2014 15s cache.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "description": "Maximum number of activity entries to return (1-200). Defaults to 50."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Activity stream (newest-first)"
+          }
+        }
+      }
+    },
+    "/api/v1/agent/protocol-pulse": {
+      "get": {
+        "summary": "Fetch 24h Magpie protocol aggregate metrics",
+        "description": "Active loans, active borrowers, borrow volume and counts over 24h + 1h windows, liquidation counts. Pure numbers, no per-wallet data. Free \u2014 30s cache.",
+        "responses": {
+          "200": {
+            "description": "Aggregate counts + volume"
+          }
+        }
+      }
+    },
+    "/api/v1/agent/leaderboard": {
+      "get": {
+        "summary": "List top Magpie wallets by credit score, anonymized",
+        "description": "Top 20 wallets ranked by credit score. Anonymized to Xxxx\u2026Yyyy. Free \u2014 60s cache.",
+        "responses": {
+          "200": {
+            "description": "Credit leaderboard"
+          }
+        }
+      }
+    },
+    "/api/v1/agent/lp-state": {
+      "get": {
+        "summary": "Fetch a depositor's Magpie LP position and pool context",
+        "description": "Free. Shares, deposited lamports, current value, yield earned, share-of-pool. Plus pool totals for the caller to compute their own ratios. 10s cache.",
+        "parameters": [
+          {
+            "name": "wallet",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Base58 Solana public key of the depositor wallet to read."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Position + pool context"
+          }
+        }
+      }
+    },
+    "/api/v1/agent/self-limit-close/modify": {
+      "post": {
+        "summary": "Modify an armed in-vault exit order on a V4 loan",
+        "description": "Signed envelope (magpie: limit-close-modify/v1, OrderId). Change trigger / slippage / destination / expiry without re-paying \u2014 the signature authorizes.",
+        "responses": {
+          "200": {
+            "description": "Modified"
+          },
+          "409": {
+            "description": "Already firing / not modifiable"
+          }
+        }
+      }
+    },
+    "/api/v1/agent/self-limit-close/cancel": {
+      "post": {
+        "summary": "Cancel an armed in-vault exit order on a V4 loan",
+        "description": "Signed envelope (magpie: limit-close-cancel/v1, OrderId). A too-late cancel is a 409 no-op (the engine flipped to firing).",
+        "responses": {
+          "200": {
+            "description": "Cancelled"
+          },
+          "409": {
+            "description": "Not cancellable"
+          }
+        }
+      }
+    },
+    "/api/v1/agent/self-limit-close/list": {
+      "get": {
+        "summary": "List armed in-vault exit orders for a wallet",
+        "description": "All armed exit orders for a wallet. Public read of the same data the owner sees in the UI.",
+        "parameters": [
+          {
+            "name": "wallet",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Base58 Solana public key of the wallet whose armed exit orders to list."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Armed order list"
+          }
+        }
+      }
+    }
+  }
+}
