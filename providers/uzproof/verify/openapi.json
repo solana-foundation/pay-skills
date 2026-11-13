@@ -1,0 +1,3315 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "UZPROOF API",
+    "version": "1.6.2",
+    "description": "On-chain verification layer for Solana. Verify real wallet actions (swaps, staking, NFT holds) and receive signed SAS attestations.\n\n**Two authentication modes:**\n- **x402 pay-per-call** (no account) — $0.05 USDC per verify, settled on Solana in ~400ms via x402 protocol\n- **API key** (subscription) — recurring monthly USDC payment, higher rate limits, included verifications\n\n**Built on:** Solana mainnet · Solana Attestation Service (SAS) · Helius RPC · Jupiter Price API · Pyth oracles. (1.5.0: dual x402+MPP protocol on /api/verify; gasless via server feePayer when MPP_FEE_PAYER_ENABLED.)\n\n**Webhook delivery semantics** (Scale+ plan, events `verify.completed`, `quest.published`, `subscription.activated`, `subscription.expired`):\n- **Signing:** HMAC-SHA256 of body, header `X-UZProof-Signature: sha256=<hex>`. Verify constant-time with `verifyWebhookSignature(body, header, secret)` from `@uzproof/verify`.\n- **Retry schedule (minutes):** `[1, 5, 15, 60, 180, 360, 720, 720, 720, 720]` with ±10% jitter. 10 attempts total, ~64 h elapsed budget. Per-attempt POST timeout 10 s.\n- **Auto-disable:** after 10 consecutive failures the webhook flips `is_active=false` and stamps `disabled_at`; pending deliveries stop dispatching until owner re-enables.\n- **Dead-letter:** when a single delivery exhausts `MAX_ATTEMPTS = 10` it is written `status='giving_up'` in `sol_webhook_deliveries` and retained for forensics. There is no separate `sol_webhook_dlq` table — the `giving_up` terminal status IS the DLQ and is queryable via `GET /api/webhooks/deliveries`.\n- **Ordering:** **at-least-once**, no strict order guarantee. Use header `X-UZProof-Delivery: <id>` as the idempotency key.\n- **HTTPS-only:** registration rejects `http://` URLs in production; dispatcher refuses delivery to non-https targets at runtime even if a legacy row predates the validator.\n\nSources: `src/lib/webhooks.ts:47-49,72-76,442-487` and `database/migrations/017_webhooks.sql:54-55`.",
+    "contact": {
+      "name": "UZPROOF support",
+      "url": "https://uzproof.com",
+      "email": "hello@uzproof.com"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://www.npmjs.com/package/@uzproof/verify"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://uzproof.com",
+      "description": "Production"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Verification",
+      "description": "On-chain action verification"
+    },
+    {
+      "name": "AI Context",
+      "description": "Live telemetry for AI agents"
+    },
+    {
+      "name": "Tokens",
+      "description": "Token metadata and pricing"
+    },
+    {
+      "name": "Contracts",
+      "description": "Solana program detection and quest templating"
+    },
+    {
+      "name": "Subscriptions",
+      "description": "B2B subscription management"
+    },
+    {
+      "name": "Early Access",
+      "description": "Early-access claims for the public launch window"
+    },
+    {
+      "name": "Health",
+      "description": "Service liveness"
+    },
+    {
+      "name": "MPP",
+      "description": "Merchant Payment Protocol (Solana Charge variant; draft-solana-charge-00)"
+    },
+    {
+      "name": "Auth",
+      "description": "Wallet-based authentication (SIWS)"
+    },
+    {
+      "name": "Projects",
+      "description": "Project registration and management"
+    },
+    {
+      "name": "Quests",
+      "description": "Quest CRUD and completion"
+    },
+    {
+      "name": "Campaigns",
+      "description": "Campaign management"
+    },
+    {
+      "name": "Users",
+      "description": "User profile and activity"
+    },
+    {
+      "name": "API Keys",
+      "description": "API key management for subscriptions"
+    },
+    {
+      "name": "Webhooks",
+      "description": "Webhook registration and delivery"
+    },
+    {
+      "name": "NFT Badges",
+      "description": "Proof-of-Use NFT badge minting"
+    },
+    {
+      "name": "Analytics",
+      "description": "Project analytics and sybil signals"
+    },
+    {
+      "name": "Wallet",
+      "description": "Wallet scanning and anti-sybil"
+    }
+  ],
+  "paths": {
+    "/api/verify": {
+      "post": {
+        "tags": [
+          "Verification",
+          "MPP"
+        ],
+        "summary": "Verify on-chain wallet action",
+        "description": "Confirm that a wallet actually performed a specific Solana on-chain action. Returns a signed SAS attestation on success.\n\n**x402 flow:** calling without `X-Payment` header returns `HTTP 402 Payment Required` with Solana USDC payment instructions. Settle on-chain, then retry with `X-Payment: <settlement-token>` to receive the verified result.\n\n**Subscription flow:** include `Authorization: Bearer uz_live_<key>` header with your subscription API key (see https://uzproof.com/pricing). The route's API-key parser reads only the `Authorization` header.",
+        "security": [
+          {
+            "x402": []
+          },
+          {
+            "apiKey": []
+          },
+          {
+            "mpp": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "wallet",
+                  "task"
+                ],
+                "properties": {
+                  "wallet": {
+                    "type": "string",
+                    "description": "Solana wallet address (base58)",
+                    "example": "7H4RVLZfGLBvY6k1DdmGSUcCKCw6nJG28emTztkyyrLZ"
+                  },
+                  "task": {
+                    "type": "string",
+                    "enum": [
+                      "defi_swap",
+                      "defi_swap_buy",
+                      "defi_swap_sell",
+                      "defi_swap_volume",
+                      "defi_add_liquidity",
+                      "defi_hold_lp",
+                      "defi_hold_token",
+                      "defi_hold_token_duration",
+                      "defi_hold_duration",
+                      "defi_hold_stablecoin",
+                      "defi_hold_staked",
+                      "defi_stake_sol",
+                      "defi_bridge",
+                      "defi_lend",
+                      "defi_borrow",
+                      "defi_repay",
+                      "defi_claim",
+                      "defi_create_lst",
+                      "defi_vote",
+                      "defi_perp_trade",
+                      "defi_perp_volume",
+                      "gaming_play",
+                      "nft_hold",
+                      "nft_mint",
+                      "nft_check",
+                      "token_balance",
+                      "tx_verify"
+                    ],
+                    "description": "Verification type. Names match the SDK ActionType union and the server's verification registry exactly. T37 fix H4-002: unprefixed defi-* aliases were removed; if a quest config still contains an unprefixed value (e.g. \"swap\"), update it to its prefixed counterpart (\"defi_swap\").",
+                    "example": "defi_swap"
+                  },
+                  "protocol": {
+                    "type": "string",
+                    "enum": [
+                      "jupiter",
+                      "marinade",
+                      "jito",
+                      "blazestake",
+                      "sanctum",
+                      "raydium",
+                      "orca",
+                      "kamino",
+                      "marginfi",
+                      "drift",
+                      "drift_vaults",
+                      "pump",
+                      "meteora",
+                      "photon",
+                      "sanctum_infinity"
+                    ],
+                    "description": "Optional protocol filter"
+                  },
+                  "config": {
+                    "type": "object",
+                    "properties": {
+                      "min_amount_usd": {
+                        "type": "number",
+                        "example": 100
+                      },
+                      "min_volume_usd": {
+                        "type": "number"
+                      },
+                      "mint_address": {
+                        "type": "string"
+                      },
+                      "duration_days": {
+                        "type": "integer"
+                      },
+                      "since": {
+                        "type": "integer",
+                        "description": "Unix timestamp — only check activity after this time"
+                      }
+                    }
+                  }
+                }
+              },
+              "examples": {
+                "swap_on_jupiter": {
+                  "summary": "Verify a Jupiter swap ≥$100",
+                  "value": {
+                    "wallet": "7H4RVLZfGLBvY6k1DdmGSUcCKCw6nJG28emTztkyyrLZ",
+                    "task": "defi_swap",
+                    "protocol": "jupiter",
+                    "config": {
+                      "min_amount_usd": 100
+                    }
+                  }
+                },
+                "stake_marinade": {
+                  "summary": "Verify Marinade staking",
+                  "value": {
+                    "wallet": "7H4RVLZfGLBvY6k1DdmGSUcCKCw6nJG28emTztkyyrLZ",
+                    "task": "defi_stake_sol",
+                    "protocol": "marinade",
+                    "config": {
+                      "min_amount_usd": 50
+                    }
+                  }
+                },
+                "nft_hold": {
+                  "summary": "Verify NFT ownership",
+                  "value": {
+                    "wallet": "7H4RVLZfGLBvY6k1DdmGSUcCKCw6nJG28emTztkyyrLZ",
+                    "task": "nft_hold",
+                    "config": {
+                      "mint_address": "..."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verification completed (check `verified` field)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body"
+          },
+          "402": {
+            "description": "Payment Required. The response body discriminates by protocol. **x402** (dual-emit per 2026-05 canon migration) returns `{x402Version:2, resource:{url,description,mimeType}, accepts:[{scheme:\"exact\",network:\"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp\",amount:\"50000\",asset,payTo,maxTimeoutSeconds,...}], schemes:[{...legacy v1.x shape with network:\"solana-mainnet\"...}]}` — `accepts[]` is the canonical x402 v2 array (per coinbase/x402 specs/v2 §5.1) and uses the CAIP-2 mainnet identifier required by the Solana-foundation Rust parser (`x402-sdk:cluster_for_caip2_network`); `schemes[]` is preserved with the legacy `\"solana-mainnet\"` slug for `@uzproof/verify@1.4.x` consumers. **MPP** returns `{challenge:<MppChallenge>,expires,id}` plus a single canonical RFC-9110 `WWW-Authenticate: Payment ...` header (per `solana-foundation/mpp-sdk/protocol/core/headers.rs:PAYMENT_SCHEME`). The auth-scheme is canon-only — a dual-emit `Payment ..., solana ...` form was tested and rolled back because comma-joining the two segments trips strict RFC-9110 parsers (e.g. `mpp-sdk`) with a `Duplicate parameter: method` error. SDK 2.0 dual-detects both `Payment` and `solana` Authorization prefixes on retry; `@uzproof/verify@1.4.x` consumers classify MPP via the `X-Payment-Protocol: mpp` header fallback instead of the WWW-Authenticate substring match.",
+            "headers": {
+              "WWW-Authenticate": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "MPP charge challenge — canonical RFC-9110 `Payment` auth-scheme (per `solana-foundation/mpp-sdk/protocol/core/headers.rs:PAYMENT_SCHEME`). Single-scheme emit: `Payment method=\"solana\" intent=\"charge\" id=\"...\" realm=\"uzproof.com\" expires=\"...\" request=\"<base64url(JCS)>\"`. Probe tooling (`mpp-sdk`, Coinbase Rust probe) parses this directly. SDK 2.0 dual-detects `Payment ` and `solana ` Authorization prefixes for retries so a 1.4.x client running against the new server still authenticates via the `X-Payment-Protocol: mpp` classification fallback."
+              },
+              "X-Payment-Protocol": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "x402",
+                    "mpp"
+                  ]
+                },
+                "description": "Which protocol the 402 was issued under."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "x402Version",
+                        "accepts",
+                        "schemes",
+                        "resource"
+                      ],
+                      "properties": {
+                        "x402Version": {
+                          "type": "integer",
+                          "enum": [
+                            2
+                          ]
+                        },
+                        "resource": {
+                          "type": "object",
+                          "required": [
+                            "url"
+                          ],
+                          "properties": {
+                            "url": {
+                              "type": "string",
+                              "format": "uri"
+                            },
+                            "description": {
+                              "type": "string"
+                            },
+                            "mimeType": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "accepts": {
+                          "type": "array",
+                          "description": "Canonical x402 v2 payment-requirement entries (per coinbase/x402 specs/v2 §5.1). `amount` is in atomic token units (e.g. \"50000\" for $0.05 USDC at 6 decimals).",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "scheme",
+                              "network",
+                              "amount",
+                              "asset",
+                              "payTo",
+                              "maxTimeoutSeconds"
+                            ],
+                            "properties": {
+                              "scheme": {
+                                "type": "string"
+                              },
+                              "network": {
+                                "type": "string",
+                                "description": "CAIP-2 network identifier. Solana mainnet-beta is `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp` (the only form the canon `x402-sdk` parser recognises for mainnet). Legacy slugs like `\"solana-mainnet\"` belong on `schemes[].network`, not here.",
+                                "examples": [
+                                  "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                                ]
+                              },
+                              "amount": {
+                                "type": "string",
+                                "description": "Atomic token units (integer string).",
+                                "examples": [
+                                  "50000"
+                                ]
+                              },
+                              "asset": {
+                                "type": "string",
+                                "description": "SPL token mint address (base58)."
+                              },
+                              "payTo": {
+                                "type": "string"
+                              },
+                              "maxTimeoutSeconds": {
+                                "type": "integer"
+                              },
+                              "extra": {
+                                "type": "object"
+                              }
+                            }
+                          }
+                        },
+                        "schemes": {
+                          "type": "array",
+                          "description": "Legacy v1.x x402 entries — preserved for `@uzproof/verify@1.4.x` consumers. `maxAmountRequired` is in decimal USD; `token` is the SPL mint. Scheduled for removal in `@uzproof/verify@3.0.0`.",
+                          "items": {
+                            "type": "object"
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "challenge",
+                        "expires",
+                        "id"
+                      ],
+                      "properties": {
+                        "challenge": {
+                          "$ref": "#/components/schemas/MppChallenge"
+                        },
+                        "expires": {
+                          "type": "integer"
+                        },
+                        "id": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "$ref": "#/components/schemas/MppErrorResponse"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "500": {
+            "description": "Upstream verification error"
+          }
+        },
+        "parameters": [
+          {
+            "name": "Accept",
+            "in": "header",
+            "required": false,
+            "description": "Protocol negotiation. Substring match: send any Accept value containing `application/x-mpp` to opt in to the MPP charge challenge format. Anything else (or absent) selects the default x402 flow. Multi-value Accept (RFC 9110) is supported.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-MPP-Gasless",
+            "in": "header",
+            "required": false,
+            "description": "When set to a truthy value (1, true, yes, on — case-insensitive), request a feePayer-enabled MPP challenge. Honored only when MPP_FEE_PAYER_ENABLED=true and a feePayer keypair is loaded; otherwise the challenge is issued without methodDetails.feePayer.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/ai-context": {
+      "get": {
+        "tags": [
+          "AI Context"
+        ],
+        "summary": "Live service telemetry for AI agents",
+        "description": "Returns structured JSON describing current UZPROOF state — uptime, test count, protocols supported, pricing. Cached 60s at edge. No auth required.",
+        "responses": {
+          "200": {
+            "description": "Live telemetry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIContext"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/subscriptions/quote": {
+      "post": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Get price quote before subscribing",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "plan_tier",
+                  "payment_token"
+                ],
+                "properties": {
+                  "plan_tier": {
+                    "type": "string",
+                    "enum": [
+                      "starter",
+                      "growth",
+                      "scale"
+                    ]
+                  },
+                  "payment_token": {
+                    "type": "string",
+                    "enum": [
+                      "USDC",
+                      "USDT"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Quote with amount and recipient"
+          }
+        }
+      }
+    },
+    "/api/subscriptions/create": {
+      "post": {
+        "tags": [
+          "Subscriptions"
+        ],
+        "summary": "Activate subscription after on-chain payment",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "project_id",
+                  "plan_tier",
+                  "payment_signature",
+                  "payment_token"
+                ],
+                "properties": {
+                  "project_id": {
+                    "type": "string"
+                  },
+                  "plan_tier": {
+                    "type": "string",
+                    "enum": [
+                      "starter",
+                      "growth",
+                      "scale"
+                    ]
+                  },
+                  "payment_signature": {
+                    "type": "string",
+                    "description": "Solana tx signature of USDC/USDT transfer"
+                  },
+                  "payment_token": {
+                    "type": "string",
+                    "enum": [
+                      "USDC",
+                      "USDT"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Subscription activated"
+          },
+          "409": {
+            "description": "Payment already used"
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Service liveness check",
+        "responses": {
+          "200": {
+            "description": "Service is alive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/subscriptions/early-access/claim": {
+      "post": {
+        "tags": [
+          "Subscriptions",
+          "Early Access"
+        ],
+        "summary": "Claim free paid tier during Early Access (until 2026-10-21)",
+        "description": "Grants a project a free Starter/Growth/Scale subscription until 2026-10-21T23:59:59Z. No USDC payment required. Idempotent on (project_id, plan_tier). Upgrade-only within Early Access — downgrades blocked. After the deadline, the grant expires via the existing subscription-expiry cron and the project falls back to the free tier.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "project_id",
+                  "plan_tier"
+                ],
+                "properties": {
+                  "project_id": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "plan_tier": {
+                    "type": "string",
+                    "enum": [
+                      "starter",
+                      "growth",
+                      "scale"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Early Access grant activated, upgraded, or returned as idempotent 'existing'"
+          },
+          "400": {
+            "description": "Invalid project_id or plan_tier (VAL_INVALID_PROJECT / VAL_INVALID_PLAN)"
+          },
+          "401": {
+            "description": "AUTH_REQUIRED — missing or invalid wallet auth"
+          },
+          "403": {
+            "description": "PERM_NOT_OWNER — caller wallet is not the project owner"
+          },
+          "404": {
+            "description": "RES_PROJECT_NOT_FOUND"
+          },
+          "409": {
+            "description": "EA_BLOCKED_PAID / EA_BLOCKED_LEGACY / EA_BLOCKED_ENTERPRISE / EA_DOWNGRADE_BLOCKED"
+          },
+          "410": {
+            "description": "EA_WINDOW_CLOSED — after 2026-10-21"
+          },
+          "429": {
+            "description": "OP_RATE_LIMITED"
+          }
+        }
+      }
+    },
+    "/api/sas/status": {
+      "get": {
+        "tags": [
+          "Verification"
+        ],
+        "summary": "Read SAS attestation status (free)",
+        "description": "Read on-chain Proof-of-Use attestation issued by UZPROOF on the Solana Attestation Service. Free read — the attestation account sits on-chain and any integrator can pull it directly via RPC, so this endpoint is a convenience wrapper.\n\nUse this before reaching for paid `/api/verify` to check whether a wallet has already been attested for a quest. Verdicts are stable on closed actions; cache 24h.",
+        "parameters": [
+          {
+            "name": "wallet",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Solana wallet address (base58)",
+            "example": "7H4RVLZfGLBvY6k1DdmGSUcCKCw6nJG28emTztkyyrLZ"
+          },
+          {
+            "name": "quest_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Quest ID for action-specific attestation lookup. Preferred over `action`.",
+            "example": 42
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Legacy action identifier (e.g. `defi_swap`). Use `quest_id` instead for new integrations.",
+            "example": "defi_swap"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Attestation status. `hasAttestation: true` means the on-chain account exists; `false` means the wallet has not been attested for this action yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "hasAttestation",
+                    "action"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "hasAttestation": {
+                      "type": "boolean"
+                    },
+                    "attestation": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Attestation PDA (base58) when `hasAttestation: true`; `null` otherwise"
+                    },
+                    "action": {
+                      "type": "string",
+                      "description": "Resolved action key: `quest_<id>` for quest-scoped, the legacy action string when supplied, or `\"general\"` when neither given"
+                    },
+                    "explorer": {
+                      "type": "string",
+                      "description": "Solana Explorer URL for the attestation account. Only present when `hasAttestation: true`."
+                    }
+                  }
+                },
+                "examples": {
+                  "attested": {
+                    "summary": "Wallet has been attested for the quest",
+                    "value": {
+                      "success": true,
+                      "hasAttestation": true,
+                      "attestation": "8xKuD9aCq71FK9HwSsXc4znqvdg3tTcj1r2Y5kQbTvMz",
+                      "action": "quest_42",
+                      "explorer": "https://explorer.solana.com/address/8xKuD9aCq71FK9HwSsXc4znqvdg3tTcj1r2Y5kQbTvMz"
+                    }
+                  },
+                  "not_attested": {
+                    "summary": "No attestation yet",
+                    "value": {
+                      "success": true,
+                      "hasAttestation": false,
+                      "attestation": null,
+                      "action": "quest_42"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing wallet parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Missing wallet"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "RPC error or internal failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Internal error"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tokens/info": {
+      "get": {
+        "tags": [
+          "Tokens"
+        ],
+        "summary": "Fetch SPL token metadata (free)",
+        "description": "Lookup SPL token metadata by mint address: name, symbol, decimals, readable supply, and live USD price. Backed by Helius RPC for the mint account, the DAS asset endpoint for name/symbol, and DexScreener for price. Free read.\n\nResponse is cached at the edge for 5 minutes (`Cache-Control: public, max-age=300`).",
+        "parameters": [
+          {
+            "name": "mint",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 32,
+              "maxLength": 44,
+              "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$"
+            },
+            "description": "SPL token mint address (base58 alphabet — excludes 0OIl)",
+            "example": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Token metadata. Edge-cached for 300 seconds.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Always `public, max-age=300` on 200 responses"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "mint",
+                        "decimals",
+                        "supply"
+                      ],
+                      "properties": {
+                        "mint": {
+                          "type": "string",
+                          "description": "Mint address (base58)"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "Token name from on-chain metadata; falls back to `\"Unknown Token\"` when metadata is unavailable"
+                        },
+                        "symbol": {
+                          "type": "string",
+                          "description": "Token symbol; falls back to first 6 characters of the mint when metadata is unavailable"
+                        },
+                        "decimals": {
+                          "type": "integer"
+                        },
+                        "supply": {
+                          "type": "number",
+                          "description": "Readable supply (raw supply divided by `10^decimals`)"
+                        },
+                        "priceUsd": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "description": "Live USD price from DexScreener; `null` when the token has no listed pair"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                    "name": "USD Coin",
+                    "symbol": "USDC",
+                    "decimals": 6,
+                    "supply": 5800000000,
+                    "priceUsd": 1
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Mint address missing/malformed (`VAL_INVALID_MINT`), the on-chain account is not an SPL Token mint (`TOKEN_NOT_MINT`), or the mint shape is incomplete (`TOKEN_NOT_MINT`). All 400 responses are `Cache-Control: no-store`.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Always `no-store` on error responses"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "error_code",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error_code": {
+                      "type": "string",
+                      "enum": [
+                        "VAL_INVALID_MINT",
+                        "TOKEN_NOT_MINT"
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Mint account does not exist on Solana mainnet.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Always `no-store` on error responses"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "error_code",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error_code": {
+                      "type": "string",
+                      "const": "TOKEN_NOT_FOUND"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Mint account does not exist on Solana mainnet."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Per-IP rate limit exceeded. Carries `Retry-After` indicating the active window.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Always `no-store` on error responses"
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Seconds until the per-IP window resets."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "error_code",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error_code": {
+                      "type": "string",
+                      "const": "RATE_LIMIT"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Too many requests — slow down."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled handler error.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Always `no-store` on error responses"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "error_code",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error_code": {
+                      "type": "string",
+                      "const": "SRV_INTERNAL_ERROR"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Failed to fetch token info."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Upstream Solana RPC unavailable. `UPSTREAM_RATE_LIMITED` carries a `Retry-After` header; `UPSTREAM_RPC_UNAVAILABLE` does not.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Always `no-store` on error responses"
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Seconds the caller should wait before retrying. Present on `UPSTREAM_RATE_LIMITED` only."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "error_code",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error_code": {
+                      "type": "string",
+                      "enum": [
+                        "UPSTREAM_RATE_LIMITED",
+                        "UPSTREAM_RPC_UNAVAILABLE"
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/contracts/detect": {
+      "post": {
+        "tags": [
+          "Contracts"
+        ],
+        "summary": "Auto-detect Solana program (free)",
+        "description": "Identify which Solana protocol a program ID belongs to — Jupiter, Marinade, Drift, Kamino, Orca, Raydium, MarginFi, Jito, Tensor, Magic Eden, Sanctum, Metaplex, SPL, and others. When recognized, returns the program metadata plus a ready-to-publish verification template. When unrecognized, returns the full known-programs list so callers can offer a manual choice.\n\nFree read; rate-limited to 30 requests/minute per IP.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "programId"
+                ],
+                "properties": {
+                  "programId": {
+                    "type": "string",
+                    "minLength": 32,
+                    "maxLength": 44,
+                    "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+                    "description": "Solana program ID (base58 alphabet — excludes 0OIl)",
+                    "example": "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Detection result. `detected: true` returns the program plus a verification template. `detected: false` returns a `knownPrograms` array so the caller can render a fallback list.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "success",
+                        "detected",
+                        "program",
+                        "verificationTemplate"
+                      ],
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "detected": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "program": {
+                          "$ref": "#/components/schemas/DetectedProgram"
+                        },
+                        "verificationTemplate": {
+                          "type": "object",
+                          "description": "Ready-to-publish quest template scoped to the recognized program"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "success",
+                        "detected",
+                        "message",
+                        "knownPrograms"
+                      ],
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "detected": {
+                          "type": "boolean",
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "knownPrograms": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/DetectedProgram"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "programId missing or not a string",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "error"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string",
+                      "example": "programId is required"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (30 requests/minute per IP)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal detection failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "error"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string",
+                      "example": "Detection failed"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Contracts"
+        ],
+        "summary": "List known programs or detect by query (free)",
+        "description": "Without `programId`, returns the full list of Solana programs UZPROOF can detect. With `programId`, behaves like `POST /api/contracts/detect` (recognized → program + template; unrecognized → short message, no `knownPrograms` list to keep responses small for SDK calls).\n\nUsed by the `@uzproof/verify` SDK's `detectContract()` helper. Free read; rate-limited to 60 requests/minute per IP.",
+        "parameters": [
+          {
+            "name": "programId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 32,
+              "maxLength": 44,
+              "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$"
+            },
+            "description": "Solana program ID (base58 alphabet — excludes 0OIl). When omitted, returns the full known-programs list."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Detection result (when `programId` given) or full known-programs list (when omitted).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "success",
+                        "detected",
+                        "program",
+                        "verificationTemplate"
+                      ],
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "detected": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "program": {
+                          "$ref": "#/components/schemas/DetectedProgram"
+                        },
+                        "verificationTemplate": {
+                          "type": "object"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "success",
+                        "detected",
+                        "message"
+                      ],
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "detected": {
+                          "type": "boolean",
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "success",
+                        "programs"
+                      ],
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "programs": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/DetectedProgram"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (60 requests/minute per IP)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal detection failure (e.g. Redis rate-limiter flap)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "error"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "string",
+                      "example": "Detection failed"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/challenge": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Request SIWS challenge nonce",
+        "description": "Returns a nonce for Sign In With Solana. The nonce expires in 10 minutes.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "wallet"
+                ],
+                "properties": {
+                  "wallet": {
+                    "type": "string",
+                    "description": "Solana wallet address (base58)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Challenge nonce",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "nonce": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "SIWS message to sign"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/session": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Get current session",
+        "description": "Returns the authenticated user's session data from the JWT cookie.",
+        "responses": {
+          "200": {
+            "description": "Session data (or null if unauthenticated)"
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "End session",
+        "description": "Clears the session cookie and invalidates the JWT.",
+        "responses": {
+          "200": {
+            "description": "Logged out"
+          }
+        }
+      }
+    },
+    "/api/projects/register": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Register a new project",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "slug"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 100
+                  },
+                  "slug": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9-]+$",
+                    "maxLength": 60
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "website": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "defi",
+                      "nft",
+                      "gaming",
+                      "social",
+                      "infra",
+                      "dao",
+                      "depin",
+                      "payments",
+                      "other"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Project created"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "409": {
+            "description": "Slug already taken"
+          }
+        }
+      }
+    },
+    "/api/projects/list": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "List public projects",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "newest",
+                "quests",
+                "xp",
+                "users"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "live",
+                "upcoming",
+                "ended",
+                "any"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of projects"
+          }
+        }
+      }
+    },
+    "/api/projects/details": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Get project details",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project with metrics, team, settings"
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        }
+      }
+    },
+    "/api/projects/update": {
+      "put": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Update project settings",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "project_id"
+                ],
+                "properties": {
+                  "project_id": {
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "token_mint": {
+                    "type": "string",
+                    "description": "Solana address (base58)"
+                  },
+                  "program_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "project_type": {
+                    "type": "string",
+                    "enum": [
+                      "dex",
+                      "lending",
+                      "staking",
+                      "nft_marketplace",
+                      "nft_collection",
+                      "perps",
+                      "bridge",
+                      "launchpad",
+                      "dao",
+                      "gaming",
+                      "depin",
+                      "wallet",
+                      "infra",
+                      "social",
+                      "payments",
+                      "other"
+                    ]
+                  },
+                  "category": {
+                    "type": "string"
+                  },
+                  "is_public": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated project"
+          },
+          "403": {
+            "description": "Not authorized"
+          }
+        }
+      }
+    },
+    "/api/projects/delete": {
+      "delete": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Delete a project (owner only)",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "project_id"
+                ],
+                "properties": {
+                  "project_id": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Project deleted"
+          }
+        }
+      }
+    },
+    "/api/projects/my-projects": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "List projects owned by the authenticated user",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User's projects with metrics"
+          }
+        }
+      }
+    },
+    "/api/projects/intel": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Get AI-generated project intelligence report",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Intel report with suggested campaigns"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Generate fresh intelligence report",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "project_id"
+                ],
+                "properties": {
+                  "project_id": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Newly generated intel report"
+          }
+        }
+      }
+    },
+    "/api/quests/list": {
+      "get": {
+        "tags": [
+          "Quests"
+        ],
+        "summary": "List quests for a project",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "archived",
+                "draft"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of quests"
+          }
+        }
+      }
+    },
+    "/api/quests/create": {
+      "post": {
+        "tags": [
+          "Quests"
+        ],
+        "summary": "Create a new quest",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "project_id",
+                  "title",
+                  "task_type"
+                ],
+                "properties": {
+                  "project_id": {
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "task_type": {
+                    "type": "string"
+                  },
+                  "xp_reward": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "requirement_data": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Quest created"
+          }
+        }
+      }
+    },
+    "/api/quests/start": {
+      "post": {
+        "tags": [
+          "Quests"
+        ],
+        "summary": "Start a quest (mark user participation)",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "quest_id"
+                ],
+                "properties": {
+                  "quest_id": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Quest started"
+          }
+        }
+      }
+    },
+    "/api/quests/submit": {
+      "post": {
+        "tags": [
+          "Quests"
+        ],
+        "summary": "Submit quest completion proof",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "quest_id"
+                ],
+                "properties": {
+                  "quest_id": {
+                    "type": "integer"
+                  },
+                  "proof_value": {
+                    "type": "string",
+                    "description": "Transaction signature or other proof"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Submission recorded"
+          }
+        }
+      }
+    },
+    "/api/quests/review": {
+      "post": {
+        "tags": [
+          "Quests"
+        ],
+        "summary": "Approve or reject a quest submission",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "submission_id",
+                  "action"
+                ],
+                "properties": {
+                  "submission_id": {
+                    "type": "integer"
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "approve",
+                      "reject"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Review recorded"
+          }
+        }
+      }
+    },
+    "/api/quests/types": {
+      "get": {
+        "tags": [
+          "Quests"
+        ],
+        "summary": "List all available quest task types",
+        "responses": {
+          "200": {
+            "description": "Array of task type definitions with schemas"
+          }
+        }
+      }
+    },
+    "/api/campaigns/list": {
+      "get": {
+        "tags": [
+          "Campaigns"
+        ],
+        "summary": "List campaigns for a project",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of campaigns with quest counts"
+          }
+        }
+      }
+    },
+    "/api/campaigns/create": {
+      "post": {
+        "tags": [
+          "Campaigns"
+        ],
+        "summary": "Create a new campaign",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "project_id",
+                  "title"
+                ],
+                "properties": {
+                  "project_id": {
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "category": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Campaign created"
+          }
+        }
+      }
+    },
+    "/api/user/profile": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Get authenticated user profile",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User profile with XP, level, badges, social accounts"
+          }
+        }
+      }
+    },
+    "/api/user/public-profile": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Get public profile by wallet",
+        "parameters": [
+          {
+            "name": "wallet",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Public profile (no private data)"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      }
+    },
+    "/api/user/update-profile": {
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Update user profile",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "maxLength": 50
+                  },
+                  "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profile updated"
+          }
+        }
+      }
+    },
+    "/api/user/nfts": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "List user's NFT badges",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of NFT badge claims"
+          }
+        }
+      }
+    },
+    "/api/user/xp-history": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Get XP transaction history",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of XP events"
+          }
+        }
+      }
+    },
+    "/api/api-keys/create": {
+      "post": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "Create a new API key",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "project_id",
+                  "name"
+                ],
+                "properties": {
+                  "project_id": {
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "API key created (key shown once)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "description": "Full key (uz_live_...) — shown only at creation"
+                        },
+                        "id": {
+                          "type": "integer"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/api-keys/list": {
+      "get": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "List API keys for a project",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of keys (secret masked)"
+          }
+        }
+      }
+    },
+    "/api/api-keys/revoke": {
+      "post": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "Revoke an API key",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "key_id"
+                ],
+                "properties": {
+                  "key_id": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Key revoked"
+          }
+        }
+      }
+    },
+    "/api/webhooks/create": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Register a webhook endpoint",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "project_id",
+                  "url",
+                  "events"
+                ],
+                "properties": {
+                  "project_id": {
+                    "type": "integer"
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "HTTPS only in production"
+                  },
+                  "events": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "verify.completed",
+                        "quest.published",
+                        "subscription.activated",
+                        "subscription.expired"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Webhook created (returns HMAC signing secret)"
+          }
+        }
+      }
+    },
+    "/api/webhooks/list": {
+      "get": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "List webhooks for a project",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Array of webhooks (secret masked)"
+          }
+        }
+      }
+    },
+    "/api/webhooks/deliveries": {
+      "get": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "List webhook delivery history",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "webhook_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "delivered",
+                "failed",
+                "giving_up"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Delivery attempts with status and response codes"
+          }
+        }
+      }
+    },
+    "/api/webhooks/revoke": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Delete a webhook",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "webhook_id"
+                ],
+                "properties": {
+                  "webhook_id": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Webhook deleted"
+          }
+        }
+      }
+    },
+    "/api/webhooks/rotate-secret": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Rotate webhook HMAC signing secret",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "webhook_id"
+                ],
+                "properties": {
+                  "webhook_id": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "New secret returned"
+          }
+        }
+      }
+    },
+    "/api/nft/badge/prepare": {
+      "post": {
+        "tags": [
+          "NFT Badges"
+        ],
+        "summary": "Prepare Proof-of-Use badge mint transaction",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "description": "Prepares a VersionedTransaction for minting a Proof-of-Use NFT badge. Requires wallet eligibility (minimum verified actions). Gated by BADGE_SYBIL_GATE_ENABLED.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "wallet"
+                ],
+                "properties": {
+                  "wallet": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Serialized transaction for wallet signing"
+          },
+          "400": {
+            "description": "Not eligible or already claimed"
+          }
+        }
+      }
+    },
+    "/api/nft/badge/submit": {
+      "post": {
+        "tags": [
+          "NFT Badges"
+        ],
+        "summary": "Submit signed badge mint transaction",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "wallet",
+                  "signed_transaction"
+                ],
+                "properties": {
+                  "wallet": {
+                    "type": "string"
+                  },
+                  "signed_transaction": {
+                    "type": "string",
+                    "description": "Base64-encoded signed VersionedTransaction"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Badge minted successfully"
+          }
+        }
+      }
+    },
+    "/api/wallet-scan": {
+      "get": {
+        "tags": [
+          "Wallet"
+        ],
+        "summary": "Scan wallet for anti-sybil signals",
+        "parameters": [
+          {
+            "name": "wallet",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Anti-sybil analysis with 7 signal categories"
+          }
+        }
+      }
+    },
+    "/api/analytics/project": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Get project analytics (funnel, retention, engagement)",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "7d",
+                "30d",
+                "90d",
+                "all"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Analytics data with funnel metrics"
+          }
+        }
+      }
+    },
+    "/api/analytics/project/sybil": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Get sybil signal analysis for a project",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sybil signals breakdown by type"
+          }
+        }
+      }
+    },
+    "/api/stats": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Public statistics (projects, quests, users, verifications)",
+        "responses": {
+          "200": {
+            "description": "Platform-wide counters"
+          }
+        }
+      }
+    },
+    "/api/ai/quest-builder": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "AI quest builder (NLP + Claude Haiku)",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "description": "Processes natural language quest creation requests. NLP handles 90% instantly, Claude Haiku fallback for strategy questions.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "project_id",
+                  "message"
+                ],
+                "properties": {
+                  "project_id": {
+                    "type": "integer"
+                  },
+                  "message": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "current_quest": {
+                    "type": "object",
+                    "description": "Current quest state for context"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Quest suggestion or strategy response"
+          }
+        }
+      }
+    },
+    "/api/badge/user/{wallet}": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Embeddable SVG badge for a user profile",
+        "parameters": [
+          {
+            "name": "wallet",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SVG badge image",
+            "content": {
+              "image/svg+xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/x402/pricing": {
+      "get": {
+        "tags": [
+          "MPP"
+        ],
+        "summary": "Get current x402/MPP pricing",
+        "responses": {
+          "200": {
+            "description": "Pricing per endpoint"
+          }
+        }
+      }
+    },
+    "/api/sol/network": {
+      "get": {
+        "tags": [
+          "Solana"
+        ],
+        "summary": "Live Solana mainnet network telemetry",
+        "description": "Public GET endpoint that returns live mainnet-beta `slot`, `tps`, and a server timestamp. Backed by Helius RPC with 25s server-side cache and 60 req/min/IP rate limit. Used by the Flappy Cat game start screen. CORS allowlist restricts cross-origin reads to uzproof.com (and confluxarena.org).",
+        "responses": {
+          "200": {
+            "description": "Network snapshot (may be served from 25s in-process cache or Cloudflare edge cache).",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "`public, s-maxage=25, stale-while-revalidate=60` on 200 (cacheable at the CDN edge); `no-store, max-age=0` on 429/503."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "slot",
+                        "tps",
+                        "updatedAt"
+                      ],
+                      "properties": {
+                        "slot": {
+                          "type": "integer",
+                          "format": "int64",
+                          "description": "Current Solana mainnet slot number"
+                        },
+                        "tps": {
+                          "type": "integer",
+                          "description": "Transactions per second, derived from the latest performance sample"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "Server timestamp when the snapshot was last refreshed from upstream"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate-limited (>60 req/min from this IP). Includes Retry-After.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Upstream Helius RPC unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "x402": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Payment",
+        "description": "x402 settlement token proving on-chain USDC payment. See https://x402.org"
+      },
+      "apiKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "uz_live_<key>",
+        "description": "Subscription API key (available at https://uzproof.com/pricing). Sent as `Authorization: Bearer uz_live_<key>` — the route at src/lib/api-key-auth.ts parses the Authorization header, NOT a separate `X-UZP-Api-Key` header. The PAY.md catalog entry documents the same shape."
+      },
+      "mpp": {
+        "type": "http",
+        "scheme": "solana",
+        "description": "Authorization: solana <base64url(JCS(MppCredential))>"
+      }
+    },
+    "schemas": {
+      "DetectedProgram": {
+        "type": "object",
+        "required": [
+          "programId",
+          "name",
+          "slug",
+          "category",
+          "supportedActions"
+        ],
+        "properties": {
+          "programId": {
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 44,
+            "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$",
+            "description": "Solana program ID (base58 alphabet — excludes 0OIl)"
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable protocol name (e.g. \"Jupiter\")"
+          },
+          "slug": {
+            "type": "string",
+            "description": "URL-safe slug (e.g. \"jupiter\")"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "dex",
+              "staking",
+              "nft",
+              "defi",
+              "token"
+            ],
+            "description": "Protocol category as classified by lib/contract-detect"
+          },
+          "icon": {
+            "type": "string",
+            "description": "URL or path to the protocol icon"
+          },
+          "supportedActions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Verification action types this program supports — values are the canonical taskType strings (e.g. defi_swap, defi_stake_sol, nft_mint)"
+          }
+        }
+      },
+      "VerifyResponse": {
+        "type": "object",
+        "properties": {
+          "verified": {
+            "type": "boolean",
+            "description": "true if wallet performed the claimed action"
+          },
+          "attestation": {
+            "type": "string",
+            "description": "SAS attestation URI",
+            "example": "sas://7bA9..."
+          },
+          "protocol": {
+            "type": "string",
+            "description": "Detected protocol (jupiter, marinade, etc)"
+          },
+          "signal_score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Anti-sybil risk score (0=clean, 100=likely sybil)"
+          },
+          "timestamp": {
+            "type": "integer",
+            "description": "Unix timestamp of verification"
+          },
+          "details": {
+            "type": "object",
+            "description": "Task-specific verification data"
+          }
+        }
+      },
+      "AIContext": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string",
+            "example": "UZPROOF"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "operational",
+              "degraded",
+              "maintenance"
+            ]
+          },
+          "version": {
+            "type": "string"
+          },
+          "protocols_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "verification_types": {
+            "type": "integer"
+          },
+          "anti_sybil_signals": {
+            "type": "integer"
+          },
+          "api_pricing": {
+            "type": "object",
+            "properties": {
+              "x402_per_call_usdc": {
+                "type": "number"
+              },
+              "subscriptions": {
+                "type": "object",
+                "properties": {
+                  "starter_usdc_per_month": {
+                    "type": "number"
+                  },
+                  "growth_usdc_per_month": {
+                    "type": "number"
+                  },
+                  "scale_usdc_per_month": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "MppChallenge": {
+        "type": "object",
+        "description": "MPP charge challenge envelope (RFC 8785 / draft-solana-charge-00).",
+        "required": [
+          "id",
+          "realm",
+          "method",
+          "intent",
+          "expires",
+          "charge"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Server-issued challenge id (16-byte hex).",
+            "example": "abc123def4567890abc123def4567890"
+          },
+          "realm": {
+            "type": "string",
+            "description": "Realm of issuance.",
+            "example": "uzproof.com"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "solana"
+            ]
+          },
+          "intent": {
+            "type": "string",
+            "enum": [
+              "charge"
+            ]
+          },
+          "expires": {
+            "type": "integer",
+            "description": "Unix epoch seconds."
+          },
+          "charge": {
+            "type": "object",
+            "required": [
+              "network",
+              "recipient",
+              "amount",
+              "mint"
+            ],
+            "properties": {
+              "network": {
+                "type": "string",
+                "enum": [
+                  "solana-mainnet"
+                ]
+              },
+              "recipient": {
+                "type": "string",
+                "description": "Treasury wallet (base58)."
+              },
+              "amount": {
+                "type": "string",
+                "description": "Amount in token decimal units, e.g. \"0.05\"."
+              },
+              "mint": {
+                "type": "string",
+                "description": "SPL token mint (USDC mainnet by default)."
+              }
+            }
+          },
+          "methodDetails": {
+            "type": "object",
+            "description": "Optional. Present when feePayer mode is offered.",
+            "properties": {
+              "feePayer": {
+                "type": "boolean",
+                "description": "true when UZPROOF will sponsor the SOL fee."
+              },
+              "feePayerKey": {
+                "type": "string",
+                "description": "UZPROOF feePayer pubkey (base58)."
+              }
+            }
+          }
+        }
+      },
+      "MppCredential": {
+        "type": "object",
+        "description": "MPP retry credential carried in Authorization: solana <base64url(JCS(MppCredential))>.",
+        "required": [
+          "challenge",
+          "payload"
+        ],
+        "properties": {
+          "challenge": {
+            "$ref": "#/components/schemas/MppChallenge"
+          },
+          "source": {
+            "type": "string",
+            "description": "Optional caller-defined source label."
+          },
+          "payload": {
+            "type": "object",
+            "required": [
+              "type",
+              "value"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "signature",
+                  "transaction"
+                ],
+                "description": "signature: base58 of a confirmed Solana tx; transaction: base64url of a partially-signed VersionedTransaction (gasless)."
+              },
+              "value": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "MppErrorResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "error",
+          "protocol"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "string",
+            "description": "Stable code (uppercase) or human message (lowercase)."
+          },
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "mpp"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "externalDocs": {
+    "description": "UZPROOF documentation",
+    "url": "https://uzproof.com/docs"
+  },
+  "x402Version": 2,
+  "resource": {
+    "url": "https://uzproof.com/api/verify",
+    "description": "On-chain verification — verify wallet performed a specific DeFi action. One call saves $5-50 on fake users.",
+    "mimeType": "application/json"
+  },
+  "accepts": [
+    {
+      "scheme": "exact",
+      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "amount": "50000",
+      "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "payTo": "5iYccm6tcJjvhX8Wdp3hMWnTcBRsN2cfgS3XdGHsehty",
+      "maxTimeoutSeconds": 300,
+      "extra": {
+        "name": "UZPROOF Verification API",
+        "url": "https://uzproof.com"
+      }
+    }
+  ],
+  "x-payment-accepts": [
+    {
+      "scheme": "exact",
+      "network": "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      "payTo": "5iYccm6tcJjvhX8Wdp3hMWnTcBRsN2cfgS3XdGHsehty"
+    }
+  ]
+}
