@@ -5,9 +5,8 @@ A community registry of stablecoin-gated APIs for [pay](https://github.com/solan
 ## Add your API in three commands
 
 ```bash
-# 1. Scaffold a new provider — fetches the OpenAPI doc and writes a PAY.md
-#    pre-filled with title, description, service_url, and TODO placeholders.
-pay catalog scaffold <your-org>/<api-name> https://api.example.com/openapi.json
+# 1. Scaffold a new provider from the upstream API's OpenAPI document.
+pay catalog scaffold --output-dir providers <your-org>/<api-name> https://api.example.com/openapi.json
 
 # 2. Edit the generated providers/<your-org>/<api-name>/PAY.md:
 #      - replace the `category: TODO` placeholder
@@ -19,7 +18,7 @@ pay catalog scaffold <your-org>/<api-name> https://api.example.com/openapi.json
 pay catalog check providers/<your-org>/<api-name>/PAY.md
 ```
 
-When `pay catalog check` prints `PAY.md check successful`, open a PR. CI runs the same pipeline; once merged, your API is live in `pay skills search` within minutes.
+When `pay catalog check` prints `PAY.md check successful`, open a PR. CI runs the same pipeline; once merged, your API is live in `pay skills search` and at `https://pay.sh/api/<fqn>` within minutes.
 
 ## Provider directory layout
 
@@ -29,7 +28,7 @@ providers/
   <operator>/<origin>/<name>/PAY.md        ← proxied API (gateway)
 ```
 
-Each provider lives in its own directory. The directory's path under `providers/` becomes the provider FQN: `agentmail/email`, `merit-systems/stablecrypto/market-data`, `solana-foundation/google/translate`. You can co-locate sidecar files (e.g. `openapi.json`) next to `PAY.md` and reference them with `openapi: { path: openapi.json }` — the build inlines the resolved spec into the published index.
+Each provider lives in its own directory. The directory's path under `providers/` becomes the provider FQN, such as `<operator>/<name>` or `<operator>/<origin>/<name>`. Commit the upstream OpenAPI snapshot next to `PAY.md` and reference it with `openapi: { path: openapi.json }` — the build inlines the resolved spec into the published index.
 
 ## PAY.md structure
 
@@ -42,9 +41,7 @@ use_case: "Use for ..."                    # 32–255 chars, helps LLMs route
 category: compute                          # see categories list below
 service_url: https://x402.quicknode.com    # production HTTPS URL, no IPs
 openapi:
-  url: https://x402.quicknode.com/openapi.json
-  # OR (for co-located specs):
-  # path: openapi.json
+  path: openapi.json                       # committed upstream spec snapshot
 ---
 
 Free-form prose. Explain what the API offers, when an agent should reach
@@ -68,10 +65,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full field reference and writing 
 
 | Command | What it does |
 |---|---|
-| `pay catalog scaffold <fqn> <openapi_url>` | Generate a starter `<fqn>/PAY.md` from an OpenAPI document. |
+| `pay catalog scaffold --output-dir providers <fqn> <openapi_url>` | Generate a starter `providers/<fqn>/PAY.md` from an upstream OpenAPI document. |
 | `pay catalog check <PAY.md>` | Validate one provider: frontmatter shape, OpenAPI resolution, live probe, Solana verdict. |
 | `pay catalog check . --no-probe` | Walk the entire registry; frontmatter-only check (fast, offline-ish). |
-| `pay catalog check . --changed-from origin/main` | Probe + verdict only on providers changed since `origin/main`. Mirrors PR CI. |
+| `pay catalog check . --changed-from origin/main` | Probe + verdict only on providers changed since `origin/main`. Useful before opening a PR. |
 | `pay catalog build .` | Full registry build → writes `dist/skills.json` and per-provider detail JSONs. Used on `main` only. |
 
 `-v` / `--verbose` on any `check` adds the per-endpoint probe + verdict tables. `--strict` upgrades non-Solana warnings to blocking errors.
