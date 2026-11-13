@@ -1,0 +1,207 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "OmniBoard MCP",
+    "version": "v1",
+    "description": "Paid Streamable HTTP MCP endpoint for OmniBoard Solana DeFi tools. Every paid tools/call requires an on-chain USDC payment delivered through an HTTP 402 MPP challenge. The server is custody-free and only reads data, prepares transactions, or relays user-signed transactions."
+  },
+  "servers": [
+    {
+      "url": "https://api.omniboard.pro",
+      "description": "Production gateway"
+    }
+  ],
+  "paths": {
+    "/mcp": {
+      "post": {
+        "operationId": "mcpCall",
+        "summary": "MCP Streamable HTTP endpoint",
+        "description": "JSON-RPC 2.0 MCP endpoint. Use the standard MCP methods (initialize, tools/list, tools/call). Each paid tools/call returns 402 with an MPP payment challenge; pay and replay the identical request with the X-PAYMENT header. list_intents, describe_intent, and execute_intent with dryRun=true or an unconfirmed financial intent are free. Send one tools/call per request; batch JSON-RPC is rejected. Max body 64 KiB.",
+        "parameters": [
+          {
+            "name": "X-PAYMENT",
+            "in": "header",
+            "required": false,
+            "description": "Base64url-encoded MPP payment authorization. Sent only on the retry of a paid tools/call after a 402, replaying the byte-identical request body. Omit on the first (unpaid) request.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "X-Omni-Payment-Intent",
+            "in": "header",
+            "required": false,
+            "description": "Payment intent id taken from the 402 response (body payment.intentId and the X-Omni-Payment-Intent response header). Echo it back on the paid retry so the server can correlate the payment.",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/JsonRpcRequest" },
+              "examples": {
+                "getTokenPricePaid": {
+                  "summary": "Read a token price (paid, returns 402 until payment). Canonical paid request.",
+                  "value": {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": {
+                      "name": "execute_intent",
+                      "arguments": {
+                        "intent": "get_token_price",
+                        "parameters": { "inputMint": "So11111111111111111111111111111111111111112" }
+                      }
+                    }
+                  }
+                },
+                "listIntents": {
+                  "summary": "List semantic intents (free)",
+                  "value": {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "tools/call",
+                    "params": {
+                      "name": "list_intents",
+                      "arguments": {}
+                    }
+                  }
+                },
+                "prepareSwap": {
+                  "summary": "Prepare a swap (paid, requires confirmation)",
+                  "value": {
+                    "jsonrpc": "2.0",
+                    "id": 3,
+                    "method": "tools/call",
+                    "params": {
+                      "name": "execute_intent",
+                      "arguments": {
+                        "intent": "prepare_swap",
+                        "confirmed": true,
+                        "parameters": {
+                          "fromChain": "1151111081099710",
+                          "toChain": "1151111081099710",
+                          "fromToken": "So11111111111111111111111111111111111111112",
+                          "toToken": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                          "amount": "1000000",
+                          "fromAddress": "A2y4FjEFMnK3ALnQe6PSDptVocRnwzPAxmLRKFANJ567"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "MCP JSON-RPC result.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/JsonRpcResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body, invalid JSON-RPC, unsupported batch request, invalid tool/action, or missing required field.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required. The WWW-Authenticate header carries an MPP challenge and the body describes the expected USDC payment. Pay and replay the identical request with the X-PAYMENT header.",
+            "headers": {
+              "WWW-Authenticate": {
+                "description": "MPP payment challenge (Payment scheme).",
+                "schema": { "type": "string" }
+              },
+              "X-Omni-Payment-Intent": {
+                "description": "Payment intent id to echo back on the paid retry.",
+                "schema": { "type": "string" }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PaymentRequired" }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "JsonRpcRequest": {
+        "type": "object",
+        "required": ["jsonrpc", "method"],
+        "properties": {
+          "jsonrpc": { "type": "string", "enum": ["2.0"] },
+          "id": { "oneOf": [{ "type": "string" }, { "type": "number" }] },
+          "method": { "type": "string", "example": "tools/call" },
+          "params": { "type": "object" }
+        }
+      },
+      "JsonRpcResponse": {
+        "type": "object",
+        "required": ["jsonrpc"],
+        "properties": {
+          "jsonrpc": { "type": "string", "enum": ["2.0"] },
+          "id": { "oneOf": [{ "type": "string" }, { "type": "number" }] },
+          "result": { "type": "object" },
+          "error": { "type": "object" }
+        }
+      },
+      "PaymentRequired": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string", "example": "PAYMENT_REQUIRED" },
+          "requestId": { "type": "string" },
+          "payment": {
+            "type": "object",
+            "description": "Everything the client needs to build the on-chain USDC payment and the X-PAYMENT authorization. All fields must be echoed back unchanged in the payment authorization.",
+            "properties": {
+              "intentId": { "type": "string", "description": "Server-issued payment intent id. Single-use and bound to the exact request payload. Echo back in X-Omni-Payment-Intent and inside the X-PAYMENT authorization.", "example": "mpi_kou5dAYcMBhKe00h34DDAi9Q" },
+              "amount": { "type": "string", "description": "Human-readable USDC amount to transfer.", "example": "0.001" },
+              "amountBaseUnits": { "type": "integer", "description": "Exact amount in USDC base units (6 decimals). The recipient must receive at least this amount.", "example": 1000 },
+              "currency": { "type": "string", "description": "Payment currency. Always USDC.", "example": "USDC" },
+              "network": { "type": "string", "description": "Solana network the payment must settle on.", "enum": ["solana-mainnet", "solana-devnet"], "example": "solana-mainnet" },
+              "recipientWallet": { "type": "string", "description": "Destination Solana wallet (owner) that must receive the USDC transfer. Base58 public key.", "example": "CoN2JZih4DJZrpurVE8dM4U6GF3A5McKr6aVhEhyEt6" },
+              "usdcMint": { "type": "string", "description": "SPL token mint of the USDC to transfer. Base58 mint address; transfer any other mint is rejected.", "example": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" },
+              "nonce": { "type": "string", "description": "Anti-replay nonce bound to this intent. Echo back unchanged in the X-PAYMENT authorization.", "example": "mpn_wqiOODsMo5MtxRILaizwSJsu" },
+              "memo": { "type": "string", "description": "Memo string that the payment transaction must include (SPL Memo program). The server verifies this exact memo on-chain.", "example": "omniboard:mcp:mpi_kou5dAYcMBhKe00h34DDAi9Q" },
+              "expiresAt": { "type": "string", "format": "date-time", "description": "RFC3339 expiry. The payment must be submitted before this time or the intent is rejected.", "example": "2026-06-17T16:04:13Z" }
+            }
+          },
+          "instructions": { "type": "string" }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" },
+          "requestId": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      }
+    }
+  }
+}
