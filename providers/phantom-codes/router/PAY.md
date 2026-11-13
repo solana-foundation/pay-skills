@@ -1,7 +1,7 @@
 ---
 name: router
 title: "Phantom AI: prepaid LLM inference and model router"
-description: "OpenAI- and Anthropic-compatible large language model (LLM) chat over hundreds of models, plus embeddings, images, speech, transcription, rerank and video. phantom-1 picks a model per request. Credit is bought in Solana USDC over x402 or MPP, paid into Stripe."
+description: "OpenAI- and Anthropic-compatible LLM chat over hundreds of models, plus embeddings, images, speech, transcription, rerank and video. The phantom-1 router picks the model. You prepay credit in Solana USDC over x402 or MPP."
 use_case: "Use for LLM chat, Anthropic Messages or OpenAI Responses calls, embeddings, image generation, text to speech, transcription, reranking or video, paid from prepaid USDC credit with no account, or when an agent wants a model picked for it."
 category: ai_ml
 service_url: https://phantom.codes
@@ -70,7 +70,7 @@ per call.
    `POST /v1/purchase/recover`, and it is the workspace's management
    credential, so `recovery` is a ready recovery file for
    `POST /v1/workspaces/recover`. If a poll fails or the answer is lost,
-   poll again: the payment is recorded, so you never pay twice for it.
+   poll again: Phantom has the payment on record, so you never pay twice for it.
 4. Call the chat routes with `Authorization: Bearer <api_key>`. Use plain
    `curl` or any HTTP client here; you already paid, so `pay` has nothing
    to do. Each call costs the listed token price of the model that answered,
