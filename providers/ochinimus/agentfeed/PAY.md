@@ -1,7 +1,7 @@
 ---
 name: agentfeed
 title: "AgentFeed"
-description: "Crypto market data, Solana pre-trade checks, sanctions screening, papers, utilities and language tasks (OCR, translate, summarize, extract, classify, transcribe) for AI agents: 86 pay-per-call JSON data routes, USDC on 8 networks, 11 more on request."
+description: "Crypto market data, Solana pre-trade checks, sanctions screening, papers, utilities and language tasks (OCR, translate, summarize, extract, classify, transcribe) for AI agents: 95 pay-per-call JSON data routes, USDC on 8 networks, 11 more on request."
 use_case: "Use when an agent needs live derivatives and liquidation state, a Solana token or wallet check before a trade, a sanctions screen, scholarly papers, a hash, QR code or time conversion, or an OCR, translate, summarize or extract task. No account or key."
 category: data
 service_url: https://x402.ochinimus.app
@@ -9,9 +9,9 @@ openapi:
   path: openapi.json
 ---
 
-AgentFeed is a read-only API for agents, gated per call. Crypto market data for AI agents (liquidations, funding, open interest, prices), Solana pre-trade checks, OFAC sanctions screening, scholarly papers, utilities and fixed-purpose language tasks (OCR, translate, summarize, extract, classify, prompt-injection check, transcribe).
-There are 86 data routes at $0.001-$0.1 per call; one call to every
-data route once costs $1.207. No accounts, no subscriptions and no API key
+AgentFeed ([landing page](https://x402.ochinimus.app/?ref=pay-skills)) is a read-only API for agents, gated per call. Crypto market data for AI agents (liquidations, funding, open interest, prices), Solana pre-trade checks, OFAC sanctions screening, scholarly papers, utilities and fixed-purpose language tasks (OCR, translate, summarize, extract, classify, prompt-injection check, transcribe).
+There are 95 data routes at $0.001-$1 per call, plus 102 MCP tools; one call to every
+data route once costs $3.267. No accounts, no subscriptions and no API key
 needed to pay per call: every paid route answers `402` with an x402 challenge,
 the caller pays, and the same request returns JSON.
 Every 402 offers per-call x402 `exact` payments in USDC on 8 networks: Solana
@@ -119,7 +119,7 @@ last_used, rate_per_min and status, plus a `pass` object (kind, routes, expires_
 key is a bearer secret; a balance is non-refundable usage credit with no expiry.
 The purchase routes offer the per-call `exact` option only, on the same 9
 networks and, on request, the 11 more; they have no half-price option. They are
-purchases, not data routes, and are not counted in the 86.
+purchases, not data routes, and are not counted in the 95.
 
 Data routes run $0.001-$0.1 per call; the spot prices (`/api/price`, `/api/sol-price`,
 `/api/btc-price`, `/api/eth-price`) are $0.001. Seven endpoints are free and carry no payment
