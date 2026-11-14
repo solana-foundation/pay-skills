@@ -44,6 +44,6 @@ capabilities it cannot settle.
 
 - Reach for `GET` before `POST`; both are documented, but `GET` lets a client retry cheaply.
 - Label one address at a time; request clustering only when a shared funder is suspected.
-- `GET /v1/label` without a path parameter lists the labelled-address universe cheaply before paying for detail.
+- `GET /v1/label?address=` looks up one address. Omitting `address` returns an x402 payment challenge, not a coverage list.
 - The MCP endpoint `https://agentsapi.top/mcp` exposes seven tools with one free call per tool
   per IP per day, so an agent can confirm coverage before spending.
