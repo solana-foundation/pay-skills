@@ -23,8 +23,8 @@ model id with its price.
 
 Send `model: "phantom-1"` and the router picks a model for each request from
 two tiers, Standard and Frontier: each task starts on Standard and moves up
-for hard steps. `x-phantom-routed` names the
-model it picked, and `x-phantom-route-receipt` adds the tier and the reason.
+for hard steps. `x-phantom-route-receipt` names the tier, the model it
+picked and the reason.
 `phantom-1:free` runs free models only and costs nothing, within daily
 limits. To pick a model yourself, copy an id from `/v1/models`. Ids change
 when providers ship new models, so read the list first.
