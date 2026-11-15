@@ -16,12 +16,16 @@ a pay-per-call HTTP 402 endpoint. No account and no API key. Agents pay
 $0.001 USDC per call on Solana mainnet and get the newest three institutional
 Solana catalysts.
 
-Each record has a stable `id`, the catalyst `date`, the `entity`, a one-line
-catalyst description, a SOLTRACER level (0 policy, 1 watching, 2 testing,
-3 building, 4 holding, 5 running), and the SOL/USD return 1 and 3 days after
-the move, measured from the 00:00 UTC close on the catalyst date. A window
-that has not closed yet is returned as `null`. The full catalyst history is
-available to SOLTRACER Pro members on soltracer.xyz and is not served here.
+Each record has a stable `id`, `date`, `entity`, a one-line `catalyst`,
+integer `level` (0 policy, 1 watching, 2 testing, 3 building, 4 holding,
+5 running), `type` (those same names), `sources`, and `sol_price_reaction`.
+SOL/USD returns are decimals on `sol_price_reaction.return.1d` and
+`sol_price_reaction.return.3d`, measured from the 00:00 UTC close on the
+catalyst date (`0.05` is +5%). A window that has not closed yet is `null`
+and is listed in `sol_price_reaction.pending_windows`. List responses put
+records in `catalysts` with `meta.content_sha256`; `GET /catalysts/{id}`
+returns one `catalyst` object. The full catalyst history is available to
+SOLTRACER Pro members on soltracer.xyz and is not served here.
 
 Payment: MPP `charge` only. An unpaid call returns HTTP 402 with a
 `WWW-Authenticate: Payment` challenge for `1000` base units (6-decimal USDC,
@@ -38,6 +42,6 @@ Paid routes ($0.001 each): `GET /catalysts/latest`, `GET /catalysts`
 ## Spend-aware usage
 
 - One `/catalysts/latest` call returns all three current records, so a second call is rarely needed.
-- Check `/health` (free) first: if `content_sha256` is unchanged since your last call, the data is the same and you can skip the paid call.
+- Check `/health` (free) first: if `content_sha256` or `feeds["/catalysts/latest"].content_sha256` is unchanged since your last call, the data is the same and you can skip the paid call.
 - Use `/catalysts/{id}` only for a record id you already have. Invalid filters return 400 and unknown ids return 404 before payment, so they cost nothing.
 - Price reactions are context, not trading advice.
