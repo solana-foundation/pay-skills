@@ -1,0 +1,996 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SOLTRACER Catalyst Tracker",
+    "version": "v1",
+    "description": "SOLTRACER Catalyst feed: the newest three curated institutional Solana catalysts (ETFs, banks, payments, asset managers, tokenization), each with a SOLTRACER adoption level (0-5) and the SOL price reaction 1 and 3 days after the move. Paid per call in USDC on Solana mainnet over MPP.",
+    "contact": {
+      "name": "SOLTRACER",
+      "url": "https://www.soltracer.xyz"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://soltracer-catalyst-feed.revernetworks-pbn.workers.dev"
+    }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "Fetch the service index and payment configuration",
+        "responses": {
+          "200": {
+            "description": "service index",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceIndex"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Check feed health, payment config and data freshness",
+        "responses": {
+          "200": {
+            "description": "Health, payment config, and content hashes. Compare content_sha256 before paying again.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catalysts/latest": {
+      "get": {
+        "summary": "Fetch the newest 3 institutional Solana catalysts",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "max records to return (1-3)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3,
+              "default": 3
+            }
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "network": "solana:mainnet",
+                "currency": "USDC",
+                "amount": "1000",
+                "recipient": "5A7YfjySJV1YnxbqKeVhKAeNBNyQGxeBzsxLGrccXZwX",
+                "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+              }
+            }
+          ],
+          "pricingMode": "fixed"
+        },
+        "responses": {
+          "200": {
+            "description": "Newest catalysts, newest first, plus meta.content_sha256.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalystList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "bad limit (not charged)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required (MPP charge, 0.001 USDC on Solana mainnet; the buyer pays the network fee)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequired"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catalysts": {
+      "get": {
+        "summary": "Search the newest 3 catalysts by date, type, level or entity",
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "description": "earliest catalyst date, YYYY-MM-DD inclusive",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "description": "latest catalyst date, YYYY-MM-DD inclusive",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "comma list of policy|watching|testing|building|holding|running or L0-L5",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "min_level",
+            "in": "query",
+            "description": "minimum SOLTRACER level, 0 (policy) to 5 (running)",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5
+            }
+          },
+          {
+            "name": "entity",
+            "in": "query",
+            "description": "case-insensitive substring of entity",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "max records to return (1-3)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3,
+              "default": 3
+            }
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "network": "solana:mainnet",
+                "currency": "USDC",
+                "amount": "1000",
+                "recipient": "5A7YfjySJV1YnxbqKeVhKAeNBNyQGxeBzsxLGrccXZwX",
+                "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+              }
+            }
+          ],
+          "pricingMode": "fixed"
+        },
+        "responses": {
+          "200": {
+            "description": "Catalysts matching the filters inside the newest-three window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalystQuery"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "bad query (not charged)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required (MPP charge, 0.001 USDC on Solana mainnet; the buyer pays the network fee)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequired"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catalysts/{id}": {
+      "get": {
+        "summary": "Fetch one Solana catalyst record by its stable id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "stable catalyst id from a list response",
+            "schema": {
+              "type": "string"
+            },
+            "example": "2026-11-13-circle-d0fa41cee8"
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.001"
+          },
+          "protocols": [
+            {
+              "mpp": {
+                "method": "solana",
+                "intent": "charge",
+                "network": "solana:mainnet",
+                "currency": "USDC",
+                "amount": "1000",
+                "recipient": "5A7YfjySJV1YnxbqKeVhKAeNBNyQGxeBzsxLGrccXZwX",
+                "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+              }
+            }
+          ],
+          "pricingMode": "fixed"
+        },
+        "responses": {
+          "200": {
+            "description": "One catalyst record.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalystDetail"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required (MPP charge, 0.001 USDC on Solana mainnet; the buyer pays the network fee)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentRequired"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "unknown id (not charged)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnknownId"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "NullableDecimal": {
+        "description": "Decimal return such as 0.05 for +5%, or null when that window has not closed or the price is unavailable.",
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "ServiceIndex": {
+        "type": "object",
+        "required": [
+          "name",
+          "title",
+          "endpoints",
+          "payment",
+          "pay_ready",
+          "protocols",
+          "problems"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "examples": [
+              "soltracer-catalysts"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "homepage": {
+            "type": "string",
+            "format": "uri"
+          },
+          "service_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "endpoints": {
+            "type": "object",
+            "description": "Route label to price. This catalog entry covers the catalyst routes; other keys may appear and are not listed here.",
+            "properties": {
+              "GET /health": {
+                "type": "string",
+                "examples": [
+                  "free"
+                ]
+              },
+              "GET /openapi.json": {
+                "type": "string",
+                "examples": [
+                  "free"
+                ]
+              },
+              "GET /catalysts/latest?limit=3": {
+                "type": "string",
+                "examples": [
+                  "$0.001 USDC"
+                ]
+              },
+              "GET /catalysts?since=YYYY-MM-DD&until=&type=&min_level=&entity=&limit=": {
+                "type": "string",
+                "examples": [
+                  "$0.001 USDC"
+                ]
+              },
+              "GET /catalysts/{id}": {
+                "type": "string",
+                "examples": [
+                  "$0.001 USDC"
+                ]
+              }
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "payment": {
+            "type": "string"
+          },
+          "pay_ready": {
+            "type": "boolean"
+          },
+          "network": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "examples": [
+              "mainnet"
+            ]
+          },
+          "recipient": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "usdc_mint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fee_payer": {
+            "type": "boolean",
+            "description": "Always false. The service does not sponsor Solana fees."
+          },
+          "buyer_pays_network_fee": {
+            "type": "boolean"
+          },
+          "protocols": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "examples": [
+              [
+                "mpp"
+              ]
+            ]
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "disclaimer": {
+            "type": "string"
+          }
+        }
+      },
+      "FeedFreshness": {
+        "type": "object",
+        "required": [
+          "price_usd",
+          "generated_utc",
+          "source_as_of",
+          "content_sha256"
+        ],
+        "properties": {
+          "price_usd": {
+            "type": "string",
+            "description": "USD price per call for that route.",
+            "examples": [
+              "0.001"
+            ]
+          },
+          "generated_utc": {
+            "type": "string",
+            "description": "When this feed snapshot was built."
+          },
+          "source_as_of": {
+            "type": "string",
+            "description": "Date or timestamp of the underlying source."
+          },
+          "content_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "SHA-256 of that feed payload. Unchanged means a repeat paid call would return the same data."
+          }
+        }
+      },
+      "Health": {
+        "type": "object",
+        "required": [
+          "ok",
+          "service",
+          "version",
+          "pay_ready",
+          "fee_payer",
+          "buyer_pays_network_fee",
+          "protocols",
+          "problems",
+          "public_window",
+          "total_catalysts",
+          "data_generated_utc",
+          "content_sha256",
+          "feeds"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "service": {
+            "type": "string",
+            "examples": [
+              "soltracer-catalysts"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "examples": [
+              "v1"
+            ]
+          },
+          "pay_ready": {
+            "type": "boolean"
+          },
+          "network": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "examples": [
+              "mainnet"
+            ]
+          },
+          "recipient": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Solana address that receives USDC."
+          },
+          "usdc_mint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fee_payer": {
+            "type": "boolean"
+          },
+          "buyer_pays_network_fee": {
+            "type": "boolean"
+          },
+          "protocols": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Payment-config problems. Empty when pay_ready is true."
+          },
+          "public_window": {
+            "type": "integer",
+            "description": "How many newest catalysts a paid call can return.",
+            "examples": [
+              3
+            ]
+          },
+          "total_catalysts": {
+            "type": "integer"
+          },
+          "newest_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Date of the newest public catalyst, or null when the window is empty."
+          },
+          "data_generated_utc": {
+            "type": "string"
+          },
+          "content_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "SHA-256 of the public catalyst window. Same value as feeds['/catalysts/latest'].content_sha256 and meta.content_sha256 on a paid catalyst response."
+          },
+          "feeds": {
+            "type": "object",
+            "description": "Per-route freshness. Use /catalysts/latest before paying for catalysts. Other keys may be present and are outside this listing.",
+            "properties": {
+              "/catalysts/latest": {
+                "$ref": "#/components/schemas/FeedFreshness"
+              }
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FeedFreshness"
+            }
+          }
+        }
+      },
+      "LevelEntry": {
+        "type": "object",
+        "required": [
+          "level"
+        ],
+        "properties": {
+          "level": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5
+          }
+        }
+      },
+      "CatalystMeta": {
+        "type": "object",
+        "required": [
+          "feed",
+          "version",
+          "publisher",
+          "generated_utc",
+          "content_sha256",
+          "total_catalysts",
+          "price_source",
+          "access_scope",
+          "levels",
+          "notes"
+        ],
+        "properties": {
+          "feed": {
+            "type": "string",
+            "examples": [
+              "soltracer-catalyst-tracker"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "examples": [
+              "v1"
+            ]
+          },
+          "publisher": {
+            "type": "string"
+          },
+          "generated_utc": {
+            "type": "string"
+          },
+          "tracker_computed_utc": {
+            "type": "string"
+          },
+          "content_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "SHA-256 of this public catalyst window. Compare with GET /health before paying again."
+          },
+          "total_catalysts": {
+            "type": "integer",
+            "description": "Count of catalysts in the public window (at most 3)."
+          },
+          "price_source": {
+            "type": "string",
+            "examples": [
+              "SOL/USD daily closes (00:00 UTC)"
+            ]
+          },
+          "access_scope": {
+            "type": "string"
+          },
+          "levels": {
+            "type": "object",
+            "description": "SOLTRACER adoption names. level is the integer used on each record and by min_level.",
+            "properties": {
+              "policy": {
+                "$ref": "#/components/schemas/LevelEntry"
+              },
+              "watching": {
+                "$ref": "#/components/schemas/LevelEntry"
+              },
+              "testing": {
+                "$ref": "#/components/schemas/LevelEntry"
+              },
+              "building": {
+                "$ref": "#/components/schemas/LevelEntry"
+              },
+              "holding": {
+                "$ref": "#/components/schemas/LevelEntry"
+              },
+              "running": {
+                "$ref": "#/components/schemas/LevelEntry"
+              }
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "CatalystSource": {
+        "type": "object",
+        "required": [
+          "kind",
+          "url"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "examples": [
+              "public_tracker"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "SolPriceReaction": {
+        "type": "object",
+        "required": [
+          "base_price_basis",
+          "return",
+          "pending_windows"
+        ],
+        "properties": {
+          "base_price_basis": {
+            "type": "string",
+            "description": "Baseline for the returns. SOL/USD at 00:00 UTC on the catalyst date.",
+            "examples": [
+              "SOL/USD price at 00:00 UTC on the catalyst date"
+            ]
+          },
+          "return": {
+            "type": "object",
+            "description": "SOL/USD decimal return after the move. 0.05 means +5%. null means that window is still open or the price is unavailable.",
+            "required": [
+              "1d",
+              "3d"
+            ],
+            "properties": {
+              "1d": {
+                "$ref": "#/components/schemas/NullableDecimal"
+              },
+              "3d": {
+                "$ref": "#/components/schemas/NullableDecimal"
+              }
+            }
+          },
+          "pending_windows": {
+            "type": "array",
+            "description": "Return windows that are still open, so the matching return field is null.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "1d",
+                "3d"
+              ]
+            }
+          }
+        }
+      },
+      "Catalyst": {
+        "type": "object",
+        "required": [
+          "id",
+          "date",
+          "entity",
+          "catalyst",
+          "level",
+          "type",
+          "sources",
+          "sol_price_reaction"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable catalyst id. Pass it to GET /catalysts/{id}.",
+            "examples": [
+              "2026-11-13-circle-d0fa41cee8"
+            ]
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "Catalyst date, YYYY-MM-DD."
+          },
+          "entity": {
+            "type": "string",
+            "description": "Institution or product the catalyst is about."
+          },
+          "catalyst": {
+            "type": "string",
+            "description": "One-line description of the institutional move."
+          },
+          "level": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5,
+            "description": "SOLTRACER adoption level: 0 policy, 1 watching, 2 testing, 3 building, 4 holding, 5 running."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "policy",
+              "watching",
+              "testing",
+              "building",
+              "holding",
+              "running"
+            ],
+            "description": "Name of the adoption level. Same vocabulary as the type query filter."
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalystSource"
+            }
+          },
+          "sol_price_reaction": {
+            "$ref": "#/components/schemas/SolPriceReaction"
+          }
+        }
+      },
+      "CatalystList": {
+        "type": "object",
+        "required": [
+          "meta",
+          "returned",
+          "catalysts"
+        ],
+        "properties": {
+          "meta": {
+            "$ref": "#/components/schemas/CatalystMeta"
+          },
+          "returned": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3,
+            "description": "Number of catalyst objects in this response."
+          },
+          "catalysts": {
+            "type": "array",
+            "description": "Newest first.",
+            "maxItems": 3,
+            "items": {
+              "$ref": "#/components/schemas/Catalyst"
+            }
+          }
+        }
+      },
+      "CatalystQuery": {
+        "type": "object",
+        "required": [
+          "meta",
+          "query",
+          "matched",
+          "returned",
+          "catalysts"
+        ],
+        "properties": {
+          "meta": {
+            "$ref": "#/components/schemas/CatalystMeta"
+          },
+          "query": {
+            "type": "object",
+            "description": "Query string echoed back. Values are strings.",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "matched": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "How many public-window records matched before limit."
+          },
+          "returned": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "catalysts": {
+            "type": "array",
+            "maxItems": 3,
+            "items": {
+              "$ref": "#/components/schemas/Catalyst"
+            }
+          }
+        }
+      },
+      "CatalystDetail": {
+        "type": "object",
+        "required": [
+          "meta",
+          "catalyst"
+        ],
+        "properties": {
+          "meta": {
+            "$ref": "#/components/schemas/CatalystMeta"
+          },
+          "catalyst": {
+            "$ref": "#/components/schemas/Catalyst"
+          }
+        }
+      },
+      "ErrorBody": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "examples": [
+              "since must be YYYY-MM-DD"
+            ]
+          }
+        }
+      },
+      "UnknownId": {
+        "type": "object",
+        "required": [
+          "error",
+          "hint"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "examples": [
+              "unknown catalyst id"
+            ]
+          },
+          "hint": {
+            "type": "string",
+            "examples": [
+              "ids come from /catalysts/latest or /catalysts"
+            ]
+          }
+        }
+      },
+      "PaymentRequired": {
+        "type": "object",
+        "required": [
+          "accepts"
+        ],
+        "properties": {
+          "accepts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "amount",
+                "currency",
+                "network",
+                "payTo",
+                "protocol",
+                "scheme"
+              ],
+              "properties": {
+                "amount": {
+                  "type": "string",
+                  "description": "USDC base units (6 decimals). 1000 is $0.001.",
+                  "examples": [
+                    "1000"
+                  ]
+                },
+                "currency": {
+                  "type": "string",
+                  "examples": [
+                    "USDC"
+                  ]
+                },
+                "network": {
+                  "type": "string",
+                  "examples": [
+                    "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+                  ]
+                },
+                "payTo": {
+                  "type": "string"
+                },
+                "protocol": {
+                  "type": "string",
+                  "examples": [
+                    "mpp"
+                  ]
+                },
+                "realm": {
+                  "type": "string"
+                },
+                "scheme": {
+                  "type": "string",
+                  "examples": [
+                    "charge"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
