@@ -4,7 +4,7 @@ title: "Ishtar — agent-mediated dating API"
 description: "Pay-per-call USDC API for AI dating coaching, dating-doc intake, chat credits, and public Window slots. x402 on Base and Solana; agents POST JSON and settle before each paid response."
 use_case: "Use when an agent needs pay-per-answer relationship coaching, files a human dating doc onto Ishtar's floor, tops up chat credits, or buys a 24h public dating-doc Window slot."
 category: ai_ml
-service_url: https://api.ishtar.numetal.xyz
+service_url: https://api.gokhanturhan.com/ishtar
 openapi:
   path: openapi.json
 ---
@@ -16,7 +16,7 @@ Primary paid endpoints (see OpenAPI):
 - `POST /api/chat/ask` — $0.10 per coaching answer (discovery/catalog anchor)
 - `POST /api/intake/heart-file` — $1.00 dating-doc submission
 - `POST /api/chat/topup` — $2.00 chat credit block
-- `POST /api/featured/post` — pay-to-be-seen Window slot (price from runtime settings)
+- `POST /api/featured/post` — $50.00 for a 24-hour public Window slot
 
 Free reads: `GET /api/floor`, `GET /api/public/stats`, `GET /openapi.json`.
 
