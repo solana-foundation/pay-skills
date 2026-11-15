@@ -31,7 +31,7 @@ only after the answer is built.
 | `GET /v1/stress` | $0.01 | The stress gate: Calm, Elevated or Stressed, how many of its three components are confirmed (N of 3), and each component (Credit, Volatility, Rates) as Clear or Confirmed. |
 | `POST /v1/lookup` | $0.01 | For up to 20 stock or crypto symbols, each one's typical return and how often it rose over 1 to 12 months when the period started in the current regime, as historical odds. A symbol outside coverage comes back as not covered, never as an error. |
 | `GET /v1/crypto` | $0.01 | The current crypto market regime and each covered coin's typical return and how often it rose over 1, 2 and 3 months when the period started in this regime, as historical odds. |
-| `GET /v1/brief` | $0.01 | The live reading, the stress gate, and the scorecard row for the current regime: what the S&P 500 did in the 5 and 20 trading days after past readings in this regime. |
+| `GET /v1/brief` | $0.01 | The live reading, the stress gate, and the scorecard row for the regime of the last settled close: what the S&P 500 did in the 5 and 20 trading days after past readings in that regime. |
 
 `POST /v1/lookup` takes a JSON body like `{"symbols":["NVDA","BTC"]}`. The
 other routes take no input.
@@ -42,11 +42,22 @@ other routes take no input.
   settled reading and the paid routes with their prices.
 - `/v1/brief` answers the regime, the stress gate and the scorecard in one
   call. Prefer it over separate calls to `/v1/live` and `/v1/stress`.
-- Readings settle once a day after the US close (4:30 PM ET). The live reading
-  and the stress gate are recomputed hourly during the US session (10:00 AM to
-  4:00 PM ET). Do not poll: a second call within the same hour, or after the
-  settle, returns the same reading.
+- `/v1/live`, `/v1/stress` and `/v1/brief`: the reading and the stress gate
+  are recomputed hourly during the US session (10:00 AM to 4:00 PM ET), and one
+  settled reading is published per US trading day at 4:30 PM ET. Do not poll.
+  Check `status`, `asOf` and `updatedAt`: a response marked `settled` is final
+  for its session, and these three routes return it until the next US session.
+- `/v1/brief`: the scorecard row follows the last settled close (the `settled`
+  field), so it changes once per US trading day even while the live reading
+  moves.
+- `/v1/crypto`: the regime is the last settled close (`asOf`), but the coin
+  figures are recomputed once a day, every day, weekends included. Check
+  `dataAsOf`, the newest day of coin prices in the figures, before asking
+  again. A `settled` status here does not mean the coin figures are unchanged
+  until the next US trading day.
+- `/v1/lookup`: stock and ETF figures update after each US close and coin
+  figures once a day. Each result carries its own `asOf`, the session of that
+  symbol's newest price. Check it per symbol, not the top-level `asOf`, which
+  is the session of the regime.
 - Send every symbol of a watchlist in one `/v1/lookup` call (up to 20) instead
   of one call per symbol.
-- Check `status` and `asOf` in a response before asking again: a `settled`
-  response does not change until the next US trading day.
