@@ -27,7 +27,27 @@
         ],
         "responses": {
           "402": {
-            "description": "x402 Payment Required challenge"
+            "description": "x402 Payment Required challenge",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["error", "protocol", "network", "chain_id", "asset", "amount_usdc", "amount_micro_units", "pay_to", "quote_id", "expires_at"],
+                  "properties": {
+                    "error": { "type": "string", "example": "Payment Required" },
+                    "protocol": { "type": "string", "example": "x402" },
+                    "network": { "type": "string", "example": "solana" },
+                    "chain_id": { "type": "integer", "example": 501 },
+                    "asset": { "type": "string", "example": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" },
+                    "amount_usdc": { "type": "string", "example": "0.002" },
+                    "amount_micro_units": { "type": "integer", "example": 2000 },
+                    "pay_to": { "type": "string", "example": "G7doJyFj1tw2mTpApCoyeCPqA3QzyuuKwKNAZvzLErsT" },
+                    "quote_id": { "type": "string" },
+                    "expires_at": { "type": "integer", "description": "Unix timestamp when the quote expires" }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -55,7 +75,64 @@
         },
         "responses": {
           "200": {
-            "description": "Audit verdict and cryptographic attestation"
+            "description": "Audit verdict (PASSED = allow, REJECTED = reject) and reusable cryptographic attestation (valid until attestation.expiresAt)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditResponse"
+                },
+                "examples": {
+                  "allow": {
+                    "summary": "Safe deliverable allowed (PASSED)",
+                    "value": {
+                      "status": "success",
+                      "job_id": 9001,
+                      "verdict": "PASSED",
+                      "is_safe": true,
+                      "risk_score": 0.0,
+                      "threats": [],
+                      "deliverable_hash": "0x88f1ab2244bb9910ee2300000000000000000000000000000000000000000001",
+                      "attestation": {
+                        "jobId": 9001,
+                        "deliverableHash": "0x88f1ab2244bb9910ee2300000000000000000000000000000000000000000001",
+                        "riskScore": 0,
+                        "verdict": "PASSED",
+                        "expiresAt": 1794708280,
+                        "v": 27,
+                        "r": "0x1111111111111111111111111111111111111111111111111111111111111111",
+                        "s": "0x2222222222222222222222222222222222222222222222222222222222222222",
+                        "oracle_signer": "0x101c112233445566778899001122334455667788",
+                        "chain_id": 501
+                      }
+                    }
+                  },
+                  "reject": {
+                    "summary": "Malicious payload rejected (REJECTED)",
+                    "value": {
+                      "status": "success",
+                      "job_id": 9002,
+                      "verdict": "REJECTED",
+                      "is_safe": false,
+                      "risk_score": 0.95,
+                      "threats": ["OS_COMMAND_EXECUTION: os.system"],
+                      "deliverable_hash": "0x99f2ab2244bb9910ee2300000000000000000000000000000000000000000002",
+                      "attestation": {
+                        "jobId": 9002,
+                        "deliverableHash": "0x99f2ab2244bb9910ee2300000000000000000000000000000000000000000002",
+                        "riskScore": 95,
+                        "verdict": "REJECTED",
+                        "expiresAt": 1794708280,
+                        "v": 28,
+                        "r": "0x3333333333333333333333333333333333333333333333333333333333333333",
+                        "s": "0x4444444444444444444444444444444444444444444444444444444444444444",
+                        "oracle_signer": "0x101c112233445566778899001122334455667788",
+                        "chain_id": 501
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "402": {
             "description": "x402 Payment Required"
@@ -87,7 +164,126 @@
         },
         "responses": {
           "200": {
-            "description": "Pre-sign policy verdict"
+            "description": "Pre-sign policy verdict (PASSED = allow; BLOCKED_BY_SECURITY_GATE or REJECTED_SPEND_POLICY = reject)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreSignCheckResponse"
+                },
+                "examples": {
+                  "allow": {
+                    "summary": "Pre-sign check passed (PASSED)",
+                    "value": {
+                      "verdict": "PASSED",
+                      "oms_execution_status": "SINGLE_TX_ROUTED_AND_SETTLED",
+                      "route_id": "OMS-ROUTE-137-501-1794707980",
+                      "sender_handle": "maria.pol",
+                      "recipient_handle": "diego.sol",
+                      "attestation": {
+                        "proof_hash": "0x88f1ab2244bb9910ee2300000000000000000000000000000000000000000001",
+                        "signature": "0xabcdef1234567890"
+                      }
+                    }
+                  },
+                  "reject_security": {
+                    "summary": "Blocked by security gate (BLOCKED_BY_SECURITY_GATE)",
+                    "value": {
+                      "verdict": "BLOCKED_BY_SECURITY_GATE",
+                      "oms_execution_status": "REVERTED_PRE_SIGN",
+                      "risk_score": 0.95,
+                      "threats_detected": ["PROMPT_INJECTION_OVERRIDE"],
+                      "message": "Polygon OMS transaction blocked: Malicious prompt injection or unsafe code detected."
+                    }
+                  },
+                  "reject_spend_policy": {
+                    "summary": "Rejected by spend policy (REJECTED_SPEND_POLICY)",
+                    "value": {
+                      "verdict": "REJECTED_SPEND_POLICY",
+                      "oms_execution_status": "EXCEEDS_DAILY_SPEND_LIMIT",
+                      "requested_usd": 5000.0,
+                      "current_daily_spent_usdc": 20000.0,
+                      "outstanding_allowances_usdc": 5000.0,
+                      "daily_spend_limit_usdc": 25000.0,
+                      "message": "Requested spend or ERC-20 allowance ($5,000.00) plus outstanding unconsumed allowances ($5,000.00) would breach 24h team spend ceiling ($25,000.00)."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "EscrowAttestation": {
+        "type": "object",
+        "required": ["jobId", "deliverableHash", "riskScore", "verdict", "expiresAt", "v", "r", "s", "oracle_signer", "chain_id"],
+        "properties": {
+          "jobId": { "type": "integer" },
+          "deliverableHash": { "type": "string", "description": "0x-prefixed keccak256 hash of the audited deliverable" },
+          "riskScore": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "verdict": { "type": "string", "enum": ["PASSED", "REJECTED"] },
+          "expiresAt": { "type": "integer", "description": "Unix timestamp until which the attestation can be reused for idempotent retries" },
+          "v": { "type": "integer" },
+          "r": { "type": "string" },
+          "s": { "type": "string" },
+          "oracle_signer": { "type": "string" },
+          "chain_id": { "type": "integer" }
+        }
+      },
+      "AuditResponse": {
+        "type": "object",
+        "required": ["status", "job_id", "verdict", "is_safe", "risk_score", "threats", "deliverable_hash", "attestation"],
+        "properties": {
+          "status": { "type": "string", "example": "success" },
+          "job_id": { "type": "integer" },
+          "verdict": { "type": "string", "enum": ["PASSED", "REJECTED"], "description": "PASSED = allow signing/settlement; REJECTED = block execution" },
+          "is_safe": { "type": "boolean", "description": "true when safe to proceed, false when rejected" },
+          "risk_score": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+          "threats": { "type": "array", "items": { "type": "string" } },
+          "deliverable_hash": { "type": "string" },
+          "attestation": { "$ref": "#/components/schemas/EscrowAttestation" }
+        }
+      },
+      "PreSignCheckResponse": {
+        "type": "object",
+        "required": ["verdict", "oms_execution_status"],
+        "properties": {
+          "verdict": {
+            "type": "string",
+            "enum": ["PASSED", "BLOCKED_BY_SECURITY_GATE", "REJECTED_SPEND_POLICY"],
+            "description": "PASSED = allow transaction; BLOCKED_BY_SECURITY_GATE or REJECTED_SPEND_POLICY = reject"
+          },
+          "oms_execution_status": {
+            "type": "string",
+            "enum": [
+              "SINGLE_TX_ROUTED_AND_SETTLED",
+              "REVERTED_PRE_SIGN",
+              "SESSION_REVOKED",
+              "UNAUTHORIZED_ERC20_SPENDER",
+              "EXCEEDS_SINGLE_TX_LIMIT",
+              "EXCEEDS_DAILY_SPEND_LIMIT",
+              "UNAUTHORIZED_CHAIN",
+              "UNAUTHORIZED_ASSET",
+              "EXCEEDS_VELOCITY_LIMIT"
+            ]
+          },
+          "route_id": { "type": "string" },
+          "risk_score": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+          "threats_detected": { "type": "array", "items": { "type": "string" } },
+          "requested_usd": { "type": "number" },
+          "current_daily_spent_usdc": { "type": "number" },
+          "outstanding_allowances_usdc": { "type": "number" },
+          "daily_spend_limit_usdc": { "type": "number" },
+          "message": { "type": "string" },
+          "attestation": {
+            "type": "object",
+            "properties": {
+              "proof_hash": { "type": "string" },
+              "signature": { "type": "string" }
+            }
           }
         }
       }
