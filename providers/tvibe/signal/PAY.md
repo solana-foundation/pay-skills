@@ -6,7 +6,7 @@ use_case: "Use for checking a Solana token before an agent mentions, buys, route
 category: finance
 service_url: https://signal-api-24q4.onrender.com
 openapi:
-url: https://signal-api-24q4.onrender.com/openapi.json
+path: openapi.json
 What it does
 TVibe FILTER reads DexScreener, Solana RPC, RugCheck, and Jupiter, then returns one verdict for a Solana token:
 
