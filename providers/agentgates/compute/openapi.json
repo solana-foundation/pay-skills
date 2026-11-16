@@ -3,8 +3,8 @@
   "info": {
     "title": "Agentgates Compute API",
     "version": "1.0.0",
-    "description": "Confidential computers for AI swarms: a sealed VM (Intel TDX) for each agent, for trading swarms or any other swarm, by the hour, paid in USDC over x402 on Base, Polygon or Solana. No signup and no API key: the paying wallet owns the machine, and every machine proves what it runs (remote attestation).\n\nWhat's new:\n- 2026-11-05, Buy 15 minutes: Machines now sell by the quarter-hour: send \"minutes\": 15, 30 or 45 in place of \"hours\" on a create or a renewal. A payment refused for lack of USDC now says what the wallet can buy instead (canBuy).\n- 2026-11-05, Fewer failed changes: Sending a machine the setup it already runs now changes nothing and keeps it up. A machine busy with another change answers 409 with Retry-After: send the same call again then.\n- 2026-11-02, x402 version 2: Pay with x402 version 2 or 1: every 402 also carries a PAYMENT-REQUIRED header, and a PAYMENT-SIGNATURE header pays like X-PAYMENT.\nAll of it: https://api.agentgates.ai/changelog.json",
-    "x-guidance": "Rent confidential computers for an AI swarm, one CVM (Intel TDX) per agent, by the hour with USDC over x402. No signup: the wallet that pays owns the machine.\n1. GET /api/compute/catalog: plans and the price per network for each.\n2. POST /api/compute/deployments with {\"plan\",\"hours\",\"image\"} (or \"compose\" instead of \"image\"). The answer is a free 402 quote: its accepts array carries one exact price per network (Base, Polygon, Solana).\n3. Pay one entry and send the same POST again with the X-PAYMENT header. The answer is 202 with a deploymentId.\n4. Poll GET /api/compute/deployments/{id}, signed by the paying wallet (X-Wallet-Auth), until status is running: endpoint and attestation are then live.\n5. POST /api/compute/deployments/{id}/renew with {\"hours\"} adds time, the same 402 loop. Any wallet may pay a renewal; only the owner reads, controls or destroys the machine.\nFull contract, signing details and live prices: GET /api/compute/docs.\nQuarter-hours: send {\"minutes\": 15} (or 30 or 45) in place of \"hours\" on a create or a renewal, on every plan but GPU.",
+    "description": "Confidential computers for AI swarms: a sealed VM (Intel TDX) for each agent, for trading swarms or any other swarm, by the hour, paid in USDC over x402 on Base, Polygon or Solana. No signup and no API key: the paying wallet owns the machine, and every confidential machine proves what it runs (remote attestation). Plain VMs (compute.vm.standard, compute.vm.pro) sell beside them with no proof, for much less: a confidential VM for agents that hold keys, money or private data, a plain VM for agents with nothing secret on them.\n\nWhat's new:\n- 2026-11-16, Propose from any of your wallets: Issue: agents proposed only from the account's main wallet. Now: every propose tool takes wallet and the CLI --wallet, naming any wallet ticked when you paired; wallet://wallets lists them.\n- 2026-11-16, Empty POST answers 402: Issue: an empty POST to the compute create or balance top-up answered 400, so x402 checks found no paid route. Now: with no payment and no key, it answers the 402 of the example order in the OpenAPI; a body still sets the order.\n- 2026-11-12, Which machine to pick: Issue: the docs, llms.txt, the MCP and the CLI did not say when to pick a plain machine over a confidential one. Now: confidential VMs for agents holding keys, money or private data; plain VMs for agents with nothing secret, for much less.\nAll of it: https://api.agentgates.ai/changelog.json",
+    "x-guidance": "Rent confidential computers for an AI swarm, one CVM (Intel TDX) per agent, by the hour with USDC over x402. No signup: the wallet that pays owns the machine.\n1. GET /api/compute/catalog: plans and the price per network for each.\n2. POST /api/compute/deployments with {\"plan\",\"hours\",\"image\"} (or \"compose\" instead of \"image\"). The answer is a free 402 quote: its accepts array carries one exact price per network (Base, Polygon, Solana).\n3. Pay one entry and send the same POST again with the X-PAYMENT header. The answer is 202 with a deploymentId.\n4. Poll GET /api/compute/deployments/{id}, signed by the paying wallet (X-Wallet-Auth), until status is running: endpoint and attestation are then live.\n5. POST /api/compute/deployments/{id}/renew with {\"hours\"} adds time, the same 402 loop. Any wallet may pay a renewal; only the owner reads, controls or destroys the machine.\n6. Every answer about a machine carries lifecycle: when its paid time ends, when it stops, when it is deleted, and the renewal's call and price. When paid time ends the machine stops; renew to start it again before it is deleted. Renewing a machine deleted when its time ran out (not GPU or Direct) answers a 402 for a new machine with its setup, priced as a new machine: a new id and address, its env values empty unless the owner sends \"env\". Renewing the old id then renews the new machine. A machine its owner deleted answers 409 \"deleted\" with a new machine's call and price.\n7. To keep a machine running from money paid first: top up a balance (POST /api/compute/credits), then POST /api/compute/deployments/{id}/auto-renew with {\"hours\"}, signed by the wallet that pays (any wallet may). It renews itself before its paid time ends while the balance pays. To keep it stopped longer after its time ends: POST /api/compute/deployments/{id}/keep with {\"hours\"}.\nTo buy several machines with one setup in one payment, add \"count\" (2 to 10) to the create: the 402 asks for that many times one machine's price, and the 202 lists every machine in deployments, each its own.\n8. AI in the same payment: add {\"ai\": {\"usd\": 5}} to the create (1, 5, 25 or 100 dollars). The 402 then asks for the machine plus those dollars, which become the paying wallet's AI balance, and a key on it arrives in the machine's sealed env as AGENTGATES_API_KEY. Over x402 only.\nFull contract, signing details and live prices: GET /api/compute/docs.\nQuarter-hours: send {\"minutes\": 15} (or 30 or 45) in place of \"hours\" on a create or a renewal, on every plan but GPU.",
     "contact": {
       "name": "Agentgates",
       "email": "support@agentgates.ai",
@@ -92,8 +92,8 @@
           "price": {
             "mode": "dynamic",
             "currency": "USD",
-            "min": "0.090000",
-            "max": "844.560000"
+            "min": "0.027000",
+            "max": "366.480000"
           },
           "protocols": [
             {
@@ -117,7 +117,9 @@
                     "enum": [
                       "compute.starter",
                       "compute.standard",
-                      "compute.pro"
+                      "compute.pro",
+                      "compute.vm.standard",
+                      "compute.vm.pro"
                     ],
                     "description": "A plan id from GET /api/compute/catalog."
                   },
@@ -163,9 +165,34 @@
                     "maxLength": 64,
                     "description": "An optional label."
                   },
-                  "aliasTarget": {
-                    "type": "string",
-                    "description": "Optional \"<service>:<port>\" in your compose, to serve on a dedicated domain (see the docs)."
+                  "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10,
+                    "default": 1,
+                    "description": "How many machines with this setup one payment buys, 1 to 10. The price is that many times one machine's; the 202 then lists them in deployments, each its own. Not with ai or pocket."
+                  },
+                  "ai": {
+                    "type": "object",
+                    "description": "Optional {\"usd\": 1, 5, 25 or 100}: the same payment also buys that AI balance for the paying wallet, with a key on it in the machine's sealed env as AGENTGATES_API_KEY (or the variable named in \"env\"). Over x402 only, not from a prepaid balance.",
+                    "properties": {
+                      "usd": {
+                        "type": "integer",
+                        "enum": [
+                          1,
+                          5,
+                          25,
+                          100
+                        ]
+                      },
+                      "env": {
+                        "type": "string",
+                        "default": "AGENTGATES_API_KEY"
+                      }
+                    },
+                    "required": [
+                      "usd"
+                    ]
                   }
                 },
                 "anyOf": [
@@ -191,7 +218,7 @@
         },
         "responses": {
           "202": {
-            "description": "Paid. The machine is provisioning: poll GET /api/compute/deployments/{deploymentId}. A retry with the same X-PAYMENT returns the same machine.",
+            "description": "Paid. The machine is provisioning: poll GET /api/compute/deployments/{deploymentId}. A retry with the same X-PAYMENT returns the same machine. With count over 1 the answer is {count, deployments}: each entry is a machine as below, and the retry lists them all.",
             "content": {
               "application/json": {
                 "schema": {
@@ -211,7 +238,7 @@
                     },
                     "status": {
                       "type": "string",
-                      "description": "provisioning, running, grace, stopped, suspended, destroyed or failed"
+                      "description": "provisioning (it boots, or it is up and its app has not answered yet), running (its app answers), grace, stopped, suspended, destroyed or failed"
                     },
                     "endpoint": {
                       "type": [
@@ -227,9 +254,36 @@
                       ],
                       "format": "date-time"
                     },
+                    "runningAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time",
+                      "description": "When the machine came up: its paid time runs from then."
+                    },
+                    "killReason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Why it was closed, in words: on a machine that never started, what kept it from starting."
+                    },
+                    "boot": {
+                      "type": "object",
+                      "description": "While it boots, and once it is up until its app answers (after a restart, an update, a resize or a start too): phase (placing, booting, disk, keys, gpu, network, containers, app), startedAt and seconds (this start), phaseSince (when known), failure (code and reason: room, create, image, env, cpus, gpu, stalled, boot) and, in phase app, readsRunningBy (when it reads running whether or not its app answered)."
+                    },
                     "verifyUrl": {
                       "type": "string",
                       "description": "A public page with the machine's attestation."
+                    },
+                    "ai": {
+                      "type": "object",
+                      "description": "On the answer of a create that bought AI: usd (the dollars added), balanceUsd, env (the variable the key is in), baseUrl (the chat door the key calls), key (its id and prefix, never the secret), added (whether the balance landed), next (in words)."
+                    },
+                    "lifecycle": {
+                      "type": "object",
+                      "description": "The machine's life and the next call: next (in words), paidUntil, stopsAt, deleteAt, renew (the call and its price on each network, null when it cannot be renewed), start (a machine its owner stopped), autoRenew (a machine that renews itself from a prepaid balance: who pays, its price now, renewsAt, the call that ends it), and on a deleted machine deletedAt, reason and newMachine (the create call for its plan, priced now), replace (its renewal, which buys a new machine with its setup, priced) or replacedBy (the new machine its renewals renew)."
                     }
                   }
                 }
@@ -253,10 +307,10 @@
             "description": "Unknown plan"
           },
           "409": {
-            "description": "payment_in_progress: this payment is being processed, send the same X-PAYMENT again after retry-after. payment_already_spent: it matches no receipt, list your machines. Never sign a new one."
+            "description": "payment_in_progress: this payment is being processed, send the same X-PAYMENT again after retry-after. payment_already_spent: it matches no receipt, list your machines. Never sign a new one. too_many_keys: with ai, the paying wallet holds its most AI keys; nothing was charged."
           },
           "503": {
-            "description": "No capacity right now; nothing was charged"
+            "description": "No capacity right now, or with ai, ai_busy: many machines with AI are being bought at this moment, send the same request again after its retry-after seconds; nothing was charged"
           }
         }
       }
@@ -307,7 +361,7 @@
                     },
                     "status": {
                       "type": "string",
-                      "description": "provisioning, running, grace, stopped, suspended, destroyed or failed"
+                      "description": "provisioning (it boots, or it is up and its app has not answered yet), running (its app answers), grace, stopped, suspended, destroyed or failed"
                     },
                     "endpoint": {
                       "type": [
@@ -323,9 +377,36 @@
                       ],
                       "format": "date-time"
                     },
+                    "runningAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time",
+                      "description": "When the machine came up: its paid time runs from then."
+                    },
+                    "killReason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Why it was closed, in words: on a machine that never started, what kept it from starting."
+                    },
+                    "boot": {
+                      "type": "object",
+                      "description": "While it boots, and once it is up until its app answers (after a restart, an update, a resize or a start too): phase (placing, booting, disk, keys, gpu, network, containers, app), startedAt and seconds (this start), phaseSince (when known), failure (code and reason: room, create, image, env, cpus, gpu, stalled, boot) and, in phase app, readsRunningBy (when it reads running whether or not its app answered)."
+                    },
                     "verifyUrl": {
                       "type": "string",
                       "description": "A public page with the machine's attestation."
+                    },
+                    "ai": {
+                      "type": "object",
+                      "description": "On the answer of a create that bought AI: usd (the dollars added), balanceUsd, env (the variable the key is in), baseUrl (the chat door the key calls), key (its id and prefix, never the secret), added (whether the balance landed), next (in words)."
+                    },
+                    "lifecycle": {
+                      "type": "object",
+                      "description": "The machine's life and the next call: next (in words), paidUntil, stopsAt, deleteAt, renew (the call and its price on each network, null when it cannot be renewed), start (a machine its owner stopped), autoRenew (a machine that renews itself from a prepaid balance: who pays, its price now, renewsAt, the call that ends it), and on a deleted machine deletedAt, reason and newMachine (the create call for its plan, priced now), replace (its renewal, which buys a new machine with its setup, priced) or replacedBy (the new machine its renewals renew)."
                     }
                   }
                 }
@@ -354,8 +435,8 @@
           "price": {
             "mode": "dynamic",
             "currency": "USD",
-            "min": "0.078000",
-            "max": "844.560000"
+            "min": "0.007000",
+            "max": "366.480000"
           },
           "protocols": [
             {
@@ -426,7 +507,7 @@
                     },
                     "status": {
                       "type": "string",
-                      "description": "provisioning, running, grace, stopped, suspended, destroyed or failed"
+                      "description": "provisioning (it boots, or it is up and its app has not answered yet), running (its app answers), grace, stopped, suspended, destroyed or failed"
                     },
                     "endpoint": {
                       "type": [
@@ -442,9 +523,36 @@
                       ],
                       "format": "date-time"
                     },
+                    "runningAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time",
+                      "description": "When the machine came up: its paid time runs from then."
+                    },
+                    "killReason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Why it was closed, in words: on a machine that never started, what kept it from starting."
+                    },
+                    "boot": {
+                      "type": "object",
+                      "description": "While it boots, and once it is up until its app answers (after a restart, an update, a resize or a start too): phase (placing, booting, disk, keys, gpu, network, containers, app), startedAt and seconds (this start), phaseSince (when known), failure (code and reason: room, create, image, env, cpus, gpu, stalled, boot) and, in phase app, readsRunningBy (when it reads running whether or not its app answered)."
+                    },
                     "verifyUrl": {
                       "type": "string",
                       "description": "A public page with the machine's attestation."
+                    },
+                    "ai": {
+                      "type": "object",
+                      "description": "On the answer of a create that bought AI: usd (the dollars added), balanceUsd, env (the variable the key is in), baseUrl (the chat door the key calls), key (its id and prefix, never the secret), added (whether the balance landed), next (in words)."
+                    },
+                    "lifecycle": {
+                      "type": "object",
+                      "description": "The machine's life and the next call: next (in words), paidUntil, stopsAt, deleteAt, renew (the call and its price on each network, null when it cannot be renewed), start (a machine its owner stopped), autoRenew (a machine that renews itself from a prepaid balance: who pays, its price now, renewsAt, the call that ends it), and on a deleted machine deletedAt, reason and newMachine (the create call for its plan, priced now), replace (its renewal, which buys a new machine with its setup, priced) or replacedBy (the new machine its renewals renew)."
                     }
                   }
                 }
@@ -473,6 +581,322 @@
         }
       }
     },
+    "/api/compute/deployments/{id}/keep": {
+      "post": {
+        "operationId": "computeKeep",
+        "summary": "Add kept hours to a machine, after its paid time ends",
+        "description": "Hours the machine is kept stopped after its paid time ends, beyond the window its paid hours keep it, at the disk's cost with the plan's margin. The owner pays: the same 402 loop as a renewal (X-PAYMENT), or its prepaid balance (X-Wallet-Auth, no X-PAYMENT). Not sold on GPU or Direct plans, or on a machine past its window.",
+        "tags": [
+          "Compute"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The deploymentId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "hours"
+                ],
+                "properties": {
+                  "hours": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Kept hours to add."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The kept hours bought and the machine's deleteAt with them",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deploymentId": {
+                      "type": "string"
+                    },
+                    "plan": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "description": "provisioning (it boots, or it is up and its app has not answered yet), running (its app answers), grace, stopped, suspended, destroyed or failed"
+                    },
+                    "endpoint": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "The machine's URL once it runs."
+                    },
+                    "expiresAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "runningAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time",
+                      "description": "When the machine came up: its paid time runs from then."
+                    },
+                    "killReason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Why it was closed, in words: on a machine that never started, what kept it from starting."
+                    },
+                    "boot": {
+                      "type": "object",
+                      "description": "While it boots, and once it is up until its app answers (after a restart, an update, a resize or a start too): phase (placing, booting, disk, keys, gpu, network, containers, app), startedAt and seconds (this start), phaseSince (when known), failure (code and reason: room, create, image, env, cpus, gpu, stalled, boot) and, in phase app, readsRunningBy (when it reads running whether or not its app answered)."
+                    },
+                    "verifyUrl": {
+                      "type": "string",
+                      "description": "A public page with the machine's attestation."
+                    },
+                    "ai": {
+                      "type": "object",
+                      "description": "On the answer of a create that bought AI: usd (the dollars added), balanceUsd, env (the variable the key is in), baseUrl (the chat door the key calls), key (its id and prefix, never the secret), added (whether the balance landed), next (in words)."
+                    },
+                    "lifecycle": {
+                      "type": "object",
+                      "description": "The machine's life and the next call: next (in words), paidUntil, stopsAt, deleteAt, renew (the call and its price on each network, null when it cannot be renewed), start (a machine its owner stopped), autoRenew (a machine that renews itself from a prepaid balance: who pays, its price now, renewsAt, the call that ends it), and on a deleted machine deletedAt, reason and newMachine (the create call for its plan, priced now), replace (its renewal, which buys a new machine with its setup, priced) or replacedBy (the new machine its renewals renew)."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad hours; nothing was charged"
+          },
+          "402": {
+            "description": "Payment Required: the quote. accepts carries one entry per network, each with its own exact maxAmountRequired (USDC atomic units). Quoting is free and repeatable; nothing was charged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/X402Quote"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such machine"
+          },
+          "409": {
+            "description": "Deleted, a GPU or Direct plan (keep_not_offered), or past its window (keep_too_late); nothing was charged"
+          },
+          "503": {
+            "description": "Not sold yet (keep_not_open), or not right now (provider_capacity)"
+          }
+        }
+      }
+    },
+    "/api/compute/deployments/{id}/auto-renew": {
+      "post": {
+        "operationId": "computeAutoRenew",
+        "summary": "Add an automatic renewal from a prepaid balance",
+        "description": "Signed by the wallet that pays (X-Wallet-Auth or its compute key): the owner, or any other wallet, as a parent pays for its children. Before the machine's paid time ends, the hours are drawn from that wallet's prepaid balance at the renewal's price then. A balance that cannot pay draws nothing and the machine stops at the end of its paid time. Nothing is charged here. DELETE on the same path ends it, signed by the paying wallet or the owner.",
+        "tags": [
+          "Compute"
+        ],
+        "security": [
+          {
+            "WalletAuth": []
+          },
+          {
+            "ComputeKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The deploymentId"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "hours": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 720,
+                    "description": "Hours each renewal adds; the plan's smallest when left out."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The setting, its price now, and what the paying wallet's balance holds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deploymentId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "autoRenew": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "description": "hours, paidBy, payer, price (one renewal from the balance, now), renewsAt, balance (to the paying wallet), end"
+                    },
+                    "next": {
+                      "type": "string",
+                      "description": "The same in words."
+                    },
+                    "lifecycle": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad hours"
+          },
+          "401": {
+            "description": "Missing or bad X-Wallet-Auth"
+          },
+          "403": {
+            "description": "A key bound to an agent wallet (key_bound), a compute key on another wallet's machine (key_not_owner), or the sanctions screen (screen_refused)"
+          },
+          "404": {
+            "description": "No such machine"
+          },
+          "409": {
+            "description": "The machine is deleted or on a GPU plan, it pays as it goes (pocket_open), your balance does not pay one renewal (balance_short), or another wallet pays for it (auto_renew_taken)"
+          },
+          "503": {
+            "description": "Not open yet (auto_renew_disabled), or hours cannot be sold right now (provider_capacity)"
+          }
+        }
+      },
+      "get": {
+        "operationId": "computeAutoRenewRead",
+        "summary": "Read a machine's automatic renewal",
+        "description": "Signed by the paying wallet or the owner.",
+        "tags": [
+          "Compute"
+        ],
+        "security": [
+          {
+            "WalletAuth": []
+          },
+          {
+            "ComputeKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The deploymentId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The setting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deploymentId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "autoRenew": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "description": "hours, paidBy, payer, price (one renewal from the balance, now), renewsAt, balance (to the paying wallet), end"
+                    },
+                    "next": {
+                      "type": "string",
+                      "description": "The same in words."
+                    },
+                    "lifecycle": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such machine for this wallet, or none set (no_auto_renew)"
+          }
+        }
+      }
+    },
     "/api/compute/credits": {
       "post": {
         "operationId": "computeCreditsBuy",
@@ -486,8 +910,8 @@
           "price": {
             "mode": "dynamic",
             "currency": "USD",
-            "min": "1.004610",
-            "max": "100.012097"
+            "min": "1.002000",
+            "max": "100.004636"
           },
           "protocols": [
             {

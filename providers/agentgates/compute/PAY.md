@@ -1,7 +1,7 @@
 ---
 name: compute
 title: "Agentgates Compute: confidential computers for AI swarms"
-description: "Confidential computers for AI swarms: a sealed VM (Intel TDX) per agent, for trading swarms or any swarm, by the hour. Run a Docker image, read its endpoint and TEE attestation. USDC over x402 on Solana or Base; the paying wallet owns the machine."
+description: "Agentgates sells infrastructure and services for AI swarms via x402 (CVMs, VMs, AI inference, phones, emails). This is its compute: a confidential VM (Intel TDX) or plain VM per agent by the hour, paid in USDC on Solana or Base, no signup."
 use_case: "Use for giving each agent in a swarm its own confidential machine (trading, research, data or backtesting swarms), running Docker or docker-compose on demand, or buying attested confidential compute with USDC and no account."
 category: compute
 service_url: https://api.agentgates.ai
@@ -9,8 +9,10 @@ openapi:
   path: openapi.json
 ---
 
-Confidential computers for AI swarms: a dedicated confidential VM (Intel TDX)
-for each agent, rented by the hour and paid in USDC over x402. No signup and no API key: the wallet that pays owns
+Agentgates has infrastructure and services for AI swarms, all payable via x402:
+CVMs, VMs, AI inference, phone numbers, email inboxes and more. This entry is its
+compute: a dedicated confidential VM (Intel TDX), or a plain VM for agents with
+nothing secret, for each agent, rented by the hour and paid in USDC over x402. No signup and no API key: the wallet that pays owns
 the machine, and every machine carries a remote-attestation quote.
 
 ## How a purchase works
