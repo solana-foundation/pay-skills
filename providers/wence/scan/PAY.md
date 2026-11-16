@@ -1,8 +1,8 @@
 ---
 name: scan
 title: "MyTollBooth Scan"
-description: "Transaction security scanning and anomaly detection with per-call x402 pricing on Solana for on-chain activity verification."
-use_case: "Scan transactions for security anomalies and threat flags"
+description: "URL security scanning — check if a link is malicious, phishing, or compromised. Per-call x402 pricing on Solana."
+use_case: "Scan a URL for security threats before an agent visits it"
 category: security
 reason: "Scan transaction for security anomalies"
 service_url: https://scan-api-production.up.railway.app
