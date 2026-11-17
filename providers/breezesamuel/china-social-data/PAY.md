@@ -35,8 +35,8 @@ Gasless for the agent (EIP-3009). Failed requests are never charged.
 
 ### Solana payment support
 
-Solana mainnet USDC/USDT support is in progress. The current payment path uses
-AgentPay on Base (EIP-3009, gasless). x402.rs official facilitator
+Solana mainnet USDC support is planned. The x402.rs official facilitator
 (https://facilitator.x402.rs) supports Solana mainnet
-(solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1) and is planned as a secondary
-facilitator for multi-chain buyers.
+(solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp) and USDC on that network.
+The OpenAPI document declares both networks in x-payment-networks:
+Base mainnet (primary, live) and Solana mainnet (planned).
