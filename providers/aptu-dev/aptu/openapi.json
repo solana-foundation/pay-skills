@@ -1,0 +1,2580 @@
+{
+  "openapi": "3.1.0",
+  "servers": [
+    {
+      "url": "https://aptu.dev"
+    }
+  ],
+  "info": {
+    "title": "aptu.dev",
+    "version": "0.1.0",
+    "description": "Machine-payable API infrastructure for autonomous agents.",
+    "contact": {
+      "name": "aptu.dev",
+      "url": "https://aptu.dev",
+      "email": "info@aptu.dev"
+    },
+    "x-guidance": "All paid endpoints speak x402 v2: an unpaid request receives 402 with a PAYMENT-REQUIRED header; sign the exact-scheme authorization (USDC on Base via EIP-3009 or on Solana via the SVM exact scheme, payTo from the challenge) and retry with a PAYMENT-SIGNATURE header; a settled response carries PAYMENT-RESPONSE with the settlement receipt. Free surfaces are /.well-known/x402, /v1/catalog, /v1/openapi.json, /v1/self-check, GET /v1/x401-probe (401 + PROOF-REQUEST, no payment), and the free partner-registration pair POST /v1/partners + POST /v1/partner-verify. Unauthenticated probes always reach the 402 challenge before request-body validation."
+  },
+  "components": {
+    "schemas": {
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/.well-known/x402": {
+      "get": {
+        "operationId": "getX402DiscoveryManifest",
+        "summary": "Fetch the x402 discovery manifest",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Manifest document"
+          }
+        }
+      }
+    },
+    "/v1/catalog": {
+      "get": {
+        "operationId": "listCatalogEndpoints",
+        "summary": "List all endpoints in the JSON catalog",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Catalog document"
+          }
+        }
+      }
+    },
+    "/v1/openapi.json": {
+      "get": {
+        "operationId": "getOpenApiDocument",
+        "summary": "Fetch the OpenAPI 3.1 document",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OpenAPI document"
+          }
+        }
+      }
+    },
+    "/v1/echo": {
+      "post": {
+        "operationId": "sendEchoMessage",
+        "summary": "Send a JSON message and receive the echo",
+        "security": [],
+        "description": "Echoes a JSON {message} back; the simplest paid call for verifying your x402 payment flow.",
+        "x-payment-info": {
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "message"
+                ],
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "maxLength": 10000,
+                    "description": "Message to echo back verbatim",
+                    "example": "hello from an autonomous agent"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Echoed payload",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON settlement receipt (x402 v2 PAYMENT-RESPONSE).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "echo"
+                  ],
+                  "properties": {
+                    "echo": {
+                      "type": "object"
+                    }
+                  }
+                },
+                "example": {
+                  "echo": {
+                    "message": "hello from an autonomous agent"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 PAYMENT-REQUIRED header)",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON payment challenge (x402 v2 PAYMENT-REQUIRED).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Replay blocked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/resume-eval": {
+      "post": {
+        "operationId": "scoreResumeAgainstRubric",
+        "summary": "Score a resume against the ATS rubric",
+        "security": [],
+        "description": "Scores a resume 0-4 against an ATS rubric (impact, parseability, executive framing, contact).",
+        "x-payment-info": {
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.005"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "resume_text",
+                  "format"
+                ],
+                "properties": {
+                  "resume_text": {
+                    "type": "string",
+                    "maxLength": 30000,
+                    "description": "Full resume text to score"
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": [
+                      "markdown",
+                      "typst",
+                      "json"
+                    ],
+                    "description": "Format of the supplied resume text"
+                  },
+                  "job_description": {
+                    "type": "string",
+                    "maxLength": 6000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Score report (four checks + total)",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON settlement receipt (x402 v2 PAYMENT-RESPONSE).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "scores",
+                    "total",
+                    "findings"
+                  ],
+                  "properties": {
+                    "scores": {
+                      "type": "object",
+                      "required": [
+                        "impact_quantified",
+                        "ats_parseable",
+                        "executive_framing",
+                        "contact_complete"
+                      ],
+                      "properties": {
+                        "impact_quantified": {
+                          "type": "integer",
+                          "enum": [
+                            0,
+                            1
+                          ]
+                        },
+                        "ats_parseable": {
+                          "type": "integer",
+                          "enum": [
+                            0,
+                            1
+                          ]
+                        },
+                        "executive_framing": {
+                          "type": "integer",
+                          "enum": [
+                            0,
+                            1
+                          ]
+                        },
+                        "contact_complete": {
+                          "type": "integer",
+                          "enum": [
+                            0,
+                            1
+                          ]
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "findings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "check",
+                          "pass",
+                          "detail"
+                        ],
+                        "properties": {
+                          "check": {
+                            "type": "string"
+                          },
+                          "pass": {
+                            "type": "boolean"
+                          },
+                          "detail": {
+                            "type": "string"
+                          },
+                          "gap": {
+                            "type": "string"
+                          },
+                          "action": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "code",
+                          "message"
+                        ],
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "scores": {
+                    "impact_quantified": 1,
+                    "ats_parseable": 1,
+                    "executive_framing": 0,
+                    "contact_complete": 1
+                  },
+                  "total": 3,
+                  "findings": [
+                    {
+                      "check": "executive_framing",
+                      "pass": false,
+                      "detail": "No executive framing detected.",
+                      "action": "Lead with scope and outcome."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 PAYMENT-REQUIRED header)",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON payment challenge (x402 v2 PAYMENT-REQUIRED).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Replay blocked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/agent-readiness": {
+      "post": {
+        "operationId": "checkDomainAgentReadiness",
+        "summary": "Check a domain for agent readiness",
+        "security": [],
+        "description": "Audits a domain's agent readiness against the aptu-readiness-1 rubric, weighted 0-100; full rubric: https://aptu.dev/agent-readiness-checks",
+        "x-payment-info": {
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.05"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "domain"
+                ],
+                "properties": {
+                  "domain": {
+                    "type": "string",
+                    "maxLength": 253,
+                    "pattern": "^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Readiness audit (score + findings)",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON settlement receipt (x402 v2 PAYMENT-RESPONSE).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "domain",
+                    "score",
+                    "rubricVersion",
+                    "summary",
+                    "findings"
+                  ],
+                  "properties": {
+                    "domain": {
+                      "type": "string"
+                    },
+                    "score": {
+                      "type": "number"
+                    },
+                    "rubricVersion": {
+                      "type": "string",
+                      "enum": [
+                        "aptu-readiness-1"
+                      ]
+                    },
+                    "summary": {
+                      "type": "object",
+                      "required": [
+                        "passes",
+                        "fails",
+                        "warns",
+                        "indeterminate"
+                      ],
+                      "properties": {
+                        "passes": {
+                          "type": "number"
+                        },
+                        "fails": {
+                          "type": "number"
+                        },
+                        "warns": {
+                          "type": "number"
+                        },
+                        "indeterminate": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "findings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "check",
+                          "pass",
+                          "severity",
+                          "detail",
+                          "ms"
+                        ],
+                        "properties": {
+                          "check": {
+                            "type": "string"
+                          },
+                          "pass": {
+                            "type": "boolean"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "fail",
+                              "warn"
+                            ]
+                          },
+                          "detail": {
+                            "type": "string"
+                          },
+                          "ms": {
+                            "type": "number"
+                          },
+                          "hint": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "indeterminate": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "domain": "example.com",
+                  "rubricVersion": "aptu-readiness-1",
+                  "score": 100,
+                  "summary": {
+                    "passes": 12,
+                    "fails": 0,
+                    "warns": 0,
+                    "indeterminate": 0
+                  },
+                  "findings": [
+                    {
+                      "check": "robots_txt",
+                      "pass": true,
+                      "severity": "fail",
+                      "detail": "robots.txt served",
+                      "ms": 34,
+                      "hint": null
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 PAYMENT-REQUIRED header)",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON payment challenge (x402 v2 PAYMENT-REQUIRED).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Replay blocked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "Upstream probe failed (no charge applied)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/readiness-fix": {
+      "post": {
+        "operationId": "runReadinessFix",
+        "summary": "Generate machine-surface artifacts for a domain",
+        "security": [],
+        "description": "Re-probes a domain and returns ready-to-host machine-surface artifacts from probe facts; contract: https://aptu.dev/readiness-fix-checks",
+        "x-payment-info": {
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.05"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "domain"
+                ],
+                "properties": {
+                  "domain": {
+                    "type": "string",
+                    "maxLength": 253,
+                    "pattern": "^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Generated artifacts keyed by target path, each with its motivating finding",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON settlement receipt (x402 v2 PAYMENT-RESPONSE).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "domain",
+                    "rubricVersion",
+                    "summary",
+                    "artifacts"
+                  ],
+                  "properties": {
+                    "domain": {
+                      "type": "string"
+                    },
+                    "rubricVersion": {
+                      "type": "string",
+                      "enum": [
+                        "aptu-readiness-1"
+                      ]
+                    },
+                    "summary": {
+                      "type": "object",
+                      "required": [
+                        "passes",
+                        "fails",
+                        "warns",
+                        "indeterminate"
+                      ],
+                      "properties": {
+                        "passes": {
+                          "type": "number"
+                        },
+                        "fails": {
+                          "type": "number"
+                        },
+                        "warns": {
+                          "type": "number"
+                        },
+                        "indeterminate": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "artifacts": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "check",
+                          "pass",
+                          "hint",
+                          "content"
+                        ],
+                        "properties": {
+                          "check": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "pass": {
+                            "type": [
+                              "boolean",
+                              "null"
+                            ]
+                          },
+                          "hint": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "content": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "domain": "example.com",
+                  "rubricVersion": "aptu-readiness-1",
+                  "summary": {
+                    "passes": 7,
+                    "fails": 3,
+                    "warns": 1,
+                    "indeterminate": 1
+                  },
+                  "artifacts": {
+                    "llms.txt": {
+                      "check": "llms_txt",
+                      "pass": false,
+                      "hint": "Publish an llms.txt index at https://<domain>/llms.txt.",
+                      "content": "# example.com\n\n..."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 PAYMENT-REQUIRED header)",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON payment challenge (x402 v2 PAYMENT-REQUIRED).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Replay blocked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "Upstream probe failed (no charge applied)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/req-resolve": {
+      "get": {
+        "operationId": "resolveQuebecEnterprise",
+        "summary": "Resolve a Quebec enterprise by NEQ or name",
+        "security": [],
+        "description": "Resolves a Quebec enterprise by 10-digit NEQ or name against the official Registraire des entreprises open-data index (bimonthly refresh); returns the record with source attribution.",
+        "x-payment-info": {
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.005"
+          }
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "example": "BOMBARDIER",
+            "description": "10-digit NEQ (exact match) or company name (normalized exact/prefix match).",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "example": 10,
+            "description": "Maximum results returned; default 10, capped at 25.",
+            "schema": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Official registry record(s); checkedAgainst is the bimonthly open-data refresh date the index was built from.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON settlement receipt (x402 v2 PAYMENT-RESPONSE).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "query",
+                    "matchedBy",
+                    "checkedAgainst",
+                    "source",
+                    "results"
+                  ],
+                  "properties": {
+                    "query": {
+                      "type": "string"
+                    },
+                    "matchedBy": {
+                      "type": "string",
+                      "enum": [
+                        "neq",
+                        "exact",
+                        "prefix",
+                        "substring"
+                      ]
+                    },
+                    "checkedAgainst": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "neq",
+                          "denomination",
+                          "status"
+                        ],
+                        "properties": {
+                          "neq": {
+                            "type": "string"
+                          },
+                          "denomination": {
+                            "type": "string"
+                          },
+                          "autresNoms": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "legalForm": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "statusDate": {
+                            "type": "string"
+                          },
+                          "immatriculationDate": {
+                            "type": "string"
+                          },
+                          "address": {
+                            "type": "string"
+                          },
+                          "sectorCode": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "query": "BOMBARDIER",
+                  "matchedBy": "prefix",
+                  "checkedAgainst": "2026-11-07",
+                  "source": "Registraire des entreprises, donnees ouvertes - CC BY-NC-SA",
+                  "results": [
+                    {
+                      "neq": "1161551776",
+                      "denomination": "BOMBARDIER INC.",
+                      "autresNoms": [],
+                      "legalForm": "CIE",
+                      "status": "IM",
+                      "statusDate": "1997-07-17",
+                      "immatriculationDate": "1994-01-18",
+                      "address": "2707, CAZENEUVE, SAINT-LAURENT (QUEBEC)",
+                      "sectorCode": "2"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 PAYMENT-REQUIRED header)",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON payment challenge (x402 v2 PAYMENT-REQUIRED).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Replay blocked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Index unavailable (no charge applied)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/rbq-resolve": {
+      "get": {
+        "operationId": "resolveRbqLicence",
+        "summary": "Resolve a Quebec RBQ construction licence",
+        "security": [],
+        "description": "Resolves a Quebec construction licence by 10-digit RBQ licence number, NEQ, or holder name prefix against the official RBQ licencesactives open-data index; returns the licence record with data-date provenance.",
+        "x-payment-info": {
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.005"
+          }
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "example": "1234567890",
+            "description": "10-digit RBQ licence number or NEQ (exact match) or holder name (normalized prefix match).",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "RBQ licence record(s); checkedAgainst is the licencesactives open-data date the index was built from.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON settlement receipt (x402 v2 PAYMENT-RESPONSE).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "query",
+                    "matchedBy",
+                    "checkedAgainst",
+                    "source",
+                    "results"
+                  ],
+                  "properties": {
+                    "query": {
+                      "type": "string"
+                    },
+                    "matchedBy": {
+                      "type": "string",
+                      "enum": [
+                        "licence_no",
+                        "neq",
+                        "prefix"
+                      ]
+                    },
+                    "checkedAgainst": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "licence_no",
+                          "holder",
+                          "status"
+                        ],
+                        "properties": {
+                          "licence_no": {
+                            "type": "string"
+                          },
+                          "holder": {
+                            "type": "string"
+                          },
+                          "neq": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "licence_type": {
+                            "type": "string"
+                          },
+                          "issue_date": {
+                            "type": "string"
+                          },
+                          "categories": {
+                            "type": "string"
+                          },
+                          "sub_categories": {
+                            "type": "string"
+                          },
+                          "region": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "query": "1234567890",
+                  "matchedBy": "licence_no",
+                  "checkedAgainst": "2026-11-07",
+                  "source": "RBQ licencesactives",
+                  "results": [
+                    {
+                      "licence_no": "1234567890",
+                      "holder": "CONSTRUCTIONS EXEMPLE INC.",
+                      "neq": "1161551776",
+                      "status": "ACTIVE",
+                      "licence_type": "GENERAL ENTREPRENEUR",
+                      "issue_date": "2015-04-01",
+                      "categories": "GENERAL ENTREPRENEUR",
+                      "sub_categories": "",
+                      "region": "MONTEREGIE"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 PAYMENT-REQUIRED header)",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON payment challenge (x402 v2 PAYMENT-REQUIRED).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Replay blocked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Index unavailable (no charge applied)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/judge": {
+      "post": {
+        "operationId": "judgeTypedDecisions",
+        "summary": "Judge typed decision questions",
+        "security": [],
+        "description": "Typed judging: the Clef model answers your noul, choice, or score questions about JSON state; returns calibrated answers, a settlement receipt, and an Ed25519-signed attestation (JWKS: /.well-known/jwks.json).",
+        "x-payment-info": {
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.005"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "state",
+                  "questions"
+                ],
+                "properties": {
+                  "state": {
+                    "description": "Application state the questions judge: a JSON string, object, or array. Payload cap 256 KiB UTF-8; oversized text state is truncated to the model's 64k-token context rather than rejected.",
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "object"
+                      },
+                      {
+                        "type": "array"
+                      }
+                    ]
+                  },
+                  "questions": {
+                    "type": "object",
+                    "description": "Map of answer name to question spec: {type: noul|choice|score, instructions, criteria?}. 1 to 25 questions; choice criteria up to 255 options; score criteria 2 to 10 ordered levels.",
+                    "additionalProperties": {
+                      "type": "object",
+                      "required": [
+                        "type",
+                        "instructions"
+                      ],
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "noul",
+                            "choice",
+                            "score"
+                          ]
+                        },
+                        "instructions": {
+                          "description": "Narrow, self-contained, predicate-positive question text."
+                        },
+                        "criteria": {
+                          "description": "choice: {option: description|null}; score: ordered level descriptions (2-10); omit for noul."
+                        }
+                      }
+                    }
+                  },
+                  "timeout_ms": {
+                    "type": "number",
+                    "maximum": 60000,
+                    "description": "Optional per-request timeout cap in ms (max 60000). The upstream model call is aborted at 4 s regardless."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Typed answers with model, usage, and a verifiable settlement receipt",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON settlement receipt (x402 v2 PAYMENT-RESPONSE).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "answers",
+                    "model",
+                    "receipt"
+                  ],
+                  "properties": {
+                    "answers": {
+                      "type": "object",
+                      "description": "Map of question name to typed answer. noul: {noul: probability} only. choice: {option, probabilities, confidence}. score: {score, probabilities, confidence}.",
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "noul": {
+                            "type": "number",
+                            "description": "noul answers: calibrated probability (0-1); the only field on a noul answer."
+                          },
+                          "option": {
+                            "type": "string",
+                            "description": "choice answers: the chosen option name."
+                          },
+                          "probabilities": {
+                            "type": "object",
+                            "description": "choice and score answers: per-option or per-level probabilities."
+                          },
+                          "score": {
+                            "type": "number",
+                            "description": "score answers: the chosen ordered level (1-based)."
+                          },
+                          "confidence": {
+                            "type": "number",
+                            "description": "choice and score answers: calibrated confidence (0-1)."
+                          }
+                        }
+                      }
+                    },
+                    "model": {
+                      "type": "string",
+                      "description": "Producing model id (clef in v1); pin it when re-running a receipt for verification."
+                    },
+                    "usage": {
+                      "type": "object",
+                      "description": "Token usage metadata for the request."
+                    },
+                    "receipt": {
+                      "type": "object",
+                      "required": [
+                        "hash",
+                        "settled"
+                      ],
+                      "properties": {
+                        "hash": {
+                          "type": "string",
+                          "description": "sha256- prefixed SHA-256 over the RFC 8785 canonicalization of {state, questions}; recompute it to verify a published judgment."
+                        },
+                        "settled": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "attestation": {
+                      "type": "object",
+                      "description": "Optional Ed25519-signed attestation over this receipt; verify against the public key at /.well-known/jwks.json; proves provenance, not accuracy.",
+                      "required": [
+                        "iss",
+                        "kid",
+                        "iat",
+                        "request_sha256",
+                        "answers",
+                        "model",
+                        "payload_sha256",
+                        "signature",
+                        "jwks_url"
+                      ],
+                      "properties": {
+                        "iss": {
+                          "type": "string"
+                        },
+                        "kid": {
+                          "type": "string"
+                        },
+                        "iat": {
+                          "type": "number"
+                        },
+                        "request_sha256": {
+                          "type": "string"
+                        },
+                        "answers": {
+                          "type": "object",
+                          "additionalProperties": true
+                        },
+                        "model": {
+                          "type": "string"
+                        },
+                        "payload_sha256": {
+                          "type": "string"
+                        },
+                        "signature": {
+                          "type": "string"
+                        },
+                        "jwks_url": {
+                          "type": "string"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 PAYMENT-REQUIRED header)",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON payment challenge (x402 v2 PAYMENT-REQUIRED).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "Upstream probe failed (no charge applied)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Index unavailable (no charge applied)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/x402-preflight": {
+      "post": {
+        "operationId": "runX402Preflight",
+        "summary": "Run an x402 conformance pre-flight",
+        "security": [],
+        "description": "Graded 0-100 x402 protocol conformance pre-flight check for a deployed resource URL, with per-failure remedies; rubric: https://aptu.dev/x402-preflight-checks",
+        "x-payment-info": {
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.05"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "url"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "pattern": "^https://"
+                  },
+                  "resource": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "description": "Explicit resource URL to probe when the manifest advertises several."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preflight report (score + grade + findings)",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON settlement receipt (x402 v2 PAYMENT-RESPONSE).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "url",
+                    "probedResource",
+                    "rubricVersion",
+                    "score",
+                    "grade",
+                    "summary",
+                    "findings"
+                  ],
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    },
+                    "probedResource": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "probedFacilitator": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "rubricVersion": {
+                      "type": "string"
+                    },
+                    "score": {
+                      "type": "number"
+                    },
+                    "grade": {
+                      "type": "string",
+                      "enum": [
+                        "A",
+                        "B",
+                        "C",
+                        "D"
+                      ]
+                    },
+                    "summary": {
+                      "type": "object",
+                      "required": [
+                        "fails",
+                        "warns"
+                      ],
+                      "properties": {
+                        "fails": {
+                          "type": "number"
+                        },
+                        "warns": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "findings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "check",
+                          "pass",
+                          "severity",
+                          "detail",
+                          "ms",
+                          "hint",
+                          "specRef"
+                        ],
+                        "properties": {
+                          "check": {
+                            "type": "string"
+                          },
+                          "pass": {
+                            "type": "boolean"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "fail",
+                              "warn"
+                            ]
+                          },
+                          "detail": {
+                            "type": "string"
+                          },
+                          "ms": {
+                            "type": "number"
+                          },
+                          "hint": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "specRef": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "url": "https://seller.example.com/v1/paid",
+                  "probedResource": "https://seller.example.com/v1/paid",
+                  "probedFacilitator": null,
+                  "rubricVersion": "aptu-preflight-1",
+                  "score": 96,
+                  "grade": "A",
+                  "summary": {
+                    "fails": 0,
+                    "warns": 1
+                  },
+                  "findings": [
+                    {
+                      "check": "manifest_dual_timestamp",
+                      "pass": false,
+                      "severity": "warn",
+                      "detail": "Manifest carries 'updated' but not 'updated_at'.",
+                      "ms": 12,
+                      "hint": "Publish both 'updated' and 'updated_at' on the manifest.",
+                      "specRef": null
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 PAYMENT-REQUIRED header)",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON payment challenge (x402 v2 PAYMENT-REQUIRED).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Replay blocked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "Upstream probe failed (no charge applied)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/btc-regime": {
+      "get": {
+        "operationId": "checkBtcRegimeGate",
+        "summary": "Check BTC spot regime against MA7 gate",
+        "security": [],
+        "description": "BTC spot regime check against a 7-day moving average gate (bull/bear, MA7, deviation pct, favor-entry/block-entry action).",
+        "x-payment-info": {
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.003"
+          }
+        },
+        "parameters": [
+          {
+            "name": "spot",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "example": 65000
+          },
+          {
+            "name": "closes",
+            "in": "query",
+            "required": false,
+            "example": "63500,64200,64800,65100,64700,65500,66000",
+            "description": "Comma-separated list of exactly 7 daily closes, oldest first; omit to read Kraken.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+(\\.[0-9]+)?(,[0-9]+(\\.[0-9]+)?){6}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Regime verdict (regime may be insufficient-data when inputs fail the guard); fetchedAt is present only when closesSource is \"kraken\".",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON settlement receipt (x402 v2 PAYMENT-RESPONSE).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "regime",
+                    "ma7",
+                    "spotVsMa7Pct",
+                    "action",
+                    "closesSource",
+                    "availability",
+                    "disclaimer"
+                  ],
+                  "properties": {
+                    "regime": {
+                      "type": "string",
+                      "enum": [
+                        "bull",
+                        "bear",
+                        "insufficient-data"
+                      ]
+                    },
+                    "ma7": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "spotVsMa7Pct": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "action": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "favor-entry",
+                        "block-entry",
+                        null
+                      ]
+                    },
+                    "closesSource": {
+                      "type": "string",
+                      "enum": [
+                        "client",
+                        "kraken"
+                      ]
+                    },
+                    "fetchedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "availability": {
+                      "type": "string",
+                      "enum": [
+                        "available",
+                        "unavailable"
+                      ]
+                    },
+                    "unavailableReason": {
+                      "type": "string",
+                      "enum": [
+                        "not_reported",
+                        "provider_error",
+                        "stale"
+                      ]
+                    },
+                    "disclaimer": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "regime": "bull",
+                  "ma7": 64800.5,
+                  "spotVsMa7Pct": 0.31,
+                  "action": "favor-entry",
+                  "closesSource": "client",
+                  "availability": "available",
+                  "disclaimer": "Not financial advice."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 PAYMENT-REQUIRED header)",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON payment challenge (x402 v2 PAYMENT-REQUIRED).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Replay blocked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "Upstream probe failed (no charge applied)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sol-regime": {
+      "get": {
+        "operationId": "checkSolRegimeGate",
+        "summary": "Check SOL spot regime against MA7 gate",
+        "security": [],
+        "description": "SOL spot regime check against a 7-day moving average gate (bull/bear, MA7, deviation pct, favor-entry/block-entry action).",
+        "x-payment-info": {
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.003"
+          }
+        },
+        "parameters": [
+          {
+            "name": "spot",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "example": 150
+          },
+          {
+            "name": "closes",
+            "in": "query",
+            "required": false,
+            "example": "140,142,144,146,148,150,152",
+            "description": "Comma-separated list of exactly 7 daily closes, oldest first; omit to read Kraken.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+(\\.[0-9]+)?(,[0-9]+(\\.[0-9]+)?){6}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Regime verdict (regime may be insufficient-data when inputs fail the guard); fetchedAt is present only when closesSource is \"kraken\".",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON settlement receipt (x402 v2 PAYMENT-RESPONSE).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "regime",
+                    "ma7",
+                    "spotVsMa7Pct",
+                    "action",
+                    "closesSource",
+                    "availability",
+                    "disclaimer"
+                  ],
+                  "properties": {
+                    "regime": {
+                      "type": "string",
+                      "enum": [
+                        "bull",
+                        "bear",
+                        "insufficient-data"
+                      ]
+                    },
+                    "ma7": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "spotVsMa7Pct": {
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "action": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "favor-entry",
+                        "block-entry",
+                        null
+                      ]
+                    },
+                    "closesSource": {
+                      "type": "string",
+                      "enum": [
+                        "client",
+                        "kraken"
+                      ]
+                    },
+                    "fetchedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "availability": {
+                      "type": "string",
+                      "enum": [
+                        "available",
+                        "unavailable"
+                      ]
+                    },
+                    "unavailableReason": {
+                      "type": "string",
+                      "enum": [
+                        "not_reported",
+                        "provider_error",
+                        "stale"
+                      ]
+                    },
+                    "disclaimer": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "regime": "bull",
+                  "ma7": 146,
+                  "spotVsMa7Pct": 2.74,
+                  "action": "favor-entry",
+                  "closesSource": "kraken",
+                  "availability": "available",
+                  "disclaimer": "Not financial advice."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 PAYMENT-REQUIRED header)",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON payment challenge (x402 v2 PAYMENT-REQUIRED).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Replay blocked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "Upstream probe failed (no charge applied)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/regime-verdict": {
+      "get": {
+        "operationId": "getRegimeVerdict",
+        "summary": "Get combined BTC and SOL regime verdict",
+        "security": [],
+        "description": "Combined BTC and SOL regime verdict: both spot-vs-MA7 gates plus a crossRail alignment field (aligned when both actions match, divergent otherwise).",
+        "x-payment-info": {
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ],
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          }
+        },
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Cross-asset verdict: per-rail regime gates (each with regime, ma7, spotVsMa7Pct, action, availability) plus crossRail alignment and a deterministic detail line.",
+            "headers": {
+              "PAYMENT-RESPONSE": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON settlement receipt (x402 v2 PAYMENT-RESPONSE).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "btc",
+                    "sol",
+                    "crossRail",
+                    "disclaimer"
+                  ],
+                  "properties": {
+                    "btc": {
+                      "type": "object",
+                      "required": [
+                        "regime",
+                        "ma7",
+                        "spotVsMa7Pct",
+                        "action",
+                        "availability"
+                      ],
+                      "properties": {
+                        "regime": {
+                          "type": "string",
+                          "enum": [
+                            "bull",
+                            "bear",
+                            "insufficient-data"
+                          ]
+                        },
+                        "ma7": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "spotVsMa7Pct": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "action": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "favor-entry",
+                            "block-entry",
+                            null
+                          ]
+                        },
+                        "availability": {
+                          "type": "string",
+                          "enum": [
+                            "available",
+                            "unavailable"
+                          ]
+                        }
+                      }
+                    },
+                    "sol": {
+                      "type": "object",
+                      "required": [
+                        "regime",
+                        "ma7",
+                        "spotVsMa7Pct",
+                        "action",
+                        "availability"
+                      ],
+                      "properties": {
+                        "regime": {
+                          "type": "string",
+                          "enum": [
+                            "bull",
+                            "bear",
+                            "insufficient-data"
+                          ]
+                        },
+                        "ma7": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "spotVsMa7Pct": {
+                          "type": [
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "action": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "favor-entry",
+                            "block-entry",
+                            null
+                          ]
+                        },
+                        "availability": {
+                          "type": "string",
+                          "enum": [
+                            "available",
+                            "unavailable"
+                          ]
+                        }
+                      }
+                    },
+                    "crossRail": {
+                      "type": "object",
+                      "required": [
+                        "alignment",
+                        "detail"
+                      ],
+                      "properties": {
+                        "alignment": {
+                          "type": "string",
+                          "enum": [
+                            "aligned",
+                            "divergent"
+                          ]
+                        },
+                        "detail": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "disclaimer": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "btc": {
+                    "regime": "bull",
+                    "ma7": 64800.5,
+                    "spotVsMa7Pct": 0.31,
+                    "action": "favor-entry",
+                    "availability": "available"
+                  },
+                  "sol": {
+                    "regime": "bull",
+                    "ma7": 146,
+                    "spotVsMa7Pct": 2.74,
+                    "action": "favor-entry",
+                    "availability": "available"
+                  },
+                  "crossRail": {
+                    "alignment": "aligned",
+                    "detail": "BTC action favor-entry vs SOL action favor-entry: aligned."
+                  },
+                  "disclaimer": "Not financial advice."
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (x402 PAYMENT-REQUIRED header)",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Base64-encoded JSON payment challenge (x402 v2 PAYMENT-REQUIRED).",
+                "required": true
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Replay blocked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "Upstream probe failed (no charge applied)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/partners": {
+      "get": {
+        "operationId": "getPartnerFlow",
+        "summary": "Get the partner registration flow",
+        "security": [],
+        "description": "Returns the full 3-step partner registration flow as JSON: POST /v1/partners, serve the nonce at the challenge URL, then POST /v1/partner-verify for a one-time partner key.",
+        "responses": {
+          "200": {
+            "description": "Full 3-step flow (endpoint summary, steps, rate limit, challenge TTL)"
+          }
+        }
+      },
+      "post": {
+        "operationId": "registerPartnerDomain",
+        "summary": "Register a partner domain for a challenge",
+        "security": [],
+        "description": "Self-serve partner registration (free). POST {domain, payout_address}; returns a challenge URL the registrant must serve at https://<domain>/.well-known/aptu-partner/<nonce>. Reserved domains, wildcards, and *.workers.dev domains are rejected.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "domain",
+                  "payout_address"
+                ],
+                "properties": {
+                  "domain": {
+                    "type": "string",
+                    "description": "Partner hostname to register"
+                  },
+                  "payout_address": {
+                    "type": "string",
+                    "description": "Base address (EIP-55 checksummed) for bounty payouts"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Challenge issued (domain, url, nonce)"
+          },
+          "400": {
+            "description": "Invalid domain or payout address"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/partner-verify": {
+      "get": {
+        "operationId": "getPartnerVerifyHint",
+        "summary": "Get a pointer to the partner flow",
+        "security": [],
+        "description": "Returns a short JSON pointer directing machine readers to GET /v1/partners for the full registration flow.",
+        "responses": {
+          "200": {
+            "description": "Pointer ({self_describing_at})"
+          }
+        }
+      },
+      "post": {
+        "operationId": "verifyPartnerDomain",
+        "summary": "Verify partner domain ownership for a key",
+        "security": [],
+        "description": "Verifies the pending challenge by fetching https://<domain>/.well-known/aptu-partner/<nonce> (https-only, timeout- and size-capped, no redirects). On match returns a one-time apk_live_ partner key for the X-Aptu-Partner-Key header.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "domain"
+                ],
+                "properties": {
+                  "domain": {
+                    "type": "string",
+                    "description": "Registered partner hostname"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Partner key issued (partner_key, bounty_usd, onboarding)"
+          },
+          "400": {
+            "description": "Challenge not live or body mismatch"
+          },
+          "404": {
+            "description": "No pending challenge for the domain"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/x401-probe": {
+      "get": {
+        "operationId": "probeX401Demand",
+        "summary": "Fetch a 401 demand-probe challenge without paying",
+        "security": [],
+        "description": "Answers 401 with a base64url PROOF-REQUEST header (x401 draft 0.2.0, unsigned OpenID4VP request, fresh nonce). Statelessly probes agent proof capabilities; no payment required.",
+        "responses": {
+          "401": {
+            "description": "Proof required (x401 PROOF-REQUEST challenge header)"
+          },
+          "405": {
+            "description": "Method not allowed"
+          }
+        }
+      }
+    }
+  }
+}
