@@ -2,7 +2,7 @@
 name: market-regime
 title: "Regime Card"
 description: "US market regime and risk-on / risk-off readings: a live score from 0 to 100, one of five regimes from Risk-Off to Risk-On, a stress gate for credit, volatility and rates, and stock and crypto returns by market regime as historical odds."
-use_case: "Use when an agent needs a market conditions, market sentiment or market risk check, a macro signal or risk check before a trade, a market stress check, or stock and crypto returns by market regime for a watchlist or portfolio."
+use_case: "Use when an agent needs a market conditions, market sentiment or market risk check, a macro signal or risk check before a trade, a market stress check, or the returns by market regime of one stock or crypto symbol: any US stock, plus the covered crypto list."
 category: finance
 service_url: https://agent.regimecard.com
 openapi:
@@ -28,13 +28,19 @@ only after the answer is built.
 |---|---|---|
 | `GET /v1/sample` | Free | The newest settled reading: the score, the regime, the eight cross-asset category labels, and the paid routes with their prices. |
 | `GET /v1/live` | $0.01 | The live reading (score and regime) beside the last settled close. |
-| `GET /v1/stress` | $0.01 | The stress gate: Calm, Elevated or Stressed, how many of its three components are confirmed (N of 3), and each component (Credit, Volatility, Rates) as Clear or Confirmed. |
-| `POST /v1/lookup` | $0.01 | For up to 20 stock or crypto symbols, each one's typical return and how often it rose over 1 to 12 months when the period started in the current regime, as historical odds. A symbol outside coverage comes back as not covered, never as an error. |
+| `GET /v1/stress` | $0.01 | Is it time to reduce risk or hedge? Credit, volatility and rate stress in one call. The stress gate: the overall state (Calm, Elevated or Stressed), how many of its three components are confirmed (N of 3), and the state of each component (Credit, Volatility, Rates: Clear or Confirmed). The levels behind the states stay private. |
+| `POST /v1/lookup` | $0.01 | For one stock or crypto symbol per call (any US stock, plus the covered crypto list), its typical return and how often it rose over 1 to 12 months when the period started in the current regime. A stock also carries its regime sensitivity versus the S&P 500 and, where it has a page on regimecard.com, up to 5 peer symbols. A symbol with no price data is answered free as not covered. |
 | `GET /v1/crypto` | $0.01 | The current crypto market regime and each covered coin's typical return and how often it rose over 1, 2 and 3 months when the period started in this regime, as historical odds. |
 | `GET /v1/brief` | $0.01 | The live reading, the stress gate, and the scorecard row for the regime of the last settled close: what the S&P 500 did in the 5 and 20 trading days after past readings in that regime. |
 
-`POST /v1/lookup` takes a JSON body like `{"symbols":["NVDA","BTC"]}`. The
-other routes take no input.
+`POST /v1/lookup` takes a JSON body with one symbol, like `{"symbol":"NVDA"}`.
+One symbol per call: more than one is a free 400, and a symbol with no price
+data is answered free as `{"symbol", "covered": false}`. The other routes take
+no input.
+
+Every paid response also carries `related`, the other paid routes with their
+prices, and `research`, a link to a published study when one is about the
+current regime.
 
 ## Spend-aware usage
 
@@ -55,9 +61,11 @@ other routes take no input.
   `dataAsOf`, the newest day of coin prices in the figures, before asking
   again. A `settled` status here does not mean the coin figures are unchanged
   until the next US trading day.
-- `/v1/lookup`: stock and ETF figures update after each US close and coin
-  figures once a day. Each result carries its own `asOf`, the session of that
-  symbol's newest price. Check it per symbol, not the top-level `asOf`, which
-  is the session of the regime.
-- Send every symbol of a watchlist in one `/v1/lookup` call (up to 20) instead
-  of one call per symbol.
+- `/v1/lookup`: one symbol per call, $0.01 each. Stock and ETF figures update
+  after each US close and coin figures once a day. The result carries its own
+  `asOf`, the session of that symbol's newest price. Check it, not the
+  top-level `asOf`, which is the session of the regime.
+- A stock's `peers` are symbols only. Each peer is its own `/v1/lookup` call
+  at $0.01, so look one up only when its figures are needed.
+- A result marked `"page": false` is a US stock served on demand: it has no
+  `url` and no `peers`.
