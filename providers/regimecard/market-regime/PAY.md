@@ -47,8 +47,13 @@ current regime.
 
 - Call `/v1/sample` first. It is free and shows the response shape, the latest
   settled reading and the paid routes with their prices.
-- `/v1/brief` answers the regime, the stress gate and the scorecard in one
-  call. Prefer it over separate calls to `/v1/live` and `/v1/stress`.
+- `/v1/brief` ($0.03) returns the live reading, the stress gate and the
+  scorecard row together. A caller that needs only the reading and the stress
+  gate pays less with `/v1/live` and `/v1/stress` ($0.02 for both). Either one
+  alone is $0.01.
+- `/v1/crypto` ($0.05) returns every covered coin, over 1, 2 and 3 months. A
+  caller that needs four coins or fewer pays less with one `/v1/lookup` per
+  coin ($0.01 each, over 1 to 12 months).
 - `/v1/live`, `/v1/stress` and `/v1/brief`: the reading and the stress gate
   are recomputed hourly during the US session (10:00 AM to 4:00 PM ET), and one
   settled reading is published per US trading day at 4:30 PM ET. Do not poll.
