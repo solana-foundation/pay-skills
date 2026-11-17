@@ -20,9 +20,10 @@ forecast. For informational purposes only. Not investment advice.
 
 ## Routes
 
-Each paid route costs $0.01 per call in USDC, paid over x402 on Base, Polygon
-or Solana. A call that cannot be answered is not charged: a payment settles
-only after the answer is built.
+Paid routes cost $0.01 to $0.05 per call in USDC, paid over x402 on Base,
+Polygon or Solana: $0.01 for the live reading, the stress gate and a lookup,
+$0.03 for the brief, $0.05 for crypto. A call that cannot be answered is not
+charged: a payment settles only after the answer is built.
 
 | Route | Price | Returns |
 |---|---|---|
@@ -30,8 +31,8 @@ only after the answer is built.
 | `GET /v1/live` | $0.01 | The live reading (score and regime) beside the last settled close. |
 | `GET /v1/stress` | $0.01 | Is it time to reduce risk or hedge? Credit, volatility and rate stress in one call. The stress gate: the overall state (Calm, Elevated or Stressed), how many of its three components are confirmed (N of 3), and the state of each component (Credit, Volatility, Rates: Clear or Confirmed). The levels behind the states stay private. |
 | `POST /v1/lookup` | $0.01 | For one stock or crypto symbol per call (any US stock, plus the covered crypto list), its typical return and how often it rose over 1 to 12 months when the period started in the current regime. A stock also carries its regime sensitivity versus the S&P 500 and, where it has a page on regimecard.com, up to 5 peer symbols. A symbol with no price data is answered free as not covered. |
-| `GET /v1/crypto` | $0.01 | The current crypto market regime and each covered coin's typical return and how often it rose over 1, 2 and 3 months when the period started in this regime, as historical odds. |
-| `GET /v1/brief` | $0.01 | The live reading, the stress gate, and the scorecard row for the regime of the last settled close: what the S&P 500 did in the 5 and 20 trading days after past readings in that regime. |
+| `GET /v1/crypto` | $0.05 | The current crypto market regime and each covered coin's typical return and how often it rose over 1, 2 and 3 months when the period started in this regime, as historical odds. |
+| `GET /v1/brief` | $0.03 | The live reading, the stress gate, and the scorecard row for the regime of the last settled close: what the S&P 500 did in the 5 and 20 trading days after past readings in that regime. |
 
 `POST /v1/lookup` takes a JSON body with one symbol, like `{"symbol":"NVDA"}`.
 One symbol per call: more than one is a free 400, and a symbol with no price
