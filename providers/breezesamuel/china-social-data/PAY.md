@@ -4,7 +4,7 @@ title: "AutoTasker Hub — China Social Data"
 description: "Real-time trending data from 9 Chinese public boards (Weibo hot search, Zhihu, Douban books, Bilibili, Tieba, Baidu hot search and more), cross-board keyword search with board filter, and a $0.002 single-headline micro tier. USDC on Base per call."
 use_case: "Use when an agent needs Chinese social media trending snapshots, keyword search across boards, or a single top headline for Chinese content monitoring, market sentiment, or news tracking."
 category: data
-service_url: https://governmental-oral-adjustments-educational.trycloudflare.com/api/x402
+service_url: https://grey-ant-valley-flexibility.trycloudflare.com/api/x402
 openapi:
   path: openapi.json
 ---
@@ -24,8 +24,8 @@ AutoTasker Hub is a per-call x402 API serving real-time Chinese social media tre
 - Start with headline ($0.002) to check if a topic is trending before buying a full hotlist.
 - Use search with limit=5 and the board filter for targeted lookups.
 - daily_report replaces 5+ individual hotlist calls for a one-shot digest.
-- Free sample: https://governmental-oral-adjustments-educational.trycloudflare.com/api/x402/sample?limit=5
-- Discovery: https://governmental-oral-adjustments-educational.trycloudflare.com/.well-known/x402 | MCP: https://governmental-oral-adjustments-educational.trycloudflare.com/.well-known/mcp | Docs: https://governmental-oral-adjustments-educational.trycloudflare.com/llms.txt
+- Free sample: https://grey-ant-valley-flexibility.trycloudflare.com/api/x402/sample?limit=5
+- Discovery: https://grey-ant-valley-flexibility.trycloudflare.com/.well-known/x402 | MCP: https://grey-ant-valley-flexibility.trycloudflare.com/.well-known/mcp | Docs: https://grey-ant-valley-flexibility.trycloudflare.com/llms.txt
 
 ## Payment
 
