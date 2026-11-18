@@ -43,6 +43,13 @@ Every paid response also carries `related`, the other paid routes with their
 prices, and `research`, a link to a published study when one is about the
 current regime.
 
+Every paid response and `/v1/sample` also carry `record`, two links on
+regimecard.com (`/verify` and `/api/ledger`) and one sentence: "Every settled
+regime reading since September 13, 2026 is in a public, hash-linked record that
+anyone can check; a correction is a new entry, never an edit." It covers that
+reading (the percentile and the regime label) and nothing else: not the stress
+gate, stock or coin figures, the scorecard, or a live intraday reading.
+
 ## Spend-aware usage
 
 - Call `/v1/sample` first. It is free and shows the response shape, the latest
