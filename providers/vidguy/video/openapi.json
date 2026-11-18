@@ -1,0 +1,1603 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "VidGuy API (pay.sh snapshot)",
+    "version": "1.0.0",
+    "description": "AI short-form video for TikTok, Reels and Shorts, paid with prepaid VidGuy credits. Credits are bought by x402 (USDC on Solana or Base) at POST /api/v1/credits/topup/{credits}, credited to the account whose API key is on the paid request. Full API: https://www.vidguy.ai/api/openapi.json"
+  },
+  "servers": [
+    {
+      "url": "https://www.vidguy.ai"
+    }
+  ],
+  "paths": {
+    "/api/v1/credits/topup/{credits}": {
+      "post": {
+        "tags": [
+          "Credits"
+        ],
+        "operationId": "topupCredits",
+        "summary": "Buy credits with a machine payment (x402 or Stripe MPP)",
+        "description": "POST with your API key (X-Api-Key or Authorization: Bearer) and no payment header to receive a 402 that carries an x402 v2 `PAYMENT-REQUIRED` header (USDC on Base / Solana) and a Stripe MPP `WWW-Authenticate: Payment` challenge (Shared Payment Token cards, Tempo USDC). Pay with either, then retry the same request with `PAYMENT-SIGNATURE` (x402) or `Payment-Authorization` (MPP). Credits are granted on settlement and never expire; a replayed settlement returns the same 200 with `duplicate: true`. Without an API key and without a payment header the 402 carries the x402 challenge only (this is what the x402 Bazaar indexes); a paid retry without an API key is refused with 401 before anything settles.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "10",
+                "50",
+                "100",
+                "250",
+                "500",
+                "1000"
+              ],
+              "example": "10"
+            },
+            "required": true,
+            "name": "credits",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Credits granted after settlement.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditsTopupResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid API key, or a payment header sent without one.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required (challenge headers) or payment rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditsTopupPaymentRequired"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Plan cannot top up by machine payment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unsupported top-up size.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Daily spend cap reached.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No payment rail enabled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              },
+              "example": {}
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/credits/topup": {
+      "get": {
+        "tags": [
+          "Credits"
+        ],
+        "operationId": "listCreditTopupOffers",
+        "summary": "List machine-payment credit top-up offers",
+        "description": "Fixed top-up sizes with USD prices and the URL to POST for each, plus which payment rails this deployment accepts. Pass `required` (credits a blocked action needs) to get the smallest size that covers it.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "required": false,
+            "name": "required",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "required": false,
+            "name": "balance",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Offers and rails.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditsTopupOffersResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/credits": {
+      "get": {
+        "tags": [
+          "Credits"
+        ],
+        "operationId": "getCredits",
+        "summary": "Get credit balance and recent transactions",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "example": 10
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of recent transactions to return."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current balance and credit history.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/snacks/estimate": {
+      "get": {
+        "tags": [
+          "Snacks"
+        ],
+        "operationId": "estimateSnackCost",
+        "summary": "Estimate the credit cost of a snack generation",
+        "description": "Pre-flight pricing: base 25 credits, excluding 'ai-ugc' saves 7, server-side render adds 3. No credits spent and no generation started.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "boolean"
+            },
+            "required": false,
+            "name": "render",
+            "in": "query",
+            "description": "Include the server-side render surcharge."
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "exclude",
+            "in": "query",
+            "description": "Comma-separated snack types to exclude (slides, text-wall, ai-ugc, broll-demo, greenscreen-meme, meme-edit, single-image, sticker-pack, static-ad, ugc-ad, animated-ad, greenscreen-ad, music-ad)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cost estimate.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/snacks": {
+      "post": {
+        "tags": [
+          "Snacks"
+        ],
+        "operationId": "createSnack",
+        "summary": "Generate a pack of short-form social posts",
+        "description": "Async — kicks off a snack generation job for a brand. Returns a jobId immediately. Optionally renders the snacks server-side when `render: true` (+3 credits, URLs in `result.renderedAssets[]`).",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSnackRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Snack job accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateSnackResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Insufficient credits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Brand not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Failed to dispatch the worker.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/carousel-v2": {
+      "post": {
+        "tags": [
+          "TikTok Carousel"
+        ],
+        "operationId": "createCarouselV2Batch",
+        "summary": "Render a batch of TikTok carousels",
+        "description": "Async — composites real text over real photos server-side, 1 credit per carousel. Poll GET /api/v1/jobs/{id} for per-carousel slide URLs. Supersedes POST /api/v1/carousel, which bakes text into an AI image.",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCarouselV2Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Carousel batch accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateCarouselV2Response"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Insufficient credits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Template not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Quota exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/studio/generations": {
+      "post": {
+        "tags": [
+          "Studio"
+        ],
+        "operationId": "createStudioGeneration",
+        "summary": "Generate an image, a video clip or an audio clip",
+        "description": "Image and audio modes return the asset URL inline. Video mode is async — poll GET /api/v1/studio/generations/{id}. Audio (ByteDance Seed Audio) takes a prompt plus up to 3 reference voice URLs (referenced as @Audio1/@Audio2/@Audio3) OR a single reference image (mutually exclusive). SPENDS CREDITS (per-model).",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudioGenerateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Generation accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Insufficient credits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{id}": {
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "operationId": "getApiJob",
+        "summary": "Poll an async job until its outputs are ready",
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "85d535ac-219e-4fde-b527-488ed1157bb2"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path",
+            "description": "The public API job ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job state and result payload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetApiJobResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreditsTopupResponse": {
+        "type": "object",
+        "properties": {
+          "creditsAdded": {
+            "type": "integer"
+          },
+          "newBalance": {
+            "type": "integer"
+          },
+          "duplicate": {
+            "type": "boolean"
+          },
+          "rail": {
+            "type": "string",
+            "enum": [
+              "x402",
+              "mpp"
+            ]
+          },
+          "reference": {
+            "type": "string"
+          },
+          "network": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "amountUsd": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "creditsAdded",
+          "newBalance",
+          "duplicate",
+          "rail",
+          "reference",
+          "amountUsd"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "Invalid request"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "CreditsTopupPaymentRequired": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "payment_required"
+            ]
+          },
+          "credits": {
+            "type": "integer"
+          },
+          "amountUsd": {
+            "type": "string"
+          },
+          "rails": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "x402",
+                "mpp"
+              ]
+            }
+          },
+          "message": {
+            "type": "string"
+          },
+          "register": {
+            "type": "string",
+            "format": "uri",
+            "description": "Present when the request carried no API key: where an agent account is created."
+          },
+          "offers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreditsTopupOffer"
+            }
+          }
+        },
+        "required": [
+          "error",
+          "credits",
+          "amountUsd",
+          "rails",
+          "message",
+          "offers"
+        ]
+      },
+      "CreditsTopupOffer": {
+        "type": "object",
+        "properties": {
+          "credits": {
+            "type": "integer"
+          },
+          "priceUsd": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "credits",
+          "priceUsd",
+          "url"
+        ]
+      },
+      "CreditsTopupOffersResponse": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "rails": {
+            "$ref": "#/components/schemas/CreditsTopupRails"
+          },
+          "usdPerCredit": {
+            "type": "number"
+          },
+          "offers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreditsTopupOffer"
+            }
+          },
+          "suggestedCredits": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "how": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "rails",
+          "usdPerCredit",
+          "offers",
+          "suggestedCredits",
+          "how"
+        ]
+      },
+      "CreditsTopupRails": {
+        "type": "object",
+        "properties": {
+          "x402": {
+            "type": "boolean"
+          },
+          "mpp": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "x402",
+          "mpp"
+        ]
+      },
+      "CreditsResponse": {
+        "type": "object",
+        "properties": {
+          "balance": {
+            "type": "integer"
+          },
+          "plan": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "creditsIncluded": {
+                "type": "integer"
+              },
+              "creditsUsedThisPeriod": {
+                "type": "integer"
+              },
+              "periodStart": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "periodEnd": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "creditsIncluded",
+              "creditsUsedThisPeriod",
+              "periodStart",
+              "periodEnd"
+            ]
+          },
+          "recentTransactions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "amount": {
+                  "type": "integer"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "createdAt": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "amount",
+                "type",
+                "description",
+                "createdAt"
+              ]
+            }
+          }
+        },
+        "required": [
+          "balance",
+          "plan",
+          "recentTransactions"
+        ]
+      },
+      "CreateSnackRequest": {
+        "type": "object",
+        "properties": {
+          "brandId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "b7f3a8b2-1234-5678-9abc-def012345678"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "callbackUrl": {
+            "type": "string",
+            "maxLength": 500,
+            "format": "uri"
+          },
+          "render": {
+            "type": "boolean",
+            "description": "When true, also render PNGs/MP4s server-side. Adds +3 credits. URLs land in result.renderedAssets[]."
+          },
+          "exclude": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "slides",
+                "text-wall",
+                "ai-ugc",
+                "broll-demo",
+                "greenscreen-meme",
+                "meme-edit",
+                "single-image",
+                "sticker-pack",
+                "static-ad",
+                "ugc-ad",
+                "animated-ad",
+                "greenscreen-ad",
+                "music-ad"
+              ]
+            },
+            "maxItems": 13,
+            "description": "Snack types to skip. Still supported with `types`; exclusions are subtracted after the allow-list is applied."
+          },
+          "types": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "slides",
+                "text-wall",
+                "ai-ugc",
+                "broll-demo",
+                "greenscreen-meme",
+                "meme-edit",
+                "single-image",
+                "sticker-pack",
+                "static-ad",
+                "ugc-ad",
+                "animated-ad",
+                "greenscreen-ad",
+                "music-ad"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 13,
+            "description": "Positive snack-type allow-list. Use with `count` for packs like 5 greenscreen memes or 5 slide carousels."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5,
+            "description": "Total snacks to request. When `types` has one value, all requested snacks use that type.",
+            "example": 5
+          },
+          "context": {
+            "type": "string",
+            "maxLength": 20000,
+            "description": "Per-request creative steer woven into the snack copy and asset selection."
+          },
+          "prompt": {
+            "type": "string",
+            "maxLength": 20000,
+            "description": "Alias for `context`."
+          }
+        },
+        "required": [
+          "brandId"
+        ]
+      },
+      "CreateSnackResponse": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "offeringId": {
+            "type": "string",
+            "enum": [
+              "snack_generation"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/ApiJobStatus"
+          },
+          "pollUrl": {
+            "type": "string"
+          },
+          "instanceId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "creditsReserved": {
+            "type": "integer"
+          },
+          "render": {
+            "type": "boolean"
+          },
+          "exclude": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "slides",
+                "text-wall",
+                "ai-ugc",
+                "broll-demo",
+                "greenscreen-meme",
+                "meme-edit",
+                "single-image",
+                "sticker-pack",
+                "static-ad",
+                "ugc-ad",
+                "animated-ad",
+                "greenscreen-ad",
+                "music-ad"
+              ]
+            }
+          },
+          "types": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "slides",
+                "text-wall",
+                "ai-ugc",
+                "broll-demo",
+                "greenscreen-meme",
+                "meme-edit",
+                "single-image",
+                "sticker-pack",
+                "static-ad",
+                "ugc-ad",
+                "animated-ad",
+                "greenscreen-ad",
+                "music-ad"
+              ]
+            }
+          },
+          "count": {
+            "type": "integer"
+          },
+          "snackTypeSequence": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "slides",
+                "text-wall",
+                "ai-ugc",
+                "broll-demo",
+                "greenscreen-meme",
+                "meme-edit",
+                "single-image",
+                "sticker-pack",
+                "static-ad",
+                "ugc-ad",
+                "animated-ad",
+                "greenscreen-ad",
+                "music-ad"
+              ]
+            }
+          }
+        },
+        "required": [
+          "jobId",
+          "offeringId",
+          "status",
+          "pollUrl",
+          "creditsReserved"
+        ]
+      },
+      "ApiJobStatus": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "processing",
+          "awaiting_selection",
+          "completed",
+          "failed",
+          "cancelled"
+        ]
+      },
+      "CreateCarouselV2Request": {
+        "type": "object",
+        "properties": {
+          "templateKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Built-in slug (e.g. `story-4`) or the uuid of one of your saved templates."
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "values": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "description": "Keyed by the template's variable keys, from GET /api/v1/carousel-v2/templates. Unknown keys are dropped and returned in `ignoredKeys`."
+                },
+                "caption": {
+                  "type": "string",
+                  "maxLength": 3000
+                }
+              },
+              "required": [
+                "values"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 12,
+            "description": "One carousel per entry."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "seed": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "Fixes collection photo picks so the same input reproduces the same slides."
+          },
+          "noRepeatScope": {
+            "type": "string",
+            "enum": [
+              "row",
+              "batch"
+            ]
+          }
+        },
+        "required": [
+          "templateKey",
+          "rows"
+        ]
+      },
+      "CreateCarouselV2Response": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "offeringId": {
+            "type": "string",
+            "enum": [
+              "carousel_v2_batch"
+            ]
+          },
+          "batchId": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ApiJobStatus"
+          },
+          "pollUrl": {
+            "type": "string"
+          },
+          "creditsReserved": {
+            "type": "integer"
+          },
+          "carousels": {
+            "type": "integer"
+          },
+          "noRepeatScope": {
+            "type": "string",
+            "enum": [
+              "row",
+              "batch"
+            ]
+          },
+          "ignoredKeys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Row keys that are not variables on this template. Reported, not rejected."
+          }
+        },
+        "required": [
+          "jobId",
+          "offeringId",
+          "batchId",
+          "status",
+          "pollUrl",
+          "creditsReserved",
+          "carousels",
+          "noRepeatScope"
+        ]
+      },
+      "StudioGenerateRequest": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "image",
+              "video",
+              "audio"
+            ]
+          },
+          "modelKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "prompt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "options": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StudioImageOptions"
+              },
+              {
+                "$ref": "#/components/schemas/StudioVideoOptions"
+              },
+              {
+                "$ref": "#/components/schemas/StudioAudioOptions"
+              }
+            ]
+          }
+        },
+        "required": [
+          "mode",
+          "prompt"
+        ]
+      },
+      "StudioImageOptions": {
+        "type": "object",
+        "properties": {
+          "aspectRatio": {
+            "type": "string",
+            "enum": [
+              "1:1",
+              "16:9",
+              "9:16",
+              "4:3",
+              "3:4"
+            ]
+          },
+          "negativePrompt": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "referenceImage": {
+            "type": "string",
+            "format": "uri"
+          },
+          "referenceImages": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "maxItems": 8
+          },
+          "referenceMode": {
+            "type": "string",
+            "enum": [
+              "style",
+              "structure",
+              "character"
+            ]
+          },
+          "referenceStrength": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "quality": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "auto"
+            ]
+          },
+          "background": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "transparent",
+              "opaque"
+            ]
+          },
+          "thinkingLevel": {
+            "type": "string",
+            "enum": [
+              "very low",
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        }
+      },
+      "StudioVideoOptions": {
+        "type": "object",
+        "properties": {
+          "aspectRatio": {
+            "type": "string",
+            "enum": [
+              "1:1",
+              "16:9",
+              "9:16",
+              "4:3",
+              "3:4"
+            ]
+          },
+          "duration": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 60
+          },
+          "resolution": {
+            "type": "string",
+            "enum": [
+              "480p",
+              "720p",
+              "1080p"
+            ]
+          },
+          "generateAudio": {
+            "type": "boolean"
+          },
+          "negativePrompt": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "firstFrame": {
+            "type": "string",
+            "format": "uri"
+          },
+          "firstFrameVideo": {
+            "type": "string",
+            "format": "uri"
+          },
+          "referenceImages": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "maxItems": 9
+          },
+          "referenceVideos": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "maxItems": 3
+          },
+          "lastFrame": {
+            "type": "string",
+            "format": "uri"
+          },
+          "camera": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "keepOriginalSound": {
+            "type": "boolean"
+          },
+          "characterOrientation": {
+            "type": "string",
+            "enum": [
+              "image",
+              "video"
+            ]
+          },
+          "waitForCompletion": {
+            "type": "boolean"
+          }
+        }
+      },
+      "StudioAudioOptions": {
+        "type": "object",
+        "properties": {
+          "lyrics": {
+            "type": "string",
+            "maxLength": 3500
+          },
+          "instrumental": {
+            "type": "boolean"
+          },
+          "voice": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "referenceAudios": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "maxItems": 3
+          },
+          "referenceImage": {
+            "type": "string",
+            "format": "uri"
+          },
+          "outputFormat": {
+            "type": "string",
+            "enum": [
+              "mp3",
+              "wav",
+              "pcm",
+              "ogg_opus"
+            ]
+          },
+          "sampleRate": {
+            "anyOf": [
+              {
+                "type": "number",
+                "enum": [
+                  8000
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  16000
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  24000
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  32000
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  44100
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  48000
+                ]
+              }
+            ]
+          },
+          "speed": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 2
+          },
+          "volume": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 2
+          },
+          "pitch": {
+            "type": "integer",
+            "minimum": -12,
+            "maximum": 12
+          }
+        }
+      },
+      "GetApiJobResponse": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "offeringId": {
+            "type": "string",
+            "enum": [
+              "video_production",
+              "clip_analysis_upload",
+              "clip_render",
+              "snack_generation",
+              "ai_story_generation",
+              "carousel_generation",
+              "slides_generation",
+              "carousel_v2_batch"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/ApiJobStatus"
+          },
+          "progress": {
+            "type": "integer"
+          },
+          "projectId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "clipJobId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parentJobId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "instanceId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "creditsReserved": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "creditsFinal": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "createdAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "jobId",
+          "offeringId",
+          "status",
+          "progress",
+          "result"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "API key",
+        "description": "Send your API key in the Authorization header: \"Bearer vf_live_...\""
+      }
+    }
+  }
+}
