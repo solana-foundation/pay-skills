@@ -10,17 +10,16 @@ openapi:
 ---
 
 Agent Data Tools is a pay-per-call HTTP API (also served as an MCP server at
-`/mcp`) run by SpellzCode. Every tool is a `GET` with query parameters that
-returns JSON. An unpaid request answers `402` with x402 v2 terms in the
-`PAYMENT-REQUIRED` header (`exact` scheme, USDC on Solana mainnet, Base,
-Polygon or Arbitrum) and MPP challenges in `WWW-Authenticate`. Failed calls
-(4xx/5xx) are not charged.
+`/mcp`) run by SpellzCode. Every listed tool is an HTTP GET with query
+parameters that returns JSON. An unpaid request answers `402` with x402 v2
+terms in the `PAYMENT-REQUIRED` header (`exact` scheme, USDC on Solana
+mainnet, Base, Polygon or Arbitrum) and MPP challenges in `WWW-Authenticate`.
+Failed calls (4xx/5xx) are not charged.
 
-This listing covers a focused subset of 21 endpoints. The committed
-`openapi.json` is the live document at
-`https://agent-data-tools.revmesh2074.workers.dev/openapi.json`, filtered to
-these paths and the components they reference; the full service has about
-700 tools. Source (MIT): https://github.com/Nutshell2000/agent-data-tools
+This listing covers a focused subset of 22 endpoints. The committed
+`openapi.json` is the current production document filtered to these paths and
+the components they reference; the full service has 665 routes in version
+1.222.0. Source (MIT): https://github.com/Nutshell2000/agent-data-tools
 
 | Group | Endpoints | Price per call |
 |---|---|---|
@@ -29,6 +28,7 @@ these paths and the components they reference; the full service has about
 | VAT and company registers | `/vat/validate`, `/se/company`, `/no/company`, `/fi/company`, `/fr/company`, `/lei/lookup`, `/company` | $0.01 |
 | Chain reads | `/base/balance`, `/base/token-balance`, `/eth/balance`, `/eth/token-balance`, `/eth/tx`, `/solana/balance` | $0.002 to $0.01 |
 | Prices | `/price/token`, `/price/tokens`, `/fx` | $0.002 |
+| Link safety | `/pack/url-safety` | $0.01 |
 
 Exact prices are in each 402 answer and in `x-payment-info` in the spec.
 Per-tool reliability for the last 7 days is public at
@@ -38,12 +38,14 @@ Per-tool reliability for the last 7 days is public at
 
 - Add `sample=1` to any endpoint for a free static example of its output
   before paying for a real call.
-- Use `/extract` ($0.002) for static pages; reach for `/extract/rendered`
-  ($0.01) only when a page needs JavaScript to show its content.
+- Use `/extract` ($0.002) for static pages; use `/extract/rendered` ($0.01)
+  only when a page needs JavaScript to show its content.
 - For PDFs, set `pages` and `maxChars` to the part you need instead of
   reading the whole file.
 - Use `/document/text` ($0.005) when plain text is enough; `/document/extract`
   ($0.03) runs a model to return named fields and costs more.
 - Use `/price/tokens` for up to 20 tokens in one call instead of repeated
   `/price/token` calls.
-- Add `only=<key,key>` to keep just the result fields you need.
+- Use `/pack/url-safety` to check redirect chains, domain age and phishing
+  signals before opening a suspicious URL or submitting a payment. Results
+  are signals to review, not a guarantee that a site is safe.
