@@ -17,7 +17,8 @@ Polygon or Arbitrum) and MPP challenges in `WWW-Authenticate`. Failed calls
 (4xx/5xx) are not charged.
 
 This provider listing covers a focused subset of 25 endpoints from the
-production OpenAPI 1.222.0 snapshot; the full service has 665 routes.
+production OpenAPI (snapshot of 1.258.0, 19 Nov 2026); the full service has
+737 tools and its complete OpenAPI is at `https://glyphcall.com/openapi.json`.
 Source (MIT): https://github.com/Nutshell2000/agent-data-tools
 
 | Group | Endpoints | Price per call |
