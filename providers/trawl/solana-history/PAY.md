@@ -12,6 +12,7 @@ openapi:
 [Trawl](https://trawl.run) reads whole epochs of the Old Faithful archive of Solana and gives the result as files. You pay one x402 payment for each job. There is no account and no API key.
 
 - **`POST /scan`** reads an epoch range (or a date range) with a filter on programs, accounts, instruction discriminators, slots or fees. With an Anchor IDL (your own, or the IDL of a preset), each instruction and event gets its own Parquet table, one column for each account and argument. Every row has `slot`, `block_time`, `signature`, `success`, `fee` and the call position. Without an IDL, you get the matched instructions with raw data.
+  Set `tx_table` for the transaction tables (balances, compute units, errors). Set `blocks_table` for one row for each block of the range, also a block with no match: slot, parent slot, block time, block height and blockhash. The job checks the parent chain before it reports done. `{"blocks_table": true}` alone is a blocks-only job.
 - **`POST /snapshot`** gives the state of chosen accounts at a past slot as gzipped CSV: the token holders of a mint, the accounts of a program (owner, `data_size` and `memcmp`, as in `getProgramAccounts`), or a list of up to 1,000 accounts.
 
 The flow is the same for both:

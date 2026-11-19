@@ -47,7 +47,7 @@
         ],
         "operationId": "createScan",
         "summary": "Fetch decoded Solana program history as Parquet files",
-        "description": "Reads whole epochs (or the epochs that hold a date range) for programs or accounts. With an Anchor IDL, each instruction and event gets its own Parquet table. Send the body without X-PAYMENT to get a 402 with the firm price in `quote` and the x402 terms in `accepts`. The quote is free. Send the same body with X-PAYMENT to start the job; the answer is 202 with `job_id` and `status_url`. The price depends on the archive bytes of the epochs only, not on the filter. 13 TB of archive, 100 epochs and 500 GB of output at most for one job.",
+        "description": "Reads whole epochs (or the epochs that hold a date range) for programs or accounts. With an Anchor IDL, each instruction and event gets its own Parquet table. With `blocks_table`, every block of the range gets its own table, with its parent slot and its time; `{\"blocks_table\": true}` alone is a blocks-only job. Send the body without X-PAYMENT to get a 402 with the firm price in `quote` and the x402 terms in `accepts`. The quote is free. Send the same body with X-PAYMENT to start the job; the answer is 202 with `job_id` and `status_url`. The price depends on the archive bytes of the epochs only, not on the filter. 13 TB of archive, 100 epochs and 500 GB of output at most for one job.",
         "parameters": [
           {
             "name": "X-PAYMENT",
@@ -631,7 +631,7 @@
           },
           "filter": {
             "$ref": "#/components/schemas/ScanFilter",
-            "description": "Which instructions to keep. Without a preset, it needs at least one program or one account."
+            "description": "Which instructions to keep. Without a preset, it needs at least one program or one account, or blocks_table true."
           },
           "idl": {
             "type": "object",
@@ -701,7 +701,7 @@
             ]
           },
           {
-            "description": "Send a preset, or a filter with at least one program or one account.",
+            "description": "Send a preset, or a filter with at least one program or one account, or a filter with blocks_table true.",
             "anyOf": [
               {
                 "required": [
@@ -738,9 +738,20 @@
                             "description": "At least one base58 key."
                           }
                         }
+                      },
+                      {
+                        "required": [
+                          "blocks_table"
+                        ],
+                        "properties": {
+                          "blocks_table": {
+                            "const": true,
+                            "description": "A blocks-only job: every block of the range, no transaction."
+                          }
+                        }
                       }
                     ],
-                    "description": "Without a preset: a filter with at least one program or one account."
+                    "description": "Without a preset: a filter with at least one program or one account, or blocks_table true."
                   }
                 }
               }
@@ -759,7 +770,7 @@
       },
       "ScanFilter": {
         "type": "object",
-        "description": "Without a preset, programs or accounts must hold at least one key. With a preset, each field sent replaces the field of the preset.",
+        "description": "Without a preset, programs or accounts must hold at least one key, or blocks_table must be true. With a preset, each field sent replaces the field of the preset.",
         "properties": {
           "programs": {
             "type": "array",
@@ -802,6 +813,16 @@
             "type": "boolean",
             "default": false,
             "description": "Needs an IDL."
+          },
+          "tx_table": {
+            "type": "boolean",
+            "default": false,
+            "description": "Also writes the transaction tables: balances, compute units and errors of each matched transaction. Needs a program or an account."
+          },
+          "blocks_table": {
+            "type": "boolean",
+            "default": false,
+            "description": "Also writes the blocks table: one row for each block of the range, matched or not (slot, parent_slot, block_time, block_height, blockhash, tx_count, entry_count). The job checks the parent chain before it reports done. Alone, a blocks-only job that reads no transaction; it then takes no other transaction field."
           },
           "start_slot": {
             "type": "integer",
