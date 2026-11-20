@@ -1,0 +1,1179 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "KARP Agents API by SoulDriver",
+    "version": "1.4.6",
+    "description": "Research and fact-checking for AI agents from KARP, SoulDriver's multi-model research engine (GPT, Gemini, Grok and Claude). Pay per call with x402; no account or API key.",
+    "x-guidance": "KARP by SoulDriver. Start with the free POST /v1/coverage and send the question you are actually researching, in plain words (a placeholder like \"test\" tells you nothing): it says whether KARP has research on it and which endpoint to call next. If covered or partial, POST /v1/ask with the same question returns dated research cards ($0.03). KARP is deepest on Alzheimer's and neurodegeneration, ageing biology, ancient scripts, AI governance and quantum computing. POST /v1/check fact-checks one claim live with four web-searching models ($0.25). No wallet? POST /v1/grant with what your agent researches and 1-3 real questions for a free research grant, then send its key as the x-karp-grant header. Pay with x402 (USDC on Base or Solana): an unpaid call returns 402 with the requirements in the PAYMENT-REQUIRED header. Nothing is charged if a call fails. Full guide: https://agents.souldriver.com.au/llms.txt",
+    "contact": {
+      "name": "SoulDriver",
+      "url": "https://souldriver.com.au",
+      "email": "agents@souldriver.com.au"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://agents.souldriver.com.au"
+    }
+  ],
+  "x-agentcash-guidance": {
+    "llmsTxtUrl": "https://agents.souldriver.com.au/llms.txt"
+  },
+  "paths": {
+    "/v1/coverage": {
+      "post": {
+        "operationId": "coverage",
+        "summary": "Check whether KARP already has research on a topic",
+        "description": "Free. Send the question you are researching, in plain words: KARP, SoulDriver's multi-model research engine, says whether its library covers it (covered / partial / none), with the match strength, the newest matching research date, matching titles and the endpoint to call next. Use it first, with your real question.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "The question you are researching, in plain words. A specific question finds closer matches than a single keyword."
+                  },
+                  "intent": {
+                    "type": "string",
+                    "maxLength": 300,
+                    "description": "Optional: what you or your user are trying to find out, and what it is for (max 300 characters). Kept private; it helps decide what KARP researches next."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              },
+              "example": {
+                "query": "Do GLP-1 drugs help prevent Alzheimer's, and does APOE4 status change the answer?"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Coverage band, newest research date, matching titles, recommended next endpoint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverageResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body (never charged)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited; see Retry-After",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Busy or temporarily unavailable; see Retry-After",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/grant": {
+      "post": {
+        "operationId": "grant",
+        "summary": "Create a research grant to use KARP without a wallet",
+        "description": "Free, for agents without a wallet. Apply with what your agent researches and 1-3 real questions; get a key for 25 asks and 2 fact-checks (30 days) plus KARP's coverage of your questions. Send the key as the x-karp-grant header on POST /v1/ask or /v1/check. Questions KARP has not researched are noted for its research list. One grant per client every 7 days. Terms (read-only): GET /v1/grant.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "agent": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 100,
+                    "description": "Name of the agent or app"
+                  },
+                  "builder": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "Optional: URL or email of whoever runs it"
+                  },
+                  "purpose": {
+                    "type": "string",
+                    "minLength": 40,
+                    "maxLength": 500,
+                    "description": "What the agent researches, and for whom"
+                  },
+                  "questions": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 3,
+                    "items": {
+                      "type": "string",
+                      "minLength": 10,
+                      "maxLength": 500
+                    },
+                    "description": "1-3 real questions the agent needs answered"
+                  }
+                },
+                "required": [
+                  "agent",
+                  "purpose",
+                  "questions"
+                ]
+              },
+              "example": {
+                "agent": "<your agent's name>",
+                "builder": "<optional: URL or email of whoever runs it>",
+                "purpose": "<what your agent researches, and for whom (40-500 characters)>",
+                "questions": [
+                  "<a question your agent actually needs answered>",
+                  "<optional: a second one>"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Grant key, its asks and checks, expiry, and coverage of your questions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantIssued"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body (never charged)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited; see Retry-After",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Busy or temporarily unavailable; see Retry-After",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "grantTerms",
+        "summary": "Read the research grant terms and application template",
+        "description": "Read-only and free: what a research grant gives (asks, checks, days), its limits, how many grants are left today, and the template to apply with. No application or payment needed.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Grant terms and template",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantTerms"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ask": {
+      "post": {
+        "operationId": "ask",
+        "summary": "Fetch dated research cards from the KARP library",
+        "description": "Research cards from KARP, SoulDriver's multi-model research engine: GPT, Gemini, Grok and Claude debate a question and publish a conclusion. Each card: conclusion, key insight, warnings, dated figures, consensus, open questions, research date. Check your question first with the free POST /v1/coverage. Deepest on Alzheimer's, ageing biology, ancient scripts, AI governance, quantum computing. No wallet? Free research grant: POST /v1/grant. Usually 5-15 s.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "x-karp-grant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Research grant key from POST /v1/grant: used instead of payment while it has calls left"
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.03"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "The question you are researching, in plain words. A specific question finds closer matches than a single keyword."
+                  },
+                  "max_cards": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 8,
+                    "default": 5,
+                    "description": "Research cards to return"
+                  },
+                  "intent": {
+                    "type": "string",
+                    "maxLength": 300,
+                    "description": "Optional: what you or your user are trying to find out, and what it is for (max 300 characters). Kept private; it helps decide what KARP researches next."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              },
+              "example": {
+                "query": "Do GLP-1 drugs help prevent Alzheimer's, and does APOE4 status change the answer?",
+                "max_cards": 5
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result. The payment settled only because the call succeeded (PAYMENT-RESPONSE header).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AskResult"
+                },
+                "example": {
+                  "query": "Do GLP-1 drugs help prevent Alzheimer's, and does APOE4 status change the answer?",
+                  "cards": [
+                    {
+                      "rank": 1,
+                      "session_id": "karp_1784075624",
+                      "date": "2026-07-15",
+                      "age_days": 106,
+                      "stale": false,
+                      "relevance": 0.978,
+                      "title": "GLP-1 Prevention and APOE4 in Alzheimer Risk",
+                      "topic": "PROTECT-Cog ($100M Alzheimer's Association trial, launched AAIC 2026) combines a GLP-1/metabolism-targeting drug with the U.S. POINTER lifestyle inter",
+                      "matched_on": "report text",
+                      "confidence": 85,
+                      "conclusion": "Prevention-stage treatment has a biologically plausible but unproven advantage over symptomatic treatment. EVOKE and EVOKE+ showed no significant cognitive slowing with oral semaglutide in symptomatic Alzheimer disease, while observational studies suggest lower dementia incidence but are highly confounded. If benefit exists, objective insulin resistance and mixed metabolic-vascular risk are more d...",
+                      "key_insight": "EVOKE and EVOKE+ were large double-blind phase 3 RCTs with approximately N=3,800 total and showed no significant CDR-SB benefit over 104 weeks; reported differences were approximately -0.08 points and +0.10 points, respectively.",
+                      "warnings": [
+                        "No completed randomized prevention trial directly compares GLP-1 efficacy at pre-dementia and symptomatic stages.",
+                        "Observational estimates are vulnerable to confounding by indication, healthy-user bias, socioeconomic differences, reverse causation, and competing mortality."
+                      ],
+                      "anchors": [
+                        {
+                          "label": "Design",
+                          "value": "Double-blind placebo-controlled add-on RCT",
+                          "as_of": "2026-07-15",
+                          "context": "Standardized lifestyle intervention in both groups"
+                        },
+                        {
+                          "label": "Duration",
+                          "value": "3-year primary analysis",
+                          "as_of": "2026-07-15",
+                          "context": "Optional 5-year extension"
+                        }
+                      ],
+                      "consensus": [
+                        {
+                          "claim": "Semaglutide did not significantly slow CDR-SB progression in symptomatic early Alzheimer disease over 104 weeks.",
+                          "status": "High"
+                        },
+                        {
+                          "claim": "GLP-1 use is associated with lower dementia incidence in several observational cohorts.",
+                          "status": "Moderate"
+                        }
+                      ],
+                      "open_questions": [
+                        "Whether prevention-stage GLP-1 treatment slows cognitive decline beyond lifestyle intervention",
+                        "Whether APOE4 or metabolic phenotype modifies response"
+                      ]
+                    }
+                  ],
+                  "related_research": [
+                    {
+                      "session_id": "karp_1775239245",
+                      "date": "2026-04-03",
+                      "topic": "Investigate the long-term cognitive and neuroprotective effects of GLP-1 receptor agonists (such as semaglutide, liraglutide, and dulaglutide) in Alzh"
+                    }
+                  ],
+                  "top_relevance": 0.978,
+                  "notes": [
+                    "stale = research older than 180 days; verify time-sensitive claims with POST /v1/check."
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body (never charged)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required: x402 v2 requirements (USDC on Base or Solana) in the PAYMENT-REQUIRED header. Sign and retry with PAYMENT-SIGNATURE.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded JSON x402 PaymentRequired",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "This payment was already used; sign a new one for each request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited; see Retry-After",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Busy or temporarily unavailable; see Retry-After",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/check": {
+      "post": {
+        "operationId": "check",
+        "summary": "Verify one claim with four web-searching AI models",
+        "description": "Hallucination check from SoulDriver: a live fact-check of one claim by four AI models (GPT, Gemini, Grok, Claude), each searching the web separately. Returns a summary first: verdict (confirmed, disputed, unverifiable, or contested when the models split), agreement such as 4/4, mean confidence and a one-line headline, then each model's reasoning and cited sources. Disagreement is shown, not hidden. No wallet? Free research grant: POST /v1/grant. 10-45 s.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "x-karp-grant",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Research grant key from POST /v1/grant: used instead of payment while it has calls left"
+          }
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.25"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "claim": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "One factual claim to check"
+                  }
+                },
+                "required": [
+                  "claim"
+                ]
+              },
+              "example": {
+                "claim": "Spain won the 2026 FIFA World Cup."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Result. The payment settled only because the call succeeded (PAYMENT-RESPONSE header).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckResult"
+                },
+                "example": {
+                  "claim": "Spain won the 2026 FIFA World Cup.",
+                  "summary": {
+                    "verdict": "confirmed",
+                    "status": "unanimous",
+                    "agreement": "4/4",
+                    "mean_confidence": 0.963,
+                    "headline": "Confirmed: all 4 grounded providers agree."
+                  },
+                  "verdicts": [
+                    {
+                      "provider": "grok",
+                      "verdict": "confirmed",
+                      "confidence": 0.95,
+                      "reasoning": "...",
+                      "citations": [
+                        {
+                          "url": "https://...",
+                          "title": "..."
+                        }
+                      ],
+                      "citation_kind": "cited"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body (never charged)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment required: x402 v2 requirements (USDC on Base or Solana) in the PAYMENT-REQUIRED header. Sign and retry with PAYMENT-SIGNATURE.",
+            "headers": {
+              "PAYMENT-REQUIRED": {
+                "description": "Base64-encoded JSON x402 PaymentRequired",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "This payment was already used; sign a new one for each request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited; see Retry-After",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Busy or temporarily unavailable; see Retry-After",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "summary": "Report API liveness and payment status",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "example": {
+            "type": "object",
+            "description": "On a 400: a valid request body"
+          },
+          "template": {
+            "type": "object",
+            "description": "On a 400 from /v1/grant: the application template to fill in"
+          },
+          "how": {
+            "type": "string",
+            "description": "On a 400 from /v1/grant: how to fill in the template"
+          },
+          "guide": {
+            "type": "string",
+            "description": "On a 400: the plain-language guide"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "Attribution": {
+        "type": "object",
+        "description": "Credit line to show with the result",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "NextStep": {
+        "type": "object",
+        "description": "The endpoint to call next, and why",
+        "properties": {
+          "tool": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "string",
+            "description": "e.g. /v1/ask"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "also": {
+            "type": "object",
+            "description": "A second suggestion, e.g. verify old research live with /v1/check",
+            "properties": {
+              "tool": {
+                "type": "string"
+              },
+              "endpoint": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          },
+          "no_wallet": {
+            "type": "string",
+            "description": "Present when the next step is paid: how to get a free research grant instead"
+          }
+        }
+      },
+      "GrantUse": {
+        "type": "object",
+        "description": "Present when a research grant paid for the call",
+        "properties": {
+          "asks_left": {
+            "type": "integer"
+          },
+          "checks_left": {
+            "type": "integer"
+          },
+          "expires": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "CoverageResult": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "coverage": {
+            "type": "string",
+            "enum": [
+              "covered",
+              "partial",
+              "none"
+            ],
+            "description": "covered: research answers it; partial: related research only; none: not researched"
+          },
+          "match_strength": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Score of the best match (0-1)"
+          },
+          "sessions_in_sample": {
+            "type": "integer",
+            "description": "Matching research sessions among the top candidates"
+          },
+          "sample_size": {
+            "type": "integer",
+            "description": "Candidates checked"
+          },
+          "newest_research": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Date of the newest matching research"
+          },
+          "top_topics": {
+            "type": "array",
+            "description": "Up to 3 matching research topics",
+            "items": {
+              "type": "object",
+              "properties": {
+                "topic": {
+                  "type": "string"
+                },
+                "score": {
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "recommended_next": {
+            "$ref": "#/components/schemas/NextStep"
+          },
+          "exact_match": {
+            "type": "boolean",
+            "description": "True when a name, alias or verse matched exactly"
+          },
+          "attribution": {
+            "$ref": "#/components/schemas/Attribution"
+          }
+        },
+        "required": [
+          "query",
+          "coverage",
+          "recommended_next"
+        ]
+      },
+      "ResearchCard": {
+        "type": "object",
+        "description": "One past KARP research session that answers the question",
+        "properties": {
+          "rank": {
+            "type": "integer"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "When the research was done"
+          },
+          "age_days": {
+            "type": "integer"
+          },
+          "stale": {
+            "type": "boolean",
+            "description": "Research older than 180 days: verify time-sensitive points with /v1/check"
+          },
+          "relevance": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "title": {
+            "type": "string"
+          },
+          "topic": {
+            "type": "string",
+            "description": "The research question (shortened)"
+          },
+          "matched_on": {
+            "type": "string",
+            "description": "What matched: report text, report finding, graph node..."
+          },
+          "evidence": {
+            "type": "string",
+            "description": "The text that matched, when it is a passage"
+          },
+          "confidence": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Confidence the research reported (0-100)"
+          },
+          "conclusion": {
+            "type": "string"
+          },
+          "key_insight": {
+            "type": "string"
+          },
+          "starting_point": {
+            "type": "string",
+            "description": "Scope: what the research covered and left out"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "anchors": {
+            "type": "array",
+            "description": "Dated figures and facts",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                },
+                "as_of": {
+                  "type": "string"
+                },
+                "context": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "consensus": {
+            "type": "array",
+            "description": "Positions and how settled each one is",
+            "items": {
+              "type": "object",
+              "properties": {
+                "claim": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "entities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "open_questions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "rank",
+          "session_id",
+          "date",
+          "stale",
+          "relevance"
+        ]
+      },
+      "AskResult": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "cards": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResearchCard"
+            }
+          },
+          "related_research": {
+            "type": "array",
+            "description": "Other public sessions on nearby topics",
+            "items": {
+              "type": "object",
+              "properties": {
+                "session_id": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "topic": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "top_relevance": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "attribution": {
+            "$ref": "#/components/schemas/Attribution"
+          },
+          "grant": {
+            "$ref": "#/components/schemas/GrantUse"
+          }
+        },
+        "required": [
+          "query",
+          "cards"
+        ]
+      },
+      "CheckResult": {
+        "type": "object",
+        "properties": {
+          "claim": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "object",
+            "description": "Read this first",
+            "properties": {
+              "verdict": {
+                "type": "string",
+                "enum": [
+                  "confirmed",
+                  "disputed",
+                  "unverifiable",
+                  "contested"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "unanimous",
+                  "majority",
+                  "split",
+                  "insufficient"
+                ],
+                "description": "How far the models that searched the web agreed"
+              },
+              "agreement": {
+                "type": "string",
+                "description": "e.g. 4/4"
+              },
+              "mean_confidence": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 1
+              },
+              "headline": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "verdict",
+              "status",
+              "headline"
+            ]
+          },
+          "checked_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "verdicts": {
+            "type": "array",
+            "description": "Each model's own judgement",
+            "items": {
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "description": "grok, openai, gemini or claude"
+                },
+                "verdict": {
+                  "type": "string"
+                },
+                "confidence": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "reasoning": {
+                  "type": "string"
+                },
+                "citations": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "url": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "citation_kind": {
+                  "type": "string",
+                  "enum": [
+                    "cited",
+                    "retrieved",
+                    "none"
+                  ],
+                  "description": "cited: sources the model cited; retrieved: sources it searched but did not cite"
+                },
+                "searched": {
+                  "type": "boolean",
+                  "description": "Whether the model searched the web for this claim"
+                }
+              }
+            }
+          },
+          "agreement": {
+            "type": "object",
+            "description": "Agreement detail, for audit"
+          },
+          "citation_analysis": {
+            "type": "object",
+            "description": "Source overlap between models, for audit"
+          },
+          "attribution": {
+            "$ref": "#/components/schemas/Attribution"
+          },
+          "grant": {
+            "$ref": "#/components/schemas/GrantUse"
+          }
+        },
+        "required": [
+          "claim",
+          "summary",
+          "verdicts"
+        ]
+      },
+      "GrantIssued": {
+        "type": "object",
+        "properties": {
+          "grant_key": {
+            "type": "string",
+            "description": "Send as the x-karp-grant header; shown once"
+          },
+          "grant_id": {
+            "type": "string"
+          },
+          "asks": {
+            "type": "integer"
+          },
+          "checks": {
+            "type": "integer"
+          },
+          "expires": {
+            "type": "string",
+            "format": "date"
+          },
+          "your_questions": {
+            "type": "array",
+            "description": "KARP's coverage of the questions in the application",
+            "items": {
+              "type": "object",
+              "properties": {
+                "question": {
+                  "type": "string"
+                },
+                "coverage": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "covered",
+                    "partial",
+                    "none",
+                    null
+                  ]
+                },
+                "newest_research": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "next": {
+                  "type": "string"
+                },
+                "note": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "use": {
+            "type": "string"
+          },
+          "attribution": {
+            "$ref": "#/components/schemas/Attribution"
+          }
+        },
+        "required": [
+          "grant_key",
+          "asks",
+          "checks",
+          "expires"
+        ]
+      },
+      "GrantTerms": {
+        "type": "object",
+        "properties": {
+          "price": {
+            "type": "string",
+            "enum": [
+              "free"
+            ]
+          },
+          "no_payment": {
+            "type": "string"
+          },
+          "grant": {
+            "type": "object",
+            "properties": {
+              "asks": {
+                "type": "integer"
+              },
+              "checks": {
+                "type": "integer"
+              },
+              "valid_days": {
+                "type": "integer"
+              }
+            }
+          },
+          "limits": {
+            "type": "object"
+          },
+          "today": {
+            "type": "object",
+            "properties": {
+              "grants_left": {
+                "type": "integer"
+              },
+              "sponsored_checks_left": {
+                "type": "integer"
+              }
+            }
+          },
+          "apply": {
+            "type": "object",
+            "description": "Method, path, the template to fill in, and how"
+          },
+          "use": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "price",
+          "grant",
+          "apply"
+        ]
+      }
+    }
+  }
+}
