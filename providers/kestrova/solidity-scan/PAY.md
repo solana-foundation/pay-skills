@@ -23,8 +23,18 @@ setup is needed: 0.4.26 through 0.8.38 are installed server-side.
 - Both paid routes use x402 `exact` on Solana mainnet (PayAI facilitator pays the
   network fee) or Base, and charge only when the scan succeeds.
 
-Each signed payment is accepted once. After an unclear outcome, do not pay again:
-recover the report for free with a wallet-signed challenge at `POST /scan/recover`.
+Each signed payment is accepted once. After an unclear outcome (202/409 `pending`, a
+timeout or a lost response), do not pay again: recover the result for free.
+
+1. `POST /scan/recover {"payment": "<PAYMENT-SIGNATURE value you sent>", "wallet":
+   "<paying address>", "action": "challenge"}` returns `message`, `token` and
+   `expires` (valid 120 s).
+2. Sign the exact `message` string with the paying wallet. This is a message signature,
+   not a transaction: on Solana an ed25519 signature, base64; on Base an EIP-191
+   `personal_sign`, 0x hex.
+3. `POST /scan/recover` with `payment`, `wallet`, `message`, `token`, `expires` and
+   `signature` returns the original result. A 202 means settlement isn't confirmed
+   yet: retry later, still without paying again.
 
 Automated pattern detection, not an audit: zero findings does not mean a contract is
 safe. Remote MCP server with the same tools: `https://kestrova-api.onrender.com/mcp`.

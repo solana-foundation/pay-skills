@@ -174,6 +174,88 @@
           }
         }
       }
+    },
+    "/scan/recover": {
+      "post": {
+        "summary": "Fetch paid Solidity scan result again via wallet signature",
+        "description": "Free; never a payment. Use after an unclear paid outcome (202/409 pending, timeout, lost response) instead of paying again. Step 1: POST {\"payment\": \"<the PAYMENT-SIGNATURE header value you sent>\", \"wallet\": \"<paying address>\", \"action\": \"challenge\"} returns {\"message\", \"token\", \"expires\"} (valid 120 s). Step 2: sign the exact message string (UTF-8 bytes) with the paying wallet: Solana = ed25519 message signature, base64; Base = EIP-191 personal_sign, 0x hex. This is a message signature, not a transaction. Step 3: POST {\"payment\", \"wallet\", \"message\", \"token\", \"expires\", \"signature\"} returns the original result (same tier as paid). 202 = settlement not confirmed yet: retry later, do not pay again; 404 = no settled payment for this key.",
+        "operationId": "recover_x402_scan_scan_recover_post",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "payment",
+                  "wallet"
+                ],
+                "properties": {
+                  "payment": {
+                    "type": "string",
+                    "description": "The PAYMENT-SIGNATURE header value of the original paid request"
+                  },
+                  "wallet": {
+                    "type": "string",
+                    "description": "The paying wallet address (Solana base58 or Base 0x address)"
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "challenge"
+                    ],
+                    "description": "Step 1 only"
+                  },
+                  "message": {
+                    "type": "string",
+                    "description": "Step 3: the message returned in step 1, unchanged"
+                  },
+                  "token": {
+                    "type": "string",
+                    "description": "Step 3: the token returned in step 1"
+                  },
+                  "expires": {
+                    "type": "integer",
+                    "description": "Step 3: the expires value returned in step 1"
+                  },
+                  "signature": {
+                    "type": "string",
+                    "description": "Step 3: Solana base64 ed25519 signature, or Base 0x hex personal_sign"
+                  }
+                }
+              },
+              "example": {
+                "payment": "<PAYMENT-SIGNATURE value>",
+                "wallet": "<paying address>",
+                "action": "challenge"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Step 1: the challenge; step 3: the original paid result",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "202": {
+            "description": "Settlement not confirmed yet: retry recovery later; do not pay again"
+          },
+          "401": {
+            "description": "Expired or invalid challenge or signature"
+          },
+          "404": {
+            "description": "No settled payment for this key"
+          },
+          "429": {
+            "description": "Too many recovery attempts; retry after the Retry-After header"
+          }
+        }
+      }
     }
   },
   "components": {
