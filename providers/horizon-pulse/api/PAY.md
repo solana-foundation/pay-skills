@@ -9,7 +9,7 @@ openapi:
   path: openapi.json
 ---
 
-Horizon Pulse: x402 v2 pay-per-call APIs for AI agents, no account or API key. 84 paid routes (as of 2026-11-18), 30 listed here: 28 payable in USDC on Solana, plus a $0.25 brief and $1 seller due-diligence in Base USDC only. Selected routes also accept USDC on Base or Polygon, or RLUSD on the XRP Ledger. Hosted MCP with 75 tools (as of 2026-11-18).
+Horizon Pulse: x402 v2 pay-per-call APIs for AI agents, no account or API key. 86 paid routes (as of 2026-11-21), 30 listed here: 28 payable in USDC on Solana, plus a $0.25 brief and $1 seller due-diligence in Base USDC only. Selected routes also accept USDC on Base or Polygon, or RLUSD on the XRP Ledger. Selected GET routes also accept OUSD on Tempo. The storefront agent-readiness check ($0.02) and text-to-speech ($0.03-$0.08) are USDC on Base only and are not in this Solana-payable list. Hosted MCP with 75 tools (as of 2026-11-21).
 
 - Web: `GET /api/search` (search with page contents), `GET /api/fetch` (page to
   markdown), `GET|POST /api/extract` (title, links, JSON-LD, CSS-selector
@@ -72,7 +72,7 @@ Horizon Pulse: x402 v2 pay-per-call APIs for AI agents, no account or API key. 8
   Terms: https://horizonpulse.dev/premium-terms.
 
 Market data outputs are descriptive, not advice.
-Most errors are not charged; exceptions are listed in https://horizonpulse.dev/llms.txt.
+Calls that fail on Base are not charged; exceptions are listed in https://horizonpulse.dev/llms.txt.
 Sample responses for fixed inputs: `GET /api/demo/{route}`.
 
 ## Spend-aware usage
