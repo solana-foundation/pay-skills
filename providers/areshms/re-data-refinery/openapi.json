@@ -1,0 +1,804 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "RE Data Refinery",
+    "version": "1.0.0",
+    "description": "Ohio property intelligence API for AI agents. x402 pay-per-call, USDC on Base (eip155:8453, permit2). 18 Ohio cities: scored property listings (flip/wholesale/rental scores), property detail by Zillow zpid, price + tax history, schools, foreclosure / tax-sale / auction / pre-foreclosure leads, and cash-buyer intelligence from county records. No accounts, no API keys; settle per call, JSON responses.",
+    "x-guidance": "Pay-per-call x402 v2 (scheme exact, USDC on Base permit2, facilitator Coinbase CDP). An unpaid GET on any listed paid route returns HTTP 402 with a base64 JSON challenge in the PAYMENT-REQUIRED header; pay and replay with the x-payment header to receive 200 JSON plus a PAYMENT-RESPONSE settle receipt. Always verify dataset sizes first via the free /coverage endpoint. Example flow: GET /properties?city=Columbus ($0.03) to resolve a zpid, then GET /properties/{zpid} for scored detail. Foreclosure-family leads: /foreclosures, /tax-sales, /auctions, /preforeclosures ($0.05 each). /cash-buyers is tiered: zip=X costs $0.50 (rollup), parcel=X (digits-only Franklin County parcel) costs $2.50 (deed evidence). Rate limit 20 requests/min/IP. Free: /health, /coverage, /credits, /llms.txt, / and this /openapi.json.",
+    "contact": {
+      "name": "HMS LLC",
+      "email": "ares.hms@icloud.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://re-data-refinery.ares-hms.workers.dev"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Property search"
+    },
+    {
+      "name": "Property detail"
+    },
+    {
+      "name": "History"
+    },
+    {
+      "name": "Off-market leads"
+    },
+    {
+      "name": "Cash buyers"
+    },
+    {
+      "name": "Free"
+    }
+  ],
+  "paths": {
+    "/search": {
+      "get": {
+        "operationId": "searchProperties",
+        "summary": "Search scored Ohio property listings by location",
+        "tags": [
+          "Property search"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.05"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "City/state or ZIP, e.g. \"Columbus OH\" or \"43215\""
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 40,
+              "default": 20
+            },
+            "description": "Max results 1-40"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scored property list (query, count, provider, properties[])",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/properties": {
+      "get": {
+        "operationId": "listProperties",
+        "summary": "Fetch city-filtered scored property listings",
+        "tags": [
+          "Property search"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.03"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "city",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Ohio city, e.g. Columbus (18 supported cities)"
+          },
+          {
+            "name": "min_price",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number"
+            },
+            "description": "USD price floor"
+          },
+          {
+            "name": "max_price",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number"
+            },
+            "description": "USD price ceiling"
+          },
+          {
+            "name": "live",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "\"0\" forces the cache instead of a live RealtyAPI search"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scored city property list (source, city, count, properties[])",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/properties/{zpid}": {
+      "get": {
+        "operationId": "propertyDetail",
+        "summary": "Fetch scored property detail by zpid",
+        "tags": [
+          "Property detail"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.03"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "zpid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Zillow property id (returned as zpid by /search and /properties)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scored property detail + price history, tax assessment history, schools",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/properties/{zpid}/price-history": {
+      "get": {
+        "operationId": "priceHistory",
+        "summary": "Fetch transaction price history for a property",
+        "tags": [
+          "History"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.02"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "zpid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Zillow property id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dated transaction events (sold, listed, price change) with prices and deltas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/properties/{zpid}/tax-history": {
+      "get": {
+        "operationId": "taxHistory",
+        "summary": "Fetch tax assessment history for a property",
+        "tags": [
+          "History"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.02"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "zpid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Zillow property id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Assessed land/building/total values by year",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/properties/{zpid}/schools": {
+      "get": {
+        "operationId": "schoolsNearby",
+        "summary": "Fetch school ratings near a property",
+        "tags": [
+          "History"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.02"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "zpid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Zillow property id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "School name, district, rating, distance, grades, student count",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/foreclosures": {
+      "get": {
+        "operationId": "foreclosureLeads",
+        "summary": "List scored foreclosure leads by city",
+        "tags": [
+          "Off-market leads"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.05"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "city",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Ohio city, e.g. Columbus"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scored foreclosure leads (parcel, status, auction type)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/tax-sales": {
+      "get": {
+        "operationId": "taxSaleLeads",
+        "summary": "List scored county tax-sale leads",
+        "tags": [
+          "Off-market leads"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.05"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "city",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Ohio city, e.g. Columbus"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scored tax-sale leads (parcel, county, status, auction type)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/auctions": {
+      "get": {
+        "operationId": "auctionLeads",
+        "summary": "List foreclosure, tax-sale and auction leads",
+        "tags": [
+          "Off-market leads"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.05"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "city",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Ohio city filter"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by status, e.g. active"
+          },
+          {
+            "name": "zip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "5-digit ZIP filter"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Auction type filter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Combined distressed leads with totals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/preforeclosures": {
+      "get": {
+        "operationId": "preforeclosureLeads",
+        "summary": "List pre-foreclosure leads across Ohio counties",
+        "tags": [
+          "Off-market leads"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.05"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "county",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Ohio county, e.g. Cuyahoga"
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "City filter"
+          },
+          {
+            "name": "zip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "5-digit ZIP filter"
+          },
+          {
+            "name": "min_emv",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number"
+            },
+            "description": "Estimated market value floor (USD)"
+          },
+          {
+            "name": "with_value",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "\"1\" returns only records with an estimated value"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            },
+            "description": "Max records (default 50, cap 200)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pre-foreclosure leads with EMV, lender, auction date, lead scores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/cash-buyers": {
+      "get": {
+        "operationId": "cashBuyers",
+        "summary": "Fetch cash-buyer data by ZIP or parcel",
+        "tags": [
+          "Cash buyers"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "dynamic",
+            "currency": "USD",
+            "min": "0.50",
+            "max": "2.50"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "zip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "5-digit ZIP (e.g. 43211) \u2014 buyer rollup, $0.50"
+          },
+          {
+            "name": "parcel",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Franklin County parcel digits, e.g. 01000051500 \u2014 deed evidence, $2.50"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            },
+            "description": "Top buyers returned for ZIP queries (default 10, cap 50)"
+          },
+          {
+            "name": "min_score",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "description": "Buyer score floor 0-100"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Active cash buyers with investor scores + foreclosure / tax-sale / sheriff-deed overlays",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "summary": "Report service health and cache size",
+        "tags": [
+          "Free"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "ok, cached_properties, supported cities, rate limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/coverage": {
+      "get": {
+        "operationId": "coverage",
+        "summary": "Report live record counts per dataset",
+        "tags": [
+          "Free"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Record counts per dataset with data_as_of dates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/coverage": {
+      "get": {
+        "operationId": "coverageAlias",
+        "summary": "Report dataset counts via coverage alias",
+        "tags": [
+          "Free"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Record counts per dataset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/credits": {
+      "get": {
+        "operationId": "credits",
+        "summary": "Report data provider and billing info",
+        "tags": [
+          "Free"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Provider, billing, cache size",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

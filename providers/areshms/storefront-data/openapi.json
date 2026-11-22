@@ -1,0 +1,262 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "HMS Storefront Data",
+    "version": "1.0.0",
+    "description": "Agent-payable data rails for HMS storefronts: verified daily car-rental rates per class (Enterprise/Hertz, Columbus pilot) and HOS-aware, 72ft-trailer-filtered overnight truck sleep stops with Jason's Law scarcity scoring, plus weekly US average retail diesel prices (EIA). x402 pay-per-call, USDC on Base (eip155:8453, permit2, facilitator Coinbase CDP); every paid route also advertises accepts[] variants for Polygon, Arbitrum One, Monad, World Chain (same EVM address) and Solana mainnet (own receiver) \u2014 one challenge, any one variant pays. Honesty rule: paid pricing auto-activates only when a dataset has >= 1 real verified record (rental rail live at 6 verified records; sleep-stops activated 2026-11-12 at 49 real OSM-extracted records; fuel activated 2026-11-12 at 24 real EIA weekly records); the /v1/coverage endpoint exposes live coverage so agents never pay for empty data.",
+    "x-guidance": "Pay-per-call x402 v2 (scheme exact, USDC \u2014 Base permit2 first variant; Polygon/Arbitrum/Monad/World Chain EVM and Solana mainnet variants ride the same challenge, all verified/settled by the Coinbase CDP facilitator). While a dataset has zero real records (check the free /v1/coverage endpoint first), its route serves a free 200 zero-records response and charges nothing. Once coverage >= 1 real record, an unpaid GET on the route returns HTTP 402 with a base64 JSON challenge in the PAYMENT-REQUIRED header (x402Version 2, accepts[].amount in USDC atomic units, top-level extensions.bazaar discovery); pay and replay with the x-payment header to receive 200 JSON plus a PAYMENT-RESPONSE settle receipt. Free: /health, /v1/coverage, and this /openapi.json. Rate limit 20 requests/min/IP.",
+    "contact": {
+      "name": "HMS LLC",
+      "email": "ares.hms@icloud.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://storefront-data-hms.ares-hms.workers.dev"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Car rental rates"
+    },
+    {
+      "name": "Truck sleep stops"
+    },
+    {
+      "name": "Truck fuel prices"
+    },
+    {
+      "name": "Free"
+    }
+  ],
+  "paths": {
+    "/v1/rental/rates": {
+      "get": {
+        "operationId": "rentalRates",
+        "summary": "Fetch verified daily car-rental rates per class",
+        "tags": [
+          "Car rental rates"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.03"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "city",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "City with verified rate coverage, e.g. Columbus (Columbus, OH pilot)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rates payload (car-rental class, daily rate, vendor, source URL, verified_at)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/v1/truck/sleep-stops": {
+      "get": {
+        "operationId": "truckSleepStops",
+        "summary": "Fetch sleep stops for one of 2 corridors",
+        "tags": [
+          "Truck sleep stops"
+        ],
+        "x-payment-info": {
+          "amount": "$0.05",
+          "currency": "USDC",
+          "network": "eip155:8453",
+          "networks": [
+            "eip155:8453",
+            "eip155:137",
+            "eip155:42161",
+            "eip155:143",
+            "eip155:480",
+            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+          ],
+          "note": "x402 v2 exact/permit2; live at 49 real records (49 real OSM-extracted truck stops, I-70 + I-80/I-76); accepts[] carries 6 variants (Base + Polygon/Arbitrum/Monad/World Chain + Solana mainnet), any one pays"
+        },
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Origin city/state, e.g. \"Columbus, OH\" or \"Chicago, IL\". Loose prefix matching: \\\"Columbus\\\" matches \\\"I-70\\\" origin, \\\"Chicago\\\" matches \\\"I-80\\\" origin"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Destination city/state, e.g. \"St. Louis, MO\" or \"Denver, CO\""
+          },
+          {
+            "name": "hos_hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number"
+            },
+            "description": "Remaining hours-of-service drive window, e.g. 4.5"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Corridor sleep-stops payload: corridor, corridor_from/to, source, extracted_at, record_count, stops[] per stop_schema, data_caveat",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "x402 PAYMENT-REQUIRED: base64 challenge in the PAYMENT-REQUIRED header (x402Version 2, accepts[0].amount 50000 USDC atomic on Base, top-level extensions.bazaar)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/truck/fuel-prices": {
+      "get": {
+        "operationId": "truckFuelPrices",
+        "summary": "Fetch weekly US average diesel prices (24 points)",
+        "tags": [
+          "Truck fuel prices"
+        ],
+        "x-payment-info": {
+          "amount": "$0.02",
+          "currency": "USDC",
+          "network": "eip155:8453",
+          "networks": [
+            "eip155:8453",
+            "eip155:137",
+            "eip155:42161",
+            "eip155:143",
+            "eip155:480",
+            "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+          ],
+          "note": "x402 v2 exact/permit2; live at 24 real weekly records (EIA Gasoline & Diesel Fuel Update, EMD_EPD2D_PTE_NUS_DPG), last refreshed 2026-11-12; accepts[] carries 6 variants (Base + Polygon/Arbitrum/Monad/World Chain + Solana mainnet), any one pays"
+        },
+        "parameters": [
+          {
+            "name": "weeks",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Number of trailing weekly points to return (default 24, max 24)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Weekly diesel series: source, source_url, series_id, updated_at, record_schema, records[] (week_ending, price_usd_per_gallon, region), data_caveat",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "x402 PAYMENT-REQUIRED: base64 challenge in the PAYMENT-REQUIRED header (x402Version 2, accepts[0].amount 20000 USDC atomic on Base, top-level extensions.bazaar)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "summary": "Free \u2014 service health and resource list",
+        "tags": [
+          "Free"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "ok, service, resources",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/coverage": {
+      "get": {
+        "operationId": "coverage",
+        "summary": "Free \u2014 real record counts per dataset (honesty gate)",
+        "tags": [
+          "Free"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "real_records, status and corridor list per dataset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
