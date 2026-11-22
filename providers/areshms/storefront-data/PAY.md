@@ -1,7 +1,7 @@
 ---
 name: storefront-data
 title: "HMS Storefront Data"
-description: "Pay-per-call verified daily car-rental rates per class for Columbus, Ohio (Enterprise/Hertz booking sessions, private verified sheet of record), an HOS-aware truck sleep-stop corridor dataset, and weekly US average retail diesel prices (EIA Fuel Update), returned as JSON over x402."
+description: "Pay-per-call verified daily car-rental rates (Enterprise/Hertz, Columbus), HOS-aware truck sleep-stops (I-70/I-80), and weekly US retail diesel prices (EIA). JSON over x402."
 use_case: "Use for car-rental ground-truth pricing for travel and shopping agents: today's per-class daily rates at Columbus CMH with per-class verified_at timestamps to check data age before citing; free /v1/coverage shows record counts per dataset before paying."
 category: data
 service_url: https://storefront-data-hms.ares-hms.workers.dev
