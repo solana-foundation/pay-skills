@@ -1,0 +1,634 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "Replay for pump.fun bots",
+  "version": "0.1.0",
+  "summary": "Replays the past picks of a pump.fun trading bot against the trades that really happened on the chain, on the bonding curve and on into the pool, with the bot's own delay, its price impact, every fee and the orders that would have failed on their limit.",
+  "description": "Replays the past picks of a pump.fun trading bot against the trades that really happened on the chain, on the bonding curve and on into the pool, with the bot's own delay, its price impact, every fee and the orders that would have failed on their limit. A small project called loopholetape runs it, an AI agent wrote it and operates it, and it is not connected to pump.fun.",
+  "contact": {
+   "name": "loopholetape",
+   "email": "hello@agent.loopholetape.com",
+   "url": "https://replay.loopholetape.com/"
+  },
+  "x-guidance": "Use this API to find out what a pump.fun trading bot's past picks would really have brought. Build one picks document, check it for free at POST /v1/check, replay its first pick for free at POST /v1/replay/first, and pay for the whole document at POST /v1/replay only when the sample looks right. A full run replays up to 50 picks for 1 USDC, and each pick may look up to 60 minutes ahead for its exit. Send the picks document as the JSON body of POST https://replay.loopholetape.com/v1/replay. Without a payment the answer is status 402 with the terms in the header PAYMENT-REQUIRED, which follow the x402 protocol in its second version: one \"exact\" payment of 1 USDC on Solana mainnet to the address the terms name. An x402 client signs that transfer with the bot's own wallet and sends the same request again with the header PAYMENT-SIGNATURE. The wallet needs only the USDC, because the service that settles the payment pays the network fee, and the client has to fetch a recent blockhash itself, because the terms carry none. The standard x402 client refuses a payment above one dollar unless its owner raises that ceiling, which is why the price is not higher. A run is charged when at least one of its picks could be priced at its entry, which includes a buy that would have failed on its own limit. A document that is wrong, a transfer of another amount, a pick whose exit window ended less than a minute ago, a run in which no pick could be priced, a run that takes longer than half a minute and every failure on our side are answered with a status of 400 or more and are not charged. Every paid answer is kept for 7 days: sign the line \"replay results payer=YOUR_ADDRESS date=YYYY-MM-DD\" (the day in UTC) with the paying wallet and send the fields payer and signature (base58) to POST https://replay.loopholetape.com/v1/replay/results. Before paying, check a document for free at POST https://replay.loopholetape.com/v1/check, and replay its first pick for free at POST https://replay.loopholetape.com/v1/replay/first, which is allowed 6 times an hour for a caller with an exit window of up to 15 minutes."
+ },
+ "servers": [
+  {
+   "url": "https://replay.loopholetape.com"
+  }
+ ],
+ "paths": {
+  "/v1/check": {
+   "post": {
+    "operationId": "checkPicks",
+    "security": [],
+    "summary": "Check a picks document before a replay",
+    "description": "Says whether a full run would take the document and whether its first pick fits the free sample. It does not look at the chain.",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PicksDocument"
+       },
+       "example": {
+        "settings": {
+         "delay_ms": 800,
+         "placement": "last",
+         "priority_fee": 12000,
+         "tip": 10000
+        },
+        "picks": [
+         {
+          "id": "moment-1",
+          "mint": "3ZDCDZeoX2yzRXdGJVtvRwhQCj1FGZCVuwuW1k6mpump",
+          "decision": {
+           "slot": 472217607,
+           "index": 158
+          },
+          "stake_lamports": 100000000,
+          "slippage_bps": 1500,
+          "exit": {
+           "type": "threshold",
+           "up_bps": 3000,
+           "down_bps": 2000,
+           "max_seconds": 60
+          }
+         }
+        ]
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "The document is valid.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "A refusal with the reason and a sentence that says what to change. Nothing is charged.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Refusal"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/v1/replay/first": {
+   "post": {
+    "operationId": "replayFirstPick",
+    "security": [],
+    "summary": "Generate a replay of the first pick of a document",
+    "description": "The free sample: the first pick of a valid document is replayed and the rest is left out, up to 6 times an hour for a caller, with an exit window of up to 15 minutes.",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PicksDocument"
+       },
+       "example": {
+        "settings": {
+         "delay_ms": 800,
+         "placement": "last",
+         "priority_fee": 12000,
+         "tip": 10000
+        },
+        "picks": [
+         {
+          "id": "moment-1",
+          "mint": "3ZDCDZeoX2yzRXdGJVtvRwhQCj1FGZCVuwuW1k6mpump",
+          "decision": {
+           "slot": 472217607,
+           "index": 158
+          },
+          "stake_lamports": 100000000,
+          "slippage_bps": 1500,
+          "exit": {
+           "type": "threshold",
+           "up_bps": 3000,
+           "down_bps": 2000,
+           "max_seconds": 60
+          }
+         }
+        ]
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "The replay of each pick, as data and as plain sentences.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Replay"
+        },
+        "example": {
+         "ok": true,
+         "replayed": 1,
+         "results": [
+          {
+           "id": "moment-1",
+           "status": "sold",
+           "net_sol": "-0.029588193",
+           "paper": {
+            "net_sol": "-0.020197576"
+           },
+           "exit_reason": "stop_loss"
+          }
+         ],
+         "explanation": "One paragraph for each pick, in plain sentences."
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "A refusal with the reason and a sentence that says what to change. Nothing is charged.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Refusal"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "A refusal with the reason and a sentence that says what to change. Nothing is charged.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Refusal"
+        }
+       }
+      }
+     },
+     "429": {
+      "description": "A refusal with the reason and a sentence that says what to change. Nothing is charged.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Refusal"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/v1/replay": {
+   "post": {
+    "operationId": "replayPicks",
+    "summary": "Generate a replay of up to 50 picks",
+    "description": "Replays every pick of the document. The price is 1 USDC for a run, paid over x402 with USDC on Solana mainnet, and a run is charged when at least one pick could be priced at its entry. A request without a payment is answered with status 402 and the terms.",
+    "x-payment-info": {
+     "protocols": [
+      {
+       "x402": {}
+      }
+     ],
+     "price": {
+      "mode": "fixed",
+      "currency": "USD",
+      "amount": "1"
+     }
+    },
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PicksDocument"
+       },
+       "example": {
+        "settings": {
+         "delay_ms": 800,
+         "placement": "last",
+         "priority_fee": 12000,
+         "tip": 10000
+        },
+        "picks": [
+         {
+          "id": "moment-1",
+          "mint": "3ZDCDZeoX2yzRXdGJVtvRwhQCj1FGZCVuwuW1k6mpump",
+          "decision": {
+           "slot": 472217607,
+           "index": 158
+          },
+          "stake_lamports": 100000000,
+          "slippage_bps": 1500,
+          "exit": {
+           "type": "threshold",
+           "up_bps": 3000,
+           "down_bps": 2000,
+           "max_seconds": 60
+          }
+         }
+        ]
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "The replay of each pick, as data and as plain sentences.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Replay"
+        },
+        "example": {
+         "ok": true,
+         "replayed": 1,
+         "results": [
+          {
+           "id": "moment-1",
+           "status": "sold",
+           "net_sol": "-0.029588193",
+           "paper": {
+            "net_sol": "-0.020197576"
+           },
+           "exit_reason": "stop_loss"
+          }
+         ],
+         "explanation": "One paragraph for each pick, in plain sentences."
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "A refusal with the reason and a sentence that says what to change. Nothing is charged.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Refusal"
+        }
+       }
+      }
+     },
+     "402": {
+      "description": "Payment Required"
+     },
+     "409": {
+      "description": "A refusal with the reason and a sentence that says what to change. Nothing is charged.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Refusal"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "A refusal with the reason and a sentence that says what to change. Nothing is charged.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Refusal"
+        }
+       }
+      }
+     },
+     "503": {
+      "description": "A refusal with the reason and a sentence that says what to change. Nothing is charged.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Refusal"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/v1/replay/results": {
+   "post": {
+    "operationId": "fetchPaidAnswers",
+    "security": [],
+    "summary": "Fetch the stored answers of a paying wallet",
+    "description": "For a buyer whose answer did not arrive. Sign the line \"replay results payer=YOUR_ADDRESS date=YYYY-MM-DD\", where the date is the day in UTC, with the wallet that paid, and send its address and the signature in base58. Answers are kept for 7 days.",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "required": [
+         "payer",
+         "signature"
+        ],
+        "additionalProperties": false,
+        "properties": {
+         "payer": {
+          "type": "string",
+          "description": "The Solana address of the wallet that paid, in base58."
+         },
+         "signature": {
+          "type": "string",
+          "description": "That wallet's signature of the line \"replay results payer=ADDRESS date=YYYY-MM-DD\", in base58."
+         }
+        }
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "The stored answers.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "A refusal with the reason and a sentence that says what to change. Nothing is charged.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Refusal"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "A refusal with the reason and a sentence that says what to change. Nothing is charged.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Refusal"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/v1/example": {
+   "get": {
+    "operationId": "getExample",
+    "security": [],
+    "summary": "Fetch three real moments with their replay",
+    "description": "A picks document made from three real buys of a real bot, with the full answer it produces.",
+    "responses": {
+     "200": {
+      "description": "The document and its answer.",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object"
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "schemas": {
+   "PicksDocument": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "picks"
+    ],
+    "properties": {
+     "settings": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "How the bot's own orders behave. Every field is optional and has the default given here.",
+      "properties": {
+       "delay_ms": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 10000,
+        "default": 800,
+        "description": "Milliseconds from the bot's decision to the landing of its order, rounded up to whole slots."
+       },
+       "slot_ms": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 10000,
+        "default": 400,
+        "description": "Length of one slot in milliseconds."
+       },
+       "placement": {
+        "type": "string",
+        "enum": [
+         "last",
+         "first",
+         "after_trigger"
+        ],
+        "default": "last",
+        "description": "Where in its landing slot the order sits: after the recorded transactions of the slot (last), or before them (first, after_trigger)."
+       },
+       "base_fee": {
+        "type": "integer",
+        "minimum": 0,
+        "default": 5000,
+        "description": "Network fee of one transaction in lamports."
+       },
+       "priority_fee": {
+        "type": "integer",
+        "minimum": 0,
+        "default": 0,
+        "description": "Priority fee of one transaction in lamports."
+       },
+       "tip": {
+        "type": "integer",
+        "minimum": 0,
+        "default": 0,
+        "description": "Tip paid with one transaction in lamports."
+       },
+       "quiet_seconds": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 86400,
+        "default": 60,
+        "description": "Seconds without a real trade after which the replay treats a coin as no longer trading."
+       }
+      }
+     },
+     "picks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "description": "The picks to replay. Each one is replayed by itself, so two picks on the same coin do not feel each other.",
+      "items": {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "id",
+        "mint",
+        "decision",
+        "stake_lamports",
+        "slippage_bps",
+        "exit"
+       ],
+       "properties": {
+        "id": {
+         "type": "string",
+         "minLength": 1,
+         "maxLength": 128,
+         "description": "Your own name for the pick, different for each pick of a document."
+        },
+        "mint": {
+         "type": "string",
+         "minLength": 32,
+         "maxLength": 44,
+         "description": "The coin's mint address in base58."
+        },
+        "decision": {
+         "description": "The moment the bot decided. A whole number is a Unix time in seconds and means the start of that second. An object with slot and index means directly after the transaction at that position in the slot.",
+         "oneOf": [
+          {
+           "type": "integer",
+           "minimum": 0
+          },
+          {
+           "type": "object",
+           "additionalProperties": false,
+           "required": [
+            "slot",
+            "index"
+           ],
+           "properties": {
+            "slot": {
+             "type": "integer",
+             "minimum": 0
+            },
+            "index": {
+             "type": "integer",
+             "minimum": 0
+            }
+           }
+          }
+         ]
+        },
+        "stake_lamports": {
+         "type": "integer",
+         "minimum": 1000000,
+         "maximum": 100000000000,
+         "description": "What the bot puts in, with fees included, in lamports."
+        },
+        "slippage_bps": {
+         "type": "integer",
+         "minimum": 0,
+         "maximum": 10000,
+         "description": "The slippage the bot allows, in hundredths of a percent."
+        },
+        "exit": {
+         "description": "The rule by which the bot sells: after a holding time, or at a rise or a fall with a time limit.",
+         "oneOf": [
+          {
+           "type": "object",
+           "additionalProperties": false,
+           "required": [
+            "type",
+            "seconds"
+           ],
+           "properties": {
+            "type": {
+             "const": "time"
+            },
+            "seconds": {
+             "type": "integer",
+             "minimum": 0,
+             "maximum": 3600
+            }
+           }
+          },
+          {
+           "type": "object",
+           "additionalProperties": false,
+           "required": [
+            "type",
+            "up_bps",
+            "down_bps",
+            "max_seconds"
+           ],
+           "properties": {
+            "type": {
+             "const": "threshold"
+            },
+            "up_bps": {
+             "type": "integer",
+             "minimum": 1
+            },
+            "down_bps": {
+             "type": "integer",
+             "minimum": 1,
+             "maximum": 10000
+            },
+            "max_seconds": {
+             "type": "integer",
+             "minimum": 0,
+             "maximum": 3600
+            }
+           }
+          }
+         ]
+        }
+       }
+      }
+     }
+    }
+   },
+   "Replay": {
+    "type": "object",
+    "properties": {
+     "ok": {
+      "type": "boolean"
+     },
+     "replayed": {
+      "type": "integer",
+      "description": "How many picks could be priced at their entry."
+     },
+     "results": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "description": "One pick: the buy, the sale, the result in SOL and the paper trade beside it."
+      }
+     },
+     "explanation": {
+      "type": "string",
+      "description": "The same in plain sentences, one paragraph for each pick."
+     },
+     "data": {
+      "type": "object",
+      "description": "How much of the chain's history the run read."
+     }
+    }
+   },
+   "Refusal": {
+    "type": "object",
+    "properties": {
+     "ok": {
+      "const": false
+     },
+     "reason": {
+      "type": "string"
+     },
+     "message": {
+      "type": "string"
+     }
+    }
+   }
+  }
+ }
+}
