@@ -21,12 +21,12 @@ forecast. For informational purposes only. Not investment advice.
 ## Routes
 
 Paid routes cost $0.002 to $0.05 per call in USDC, paid over x402 on Base,
-Polygon or Solana: $0.01 for the live reading, the stress gate, a lookup,
-crypto and the scorecard, $0.02 for the post-earnings drift tracker, $0.03 for
-the brief and for one sector, $0.05 for every sector. The batch lookup is
-priced per covered symbol, and its 402 states the exact total for the request
-before any payment. A call that cannot be answered is not charged: a payment
-settles only after the answer is built.
+Polygon or Solana: $0.002 for the conditions gate, $0.01 for the live
+reading, the stress gate, a lookup, crypto and the scorecard, $0.02 for the
+post-earnings drift tracker, $0.03 for the brief and for one sector, $0.05 for
+every sector. The batch lookup is priced per covered symbol, and its 402
+states the exact total for the request before any payment. A call that cannot
+be answered is not charged: a payment settles only after the answer is built.
 
 | Route | Price | Returns |
 |---|---|---|
