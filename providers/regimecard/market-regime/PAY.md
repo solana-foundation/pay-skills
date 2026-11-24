@@ -92,17 +92,23 @@ a live intraday reading.
   five lowest covered stocks. A caller that needs one sector pays less with one
   `/v1/sectors?sector=<id>` per sector ($0.03 each, every covered stock in it).
 - `/v1/live`, `/v1/stress` and `/v1/brief`: the reading and the stress gate
-  are recomputed hourly during the US session (10:00 AM to 4:00 PM ET), and one
-  settled reading is published per US trading day at 4:30 PM ET. Do not poll.
-  Check `status`, `asOf` and `updatedAt`: a response marked `settled` is final
-  for its session, and these three routes return it until the next US session.
+  update about once an hour while the US market is open, the first a little
+  after 10 AM ET, and one settled reading is published per US trading day at
+  4:30 PM ET. Each response carries `nextUpdateAt`, the expected time of its
+  next update (UTC; an expectation, not a promise). Ask again then, not on a
+  timer. `status` says which it is: the reading is `live` from the day's
+  first update until it settles and `settled` at all other times; the stress
+  gate is `settled` outside market hours.
 - `/v1/brief`: the scorecard row follows the last settled close (the `settled`
   field), so it changes once per US trading day even while the live reading
   moves.
-- `/v1/gate`: the regime and the stress gate are each recomputed hourly
-  during the US session (10:00 AM to 4:00 PM ET). The top-level `asOf` and
-  `status` are the regime's; the stress gate carries its own (`stress.asOf`
-  and `stress.status`), which can be an earlier session. Do not poll.
+- `/v1/gate`: the regime and the stress gate each update about once an hour
+  while the US market is open, the first a little after 10 AM ET. The
+  top-level `asOf` and `status` are the regime's; the stress gate carries its
+  own (`stress.asOf` and `stress.status`), which can be an earlier session.
+  `nextUpdateAt` is one time for both: when one hourly update is due to both,
+  the time both are expected to be in; otherwise, whichever comes first. Ask
+  again then.
 - `/v1/crypto`: the regime is the last settled close (`asOf`), but the coin
   figures are recomputed once a day, every day, weekends included. Check
   `dataAsOf`, the newest day of coin prices in the figures, before asking
