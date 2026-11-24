@@ -20,7 +20,7 @@ forecast. For informational purposes only. Not investment advice.
 
 ## Routes
 
-Paid routes cost $0.01 to $0.05 per call in USDC, paid over x402 on Base,
+Paid routes cost $0.002 to $0.05 per call in USDC, paid over x402 on Base,
 Polygon or Solana: $0.01 for the live reading, the stress gate, a lookup,
 crypto and the scorecard, $0.02 for the post-earnings drift tracker, $0.03 for
 the brief and for one sector, $0.05 for every sector. The batch lookup is
@@ -41,6 +41,7 @@ settles only after the answer is built.
 | `GET /v1/sectors` | $0.05 ($0.03 for one sector) | Which sectors and stocks have done best and worst in markets like today's? The ten sectors of the regimecard.com stocks page, ranked by the median typical return of their covered stocks over 1, 2 or 3 months from the current settled regime, each with its five highest and five lowest ranked stocks (typical return, how often it rose, how much history). With one sector named, every covered stock in it, ranked. It covers the stocks with Regime Card pages; any other US stock is checked one at a time with `/v1/lookup`. |
 | `GET /v1/scorecard` | $0.01 | What has the S&P 500 done after past readings in this regime? The scorecard row regimecard.com publishes on its history page for the regime of the last settled close: the S&P 500's typical return, how often it rose and a bad outcome as a downside measure, over the 5 and 20 trading days after past readings in that regime. Any of the five regimes can be asked for by key. |
 | `GET /v1/pead` | $0.02 | Which stocks are drifting after earnings right now? The post-earnings drift (PEAD) tracker: large US stocks that reported earnings in about the last two weeks, in the tracker's own order, each with its report date, its earnings surprise, its first-session reaction and its price drift since the report. |
+| `GET /v1/gate` | $0.002 | What are US market conditions right now, in one small call? The current Regime Card regime (Risk-On to Risk-Off) and the stress gate's overall state (Calm, Elevated or Stressed) with how many of its three components are confirmed (N of 3). Conditions only: no percentile, no per-component detail, no history. |
 
 `POST /v1/lookup` takes a JSON body with one symbol, like `{"symbol":"NVDA"}`.
 One symbol per call: more than one is a free 400, and a symbol with no price
@@ -64,8 +65,8 @@ median of its covered stocks that have enough history; with fewer than three it
 has none and the sector is listed last.
 
 Every paid response also carries `related`, the other paid routes with their
-prices, and `research`, a link to a published study when one is about the
-current regime.
+prices, and, except on `/v1/gate`, `research`, a link to a published study
+when one is about the current regime.
 
 Every paid response and `/v1/sample` also carry `record`, two links on
 regimecard.com (`/verify` and `/api/ledger`) and one sentence: "Each settled
@@ -98,6 +99,10 @@ a live intraday reading.
 - `/v1/brief`: the scorecard row follows the last settled close (the `settled`
   field), so it changes once per US trading day even while the live reading
   moves.
+- `/v1/gate`: the regime and the stress gate are each recomputed hourly
+  during the US session (10:00 AM to 4:00 PM ET). The top-level `asOf` and
+  `status` are the regime's; the stress gate carries its own (`stress.asOf`
+  and `stress.status`), which can be an earlier session. Do not poll.
 - `/v1/crypto`: the regime is the last settled close (`asOf`), but the coin
   figures are recomputed once a day, every day, weekends included. Check
   `dataAsOf`, the newest day of coin prices in the figures, before asking
