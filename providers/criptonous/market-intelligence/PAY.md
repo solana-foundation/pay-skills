@@ -2,10 +2,10 @@
 name: market-intelligence
 title: "CriptoNous Market Intelligence (x402)"
 description: "CriptoNous x402 crypto market intelligence - on-chain flow, wallet intel, sentiment pulse, regime timing, oracle readings, multi-source confluence. Pay-per-query USDC on Solana (plus Base); AccessPass receipts. NFA analysis only."
-use_case: "Use for crypto on-chain flow reads, wallet intel, narrative/sentiment pulse, regime timing, structured oracle readings, and multi-source confluence. Prefer hermes.pulse ($0.02) as first paid probe."
+use_case: "Use for on-chain flow, wallet intel, sentiment pulse, regime timing, and oracle readings. Start with GET /x402/resource/hermes.pulse ($0.01) returning HTTP 402 without an API key. NFA intelligence only, not trade execution."
 category: finance
 service_url: https://app.criptonous.com
-version: "1.18.40"
+version: "1.18.45"
 openapi:
     path: openapi.json
 ---
@@ -14,7 +14,7 @@ CriptoNous sells pay-per-query crypto **market intelligence** over HTTP 402 (x40
 
 Every `402` challenge advertises **Solana mainnet USDC** (SPL, primary rail) and **Base mainnet USDC** (`eip155:8453`, EIP-3009). Other EVM rails may appear in the challenge; Solana is always present.
 
-Cheapest probe: `GET /x402/resource/hermes.pulse` - **$0.02 USDC**.
+Cheapest probe: `GET /x402/resource/hermes.pulse` - **$0.01 USDC**. No API key: the GET returns HTTP 402.
 
 Machine discovery:
 
@@ -34,7 +34,7 @@ Contact: `oraculo@criptonous.app`
 | Price | SKU | Role |
 |-------|-----|------|
 | $0.01 | `temple.catalog` | Machine catalog of paid SKUs |
-| $0.02 | `hermes.pulse` | Sentiment/narrative pulse (first paid call) |
+| $0.01 | `hermes.pulse` | Sentiment/narrative pulse (first paid call) |
 | $0.03 | `dionisio.heat` | Social/meme heat snapshot |
 | $0.04 | `hermes.wire` | News/agora wire pulse |
 | $0.05 | `kairos.regime` | Market regime / timing context |
@@ -57,8 +57,8 @@ The live OpenAPI and `GET /.well-known/x402` are canonical if this pack lags.
 
 ## Spend-aware usage
 
-- **Start with `hermes.pulse` ($0.02)** before buying confluence or oracle SKUs - it validates the wallet and facilitator path with minimal spend.
-- **Smoke kit ($0.19 total, three separate pays):** `hermes.pulse` $0.02 + `poseidon.flow` $0.05 + `swarm.pulse` $0.12.
+- **Start with `hermes.pulse` ($0.01)** before buying confluence or oracle SKUs - it validates the wallet and facilitator path with minimal spend. The happy path is `GET /x402/resource/hermes.pulse` → HTTP 402, no API key. `temple_request_tribute` stays for clients that already have `agent_api_key`.
+- **Smoke kit ($0.18 total, three separate pays):** `hermes.pulse` $0.01 + `poseidon.flow` $0.05 + `swarm.pulse` $0.12.
 - **`session.24h` ($9):** one signature covers 12 reads of SKUs priced up to $1.00 (spending cap 12 USDC). It only saves money when your 12 reads average more than $0.75 each; for cheaper SKUs, pay per call. For a single probe, buy `hermes.pulse` - never open a $9 pack for one call.
 - **Call `temple.catalog` once** to refresh prices and tags; do not re-buy it every turn.
 - **Pass `?symbol=SOL` (or similar)** only when the SKU is symbol-scoped; omit it for pantheon and session packs.
@@ -68,4 +68,7 @@ The live OpenAPI and `GET /.well-known/x402` are canonical if this pack lags.
 
 1. `GET /x402/resource/{sku}` - HTTP 402 with a `PAYMENT-REQUIRED` challenge.
 2. Pay through a facilitator, then retry with `PAYMENT-SIGNATURE`.
-3. Receive the AccessPass and receipt, then consume the intelligence payload.
+3. The 200 includes `ownerBrief`, `sources`, `passId` and `receiptId`.
+4. If the body is lost, recover it with no API key: `GET /x402/delivery/{passId}` or `GET /x402/receipts/{receiptId}`. Do not pay again. `GET /x402/receipts` (the list) still requires `agent_api_key`.
+
+PayAI catalog refresh (`pnpm payai:refresh`) is verify-only and never calls `/settle`.
