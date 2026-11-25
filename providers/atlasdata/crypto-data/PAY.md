@@ -12,7 +12,7 @@ openapi:
 
 AtlasData Crypto Data is a pay-per-call x402 API for agents that need compact crypto and chain facts without an account or API key. Paid endpoints return HTTP 402 first and accept USDC on Solana mainnet, plus several EVM networks.
 
-Most narrow lookups cost $0.001 per call. Broader aggregate market endpoints cost up to $0.005 per call. Responses are JSON and are shaped for machine consumption rather than dashboards.
+Most narrow lookups cost $0.001 per call. Broader aggregate market endpoints cost up to $0.01 per call. Responses are JSON and are shaped for machine consumption rather than dashboards.
 
 ## Spend-aware usage
 
