@@ -1,0 +1,227 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Agent402 wallet activity CSV",
+    "version": "1",
+    "contact": {
+      "name": "Agent402",
+      "email": "agent402@proton.me",
+      "url": "https://github.com/agent402-dev/agent402-toolkit"
+    },
+    "description": "Wallet activity CSV for one Solana address and a UTC date range: SOL and token balance changes and network fees, read from Solana RPC. Paid per request over x402 (USDC on Solana). Small ranges only: up to 31 days and 25 transactions per request (larger ranges are sold as Agent402 Bond jobs at /quote). Run by the Agent402 toolkit developer. Facts from the chain only: no prices, labels or tax treatment."
+  },
+  "servers": [
+    {
+      "url": "https://agent402-wallet-csv.agent402-ebc.workers.dev"
+    }
+  ],
+  "paths": {
+    "/x402/wallet-csv": {
+      "post": {
+        "operationId": "walletCsv",
+        "summary": "CSV of one wallet's balance changes and fees in a UTC date range",
+        "description": "One row per balance change of the wallet (SOL and each token) per transaction, with the network fee the wallet paid. 0.05 USDC per request over x402. Small ranges only: up to 31 days and 25 transactions per request (larger ranges are sold as Agent402 Bond jobs at /quote). Malformed input is refused with 400 before any payment is asked; if the work cannot be done, the payment is not settled.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "address",
+                  "from",
+                  "to"
+                ],
+                "properties": {
+                  "address": {
+                    "type": "string",
+                    "description": "Solana wallet address (base58)"
+                  },
+                  "from": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "First day, UTC (YYYY-MM-DD)"
+                  },
+                  "to": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "Last day, UTC (YYYY-MM-DD), inclusive"
+                  }
+                }
+              },
+              "example": {
+                "address": "3re9JiNpwbf3y4c4ywT1mDRnVVHfHss14Pq2xaTaTGYH",
+                "from": "2026-11-23",
+                "to": "2026-11-23"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/WalletCsv"
+          },
+          "400": {
+            "description": "Malformed input. No payment was requested."
+          },
+          "402": {
+            "description": "Payment required (x402 v2, exact scheme, USDC on Solana mainnet)."
+          },
+          "422": {
+            "description": "The request cannot be done (for example more transactions than the per-request limit). The payment was not settled."
+          },
+          "502": {
+            "description": "Solana RPC failed. The payment was not settled."
+          },
+          "504": {
+            "description": "The work took too long. The payment was not settled."
+          }
+        }
+      },
+      "get": {
+        "operationId": "walletCsvByQuery",
+        "summary": "Same as POST, with the input in the query string",
+        "description": "?address=&from=&to= . Same response, price (0.05 USDC per request over x402) and rules as POST.",
+        "parameters": [
+          {
+            "name": "address",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "3re9JiNpwbf3y4c4ywT1mDRnVVHfHss14Pq2xaTaTGYH"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "example": "2026-11-23"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "example": "2026-11-23"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/WalletCsv"
+          },
+          "400": {
+            "description": "Malformed input. No payment was requested."
+          },
+          "402": {
+            "description": "Payment required (x402 v2, exact scheme, USDC on Solana mainnet)."
+          },
+          "422": {
+            "description": "The request cannot be done (for example more transactions than the per-request limit). The payment was not settled."
+          },
+          "502": {
+            "description": "Solana RPC failed. The payment was not settled."
+          },
+          "504": {
+            "description": "The work took too long. The payment was not settled."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "WalletCsvResponse": {
+        "type": "object",
+        "required": [
+          "format",
+          "columns",
+          "csv",
+          "summary",
+          "notes"
+        ],
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "text/csv"
+            ]
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "time_utc, signature, slot, status, asset, mint, amount_change, fee_paid_sol"
+          },
+          "csv": {
+            "type": "string",
+            "description": "CSV text. amount_change is the wallet's balance change in that transaction (SOL including the fee; tokens across all its token accounts for that mint), as a signed decimal string. fee_paid_sol is on the first row of a transaction when the wallet paid the fee."
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "address": {
+                "type": "string"
+              },
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "transactions": {
+                "type": "integer"
+              },
+              "rows": {
+                "type": "integer"
+              },
+              "tokenAccountsRead": {
+                "type": "integer"
+              },
+              "signaturesScanned": {
+                "type": "integer"
+              },
+              "commitment": {
+                "type": "string",
+                "enum": [
+                  "confirmed"
+                ]
+              },
+              "generatedAt": {
+                "type": "string",
+                "description": "ISO 8601, UTC"
+              }
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "How to read the CSV"
+          }
+        }
+      }
+    },
+    "responses": {
+      "WalletCsv": {
+        "description": "CSV of balance changes and fees, with a summary",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/WalletCsvResponse"
+            }
+          }
+        }
+      }
+    }
+  }
+}
