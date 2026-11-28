@@ -32,15 +32,17 @@ The same endpoints are available as tools over stateless MCP at
   array includes `exact` on Solana mainnet USDC, plus Base, Polygon,
   Arbitrum, and other EVM USDC options.
 - Pricing is per delivered row. Each endpoint has a fixed USDC unit price
-  (shown in its OpenAPI description) and quotes a default of 10 rows. On EVM
-  the `upto` scheme charges only the rows delivered.
+  and its own row limits, both shown in its OpenAPI description and request
+  schema: most endpoints default to 5 rows (maximum 10) or 10 rows (maximum
+  20). On EVM the `upto` scheme charges only the rows delivered.
 - Empty results (404), invalid input (422), upstream failures (502), and
   timeouts (504) are not charged.
 
 ## Spend-aware usage
 
-- Set `maxResults` to the smallest number of rows that answers the task;
-  every endpoint accepts it and the quote scales with it.
+- Set `maxResults` to the smallest number of rows that answers the task,
+  within the endpoint's declared `minimum` and `maximum`; every endpoint
+  accepts it and the quote scales with it.
 - Leave optional enrichment flags (`enrichDetails`, `includeReviews`,
   `scrapeDetails`) off unless the task needs those fields.
 - Prefer detail URLs or IDs you already have over a new broad search.
